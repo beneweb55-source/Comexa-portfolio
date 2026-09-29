@@ -49,7 +49,7 @@ import { ProspectsService, type ProspectFromContactRequest } from './prospects.s
  * solide que celle qui etait ecrite, puisque rien ne depend alors d'un refus.
  * Seul un corps JSON malforme rend un `400`, leve par l'analyseur du corps.
  */
-@ApiTags('contact-requests')
+@ApiTags('Demandes de contact')
 @Controller('contact-requests')
 export class ContactRequestConversionController {
   constructor(private readonly prospects: ProspectsService) {}

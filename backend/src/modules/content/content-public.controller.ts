@@ -32,7 +32,7 @@ import { CreateContactRequestDto } from './dto/contact-request.dto.js';
  * sequentielle — un numero qui s'incremente dit combien d'elements existent et
  * dans quel ordre ils ont ete crees.
  */
-@ApiTags('public')
+@ApiTags('Contenu public')
 @Controller('public')
 export class ContentPublicController {
   constructor(

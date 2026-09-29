@@ -52,7 +52,7 @@ import {
  * AUCUN PRIX N'EST ACCEPTE NI RENDU, a aucun endroit de ce fichier. Voir
  * l'entete de `dto/content.dto.ts`.
  */
-@ApiTags('content')
+@ApiTags('Contenu')
 @Controller('content')
 export class ContentAdminController {
   constructor(private readonly content: ContentService) {}

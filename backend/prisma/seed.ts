@@ -1,13 +1,24 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
+  ActivityType,
   BudgetRange,
   ClientStatus,
   ContentStatus,
+  InvoiceStatus,
+  InvoiceType,
   LeadSource,
   LeadStatus,
+  MilestoneStatus,
+  PaymentMethod,
+  PaymentStatus,
   PrismaClient,
+  Priority,
+  ProjectHealth,
+  ProjectStatus,
+  QuoteStatus,
   RoleCode,
+  TaskStatus,
   UserStatus,
 } from '../src/generated/prisma/client.js';
 import {
@@ -22,11 +33,14 @@ import {
   ROLE_PERMISSIONS,
   parsePermissionCode,
 } from '../src/common/auth/permissions.catalogue.js';
-import {
-  REFERENCE_PREFIXES,
-  REFERENCE_SCOPES,
-} from '../src/common/references/reference.scopes.js';
+import { REFERENCE_PREFIXES, REFERENCE_SCOPES } from '../src/common/references/reference.scopes.js';
 import { formatReference } from '../src/modules/counters/reference.js';
+import {
+  buildLineRows,
+  computeTotals,
+  roundMoney,
+  toLineEntries,
+} from '../src/modules/invoices/money.js';
 
 /**
  * DONNEES INITIALES.
@@ -302,7 +316,7 @@ const SERVICES = [
     title: 'Boutique en ligne',
     shortDescription: "Vendre en ligne sans sacrifier la vitesse ni la clarte de l'offre.",
     description:
-      "Catalogues, tunnels de commande, moyens de paiement et suivi des expeditions. Nous privilegions les solutions que votre equipe pourra administrer seule.",
+      'Catalogues, tunnels de commande, moyens de paiement et suivi des expeditions. Nous privilegions les solutions que votre equipe pourra administrer seule.',
     icon: 'shopping-cart',
     features: ['Catalogue', 'Paiement securise', 'Suivi des commandes', 'Tableau de bord'],
     order: 3,
@@ -353,7 +367,7 @@ const PACKAGES = [
   {
     slug: 'essentiel',
     name: 'Essentiel',
-    tagline: "Pour poser une presence en ligne claire et credible.",
+    tagline: 'Pour poser une presence en ligne claire et credible.',
     description:
       "Un site vitrine de quelques pages, concu pour presenter l'activite et recevoir des demandes entrantes.",
     features: [
@@ -429,7 +443,7 @@ const CASE_STUDIES = [
   },
   {
     slug: 'plateforme-de-suivi-logistique',
-    title: "Plateforme de suivi pour un transporteur regional",
+    title: 'Plateforme de suivi pour un transporteur regional',
     clientName: 'Transports Marchetti',
     excerpt:
       'Dix-huit mois de suivi dans des classeurs Excel, et deux personnes a temps plein pour les tenir a jour.',
@@ -447,7 +461,7 @@ const CASE_STUDIES = [
     excerpt:
       "Douze artisans, douze facons de travailler, et un besoin de vendre sans dependre d'une place de marche.",
     content:
-      "Le collectif vendait uniquement sur les marches et via une place de marche prelevant une commission importante.\n\nNous avons concu une boutique commune ou chaque artisan gere son propre catalogue, avec une facturation unique par le collectif. Le point delicat etait la gestion des stocks : un meme atelier alimentant deux boutiques.\n\nLa boutique est en ligne et les artisans administrent leurs fiches produits eux-memes.",
+      'Le collectif vendait uniquement sur les marches et via une place de marche prelevant une commission importante.\n\nNous avons concu une boutique commune ou chaque artisan gere son propre catalogue, avec une facturation unique par le collectif. Le point delicat etait la gestion des stocks : un meme atelier alimentant deux boutiques.\n\nLa boutique est en ligne et les artisans administrent leurs fiches produits eux-memes.',
     techStack: ['Boutique en ligne', 'PostgreSQL', 'Stockage objet compatible S3'],
     categorySlug: 'e-commerce',
     order: 3,
@@ -473,7 +487,7 @@ const TESTIMONIALS = [
     authorRole: 'Directrice',
     authorCompany: 'Federation des Vignobles du Sud-Ouest',
     quote:
-      "La refonte a change notre quotidien : nous publions nos actualites nous-memes, sans attendre personne. Le cadrage initial a ete serieux, on nous a pose des questions que nous ne nous etions pas posees.",
+      'La refonte a change notre quotidien : nous publions nos actualites nous-memes, sans attendre personne. Le cadrage initial a ete serieux, on nous a pose des questions que nous ne nous etions pas posees.',
     rating: 5,
     isPublished: true,
     order: 1,
@@ -483,7 +497,7 @@ const TESTIMONIALS = [
     authorRole: 'Directeur exploitation',
     authorCompany: 'Transports Marchetti',
     quote:
-      "Ils ont passe du temps avec les equipes avant de developper quoi que ce soit. Le resultat correspond vraiment a notre facon de travailler, pas a une methode generique.",
+      'Ils ont passe du temps avec les equipes avant de developper quoi que ce soit. Le resultat correspond vraiment a notre facon de travailler, pas a une methode generique.',
     rating: 5,
     isPublished: true,
     order: 2,
@@ -509,16 +523,16 @@ const PARTNERS = [
 
 const FAQS = [
   {
-    question: "Combien de temps dure un projet de site ?",
+    question: 'Combien de temps dure un projet de site ?',
     answer:
-      "Pour un site vitrine, comptez quatre a six semaines entre le cadrage et la mise en ligne. Un projet sur mesure demande davantage : la phase de cadrage a elle seule prend souvent deux a trois semaines. Un planning vous est remis au demarrage, avec les livrables attendus de chaque cote.",
+      'Pour un site vitrine, comptez quatre a six semaines entre le cadrage et la mise en ligne. Un projet sur mesure demande davantage : la phase de cadrage a elle seule prend souvent deux a trois semaines. Un planning vous est remis au demarrage, avec les livrables attendus de chaque cote.',
     category: 'Projets',
     order: 1,
   },
   {
     question: 'Qui est proprietaire du code et des fichiers sources ?',
     answer:
-      "Vous. Le code, les maquettes et les fichiers sources vous appartiennent a la livraison finale. Nous conservons le droit de citer le projet dans nos references, sauf demande contraire de votre part.",
+      'Vous. Le code, les maquettes et les fichiers sources vous appartiennent a la livraison finale. Nous conservons le droit de citer le projet dans nos references, sauf demande contraire de votre part.',
     category: 'Projets',
     order: 2,
   },
@@ -539,7 +553,7 @@ const FAQS = [
   {
     question: 'Que se passe-t-il si je veux changer quelque chose apres la livraison ?',
     answer:
-      "Vous deposez une demande de modification depuis votre espace client. Elle est examinee et chiffree si elle sort du perimetre initial. Les corrections de defauts, elles, restent en garantie pendant la periode prevue au contrat.",
+      'Vous deposez une demande de modification depuis votre espace client. Elle est examinee et chiffree si elle sort du perimetre initial. Les corrections de defauts, elles, restent en garantie pendant la periode prevue au contrat.',
     category: 'Apres livraison',
     order: 5,
   },
@@ -646,6 +660,626 @@ async function seedPublicContent(): Promise<void> {
 }
 
 // -----------------------------------------------------------------------------
+// Dossier de demonstration : la chaine metier complete
+// -----------------------------------------------------------------------------
+
+/**
+ * DEVIS -> ACCEPTATION -> PROJET -> EQUIPE -> TACHES -> JALONS -> FACTURE ->
+ * PAIEMENT, ecrit une fois pour toutes.
+ *
+ * POURQUOI CE BLOC EXISTE. Sans lui, la base restait avec des comptes, un client
+ * et un prospect qualifie — donc un tableau de bord vide. Le frontend, lui, a
+ * besoin de lire des montants reels, un avancement, des echeances et un
+ * encaissement pour rendre ses ecrans ; les inventer cote client serait la seule
+ * alternative, et c'est exactement ce que le cahier des charges interdit.
+ *
+ * CE QUI RESTE VOLONTAIREMENT INACHEVE. `DEV-2026-0002` est un devis SENT vise
+ * par le PROSPECT : c'est le point de depart que le developpeur peut parcourir
+ * par l'API, l'acceptation creant alors le client, le projet et la facture par le
+ * chemin reel. Le dossier accepte (`DEV-2026-0001`, cote CLIENT) montre l'etat
+ * d'arrivee. Les DEUX branches de la regle « prospect OU client » sont donc
+ * presentes en base — ce qui n'est pas un detail : c'est la seule facon de voir
+ * a l'ecran qu'un devis vise par un prospect et un devis vise par un client ne
+ * s'affichent pas dans la meme liste.
+ *
+ * LES MONTANTS SONT CALCULES, PAS SAISIS. Les totaux viennent de `computeTotals`,
+ * les lignes de `buildLineRows`, et la facture reutilise les ENTREES DU DEVIS.
+ * C'est la seule facon d'obtenir ici ce que le module factures garantit par
+ * ailleurs : la facture nee d'un devis accepte porte le meme total que lui.
+ * Recopier « 7668.00 » a la main finirait par produire une facture qui ne
+ * correspond plus a ses lignes, sans que rien ne le signale.
+ *
+ * LES DATES SONT RELATIVES A L'EXECUTION. Une echeance datee en dur devient « en
+ * retard » l'annee suivante, et un tableau de bord de demonstration qui affiche
+ * tout en rouge ne montre plus rien. L'ANNEE DE NUMEROTATION, elle, reste fixe
+ * (voir `REFERENCE_SEED_YEAR`) : c'est la cle de l'upsert, et la faire deriver
+ * casserait l'idempotence affirmee en tete de ce fichier.
+ *
+ * IDEMPOTENCE, ENFIN, ET ELLE SE LIT DANS LA FORME DU CODE. Tout ce qui porte une
+ * `reference` unique est un `upsert` sur cette reference (devis, projet, facture,
+ * paiement) ; tout le reste est un enfant sans cle, ecrit UNE SEULE FOIS sous
+ * condition de comptage — le meme procede que l'historique de statuts du
+ * prospect plus haut, et pour la meme raison : sans contrainte d'unicite, une
+ * seconde execution empilerait des doublons. Les appartenances d'equipe, elles,
+ * ont une cle composee `(projectId, userId)` et sont donc des `upsert`.
+ */
+const DOSSIER_DEPOSIT_PERCENT = 40;
+const DOSSIER_TAX_RATE = '20';
+const DAY_MS = 86_400_000;
+
+interface DossierIds {
+  readonly clientId: string;
+  readonly clientAccountId: string | null;
+  readonly prospectId: string;
+  readonly salesUserId: string | null;
+  readonly projectManagerUserId: string | null;
+  readonly developerUserId: string | null;
+  readonly designerUserId: string | null;
+}
+
+async function seedBusinessDossier(ids: DossierIds): Promise<void> {
+  const now = Date.now();
+  const daysAgo = (days: number): Date => new Date(now - days * DAY_MS);
+  const daysAhead = (days: number): Date => new Date(now + days * DAY_MS);
+
+  const quoteReference = formatReference(REFERENCE_PREFIXES.QUOTE, REFERENCE_SEED_YEAR, 1);
+  const prospectQuoteReference = formatReference(REFERENCE_PREFIXES.QUOTE, REFERENCE_SEED_YEAR, 2);
+  const projectReference = formatReference(REFERENCE_PREFIXES.PROJECT, REFERENCE_SEED_YEAR, 1);
+  const invoiceReference = formatReference(REFERENCE_PREFIXES.INVOICE, REFERENCE_SEED_YEAR, 1);
+  const paymentReference = formatReference(REFERENCE_PREFIXES.PAYMENT, REFERENCE_SEED_YEAR, 1);
+
+  // --- Devis accepte (cote CLIENT) ------------------------------------------
+  // Ne porte pas de `prospectId` : c'est un devis complementaire sur un client
+  // existant, l'autre branche de la regle. Un devis accepte porte legitimement
+  // les deux champs quand il vient d'un prospect converti ; celui-ci n'a pas
+  // cette origine, et le laisser vide est la verite.
+
+  const quoteEntries = toLineEntries([
+    {
+      title: 'Boutique en ligne',
+      description: 'Catalogue, panier, paiement en ligne et espace client.',
+      quantity: 1,
+      unitPrice: '4500.00',
+    },
+    {
+      title: 'Refonte du site vitrine',
+      description: 'Mise en page et parcours repenses, identite visuelle conservee.',
+      quantity: 1,
+      unitPrice: '2100.00',
+      discountPercent: 10,
+    },
+  ]);
+  const quoteTotals = computeTotals(quoteEntries, DOSSIER_TAX_RATE);
+  const quoteRows = buildLineRows(quoteEntries, quoteTotals, DOSSIER_TAX_RATE);
+
+  const terms = 'Acompte de 40 % a la commande, solde a la mise en ligne.';
+
+  const acceptedQuote = await prisma.quote.upsert({
+    where: { reference: quoteReference },
+    create: {
+      reference: quoteReference,
+      sequence: 1,
+      year: REFERENCE_SEED_YEAR,
+      clientId: ids.clientId,
+      subject: 'Boutique en ligne et refonte du site vitrine',
+      notes: 'Devis accepte par Marc Delaunay, directeur.',
+      terms,
+      status: QuoteStatus.ACCEPTED,
+      issueDate: daysAgo(45),
+      validUntil: daysAhead(15),
+      sentAt: daysAgo(44),
+      viewedAt: daysAgo(43),
+      acceptedAt: daysAgo(40),
+      acceptedByName: 'Marc Delaunay',
+      acceptedById: ids.clientAccountId,
+      currency: 'EUR',
+      subtotal: quoteTotals.subtotal,
+      discountAmount: quoteTotals.discountAmount,
+      taxRate: quoteTotals.taxRate,
+      taxAmount: quoteTotals.taxAmount,
+      total: quoteTotals.total,
+      createdById: ids.salesUserId,
+    },
+    update: {
+      clientId: ids.clientId,
+      status: QuoteStatus.ACCEPTED,
+      subtotal: quoteTotals.subtotal,
+      discountAmount: quoteTotals.discountAmount,
+      taxRate: quoteTotals.taxRate,
+      taxAmount: quoteTotals.taxAmount,
+      total: quoteTotals.total,
+      acceptedByName: 'Marc Delaunay',
+      acceptedById: ids.clientAccountId,
+    },
+    select: { id: true },
+  });
+
+  const quoteItemCount = await prisma.quoteItem.count({ where: { quoteId: acceptedQuote.id } });
+  if (quoteItemCount === 0) {
+    await prisma.quoteItem.createMany({
+      data: quoteRows.map((row) => ({ quoteId: acceptedQuote.id, ...row })),
+    });
+  }
+
+  // --- Devis en attente (cote PROSPECT) -------------------------------------
+  // Le point de depart du parcours : rien n'en decoule encore, et c'est voulu.
+
+  const prospectEntries = toLineEntries([
+    {
+      title: 'Boutique en ligne',
+      description: 'Catalogue et paiement en ligne, sur la base du site actuel.',
+      quantity: 1,
+      unitPrice: '3900.00',
+    },
+    {
+      title: 'Formation a la prise en main',
+      description: 'Deux demi-journees sur site.',
+      quantity: 2,
+      unitPrice: '350.00',
+      discountPercent: 10,
+    },
+  ]);
+  const prospectTotals = computeTotals(prospectEntries, DOSSIER_TAX_RATE);
+  const prospectRows = buildLineRows(prospectEntries, prospectTotals, DOSSIER_TAX_RATE);
+
+  const prospectQuote = await prisma.quote.upsert({
+    where: { reference: prospectQuoteReference },
+    create: {
+      reference: prospectQuoteReference,
+      sequence: 2,
+      year: REFERENCE_SEED_YEAR,
+      prospectId: ids.prospectId,
+      subject: 'Boutique en ligne et formation',
+      notes: 'Devis envoye, en attente de decision.',
+      terms,
+      status: QuoteStatus.SENT,
+      issueDate: daysAgo(6),
+      validUntil: daysAhead(24),
+      sentAt: daysAgo(5),
+      currency: 'EUR',
+      subtotal: prospectTotals.subtotal,
+      discountAmount: prospectTotals.discountAmount,
+      taxRate: prospectTotals.taxRate,
+      taxAmount: prospectTotals.taxAmount,
+      total: prospectTotals.total,
+      createdById: ids.salesUserId,
+    },
+    update: {
+      prospectId: ids.prospectId,
+      status: QuoteStatus.SENT,
+      subtotal: prospectTotals.subtotal,
+      discountAmount: prospectTotals.discountAmount,
+      taxRate: prospectTotals.taxRate,
+      taxAmount: prospectTotals.taxAmount,
+      total: prospectTotals.total,
+    },
+    select: { id: true },
+  });
+
+  const prospectItemCount = await prisma.quoteItem.count({
+    where: { quoteId: prospectQuote.id },
+  });
+  if (prospectItemCount === 0) {
+    await prisma.quoteItem.createMany({
+      data: prospectRows.map((row) => ({ quoteId: prospectQuote.id, ...row })),
+    });
+  }
+
+  // --- Projet -----------------------------------------------------------------
+  // `quoteId` est unique : c'est la relation un-a-un « un devis accepte donne au
+  // plus un projet ». Le budget est le total du devis, pas un montant invente.
+
+  const project = await prisma.project.upsert({
+    where: { reference: projectReference },
+    create: {
+      reference: projectReference,
+      name: 'Boutique en ligne Maison Vasseur',
+      code: 'MV-BOUTIQUE',
+      description: 'Vente en ligne des produits de la maison, refonte du vitrine.',
+      clientId: ids.clientId,
+      quoteId: acceptedQuote.id,
+      status: ProjectStatus.IN_PROGRESS,
+      health: ProjectHealth.ON_TRACK,
+      priority: Priority.NORMAL,
+      startDate: daysAgo(38),
+      dueDate: daysAhead(22),
+      budget: quoteTotals.total,
+      currency: 'EUR',
+      progressPercent: 60,
+      managerId: ids.projectManagerUserId,
+      createdById: ids.salesUserId,
+    },
+    update: {
+      quoteId: acceptedQuote.id,
+      managerId: ids.projectManagerUserId,
+      budget: quoteTotals.total,
+      progressPercent: 60,
+      status: ProjectStatus.IN_PROGRESS,
+    },
+    select: { id: true },
+  });
+
+  // --- Equipe -----------------------------------------------------------------
+  // Cle composee `(projectId, userId)` : un `upsert` suffit, et `leftAt` est
+  // remis a null pour qu'une execution apres un depart remette la personne a
+  // bord — sinon le seed decrirait une equipe que le projet n'a plus.
+
+  const members: { userId: string | null; projectRole: string; allocationPercent: number }[] = [
+    {
+      userId: ids.projectManagerUserId,
+      projectRole: 'Chef de projet',
+      allocationPercent: 30,
+    },
+    { userId: ids.developerUserId, projectRole: 'Developpeur full-stack', allocationPercent: 60 },
+    { userId: ids.designerUserId, projectRole: 'Designer UI', allocationPercent: 25 },
+  ];
+
+  for (const member of members) {
+    if (member.userId === null) continue;
+    await prisma.projectMember.upsert({
+      where: { projectId_userId: { projectId: project.id, userId: member.userId } },
+      create: {
+        projectId: project.id,
+        userId: member.userId,
+        projectRole: member.projectRole,
+        allocationPercent: member.allocationPercent,
+      },
+      update: {
+        projectRole: member.projectRole,
+        allocationPercent: member.allocationPercent,
+        leftAt: null,
+      },
+    });
+  }
+
+  // --- Jalons -----------------------------------------------------------------
+  // Deux jalons, un atteint et un a venir : c'est ce qui rend l'avancement
+  // lisible. Les identifiants sont RELUS ensuite plutot que gardes en memoire,
+  // pour que le chemin « premiere execution » et le chemin « execution suivante »
+  // (ou les jalons existent deja) produisent le meme resultat.
+
+  const milestoneCount = await prisma.milestone.count({ where: { projectId: project.id } });
+  if (milestoneCount === 0) {
+    await prisma.milestone.createMany({
+      data: [
+        {
+          projectId: project.id,
+          title: 'Cadrage et maquettes',
+          description: 'Ateliers de cadrage, arborescence et maquettes validees.',
+          status: MilestoneStatus.REACHED,
+          dueDate: daysAgo(20),
+          reachedAt: daysAgo(21),
+          order: 0,
+        },
+        {
+          projectId: project.id,
+          title: 'Mise en ligne',
+          description: 'Recette conjointe, reprise des contenus et ouverture au public.',
+          status: MilestoneStatus.PENDING,
+          dueDate: daysAhead(18),
+          order: 1,
+        },
+      ],
+    });
+  }
+
+  const milestones = await prisma.milestone.findMany({
+    where: { projectId: project.id },
+    orderBy: { order: 'asc' },
+    select: { id: true },
+  });
+  const cadrageId = milestones[0]?.id ?? null;
+  const miseEnLigneId = milestones[1]?.id ?? null;
+
+  // --- Taches -----------------------------------------------------------------
+  // DEUX taches internes (`isClientVisible: false`) pour trois partagees : la
+  // distinction doit etre visible dans les donnees, sans quoi l'espace client ne
+  // peut pas etre teste autrement qu'en fabriquant une fuite.
+
+  const taskCount = await prisma.task.count({ where: { projectId: project.id } });
+  if (taskCount === 0) {
+    await prisma.task.createMany({
+      data: [
+        {
+          projectId: project.id,
+          milestoneId: cadrageId,
+          title: 'Atelier de cadrage',
+          status: TaskStatus.DONE,
+          completedAt: daysAgo(31),
+          estimateMinutes: 180,
+          assigneeId: ids.projectManagerUserId,
+          reporterId: ids.projectManagerUserId,
+          isClientVisible: true,
+          order: 0,
+        },
+        {
+          projectId: project.id,
+          milestoneId: cadrageId,
+          title: 'Maquettes des parcours de commande',
+          status: TaskStatus.DONE,
+          completedAt: daysAgo(22),
+          estimateMinutes: 720,
+          assigneeId: ids.designerUserId,
+          reporterId: ids.projectManagerUserId,
+          isClientVisible: true,
+          order: 1,
+        },
+        {
+          projectId: project.id,
+          milestoneId: miseEnLigneId,
+          title: 'Integration du catalogue',
+          status: TaskStatus.IN_PROGRESS,
+          dueDate: daysAhead(9),
+          estimateMinutes: 1440,
+          assigneeId: ids.developerUserId,
+          reporterId: ids.projectManagerUserId,
+          isClientVisible: true,
+          order: 2,
+        },
+        {
+          projectId: project.id,
+          milestoneId: miseEnLigneId,
+          title: 'Recette technique interne',
+          status: TaskStatus.TODO,
+          dueDate: daysAhead(16),
+          estimateMinutes: 480,
+          assigneeId: ids.developerUserId,
+          reporterId: ids.projectManagerUserId,
+          isClientVisible: false,
+          order: 3,
+        },
+        {
+          projectId: project.id,
+          title: 'Inventaire des contenus existants',
+          status: TaskStatus.BLOCKED,
+          dueDate: daysAhead(6),
+          estimateMinutes: 600,
+          assigneeId: ids.designerUserId,
+          reporterId: ids.projectManagerUserId,
+          isClientVisible: false,
+          order: 4,
+        },
+      ],
+    });
+  }
+
+  // --- Temps passe ------------------------------------------------------------
+  // En minutes entieres, comme la colonne : une duree qui finit en facturation ne
+  // s'arrondit pas au flottant.
+
+  const timeEntryCount = await prisma.timeEntry.count({ where: { projectId: project.id } });
+  if (timeEntryCount === 0) {
+    // `userId` est OBLIGATOIRE sur un temps passe : une duree sans auteur n'a
+    // pas de sens. Les identifiants de role sont donc testes avant d'ecrire,
+    // plutot que remplaces par une chaine vide — qui violerait la cle etrangere
+    // au premier insert, et donnerait une erreur parlant de contrainte la ou le
+    // probleme est un compte manquant.
+    const timeEntryRows: {
+      userId: string;
+      spentOn: Date;
+      minutes: number;
+      description: string;
+      billable: boolean;
+    }[] = [];
+
+    if (ids.developerUserId !== null) {
+      timeEntryRows.push({
+        userId: ids.developerUserId,
+        spentOn: daysAgo(25),
+        minutes: 420,
+        description: 'Mise en place du socle et du catalogue.',
+        billable: true,
+      });
+    }
+    if (ids.designerUserId !== null) {
+      timeEntryRows.push({
+        userId: ids.designerUserId,
+        spentOn: daysAgo(18),
+        minutes: 240,
+        description: 'Declinaisons des maquettes validees.',
+        billable: true,
+      });
+    }
+
+    if (timeEntryRows.length > 0) {
+      await prisma.timeEntry.createMany({
+        data: timeEntryRows.map((row) => ({ projectId: project.id, ...row })),
+      });
+    }
+  }
+
+  // --- Facture ----------------------------------------------------------------
+  // Memes entrees, meme taux que le devis : le total est donc identique par
+  // construction, et non parce qu'il a ete recopie.
+
+  const depositAmount = roundMoney(quoteTotals.total.times(DOSSIER_DEPOSIT_PERCENT).dividedBy(100));
+
+  const invoice = await prisma.invoice.upsert({
+    where: { reference: invoiceReference },
+    create: {
+      reference: invoiceReference,
+      sequence: 1,
+      year: REFERENCE_SEED_YEAR,
+      clientId: ids.clientId,
+      projectId: project.id,
+      quoteId: acceptedQuote.id,
+      type: InvoiceType.STANDARD,
+      status: InvoiceStatus.PARTIALLY_PAID,
+      subject: 'Boutique en ligne et refonte du site vitrine',
+      notes: `Facture emise apres acceptation du devis ${quoteReference}.`,
+      terms,
+      issueDate: daysAgo(30),
+      dueDate: daysAhead(15),
+      currency: 'EUR',
+      subtotal: quoteTotals.subtotal,
+      discountAmount: quoteTotals.discountAmount,
+      taxRate: quoteTotals.taxRate,
+      taxAmount: quoteTotals.taxAmount,
+      total: quoteTotals.total,
+      // `amountPaid` est le cumul des paiements REUSSIS et rien d'autre. Ici il
+      // vaut exactement le seul encaissement ecrit plus bas — la regle que
+      // `recomputePaymentState` applique cote service, reproduite a la main
+      // parce qu'une ecriture directe ne la declenche pas.
+      amountPaid: depositAmount,
+      // Partiellement payee : `paidAt` reste vide, sinon la vue d'encours
+      // compterait une facture reglee.
+      paidAt: null,
+      sentAt: daysAgo(30),
+      createdById: ids.salesUserId,
+    },
+    update: {
+      status: InvoiceStatus.PARTIALLY_PAID,
+      projectId: project.id,
+      quoteId: acceptedQuote.id,
+      subtotal: quoteTotals.subtotal,
+      discountAmount: quoteTotals.discountAmount,
+      taxRate: quoteTotals.taxRate,
+      taxAmount: quoteTotals.taxAmount,
+      total: quoteTotals.total,
+      amountPaid: depositAmount,
+      paidAt: null,
+    },
+    select: { id: true },
+  });
+
+  const invoiceItemCount = await prisma.invoiceItem.count({ where: { invoiceId: invoice.id } });
+  if (invoiceItemCount === 0) {
+    await prisma.invoiceItem.createMany({
+      data: quoteRows.map((row) => ({ invoiceId: invoice.id, ...row })),
+    });
+  }
+
+  // --- Paiement ---------------------------------------------------------------
+  // SUCCEEDED, et c'est la seule chose qui le fasse compter dans `amountPaid`.
+
+  await prisma.payment.upsert({
+    where: { reference: paymentReference },
+    create: {
+      reference: paymentReference,
+      invoiceId: invoice.id,
+      amount: depositAmount,
+      currency: 'EUR',
+      method: PaymentMethod.BANK_TRANSFER,
+      status: PaymentStatus.SUCCEEDED,
+      paidAt: daysAgo(12),
+      externalReference: 'VIR-4471',
+      receivedById: ids.salesUserId,
+      notes: 'Acompte de 40 % regle par virement.',
+    },
+    update: {
+      invoiceId: invoice.id,
+      amount: depositAmount,
+      status: PaymentStatus.SUCCEEDED,
+      receivedById: ids.salesUserId,
+    },
+    select: { id: true },
+  });
+
+  // --- Journal du projet ------------------------------------------------------
+  // Une ecriture directe ne produit aucun evenement : sans ce bloc, la timeline
+  // du projet serait vide, et le frontend ne pourrait pas la tester. Deux lignes
+  // sont visibles du client, trois ne le sont pas — la encore, la distinction
+  // doit exister en base.
+  //
+  // CE BLOC EST LE SEUL QUI EFFACE AVANT D'ECRIRE, et il y a deux raisons, toutes
+  // les deux verifiees plutot que supposees :
+  //
+  //  1. LE TEXTE DU JOURNAL APPARTIENT AU CODE. Un libelle de tache, lui, est
+  //     une donnee qu'un utilisateur peut avoir modifiee ; un message de journal
+  //     est une phrase que le seed ecrit. Le protege par un comptage, c'est
+  //     garder indefiniment un texte qu'on vient de corriger dans ce fichier —
+  //     l'auteur du changement ne voit rien se passer et conclut que le seed ne
+  //     marche pas. C'est exactement ce qui est arrive ici : la premiere version
+  //     de ce journal affirmait une transition `PLANNED -> IN_PROGRESS` que le
+  //     projet n'a jamais connue, la correction a ete ecrite, et la base a
+  //     continue d'afficher l'ancienne phrase.
+  //  2. AUCUNE CLE ETRANGERE NE POINTE VERS `activities`, contrairement aux
+  //     taches (`activity.taskId`, `timeEntry.taskId`, `document.taskId`). On
+  //     peut donc remplacer le journal sans casser le moindre lien — ce qui
+  //     n'est PAS vrai des taches, d'ou le comptage qui les protege.
+  //
+  // Les autres enfants (lignes de devis, de facture, jalons, taches, temps)
+  // gardent leur garde de comptage : leur contenu est une donnee, et les
+  // remplacer a chaque execution detruirait un travail fait par l'API sur le
+  // dossier de demonstration.
+  //
+  // `createdAt` EST ECRIT A LA MAIN, et c'est necessaire. La colonne a une valeur
+  // par defaut (`now()`), donc cinq lignes ecrites en une fois porteraient le
+  // MEME horodatage : la timeline afficherait cinq evenements a la seconde pres,
+  // alors que les dates du projet s'etalent sur un mois et demi. Les dates
+  // ci-dessous suivent l'ordre reel des jalons, du devis accepte a la mise en
+  // ligne — un journal qu'on peut relire.
+  //
+  // AUCUN EVENEMENT N'AFFIRME UNE TRANSITION QUI N'A PAS EU LIEU. Le projet est
+  // cree directement `IN_PROGRESS` ; la charge utile ne porte donc que l'etat
+  // ATTEINT, ce que les donnees disent exactement.
+
+  await prisma.activity.deleteMany({ where: { projectId: project.id } });
+  await prisma.activity.createMany({
+    data: [
+      {
+        projectId: project.id,
+        clientId: ids.clientId,
+        actorId: ids.salesUserId,
+        type: ActivityType.SYSTEM,
+        message: `Projet cree depuis le devis accepte ${quoteReference}.`,
+        createdAt: daysAgo(38),
+        isClientVisible: false,
+      },
+      {
+        projectId: project.id,
+        clientId: ids.clientId,
+        actorId: ids.projectManagerUserId,
+        type: ActivityType.STATUS_CHANGE,
+        message: 'Le projet demarre, statut IN_PROGRESS.',
+        metadata: { to: ProjectStatus.IN_PROGRESS },
+        // UN JOUR PLUS TARD QUE LA CREATION, et c'est deliberé. Les deux
+        // evenements portaient le meme `daysAgo(38)`, donc le meme horodatage :
+        // une liste triee sur `createdAt` seul les rendait dans un ordre
+        // arbitraire, et « le projet demarre » pouvait s'afficher AVANT « projet
+        // cree ». Une timeline de demonstration qui commence par la fin ne montre
+        // pas ce qu'elle pretend montrer.
+        createdAt: daysAgo(37),
+        isClientVisible: true,
+      },
+      {
+        projectId: project.id,
+        clientId: ids.clientId,
+        actorId: ids.projectManagerUserId,
+        type: ActivityType.MILESTONE_REACHED,
+        message: 'Jalon atteint : Cadrage et maquettes.',
+        createdAt: daysAgo(21),
+        isClientVisible: true,
+      },
+      {
+        projectId: project.id,
+        actorId: ids.developerUserId,
+        type: ActivityType.TASK_COMPLETED,
+        message: 'Tache terminee : Maquettes des parcours de commande.',
+        createdAt: daysAgo(22),
+        isClientVisible: false,
+      },
+      {
+        projectId: project.id,
+        actorId: ids.developerUserId,
+        type: ActivityType.TIME_LOGGED,
+        message: '7 h passees sur Integration du catalogue.',
+        createdAt: daysAgo(25),
+        isClientVisible: false,
+      },
+    ],
+  });
+
+  console.log(`  devis accepte       ${quoteReference}  total ${quoteTotals.total.toFixed(2)}`);
+  console.log(
+    `  devis en attente    ${prospectQuoteReference}  total ${prospectTotals.total.toFixed(2)}`,
+  );
+  console.log(`  projet              ${projectReference}  avancement 60 %`);
+  console.log(`  facture             ${invoiceReference}  encaisse ${depositAmount.toFixed(2)}`);
+  console.log(`  paiement            ${paymentReference}  ${PaymentMethod.BANK_TRANSFER}`);
+}
+
+// -----------------------------------------------------------------------------
 // Orchestration
 // -----------------------------------------------------------------------------
 
@@ -728,11 +1362,22 @@ async function main(): Promise<void> {
 
   const createdTeam: string[] = [];
   let salesUserId: string | null = null;
+  // Les trois autres identifiants servent au dossier de demonstration plus bas
+  // (chef de projet, equipe, temps passe). Ils sont collectes DANS cette boucle
+  // et non retrouves plus tard par une seconde requete : `upsertAccount` vient
+  // de rendre l'id, et le redemander par adresse serait une seconde source de
+  // verite pour la meme ligne.
+  let projectManagerUserId: string | null = null;
+  let developerUserId: string | null = null;
+  let designerUserId: string | null = null;
 
   for (const spec of team) {
     const result = await upsertAccount(spec, demoHash);
     if (result.created) createdTeam.push(spec.email);
     if (spec.role === RoleCode.SALES) salesUserId = result.id;
+    if (spec.role === RoleCode.PROJECT_MANAGER) projectManagerUserId = result.id;
+    if (spec.role === RoleCode.DEVELOPER) developerUserId = result.id;
+    if (spec.role === RoleCode.DESIGNER) designerUserId = result.id;
     console.log(`  ${spec.email.padEnd(34)} ${spec.role}`);
   }
 
@@ -850,9 +1495,27 @@ async function main(): Promise<void> {
     });
   }
 
+  // --- Dossier de demonstration --------------------------------------------
+  console.log('\nDossier de demonstration');
+  await seedBusinessDossier({
+    clientId: client.id,
+    clientAccountId: clientAccount.id,
+    prospectId: prospect.id,
+    salesUserId,
+    projectManagerUserId,
+    developerUserId,
+    designerUserId,
+  });
+
   // --- Numerotation ---------------------------------------------------------
   // On aligne les compteurs sur ce qui vient d'etre insere, pour que le premier
   // document cree par l'API prenne le numero SUIVANT et non un numero deja pris.
+  //
+  // CHAQUE VALEUR EST LE DERNIER NUMERO REELLEMENT UTILISE, et pas un 1 de
+  // principe : `QUOTE` vaut 2 parce que le dossier ci-dessus ecrit `DEV-2026-0001`
+  // ET `DEV-2026-0002`. Laisser 1 ferait renvoyer `DEV-2026-0002` au premier devis
+  // cree par l'API, et la collision se declarerait en violation d'unicite
+  // Prisma — c'est-a-dire a un endroit qui ne parle pas de numerotation.
 
   await prisma.counter.upsert({
     where: { scope_year: { scope: REFERENCE_SCOPES.PROSPECT, year: REFERENCE_SEED_YEAR } },
@@ -864,6 +1527,20 @@ async function main(): Promise<void> {
     create: { scope: REFERENCE_SCOPES.CLIENT, year: REFERENCE_SEED_YEAR, value: 1 },
     update: { value: 1 },
   });
+
+  const dossierCounters: { scope: string; value: number }[] = [
+    { scope: REFERENCE_SCOPES.QUOTE, value: 2 },
+    { scope: REFERENCE_SCOPES.PROJECT, value: 1 },
+    { scope: REFERENCE_SCOPES.INVOICE, value: 1 },
+    { scope: REFERENCE_SCOPES.PAYMENT, value: 1 },
+  ];
+  for (const counter of dossierCounters) {
+    await prisma.counter.upsert({
+      where: { scope_year: { scope: counter.scope, year: REFERENCE_SEED_YEAR } },
+      create: { scope: counter.scope, year: REFERENCE_SEED_YEAR, value: counter.value },
+      update: { value: counter.value },
+    });
+  }
 
   console.log('\nContenu public');
   await seedPublicContent();
@@ -906,7 +1583,24 @@ async function main(): Promise<void> {
     `    Prospect ${formatReference(REFERENCE_PREFIXES.PROSPECT, REFERENCE_SEED_YEAR, 1)} (Boulangerie Lefranc), statut QUALIFIED`,
   );
   console.log('    Responsable : sofia.benali@comexa.example');
-  console.log('    Conversion possible vers un client, puis un projet et une facture.');
+  console.log(
+    `    Un devis l\'attend : ${formatReference(REFERENCE_PREFIXES.QUOTE, REFERENCE_SEED_YEAR, 2)}, statut SENT.`,
+  );
+  console.log('    Son acceptation cree le client, le projet et la facture par le chemin reel.');
+
+  console.log('\n  Dossier deja en cours, cote client :');
+  console.log(
+    `    Client ${formatReference(REFERENCE_PREFIXES.CLIENT, REFERENCE_SEED_YEAR, 1)} (Maison Vasseur)`,
+  );
+  console.log(
+    `    Devis ${formatReference(REFERENCE_PREFIXES.QUOTE, REFERENCE_SEED_YEAR, 1)} ACCEPTED -> ` +
+      `projet ${formatReference(REFERENCE_PREFIXES.PROJECT, REFERENCE_SEED_YEAR, 1)} IN_PROGRESS -> ` +
+      `facture ${formatReference(REFERENCE_PREFIXES.INVOICE, REFERENCE_SEED_YEAR, 1)} PARTIALLY_PAID -> ` +
+      `paiement ${formatReference(REFERENCE_PREFIXES.PAYMENT, REFERENCE_SEED_YEAR, 1)} SUCCEEDED`,
+  );
+  console.log(
+    '    Comptes : marc.delaunay@comexa.example (CLIENT), sofia.benali@comexa.example (SALES)',
+  );
 
   console.log('\nTermine.\n');
 }

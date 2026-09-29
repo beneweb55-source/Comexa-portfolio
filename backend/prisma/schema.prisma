@@ -861,8 +861,20 @@ model Activity {
 // =============================================================================
 
 /// Devis. Il peut viser un PROSPECT (avant acceptation) ou un CLIENT (devis
-/// complementaire). Exactement l'un des deux est renseigne ; la contrainte est
-/// posee en base par la migration.
+/// complementaire).
+///
+/// LA REGLE EST « EXACTEMENT L'UN DES DEUX », ET ELLE N'EST PAS POSEE EN BASE.
+/// Ce commentaire a affirme le contraire — « la contrainte est posee en base par
+/// la migration » — et c'etait faux. La migration ne contient aucun CHECK : le
+/// seul mot « CHECK » qu'on y trouve est la valeur `CHECK` de l'enum
+/// `PaymentMethod`, c'est-a-dire un cheque papier. Un devis ACCEPTE porte
+/// d'ailleurs legitimement les DEUX champs : `prospectId` garde l'origine,
+/// `clientId` est pose par l'acceptation.
+///
+/// La regle est donc tenue par `QuotesService.resolveTarget`, et par lui seul ;
+/// `quotes.service.ts` le dit deja la ou il l'applique. Consequence a connaitre
+/// pour toute ecriture directe en base — seed, import, reprise de donnees : rien
+/// n'empeche un devis vise par les deux, ni par aucun.
 model Quote {
   id        String @id @default(cuid())
   reference String @unique

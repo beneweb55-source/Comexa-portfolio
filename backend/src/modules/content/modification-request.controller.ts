@@ -36,7 +36,7 @@ import {
  * derive le client du porteur et verifie que le projet lui appartient. Voir
  * `modification-request.service.ts`.
  */
-@ApiTags('modification-requests')
+@ApiTags('Demandes de modification')
 @Controller('modification-requests')
 export class ModificationRequestController {
   constructor(private readonly modificationRequests: ModificationRequestService) {}

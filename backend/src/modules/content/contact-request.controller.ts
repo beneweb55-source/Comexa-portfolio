@@ -33,7 +33,7 @@ import {
  * regle, la numerotation `PRO-` et l'audit. Un `PATCH` avec `status: CONVERTED`
  * reste donc le mauvais chemin : il est refuse en `422 CONTACT_REQUEST_CONVERT`.
  */
-@ApiTags('contact-requests')
+@ApiTags('Demandes de contact')
 @Controller('contact-requests')
 export class ContactRequestController {
   constructor(private readonly contactRequests: ContactRequestService) {}

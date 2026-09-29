@@ -52,7 +52,7 @@ import {
  * Accorder `document:read:any` a un porteur CLIENT lui ouvrirait l'interne : le
  * catalogue ne le fait pas, et `resolveDocumentAccess` refuse de toute facon.
  */
-@ApiTags('documents')
+@ApiTags('Documents')
 @Controller('documents')
 export class DocumentsController {
   constructor(private readonly documents: DocumentsService) {}

@@ -83,9 +83,20 @@ c'est une regression.
 ## 2. La base est partagee ET cumulative : la regle qui en decoule
 
 `prisma/seed.ts` peuple la base, **y compris le contenu public** (services,
-packs, temoignages, realisations, questions, partenaires). Une suite qui demarre
-ne trouve donc **jamais** une base vide, et une execution precedente laisse ses
-traces si elle a mal nettoye.
+packs, temoignages, realisations, questions, partenaires) **et un dossier metier
+complet** (devis accepte, projet, equipe, taches, jalons, facture partiellement
+payee, paiement). Une suite qui demarre ne trouve donc **jamais** une base vide,
+et une execution precedente laisse ses traces si elle a mal nettoye.
+
+**CE DOSSIER METIER A UNE CONSEQUENCE DIRECTE ICI.** Il porte des montants en
+`EUR` : un projet a `7668.00`, une facture encaissee de `3067.20`. Toute
+assertion sur un **total d'agence** est donc fausse par construction, quel que
+soit le soin pris a nettoyer — la ligne du seed, elle, reste. C'est pourquoi
+`analytics.e2e-spec.ts` isole ses montants sous une devise de test `XTS` plutot
+que sous `EUR`, et n'affirme la forme (`/^\d+\.\d{2}$/`) sur les valeurs
+d'agence. Suivez ce modele : **une devise a vous, ou une assertion de forme**.
+Le point 3 ci-dessous (« ne jamais toucher aux donnees du seed ») vaut desormais
+aussi pour ces lignes-la.
 
 **INTERDIT : une assertion sur un etat global.**
 
