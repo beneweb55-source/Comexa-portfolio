@@ -1,0 +1,21 @@
+# Rien de tout ceci n'a sa place dans une image : le build reconstruit ses
+# dependances et son client Prisma, et les secrets sont fournis au lancement
+# par l'environnement, jamais cuits dans la couche.
+node_modules
+dist
+coverage
+storage
+logs
+
+.env
+.env.*
+!.env.example
+
+*.log
+.git
+.gitignore
+.DS_Store
+
+# Documentation : utile en developpement, inutile dans l'image.
+docs
+*.md

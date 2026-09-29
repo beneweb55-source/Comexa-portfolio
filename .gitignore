@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...mais le MODELE de ces fichiers doit voyager avec le depot : sans lui,
+# personne ne peut savoir quelles variables renseigner. Aucun secret ici.
+!.env.example
 
 # vercel
 .vercel

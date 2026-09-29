@@ -1,0 +1,186 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_OWN } from '../../common/auth/principal.js';
+import { TaskStatus } from '../../generated/prisma/enums.js';
+import type { ScopeSubject } from '../projects/project-scope.js';
+import {
+  CLOSED_TASK_STATUSES,
+  TASK_READ_ORDER,
+  TASK_STATUS_TRANSITIONS,
+  TASK_WRITE_ORDER,
+  canAttachSubTask,
+  canTransitionTask,
+  hasOpenSubTasks,
+  isClosedTaskStatus,
+  isTaskEditable,
+  taskScopeWhere,
+  taskWriteScopeWhere,
+} from './task-rules.js';
+
+const DEV: ScopeSubject = { userId: 'dev-1', clientId: null, isClient: false };
+
+describe('perimetre de lecture d’une tache', () => {
+  it('any ne filtre rien', () => {
+    assert.deepEqual(taskScopeWhere(SCOPE_ANY, DEV), {});
+  });
+
+  it('assigned se limite a la ligne dont le porteur est l’assigne', () => {
+    assert.deepEqual(taskScopeWhere(SCOPE_ASSIGNED, DEV), { assigneeId: 'dev-1' });
+  });
+
+  it('own couvre l’assigne ET le rapporteur', () => {
+    // Lire ne partage pas la definition d'ecrire : celui qui a cree une tache doit
+    // pouvoir la suivre meme avant qu'elle soit assignee, sinon il la perd de vue
+    // des qu'il la cree.
+    assert.deepEqual(taskScopeWhere(SCOPE_OWN, DEV), {
+      OR: [{ assigneeId: 'dev-1' }, { reporterId: 'dev-1' }],
+    });
+  });
+
+  it('ECHOUE FERME sur un scope inconnu', () => {
+    for (const inconnu of ['', 'public', 'ANY', 'client']) {
+      assert.deepEqual(taskScopeWhere(inconnu, DEV), { id: { in: [] } });
+    }
+  });
+});
+
+describe('perimetre d’ecriture d’une tache', () => {
+  it('own est PLUS ETROIT que la lecture : assigne seulement', () => {
+    const lecture = taskScopeWhere(SCOPE_OWN, DEV);
+    const ecriture = taskWriteScopeWhere(SCOPE_OWN, DEV);
+
+    assert.deepEqual(ecriture, { assigneeId: 'dev-1' });
+    // Le rapporteur est dans la lecture, PAS dans l'ecriture. C'est toute la
+    // difference entre « je suis mon travail » et « je m'approprie le travail que
+    // j'ai confie a quelqu'un d'autre ».
+    assert.notDeepEqual(lecture, ecriture);
+    assert.equal('OR' in ecriture, false);
+  });
+
+  it('ne connait pas le scope assigned', () => {
+    // Un membre de l'equipe a qui la tache n'est pas assignee ne l'ecrit pas.
+    assert.deepEqual(taskWriteScopeWhere(SCOPE_ASSIGNED, DEV), { id: { in: [] } });
+  });
+
+  it('ECHOUE FERME sur un scope inconnu', () => {
+    assert.deepEqual(taskWriteScopeWhere('quelque-chose', DEV), { id: { in: [] } });
+  });
+
+  it('refuse a un developpeur la tache d’un collegue', () => {
+    // LE TEST DU SCENARIO REDOUTE : le porteur ne peut pas atteindre la ligne
+    // d'un autre, parce que le filtre l'exclut — il n'y a pas de lecture-puis-
+    // verification qu'un `if` oublie pourrait laisser passer.
+    const autre: ScopeSubject = { userId: 'dev-2', clientId: null, isClient: false };
+    assert.notDeepEqual(taskWriteScopeWhere(SCOPE_OWN, DEV), taskWriteScopeWhere(SCOPE_OWN, autre));
+    assert.deepEqual(taskWriteScopeWhere(SCOPE_OWN, autre), { assigneeId: 'dev-2' });
+  });
+});
+
+describe('ordres de scope des taches', () => {
+  it('lit du plus large au plus etroit', () => {
+    assert.deepEqual(TASK_READ_ORDER, [SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_OWN]);
+  });
+
+  it('ecrit sans le scope assigned', () => {
+    assert.deepEqual(TASK_WRITE_ORDER, [SCOPE_ANY, SCOPE_OWN]);
+  });
+});
+
+describe('machine a etats d’une tache', () => {
+  it('autorise le chemin nominal', () => {
+    assert.ok(canTransitionTask(TaskStatus.TODO, TaskStatus.IN_PROGRESS));
+    assert.ok(canTransitionTask(TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW));
+    assert.ok(canTransitionTask(TaskStatus.IN_REVIEW, TaskStatus.DONE));
+  });
+
+  it('interdit de sauter la relecture depuis BLOCKED', () => {
+    // Le travail n'a pas ete fait pendant qu'il etait bloque.
+    assert.equal(canTransitionTask(TaskStatus.BLOCKED, TaskStatus.DONE), false);
+    assert.ok(canTransitionTask(TaskStatus.BLOCKED, TaskStatus.IN_PROGRESS));
+  });
+
+  it('interdit d’annuler une tache en relecture', () => {
+    // Le travail existe : c'est DONE qui le constate.
+    assert.equal(canTransitionTask(TaskStatus.IN_REVIEW, TaskStatus.CANCELLED), false);
+  });
+
+  it('autorise la reouverture, dans les deux sens', () => {
+    assert.ok(canTransitionTask(TaskStatus.DONE, TaskStatus.IN_PROGRESS));
+    assert.ok(canTransitionTask(TaskStatus.CANCELLED, TaskStatus.TODO));
+  });
+
+  it('traite DONE et CANCELLED comme des impasses vers le meme etat', () => {
+    assert.deepEqual(TASK_STATUS_TRANSITIONS[TaskStatus.DONE], [TaskStatus.IN_PROGRESS]);
+    assert.deepEqual(TASK_STATUS_TRANSITIONS[TaskStatus.CANCELLED], [TaskStatus.TODO]);
+  });
+
+  it('refuse un statut identique partout', () => {
+    for (const statut of Object.values(TaskStatus)) {
+      assert.equal(canTransitionTask(statut, statut), false);
+    }
+  });
+
+  it('ne cite que des statuts connus', () => {
+    const connus = new Set<string>(Object.values(TaskStatus));
+    for (const [depart, arrives] of Object.entries(TASK_STATUS_TRANSITIONS)) {
+      for (const arrivee of arrives) {
+        assert.ok(connus.has(arrivee), `${depart} -> ${arrivee} n'est pas un statut`);
+      }
+    }
+  });
+});
+
+describe('invariant des sous-taches', () => {
+  it('un parent clos avec des enfants OUVERTS est refuse', () => {
+    assert.equal(hasOpenSubTasks([TaskStatus.DONE, TaskStatus.CANCELLED]), false);
+    assert.equal(hasOpenSubTasks([TaskStatus.DONE, TaskStatus.IN_PROGRESS]), true);
+    assert.equal(hasOpenSubTasks([TaskStatus.TODO]), true);
+    assert.equal(hasOpenSubTasks([TaskStatus.BLOCKED]), true);
+    assert.equal(hasOpenSubTasks([TaskStatus.IN_REVIEW]), true);
+  });
+
+  it('un parent sans enfant se ferme toujours', () => {
+    assert.equal(hasOpenSubTasks([]), false);
+  });
+
+  it('CANCELLED compte comme clos, ce qui donne une sortie a la regle', () => {
+    // Un parent dont on abandonne le reste doit pouvoir etre clos apres avoir
+    // annule les enfants — sinon la regle n'aurait aucune porte de sortie.
+    assert.equal(isClosedTaskStatus(TaskStatus.CANCELLED), true);
+    assert.equal(hasOpenSubTasks([TaskStatus.CANCELLED, TaskStatus.CANCELLED]), false);
+  });
+
+  it('le second volet : on n’accroche pas d’enfant a un parent clos', () => {
+    // Sans ce volet, un parent DONE pouvait redevenir un parent a enfants ouverts
+    // une seconde apres avoir ete clos, et le premier volet ne protegeait plus
+    // rien.
+    for (const statut of Object.values(TaskStatus)) {
+      const clos = isClosedTaskStatus(statut);
+      assert.equal(canAttachSubTask(statut), !clos, `parent ${statut}`);
+    }
+  });
+
+  it('les statuts clos sont exactement DONE et CANCELLED', () => {
+    assert.deepEqual([...CLOSED_TASK_STATUSES], [TaskStatus.DONE, TaskStatus.CANCELLED]);
+  });
+});
+
+describe('modifiabilite d’une tache close', () => {
+  it('un porteur de scope own ne modifie plus une tache close', () => {
+    assert.equal(isTaskEditable(TaskStatus.DONE, false), false);
+    assert.equal(isTaskEditable(TaskStatus.CANCELLED, false), false);
+  });
+
+  it('un porteur de task:write:any la modifie encore', () => {
+    // C'est la sortie de secours : un developpeur qui s'est trompe de statut ne
+    // peut pas se corriger lui-meme, le chef de projet le fait.
+    assert.equal(isTaskEditable(TaskStatus.DONE, true), true);
+    assert.equal(isTaskEditable(TaskStatus.CANCELLED, true), true);
+  });
+
+  it('une tache ouverte reste modifiable par son assigne', () => {
+    for (const statut of [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.IN_REVIEW]) {
+      assert.equal(isTaskEditable(statut, false), true, `statut ${statut}`);
+    }
+  });
+});
