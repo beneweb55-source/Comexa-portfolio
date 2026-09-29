@@ -52,12 +52,16 @@ une seule instance :
       (`-pooler`) et l'hote *direct*.
 - [ ] Environ **45 minutes**.
 
-> **Point d'honnetete sur la carte bancaire.** Tous les hebergeurs de VM
-> gratuites — Oracle Cloud *Always Free* comme le `e2-micro` de Google Cloud —
-> **demandent une carte a l'inscription**, pour verifier l'identite. Elle n'est
-> pas debitee tant que vous restez dans les limites du palier gratuit, mais elle
-> est exigee a l'entree. Backblaze, lui, ne la demande pas : c'est pourquoi le
-> stockage est chez eux et non chez Cloudflare R2, qui l'exige.
+> **Point d'honnetete sur la carte bancaire.** Oracle l'ecrit ainsi : « For
+> security purposes, **most users** need a mobile phone number and a credit card
+> to create an account. » — *most*, pas *all*. La carte sert a verifier
+> l'identite et n'est **jamais debitee** tant que vous restez dans les limites du
+> palier gratuit. Le `e2-micro` de Google Cloud, lui, l'exige sans cette reserve.
+> Autrement dit : tentez l'inscription Oracle meme sans carte ; si elle est
+> refusee, la section **« Si vous n'avez pas de carte »** en §3 donne les deux
+> seules voies qui restent en 2026, avec ce que chacune coute. Backblaze, lui, ne
+> la demande pas du tout : c'est pourquoi le stockage est chez eux et non chez
+> Cloudflare R2, qui l'exige.
 
 > **Si vous n'avez pas encore de domaine.** Caddy a besoin d'un NOM, pas d'un
 > achat : un sous-domaine gratuit chez **DuckDNS** (`comexa-api.duckdns.org`)
@@ -86,9 +90,13 @@ une seule instance :
 1. Inscription sur <https://www.oracle.com/cloud/free/>, region **la plus proche
    de vos utilisateurs** (elle est definitive : on ne peut pas la changer).
    Depuis l'Algerie, les deux plus proches sont **`eu-marseille-1`** (France
-   Sud) et `eu-paris-1`. Une carte bancaire est exigee a l'inscription, meme pour
-   le palier gratuit — et les cartes a debit immediat, prepayees, virtuelles ou a
-   usage unique sont refusees.
+   Sud) et `eu-paris-1`. Sur la carte bancaire, la formulation officielle est :
+   « For security purposes, **most users** need a mobile phone number and a
+   credit card to create an account. Your credit card will not be charged unless
+   you upgrade your account. » — *most*, donc pas tous, et la carte n'est jamais
+   debitee tant que vous restez sur le palier gratuit. Cela vaut donc la peine
+   d'essayer meme sans carte : c'est une inscription de dix minutes. Si elle est
+   refusee, voir « Si vous n'avez pas de carte » plus bas.
 2. **Compute → Instances → Create instance** :
    - Image : **Ubuntu 24.04**
    - Shape : **`VM.Standard.A1.Flex`** (ARM Ampere), **2 OCPU / 12 Go**.
@@ -147,10 +155,11 @@ une seule instance :
 > non confirme, jamais comme une garantie.
 >
 > A verifier sur la source, car ces valeurs ont deja change sans annonce :
-> *Oracle Cloud Infrastructure Free Tier* —
-> <https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm>, rubrique
-> des ressources inactives. Pour le passage de 4 OCPU / 24 Go a 2 OCPU / 12 Go
-> le 15/06/2026, sans communique : <https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/>
+> *Oracle Cloud Infrastructure Free Tier* — page « Always Free Resources »,
+> rubrique **Reclamation of Idle Compute Instances** —
+> <https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm>.
+> Pour le passage de 4 OCPU / 24 Go a 2 OCPU / 12 Go le 15/06/2026, sans
+> communique : <https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/>
 > et <https://korben.info/oracle-cloud-always-free-arm-reduit.html>.
 
 ### Google Cloud — pourquoi ce palier ne convient pas ici
@@ -169,6 +178,47 @@ seules : en deployer ailleurs est facture au tarif normal.
 >
 > Ce n'est pas un reglage a ajuster en baissant `--max-old-space-size` : c'est un
 > plafond de memoire. Pour cette pile, prenez Oracle, ou un palier payant.
+
+### Si vous n'avez pas de carte
+
+Oracle ecrit « *most users* », pas « tous » : essayez d'abord, c'est dix minutes.
+Si l'inscription est refusee, l'etat du marche en 2026 ne laisse que deux issues,
+et il faut choisir en connaissance de cause.
+
+**1. Une machine que vous possedez, plus Tailscale Funnel.** Aucune carte, aucun
+port a ouvrir, aucune IP publique a demander. Funnel sort vers l'exterieur et
+rend le service joignable en HTTPS sur un nom stable du type
+`comexa.<votre-reseau>.ts.net`, certificat Let's Encrypt compris. Et comme il
+fonctionne par connexions **sortantes**, le CGNAT de certains operateurs n'est
+pas un obstacle — contrairement a un enregistrement DNS pointant vers une IP
+publique, qui ne fonctionnerait pas du tout. Deux consequences sur ce depot :
+**Caddy n'a plus de role**, Funnel terminant le TLS lui-meme ; et il faut
+`TRUST_PROXY=1` pour que l'API sache qu'elle est derriere un proxy, sans quoi le
+cookie `secure` sera refuse et aucune session ne survivra a un rechargement. Le
+prix a payer est materiel — la machine doit rester allumee — et Funnel est encore
+marque *beta*, avec une limite de bande passante non documentee.
+
+**2. Render, palier gratuit.** Pas de carte : la documentation de Render l'ecrit
+elle-meme. Trois consequences a connaitre avant de choisir cette voie :
+- l'instance **s'endort apres 15 minutes** d'inactivite et met une quinzaine de
+  secondes a se reveiller. Un ping toutes les 10 minutes la maintient eveillee, et
+  les 750 heures par mois du palier suffisent a couvrir un mois continu ;
+- **512 Mo de RAM et 0,1 vCPU** quand ce depot demande 1 Go et 1 vCPU : il faut
+  baisser `--max-old-space-size` en consequence ;
+- **le SMTP sortant est bloque** sur le palier gratuit — ports 25, 465 et 587 —
+  depuis le 26/09/2025. `smtp-relay.brevo.com:587` ne repondra donc pas, et
+  l'envoi de courriel echouera **silencieusement** : c'est la panne la plus dure a
+  diagnostiquer de cette liste, parce que rien ne la signale. La sortie est l'API
+  HTTP de Brevo sur le port 443, que ce backend ne sait pas encore utiliser —
+  c'est une modification a faire dans le module de courriel **avant** de choisir
+  Render.
+
+**Ce qui n'existe plus en 2026**, malgre ce qu'en disent encore beaucoup
+d'articles : Koyeb a ete rachete par Mistral AI le 17/02/2026 et son palier
+gratuit est ferme aux nouvelles inscriptions (le premier palier ouvert est a
+~29 $/mois) ; Railway a supprime son credit gratuit en aout 2025 ; l'offre
+gratuite de Fly.io a effectivement disparu. Toute comparaison qui les compte
+encore a 0 $ est perimee.
 
 ---
 
