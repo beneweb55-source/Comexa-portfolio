@@ -2,7 +2,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import { AccessPolicy, SCOPE_ANY, SCOPE_OWN, type AuthenticatedUser } from '../../common/auth/principal.js';
+import {
+  AccessPolicy,
+  SCOPE_ANY,
+  SCOPE_OWN,
+  type AuthenticatedUser,
+} from '../../common/auth/principal.js';
 import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import {
@@ -24,8 +29,16 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { DocumentVisibility } from '../../generated/prisma/enums.js';
-import { resolveDocumentAccess, narrowVisibilities, type DocumentAccessScope } from './document-visibility.js';
-import type { ListDocumentsQueryDto, UpdateDocumentDto, UploadDocumentDto } from './dto/documents.dto.js';
+import {
+  resolveDocumentAccess,
+  narrowVisibilities,
+  type DocumentAccessScope,
+} from './document-visibility.js';
+import type {
+  ListDocumentsQueryDto,
+  UpdateDocumentDto,
+  UploadDocumentDto,
+} from './dto/documents.dto.js';
 
 /**
  * SERVICE DES DOCUMENTS.
@@ -166,7 +179,9 @@ export class DocumentsService {
     // dans la bibliotheque interne » ne doit pas dependre d'une ligne du
     // catalogue, qui peut changer. Meme raisonnement que pour la lecture.
     if (policy.isClient()) {
-      throw AppException.forbidden("Un compte client ne depose pas de document dans la bibliotheque.");
+      throw AppException.forbidden(
+        'Un compte client ne depose pas de document dans la bibliotheque.',
+      );
     }
 
     const scope = policy.requireScope('document', 'write', [SCOPE_ANY, SCOPE_OWN]);
@@ -258,7 +273,10 @@ export class DocumentsService {
    * que le porteur peut lire, et le filtre de portee est ajoute APRES, sans
    * possibilité de le retirer par un parametre.
    */
-  async list(user: AuthenticatedUser, query: ListDocumentsQueryDto): Promise<Paginated<DocumentView>> {
+  async list(
+    user: AuthenticatedUser,
+    query: ListDocumentsQueryDto,
+  ): Promise<Paginated<DocumentView>> {
     const access = this.accessFor(user);
     const where = this.readWhere(user, access, query);
     const pagination = resolvePagination(query);
@@ -451,7 +469,7 @@ export class DocumentsService {
     if (!isStreamingDriver(this.storage)) {
       throw AppException.unprocessable(
         'STORAGE_STREAM_UNSUPPORTED',
-        "Ce pilote de stockage ne sait pas servir de flux. Utiliser GET /api/documents/:id/download.",
+        'Ce pilote de stockage ne sait pas servir de flux. Utiliser GET /api/documents/:id/download.',
       );
     }
 
@@ -522,7 +540,10 @@ export class DocumentsService {
 
     if (query.search) {
       clauses.push({
-        OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { originalName: { contains: query.search, mode: 'insensitive' } }],
+        OR: [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { originalName: { contains: query.search, mode: 'insensitive' } },
+        ],
       });
     }
 
@@ -715,7 +736,7 @@ export class DocumentsService {
     });
 
     if (!project) {
-      throw AppException.forbidden("Vous ne travaillez pas sur ce projet.");
+      throw AppException.forbidden('Vous ne travaillez pas sur ce projet.');
     }
   }
 

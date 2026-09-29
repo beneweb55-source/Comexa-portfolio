@@ -20,7 +20,11 @@ import { NotificationService } from '../notifications/notification.service.js';
 import { canInvoiceQuote } from '../quotes/quote-state.js';
 import { type BillingContact, clientPortalUserIds, primaryContactEmail } from './audience.js';
 import { clientPerimeter } from './billing-access.js';
-import { DEFAULT_PAYMENT_TERM_DAYS, type CreateInvoiceFromQuoteDto, type ListInvoicesQueryDto } from './dto/invoice.dto.js';
+import {
+  DEFAULT_PAYMENT_TERM_DAYS,
+  type CreateInvoiceFromQuoteDto,
+  type ListInvoicesQueryDto,
+} from './dto/invoice.dto.js';
 import { lockInvoice } from './invoice-lock.js';
 import {
   canCancelInvoice,
@@ -184,7 +188,7 @@ export class InvoicesService {
         // lignes du devis : sans les deux chiffres, l'incident est un mystere.
         throw AppException.unprocessable(
           'QUOTE_LINES_INCONSISTENT',
-          "Le devis ne correspond plus a ses propres lignes : la facture ne serait pas conforme a ce que le client a accepte.",
+          'Le devis ne correspond plus a ses propres lignes : la facture ne serait pas conforme a ce que le client a accepte.',
           {
             quoteTotal: quote.total.toFixed(2),
             computedTotal: totals.total.toFixed(2),
@@ -546,7 +550,7 @@ export class InvoicesService {
       if (!canCancelInvoice(invoice.status)) {
         throw AppException.conflict(
           'INVOICE_NOT_CANCELLABLE',
-          "Cette facture ne peut plus etre annulee. Une facture encaissee se corrige par un avoir.",
+          'Cette facture ne peut plus etre annulee. Une facture encaissee se corrige par un avoir.',
         );
       }
 

@@ -152,7 +152,10 @@ export class CreateContactRequestDto {
   @MaxLength(MAX_SOURCE)
   source?: string;
 
-  @ApiPropertyOptional({ maxLength: MAX_UTM, description: "Provenance d'une campagne (utm_source)." })
+  @ApiPropertyOptional({
+    maxLength: MAX_UTM,
+    description: "Provenance d'une campagne (utm_source).",
+  })
   @emptyToUndefined()
   @IsOptional()
   @IsString()

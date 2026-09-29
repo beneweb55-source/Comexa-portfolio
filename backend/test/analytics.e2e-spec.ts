@@ -211,7 +211,11 @@ interface ReportDetailView {
   format: string;
   periodStart: string | null;
   periodEnd: string | null;
-  result: { collected?: CollectedSectionView; collectionRate?: number; billed?: AmountSectionView } | null;
+  result: {
+    collected?: CollectedSectionView;
+    collectionRate?: number;
+    billed?: AmountSectionView;
+  } | null;
   snapshot: unknown;
 }
 
@@ -634,8 +638,16 @@ describe('Rapports, tableaux de bord et parametres (bout en bout, base reelle)',
     // Preconditions du perimetre : si le jeton ne portait pas le rattachement
     // client, le refus viendrait du service et le test mesurerait autre chose que
     // ce qu'il croit mesurer.
-    assert.equal(sessionA.user.clientId, clientAId, 'le jeton du client A doit porter son clientId');
-    assert.equal(sessionB.user.clientId, clientBId, 'le jeton du client B doit porter son clientId');
+    assert.equal(
+      sessionA.user.clientId,
+      clientAId,
+      'le jeton du client A doit porter son clientId',
+    );
+    assert.equal(
+      sessionB.user.clientId,
+      clientBId,
+      'le jeton du client B doit porter son clientId',
+    );
     assert.ok(sessionA.user.permissions.includes('dashboard:read:own'));
     assert.ok(sessionAdmin.user.permissions.includes('dashboard:read:any'));
     assert.ok(sessionAdmin.user.permissions.includes('report:generate:any'));
@@ -856,7 +868,12 @@ describe('Rapports, tableaux de bord et parametres (bout en bout, base reelle)',
     assert.equal(bodyB.data.documents?.total, 1);
 
     const serializedB = JSON.stringify(responseB.body);
-    for (const forbidden of [clientAId, 'Analytique Alpha', 'Refonte portail Alpha', 'Contrat Alpha']) {
+    for (const forbidden of [
+      clientAId,
+      'Analytique Alpha',
+      'Refonte portail Alpha',
+      'Contrat Alpha',
+    ]) {
       assert.equal(
         serializedB.includes(forbidden),
         false,
@@ -1134,7 +1151,10 @@ describe('Rapports, tableaux de bord et parametres (bout en bout, base reelle)',
 
     assert.equal(written.status, 200);
     const writtenBody = (written.body as SuccessBody<SettingsUpdateView>).data;
-    assert.deepEqual([...writtenBody.updated].sort(), [SETTING_INTERNAL_KEY, SETTING_PUBLIC_KEY].sort());
+    assert.deepEqual(
+      [...writtenBody.updated].sort(),
+      [SETTING_INTERNAL_KEY, SETTING_PUBLIC_KEY].sort(),
+    );
     assert.deepEqual(writtenBody.unchanged, []);
 
     // Rejouer le meme enregistrement ne doit rien changer, et surtout ne rien
@@ -1200,14 +1220,20 @@ describe('Rapports, tableaux de bord et parametres (bout en bout, base reelle)',
     //     et conserve pour toujours ne doit pas devenir le dernier endroit ou un
     //     secret traine en clair.
     const auditEntries = await prisma.auditLog.findMany({
-      where: { action: 'SETTING_UPDATED', entityId: { in: [SETTING_PUBLIC_KEY, SETTING_INTERNAL_KEY] } },
+      where: {
+        action: 'SETTING_UPDATED',
+        entityId: { in: [SETTING_PUBLIC_KEY, SETTING_INTERNAL_KEY] },
+      },
       select: { entityId: true, actorId: true, after: true },
       orderBy: { createdAt: 'desc' },
     });
 
     assert.equal(auditEntries.length, 2, 'chaque parametre modifie doit laisser une trace');
     for (const entry of auditEntries) {
-      assert.ok(userIds.includes(entry.actorId ?? ''), "l'auteur de la modification doit etre connu");
+      assert.ok(
+        userIds.includes(entry.actorId ?? ''),
+        "l'auteur de la modification doit etre connu",
+      );
     }
 
     const internalEntry = auditEntries.find((entry) => entry.entityId === SETTING_INTERNAL_KEY);
@@ -1223,7 +1249,7 @@ describe('Rapports, tableaux de bord et parametres (bout en bout, base reelle)',
     assert.equal(
       JSON.stringify(publicEntry.after).includes(SETTING_PUBLIC_VALUE),
       true,
-      'la valeur d\'un parametre ordinaire reste journalisee : c\'est le but du journal',
+      "la valeur d'un parametre ordinaire reste journalisee : c'est le but du journal",
     );
   });
 });

@@ -256,7 +256,7 @@ function assertMailConfigured(env: EnvironmentVariables): void {
 
   if (!env.SMTP_HOST) {
     throw new Error(
-      'SMTP_HOST est obligatoire en production : sans serveur d\'envoi, le parcours ' +
+      "SMTP_HOST est obligatoire en production : sans serveur d'envoi, le parcours " +
         '"mot de passe oublie" repondrait 200 sans jamais envoyer de courriel. ' +
         'Renseigner SMTP_HOST, SMTP_PORT, SMTP_USER et SMTP_PASSWORD.',
     );

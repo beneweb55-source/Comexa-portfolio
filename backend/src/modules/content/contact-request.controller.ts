@@ -3,10 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { ContactRequestService } from './contact-request.service.js';
-import {
-  ListContactRequestsQueryDto,
-  UpdateContactRequestDto,
-} from './dto/contact-request.dto.js';
+import { ListContactRequestsQueryDto, UpdateContactRequestDto } from './dto/contact-request.dto.js';
 
 /**
  * FILE DE TRAITEMENT DES DEMANDES DE CONTACT.
@@ -47,7 +44,7 @@ export class ContactRequestController {
 
   @Get(':id')
   @RequirePermissions('contactrequest:read:any')
-  @ApiOperation({ summary: "Consulter une demande de contact" })
+  @ApiOperation({ summary: 'Consulter une demande de contact' })
   async findOne(@Param('id') id: string) {
     return this.contactRequests.findOne(id);
   }
@@ -64,7 +61,8 @@ export class ContactRequestController {
   @RequirePermissions('contactrequest:write:any')
   @ApiOperation({
     summary: 'Traiter une demande',
-    description: 'Etat de traitement et notes internes. CONVERTED est refuse : voir le module commercial.',
+    description:
+      'Etat de traitement et notes internes. CONVERTED est refuse : voir le module commercial.',
   })
   async update(
     @CurrentUser() user: AuthenticatedUser,

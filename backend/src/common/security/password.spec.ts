@@ -58,7 +58,7 @@ describe('verifyPassword', () => {
     assert.equal(await verifyPassword(digest, 'unmotdepassesolide123'), false);
   });
 
-  it("renvoie false sur une empreinte illisible au lieu de lever", async () => {
+  it('renvoie false sur une empreinte illisible au lieu de lever', async () => {
     // C'est LE test qui compte. Si cette fonction levait, un appelant ecrit
     // `try { ... } catch { return true }` accorderait l'acces. On exige `false`.
     for (const broken of ['', 'pas-une-empreinte', '$argon2id$tronque', '$2b$10$abcdef']) {
@@ -97,10 +97,9 @@ describe('passwordPolicyViolation', () => {
   });
 
   it('refuse un mot de passe trop court', () => {
-    const short = 'Ab1'.repeat(Math.ceil((PASSWORD_MIN_LENGTH - 1) / 3)).slice(
-      0,
-      PASSWORD_MIN_LENGTH - 1,
-    );
+    const short = 'Ab1'
+      .repeat(Math.ceil((PASSWORD_MIN_LENGTH - 1) / 3))
+      .slice(0, PASSWORD_MIN_LENGTH - 1);
     const reason = passwordPolicyViolation(short);
     assert.ok(
       reason && reason.includes(String(PASSWORD_MIN_LENGTH)),

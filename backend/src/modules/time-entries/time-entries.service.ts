@@ -10,11 +10,7 @@ import { ActivityService } from '../activity/activity.service.js';
 import { PROJECT_READ_ORDER, projectScopeWhere, subjectOf } from '../projects/project-scope.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 import { TaskAccessService } from '../tasks/task-access.service.js';
-import {
-  CreateTimeEntryDto,
-  TimeEntryQueryDto,
-  UpdateTimeEntryDto,
-} from './dto/time-entry.dto.js';
+import { CreateTimeEntryDto, TimeEntryQueryDto, UpdateTimeEntryDto } from './dto/time-entry.dto.js';
 import {
   TIME_READ_ORDER,
   TIME_WRITE_ORDER,
@@ -156,7 +152,12 @@ export class TimeEntriesService {
    * `time:write:any` se contente de la LIRE : un responsable corrige le temps la ou
    * il passe, sans devoir etre assigne a la tache.
    */
-  async create(taskId: string, dto: CreateTimeEntryDto, policy: AccessPolicy, meta: RequestContext) {
+  async create(
+    taskId: string,
+    dto: CreateTimeEntryDto,
+    policy: AccessPolicy,
+    meta: RequestContext,
+  ) {
     const perimeter = this.perimeter(policy, 'write');
     this.refuseClientSpace(policy);
 
@@ -240,7 +241,12 @@ export class TimeEntriesService {
    * pour ce qu'il est cense raconter. Le journal d'audit, lui, garde l'avant et
    * l'apres : c'est la qu'on va chercher qui a change quoi.
    */
-  async update(entryId: string, dto: UpdateTimeEntryDto, policy: AccessPolicy, meta: RequestContext) {
+  async update(
+    entryId: string,
+    dto: UpdateTimeEntryDto,
+    policy: AccessPolicy,
+    meta: RequestContext,
+  ) {
     this.refuseClientSpace(policy);
     const perimeter = this.perimeter(policy, 'write');
     const before = await this.load(entryId, perimeter);
@@ -248,7 +254,9 @@ export class TimeEntriesService {
     if (dto.minutes !== undefined) {
       const violation = minutesViolation(dto.minutes);
       if (violation) {
-        throw AppException.unprocessable('TIME_INVALID_MINUTES', violation, { minutes: dto.minutes });
+        throw AppException.unprocessable('TIME_INVALID_MINUTES', violation, {
+          minutes: dto.minutes,
+        });
       }
     }
 

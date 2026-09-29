@@ -129,11 +129,7 @@ function errorOf(response: request.Response): ErrorBody['error'] {
   return body.error;
 }
 
-async function login(
-  app: INestApplication,
-  baseUrl: string,
-  email: string,
-): Promise<LoginData> {
+async function login(app: INestApplication, baseUrl: string, email: string): Promise<LoginData> {
   const response = await request(app.getHttpServer())
     .post(`${baseUrl}/auth/login`)
     .send({ email, password: PASSWORD });
@@ -183,10 +179,7 @@ async function purge(prisma: PrismaService, emails: readonly string[]): Promise<
   await prisma.notification.deleteMany({ where: { userId: { in: userIds } } });
   await prisma.auditLog.deleteMany({
     where: {
-      OR: [
-        { actorId: { in: userIds } },
-        { entityId: { in: [...userIds, ...conversationIds] } },
-      ],
+      OR: [{ actorId: { in: userIds } }, { entityId: { in: [...userIds, ...conversationIds] } }],
     },
   });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
@@ -209,11 +202,7 @@ describe('Messagerie et notifications (bout en bout, base reelle)', () => {
 
   before(async () => {
     const violation = passwordPolicyViolation(PASSWORD);
-    assert.equal(
-      violation,
-      null,
-      `mot de passe de test refuse par la politique : ${violation}`,
-    );
+    assert.equal(violation, null, `mot de passe de test refuse par la politique : ${violation}`);
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -321,10 +310,7 @@ describe('Messagerie et notifications (bout en bout, base reelle)', () => {
     );
     // L'auteur est OWNER, l'autre MEMBER : c'est la seule distinction de role
     // que le schema porte, elle doit etre posee.
-    assert.equal(
-      body.data.participants.find((p) => p.userId === author.user.id)?.role,
-      'OWNER',
-    );
+    assert.equal(body.data.participants.find((p) => p.userId === author.user.id)?.role, 'OWNER');
   });
 
   it("refuse un participant qui n'existe pas, sans dire lequel", async () => {
@@ -509,7 +495,7 @@ describe('Messagerie et notifications (bout en bout, base reelle)', () => {
     assert.equal(errorOf(response).code, 'CONVERSATION_NOT_FOUND');
 
     const count = await prisma.message.count({ where: { conversationId } });
-    assert.equal(count, 3, "un refus ne doit pas avoir ecrit de message");
+    assert.equal(count, 3, 'un refus ne doit pas avoir ecrit de message');
   });
 
   it('refuse a un non-participant la fiche de la conversation', async () => {
@@ -568,7 +554,7 @@ describe('Messagerie et notifications (bout en bout, base reelle)', () => {
     assert.equal(body.data[0]?.unreadCount, 0);
   });
 
-  it("refuse a un non-participant de marquer la conversation comme lue", async () => {
+  it('refuse a un non-participant de marquer la conversation comme lue', async () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/conversations/${conversationId}/read`)
       .set('Authorization', `Bearer ${outsider.accessToken}`)

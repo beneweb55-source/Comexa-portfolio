@@ -70,7 +70,7 @@ export class CreateConversationDto {
 
   @ApiPropertyOptional({
     description:
-      "Dossier client a rattacher. Ignore et force a son propre dossier pour un compte client.",
+      'Dossier client a rattacher. Ignore et force a son propre dossier pour un compte client.',
   })
   @IsOptional()
   @IsString()

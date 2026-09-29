@@ -52,7 +52,7 @@ export class CreateTimeEntryDto {
   @BooleanFilter()
   billable?: boolean;
 
-  @ApiPropertyOptional({ description: "Personne dont on saisit le temps. Exige time:write:any." })
+  @ApiPropertyOptional({ description: 'Personne dont on saisit le temps. Exige time:write:any.' })
   @IsOptional()
   @IsString()
   @MaxLength(64)

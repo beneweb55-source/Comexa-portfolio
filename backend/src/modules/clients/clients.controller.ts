@@ -68,10 +68,7 @@ export class ClientsController {
   @Get(':id')
   @RequireAnyPermission('client:read:any', 'client:read:own')
   @ApiOperation({ summary: "Lire un dossier client (le sien pour l'espace client)." })
-  async findOne(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ): Promise<Client> {
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<Client> {
     return this.clients.findOne(user, id);
   }
 
@@ -99,7 +96,9 @@ export class ClientsController {
 
   @Post(':id/contacts')
   @RequirePermissions('contact:write:any')
-  @ApiOperation({ summary: "Ajouter un interlocuteur. Le premier principal retire le drapeau aux autres." })
+  @ApiOperation({
+    summary: 'Ajouter un interlocuteur. Le premier principal retire le drapeau aux autres.',
+  })
   async createContact(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

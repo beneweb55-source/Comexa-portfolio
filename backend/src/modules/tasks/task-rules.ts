@@ -1,4 +1,9 @@
-import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_OWN, type ScopeName } from '../../common/auth/principal.js';
+import {
+  SCOPE_ANY,
+  SCOPE_ASSIGNED,
+  SCOPE_OWN,
+  type ScopeName,
+} from '../../common/auth/principal.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { TaskStatus } from '../../generated/prisma/enums.js';
 import type { ScopeSubject } from '../projects/project-scope.js';

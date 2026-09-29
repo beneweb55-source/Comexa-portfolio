@@ -71,18 +71,17 @@ const RESERVED_SLUGS: readonly string[] = Object.freeze([
 export function slugify(value: string): string {
   // La seconde expression retire la plage des diacritiques combinants
   // (U+0300 a U+036F) que NFD vient de detacher de leur lettre.
-  const ascii = value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
+  const ascii = value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-  return ascii
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, SLUG_MAX_LENGTH)
-    // La troncature peut avoir laisse un tiret en fin : on le retire apres
-    // elle, sinon `slice` fabrique un slug qui se termine par `-`.
-    .replace(/-+$/g, '');
+  return (
+    ascii
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, SLUG_MAX_LENGTH)
+      // La troncature peut avoir laisse un tiret en fin : on le retire apres
+      // elle, sinon `slice` fabrique un slug qui se termine par `-`.
+      .replace(/-+$/g, '')
+  );
 }
 
 /**
@@ -133,9 +132,10 @@ export function assertValidSlug(slug: string): void {
  * chemin traverse arrive en base.
  */
 export function resolveSlug(explicit: string | undefined, fallbackLabel: string): string {
-  const candidate = explicit !== undefined && explicit.trim().length > 0
-    ? slugify(explicit)
-    : slugify(fallbackLabel);
+  const candidate =
+    explicit !== undefined && explicit.trim().length > 0
+      ? slugify(explicit)
+      : slugify(fallbackLabel);
 
   assertValidSlug(candidate);
 

@@ -85,11 +85,9 @@ export function assertRolesKnown(requested: readonly string[], known: readonly s
     return;
   }
 
-  throw AppException.unprocessable(
-    'UNKNOWN_ROLE',
-    `Role(s) inconnu(s) : ${unknown.join(', ')}.`,
-    { roles: unknown },
-  );
+  throw AppException.unprocessable('UNKNOWN_ROLE', `Role(s) inconnu(s) : ${unknown.join(', ')}.`, {
+    roles: unknown,
+  });
 }
 
 /**
@@ -106,7 +104,7 @@ export function assertRoleIsMutable(code: RoleCode): void {
   throw AppException.unprocessable(
     'ROLE_IMMUTABLE',
     "Le role ADMIN tient ses permissions du catalogue, pas d'une liste en base. " +
-      'Le modifier ici le restreindrait jusqu\'au prochain seed, qui le retablirait sans prevenir.',
+      "Le modifier ici le restreindrait jusqu'au prochain seed, qui le retablirait sans prevenir.",
   );
 }
 
@@ -163,7 +161,7 @@ export function assertClientScopeRequiresClientRole(
   throw AppException.unprocessable(
     'CLIENT_ROLE_REQUIRED',
     "Un compte ne peut etre rattache a un dossier client que s'il porte le role CLIENT : " +
-      'ce rattachement est le perimetre de l\'espace client, et il decide des notifications ' +
+      "ce rattachement est le perimetre de l'espace client, et il decide des notifications " +
       'que le compte recevra.',
     { clientId, roles: [...roles].sort() },
   );
@@ -192,7 +190,7 @@ export function assertClientScopeDetachedBeforeRoleChange(
 
   throw AppException.unprocessable(
     'CLIENT_SCOPE_STILL_ATTACHED',
-    'Ce compte est rattache a un dossier client : retirez d\'abord le rattachement ' +
+    "Ce compte est rattache a un dossier client : retirez d'abord le rattachement " +
       '(PATCH /users/:id avec clientId: null) avant de lui retirer le role CLIENT.',
     { clientId },
   );
@@ -229,8 +227,8 @@ export interface RoleChange {
  *     les actifs, et lui retirer ADMIN ne reduit pas leur nombre.
  */
 export function assertAdministratorRemains(change: RoleChange): void {
-  const losesAdmin = change.currentRoles.includes(RoleCode.ADMIN) &&
-    !change.nextRoles.includes(RoleCode.ADMIN);
+  const losesAdmin =
+    change.currentRoles.includes(RoleCode.ADMIN) && !change.nextRoles.includes(RoleCode.ADMIN);
 
   if (!losesAdmin) {
     return;

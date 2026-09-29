@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { AccessPolicy, SCOPE_ANY, SCOPE_OWN, type AuthenticatedUser } from '../../common/auth/principal.js';
+import {
+  AccessPolicy,
+  SCOPE_ANY,
+  SCOPE_OWN,
+  type AuthenticatedUser,
+} from '../../common/auth/principal.js';
 import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import { REFERENCE_SCOPES } from '../../common/references/reference.scopes.js';
@@ -70,7 +75,7 @@ export class ModificationRequestService {
     const clientId = policy.clientId;
     if (clientId === null) {
       throw AppException.forbidden(
-        "Seul un compte rattache a un dossier client peut deposer une demande de modification.",
+        'Seul un compte rattache a un dossier client peut deposer une demande de modification.',
       );
     }
 
@@ -208,7 +213,8 @@ export class ModificationRequestService {
     if (!existing) throw notFoundModification();
 
     const alreadyDecided =
-      existing.status === ModificationStatus.APPROVED || existing.status === ModificationStatus.REJECTED;
+      existing.status === ModificationStatus.APPROVED ||
+      existing.status === ModificationStatus.REJECTED;
 
     if (alreadyDecided && existing.status === dto.status) return this.requireRow(id);
 
@@ -328,7 +334,10 @@ export class ModificationRequestService {
 type ModificationRequestRow = ModificationRequest;
 
 function notFoundModification(): AppException {
-  return AppException.notFound('MODIFICATION_REQUEST_NOT_FOUND', 'Demande de modification introuvable.');
+  return AppException.notFound(
+    'MODIFICATION_REQUEST_NOT_FOUND',
+    'Demande de modification introuvable.',
+  );
 }
 
 /**

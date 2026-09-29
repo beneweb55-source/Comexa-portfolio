@@ -234,7 +234,8 @@ export class ListUsersQueryDto extends PaginationQueryDto {
   status?: UserStatus;
 
   @ApiPropertyOptional({
-    description: 'Recherche sur le nom, le prenom ou l\'adresse e-mail (partielle, insensible a la casse).',
+    description:
+      "Recherche sur le nom, le prenom ou l'adresse e-mail (partielle, insensible a la casse).",
     example: 'benali',
   })
   @IsOptional()

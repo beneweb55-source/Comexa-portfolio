@@ -99,7 +99,10 @@ export class DecideModificationRequestDto {
   })
   status!: ModificationStatus;
 
-  @ApiPropertyOptional({ maxLength: MAX_NOTE, description: 'Motif de la decision, affiche au client.' })
+  @ApiPropertyOptional({
+    maxLength: MAX_NOTE,
+    description: 'Motif de la decision, affiche au client.',
+  })
   @emptyToUndefined()
   @IsOptional()
   @IsString()

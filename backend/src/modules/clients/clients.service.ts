@@ -222,11 +222,7 @@ export class ClientsService {
       const assignment =
         typeof dto.accountManagerId === 'string'
           ? {
-              accountManagerId: await this.assertKnownUser(
-                tx,
-                dto.accountManagerId,
-                policy.userId,
-              ),
+              accountManagerId: await this.assertKnownUser(tx, dto.accountManagerId, policy.userId),
             }
           : {};
 

@@ -53,7 +53,7 @@ export class ModificationRequestController {
 
   @Get(':id')
   @RequireAnyPermission('modificationrequest:read:any', 'modificationrequest:read:own')
-  @ApiOperation({ summary: "Consulter une demande de modification" })
+  @ApiOperation({ summary: 'Consulter une demande de modification' })
   async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.modificationRequests.findOne(user, id);
   }
@@ -68,10 +68,7 @@ export class ModificationRequestController {
   @Post()
   @RequirePermissions('modificationrequest:write:own')
   @ApiOperation({ summary: 'Deposer une demande de modification' })
-  async create(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: CreateModificationRequestDto,
-  ) {
+  async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateModificationRequestDto) {
     return this.modificationRequests.create(user, dto);
   }
 
@@ -87,7 +84,8 @@ export class ModificationRequestController {
   @RequirePermissions('modificationrequest:decide:any')
   @ApiOperation({
     summary: 'Approuver ou refuser une demande',
-    description: 'Une demande deja decidee ne se redecide pas ; le meme avis renvoye est sans effet.',
+    description:
+      'Une demande deja decidee ne se redecide pas ; le meme avis renvoye est sans effet.',
   })
   async decide(
     @CurrentUser() user: AuthenticatedUser,

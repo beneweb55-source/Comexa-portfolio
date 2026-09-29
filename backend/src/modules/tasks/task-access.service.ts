@@ -5,7 +5,12 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import type { TaskStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { subjectOf } from '../projects/project-scope.js';
-import { TASK_READ_ORDER, TASK_WRITE_ORDER, taskScopeWhere, taskWriteScopeWhere } from './task-rules.js';
+import {
+  TASK_READ_ORDER,
+  TASK_WRITE_ORDER,
+  taskScopeWhere,
+  taskWriteScopeWhere,
+} from './task-rules.js';
 
 /**
  * ACCES A UNE TACHE, EN UN SEUL ENDROIT.

@@ -159,9 +159,13 @@ export function passwordPolicyViolation(plain: string, email?: string): string |
   }
 
   if (email) {
-    const localPart = email.split('@')[0]?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+    const localPart =
+      email
+        .split('@')[0]
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]/g, '') ?? '';
     if (localPart.length >= 4 && normalised.includes(localPart)) {
-      return "Le mot de passe ne doit pas contenir votre adresse e-mail.";
+      return 'Le mot de passe ne doit pas contenir votre adresse e-mail.';
     }
   }
 

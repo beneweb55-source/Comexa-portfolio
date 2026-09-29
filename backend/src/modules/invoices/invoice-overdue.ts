@@ -105,7 +105,9 @@ export function overdueCandidatesWhere(now: Date): Prisma.InvoiceWhereInput {
  * corriger par un avoir.
  */
 export function isOverdueCandidate(
-  invoice: Pick<OverdueInvoice, 'dueDate' | 'amountPaid' | 'total'> & { readonly status: InvoiceStatus },
+  invoice: Pick<OverdueInvoice, 'dueDate' | 'amountPaid' | 'total'> & {
+    readonly status: InvoiceStatus;
+  },
   now: Date,
 ): boolean {
   if (!SWEEPABLE_INVOICE_STATUSES.includes(invoice.status)) {

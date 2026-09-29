@@ -302,10 +302,7 @@ export class ConversationService {
       // Un PATCH vide qui repondrait 200 laisserait croire qu'il a change
       // quelque chose. Dire « rien a modifier » est plus utile qu'un succes
       // mensonger.
-      throw AppException.unprocessable(
-        'CONVERSATION_NOTHING_TO_UPDATE',
-        'Aucun champ a modifier.',
-      );
+      throw AppException.unprocessable('CONVERSATION_NOTHING_TO_UPDATE', 'Aucun champ a modifier.');
     }
 
     const { count } = await this.prisma.conversation.updateMany({

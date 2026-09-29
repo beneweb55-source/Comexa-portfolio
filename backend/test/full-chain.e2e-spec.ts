@@ -529,7 +529,9 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     await prisma.quoteItem.deleteMany({ where: { quoteId: { in: createdQuoteIds } } });
     await prisma.quote.deleteMany({ where: { id: { in: createdQuoteIds } } });
 
-    await prisma.leadStatusHistory.deleteMany({ where: { prospectId: { in: createdProspectIds } } });
+    await prisma.leadStatusHistory.deleteMany({
+      where: { prospectId: { in: createdProspectIds } },
+    });
     await prisma.prospect.deleteMany({ where: { id: { in: createdProspectIds } } });
     await prisma.contactRequest.deleteMany({ where: { id: { in: createdContactRequestIds } } });
 
@@ -588,7 +590,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
   // 1. VISITEUR
   // ---------------------------------------------------------------------------
 
-  it('1. VISITEUR : le formulaire public ecrit une demande, que l\'agence relit avec sa reference', async () => {
+  it("1. VISITEUR : le formulaire public ecrit une demande, que l'agence relit avec sa reference", async () => {
     // La seule route PUBLIQUE qui ecrit en base, et elle ne demande aucun compte.
     // C'est le vrai point d'entree d'un visiteur, pas une commodite de test.
     const created = await request(app.getHttpServer())
@@ -635,12 +637,12 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     );
 
     const found = requests.find((entry) => entry.email === VISITOR_EMAIL);
-    assert.ok(found, 'la demande du visiteur doit figurer dans la file de l\'agence');
+    assert.ok(found, "la demande du visiteur doit figurer dans la file de l'agence");
 
     contactRequestId = found.id;
     createdContactRequestIds.push(contactRequestId);
 
-    assert.equal(found.status, 'NEW', 'une demande qui vient d\'arriver est NEW');
+    assert.equal(found.status, 'NEW', "une demande qui vient d'arriver est NEW");
     assert.match(
       found.reference,
       referencePattern('CTR'),
@@ -686,7 +688,11 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     const prospect = dataOf<ProspectPayload>(read);
 
     assert.equal(prospect.id, prospectId);
-    assert.equal(prospect.status, 'NEW', 'un prospect nait NEW : le statut est un defaut du schema');
+    assert.equal(
+      prospect.status,
+      'NEW',
+      'un prospect nait NEW : le statut est un defaut du schema',
+    );
     assert.equal(prospect.email, VISITOR_EMAIL);
     assert.match(
       prospect.reference,
@@ -727,7 +733,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(entries.length, 2, 'la creation puis le passage en QUALIFIED : deux lignes');
 
     const last = entries[entries.length - 1];
-    assert.ok(last, 'l\'historique doit se terminer par la derniere transition');
+    assert.ok(last, "l'historique doit se terminer par la derniere transition");
     assert.equal(last.toStatus, 'QUALIFIED');
     assert.equal(last.fromStatus, 'NEW');
   });
@@ -766,7 +772,11 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
 
     assert.equal(quote.status, 'DRAFT', 'un devis nait en brouillon');
     assert.equal(quote.prospectId, prospectId);
-    assert.equal(quote.clientId, null, 'avant acceptation, le devis vise un prospect, pas un client');
+    assert.equal(
+      quote.clientId,
+      null,
+      'avant acceptation, le devis vise un prospect, pas un client',
+    );
     assert.match(
       quote.reference,
       referencePattern('DEV'),
@@ -786,11 +796,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
       .set(auth(adminToken))
       .send({});
 
-    assert.equal(
-      sent.status,
-      201,
-      `envoi du devis : ${sent.status} ${JSON.stringify(sent.body)}`,
-    );
+    assert.equal(sent.status, 201, `envoi du devis : ${sent.status} ${JSON.stringify(sent.body)}`);
 
     const afterSend = await request(app.getHttpServer())
       .get(`${baseUrl}/quotes/${quoteId}`)
@@ -830,7 +836,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(
       acceptance.clientCreated,
       true,
-      'le prospect n\'avait pas de dossier client : l\'acceptation doit le creer',
+      "le prospect n'avait pas de dossier client : l'acceptation doit le creer",
     );
     assert.equal(acceptance.status, 'ACCEPTED');
     assert.ok(projectAId, "l'acceptation doit rendre l'identifiant du projet ouvert");
@@ -867,7 +873,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
   // 5. CLIENT
   // ---------------------------------------------------------------------------
 
-  it('5. CLIENT : le dossier cree par l\'acceptation est lisible et numerote', async () => {
+  it("5. CLIENT : le dossier cree par l'acceptation est lisible et numerote", async () => {
     const read = await request(app.getHttpServer())
       .get(`${baseUrl}/clients/${clientAId}`)
       .set(auth(adminToken));
@@ -880,7 +886,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(
       client.companyName,
       PROSPECT_COMPANY,
-      "le dossier client reprend la raison sociale du prospect dont il est issu",
+      'le dossier client reprend la raison sociale du prospect dont il est issu',
     );
     assert.match(
       client.reference,
@@ -893,7 +899,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
   // 6. PROJET
   // ---------------------------------------------------------------------------
 
-  it('6. PROJET : le projet ouvert par l\'acceptation est rattache au bon client', async () => {
+  it("6. PROJET : le projet ouvert par l'acceptation est rattache au bon client", async () => {
     const read = await request(app.getHttpServer())
       .get(`${baseUrl}/projects/${projectAId}`)
       .set(auth(adminToken));
@@ -912,7 +918,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(
       project.status,
       'PLANNED',
-      "un projet ne nait pas en cours : il est PLANIFIE, et il faudra une transition pour le demarrer",
+      'un projet ne nait pas en cours : il est PLANIFIE, et il faudra une transition pour le demarrer',
     );
     assert.match(
       project.reference,
@@ -1064,14 +1070,14 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
 
     assert.equal(project.status, 'IN_PROGRESS');
     assert.equal(project.progressPercent, 40, "l'avancement declare doit etre celui relu");
-    assert.equal(project.completedAt, null, 'un projet en cours n\'a pas de date de fin');
+    assert.equal(project.completedAt, null, "un projet en cours n'a pas de date de fin");
   });
 
   // ---------------------------------------------------------------------------
   // 10. FACTURE
   // ---------------------------------------------------------------------------
 
-  it('10. FACTURE : la facture nait du devis accepte, ses lignes sont recopiees, et aucun montant n\'est accepte en entree', async () => {
+  it("10. FACTURE : la facture nait du devis accepte, ses lignes sont recopiees, et aucun montant n'est accepte en entree", async () => {
     const created = await request(app.getHttpServer())
       .post(`${baseUrl}/quotes/${quoteId}/invoice`)
       .set(auth(adminToken))
@@ -1093,7 +1099,11 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(read.status, 200);
     const invoice = dataOf<InvoicePayload>(read);
 
-    assert.equal(invoice.status, 'DRAFT', 'une facture nait en brouillon : elle se relit avant envoi');
+    assert.equal(
+      invoice.status,
+      'DRAFT',
+      'une facture nait en brouillon : elle se relit avant envoi',
+    );
     assert.equal(invoice.clientId, clientAId);
     assert.equal(invoice.quoteId, quoteId, 'la facture reste liee au devis dont elle est issue');
     assert.match(
@@ -1278,7 +1288,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     createdUserIds.push(account.user.id);
 
     assert.equal(account.user.mustChangePassword, true);
-    assert.ok(account.temporaryPassword, 'le mot de passe initial n\'est rendu qu\'ici');
+    assert.ok(account.temporaryPassword, "le mot de passe initial n'est rendu qu'ici");
     assert.deepEqual(account.user.roles, ['CLIENT']);
 
     const login = await request(app.getHttpServer())
@@ -1299,9 +1309,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
 
     // `GET /auth/me` reste ouvert : c'est ce qui permet a l'interface d'afficher
     // l'ecran de changement de mot de passe sans deviner pourquoi tout est ferme.
-    const me = await request(app.getHttpServer())
-      .get(`${baseUrl}/auth/me`)
-      .set(auth(invitedToken));
+    const me = await request(app.getHttpServer()).get(`${baseUrl}/auth/me`).set(auth(invitedToken));
 
     assert.equal(me.status, 200);
 
@@ -1339,7 +1347,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
   // 14. PERIMETRE CLIENT : deux dossiers reels, et l'isolation entre eux
   // ---------------------------------------------------------------------------
 
-  it('14. ISOLATION : le porteur client ne peut pas atteindre l\'autre dossier, ni par l\'URL ni par le corps', async () => {
+  it("14. ISOLATION : le porteur client ne peut pas atteindre l'autre dossier, ni par l'URL ni par le corps", async () => {
     // --- Le dossier B, complet : client, devis accepte, projet, facture -------
     const clientBCreated = await request(app.getHttpServer())
       .post(`${baseUrl}/clients`)
@@ -1387,7 +1395,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(
       acceptanceB.clientCreated,
       false,
-      'le dossier B existait deja : l\'acceptation ne doit pas en creer un second',
+      "le dossier B existait deja : l'acceptation ne doit pas en creer un second",
     );
 
     const invoiceBCreated = await request(app.getHttpServer())
@@ -1546,12 +1554,12 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
       assert.equal(
         entry.clientId,
         clientAId,
-        "un porteur client ne voit que les devis de SON dossier, quel que soit le filtre demande",
+        'un porteur client ne voit que les devis de SON dossier, quel que soit le filtre demande',
       );
     }
     assert.ok(
       !visibleQuotes.some((entry) => entry.id === quoteBId),
-      "le devis de B ne doit jamais apparaitre dans la liste de A",
+      'le devis de B ne doit jamais apparaitre dans la liste de A',
     );
     assert.ok(
       visibleQuotes.some((entry) => entry.id === quoteId),
@@ -1640,30 +1648,15 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
       return document.id;
     };
 
-    documentInternalAId = await upload(
-      `Note interne A ${RUN}`,
-      'INTERNAL',
-      clientAId,
-      projectAId,
-    );
-    documentClientAId = await upload(
-      `Livrable client A ${RUN}`,
-      'CLIENT',
-      clientAId,
-      projectAId,
-    );
+    documentInternalAId = await upload(`Note interne A ${RUN}`, 'INTERNAL', clientAId, projectAId);
+    documentClientAId = await upload(`Livrable client A ${RUN}`, 'CLIENT', clientAId, projectAId);
     documentPublicAId = await upload(
       `Plaquette publique A ${RUN}`,
       'PUBLIC',
       clientAId,
       projectAId,
     );
-    documentInternalBId = await upload(
-      `Note interne B ${RUN}`,
-      'INTERNAL',
-      clientBId,
-      projectBId,
-    );
+    documentInternalBId = await upload(`Note interne B ${RUN}`, 'INTERNAL', clientBId, projectBId);
 
     // --- Cote agence : les quatre documents sont la, y compris l'interne ----
     const adminList = await request(app.getHttpServer())
@@ -1699,7 +1692,7 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     );
     assert.ok(
       !clientDocuments.some((document) => document.id === documentInternalBId),
-      "le document interne du dossier B ne doit pas non plus remonter",
+      'le document interne du dossier B ne doit pas non plus remonter',
     );
 
     // --- Lire l'interne par son identifiant : introuvable, pas interdit -----

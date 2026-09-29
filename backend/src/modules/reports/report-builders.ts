@@ -254,7 +254,9 @@ function projectScope(request: ResolvedReportRequest): { projectId?: string } {
   return request.projectId === null ? {} : { projectId: request.projectId };
 }
 
-function nameIndex(rows: readonly { id: string; firstName: string; lastName: string }[]): Map<string, string> {
+function nameIndex(
+  rows: readonly { id: string; firstName: string; lastName: string }[],
+): Map<string, string> {
   const index = new Map<string, string>();
   for (const row of rows) {
     index.set(row.id, `${row.firstName} ${row.lastName}`.trim());
@@ -692,27 +694,28 @@ async function buildProjectProgress(
   let tasksByStatus: StatusCount[] | null = null;
 
   if (request.projectId !== null) {
-    const [projectRow, milestoneRows, milestoneOverdue, milestoneTotal, taskRows] = await Promise.all([
-      prisma.project.findFirst({ where: projectsWhere, select: PROJECT_SUMMARY_SELECT }),
-      prisma.milestone.groupBy({
-        by: ['status'],
-        where: { projectId: request.projectId },
-        _count: { _all: true },
-      }),
-      prisma.milestone.count({
-        where: {
-          projectId: request.projectId,
-          status: { in: [MilestoneStatus.PENDING, MilestoneStatus.IN_PROGRESS] },
-          dueDate: { lt: request.now },
-        },
-      }),
-      prisma.milestone.count({ where: { projectId: request.projectId } }),
-      prisma.task.groupBy({
-        by: ['status'],
-        where: { deletedAt: null, projectId: request.projectId },
-        _count: { _all: true },
-      }),
-    ]);
+    const [projectRow, milestoneRows, milestoneOverdue, milestoneTotal, taskRows] =
+      await Promise.all([
+        prisma.project.findFirst({ where: projectsWhere, select: PROJECT_SUMMARY_SELECT }),
+        prisma.milestone.groupBy({
+          by: ['status'],
+          where: { projectId: request.projectId },
+          _count: { _all: true },
+        }),
+        prisma.milestone.count({
+          where: {
+            projectId: request.projectId,
+            status: { in: [MilestoneStatus.PENDING, MilestoneStatus.IN_PROGRESS] },
+            dueDate: { lt: request.now },
+          },
+        }),
+        prisma.milestone.count({ where: { projectId: request.projectId } }),
+        prisma.task.groupBy({
+          by: ['status'],
+          where: { deletedAt: null, projectId: request.projectId },
+          _count: { _all: true },
+        }),
+      ]);
 
     project = projectRow === null ? null : projectSummary(projectRow);
 
@@ -796,8 +799,7 @@ async function buildActivity(
     message: row.message,
     createdAt: row.createdAt.toISOString(),
     projectName: row.project?.name ?? null,
-    actorName:
-      row.actor === null ? null : `${row.actor.firstName} ${row.actor.lastName}`.trim(),
+    actorName: row.actor === null ? null : `${row.actor.firstName} ${row.actor.lastName}`.trim(),
   }));
 
   return {

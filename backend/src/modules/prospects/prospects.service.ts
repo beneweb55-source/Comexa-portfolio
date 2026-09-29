@@ -925,7 +925,7 @@ export class ProspectsService {
     }
 
     if (scope === SCOPE_OWN) {
-      throw AppException.forbidden('Vous ne pouvez assigner ce prospect qu\'a vous-meme.');
+      throw AppException.forbidden("Vous ne pouvez assigner ce prospect qu'a vous-meme.");
     }
 
     const owner = await tx.user.findUnique({ where: { id: ownerId }, select: { id: true } });

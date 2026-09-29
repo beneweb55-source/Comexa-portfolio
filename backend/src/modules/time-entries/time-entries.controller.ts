@@ -1,16 +1,9 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
-import {
-  CurrentUser,
-  RequireAnyPermission,
-} from '../../common/decorators/auth.decorators.js';
+import { CurrentUser, RequireAnyPermission } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
-import {
-  CreateTimeEntryDto,
-  TimeEntryQueryDto,
-  UpdateTimeEntryDto,
-} from './dto/time-entry.dto.js';
+import { CreateTimeEntryDto, TimeEntryQueryDto, UpdateTimeEntryDto } from './dto/time-entry.dto.js';
 import { TimeEntriesService } from './time-entries.service.js';
 
 /**
@@ -35,7 +28,7 @@ export class TimeEntriesController {
 
   @Get('tasks/:taskId/time-entries')
   @RequireAnyPermission('time:read:any', 'time:read:own')
-  @ApiOperation({ summary: "Temps saisi sur une tache (borne au perimetre du porteur)." })
+  @ApiOperation({ summary: 'Temps saisi sur une tache (borne au perimetre du porteur).' })
   async listForTask(
     @Param('taskId') taskId: string,
     @Query() query: TimeEntryQueryDto,

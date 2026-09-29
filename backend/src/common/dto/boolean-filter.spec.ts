@@ -29,11 +29,7 @@ import {
 } from '../../modules/messaging/dto/messaging.dto.js';
 import { ListNotificationsQueryDto } from '../../modules/notifications/dto/notification.dto.js';
 import { SettingsQueryDto } from '../../modules/settings/dto/settings.dto.js';
-import {
-  CreateTaskDto,
-  TaskQueryDto,
-  UpdateTaskDto,
-} from '../../modules/tasks/dto/task.dto.js';
+import { CreateTaskDto, TaskQueryDto, UpdateTaskDto } from '../../modules/tasks/dto/task.dto.js';
 import {
   CreateTimeEntryDto,
   TimeEntryQueryDto,
@@ -179,8 +175,18 @@ const CASES: readonly BooleanCase[] = [
   { kind: 'body', metatype: UpdateConversationDto, property: 'isArchived' },
   { kind: 'body', metatype: ModerateContentDto, property: 'isPublished', required: true },
 
-  { kind: 'body', metatype: CreateServiceDto, property: 'isActive', base: { title: 'Aa', shortDescription: 'Aa' } },
-  { kind: 'body', metatype: CreateServiceDto, property: 'isFeatured', base: { title: 'Aa', shortDescription: 'Aa' } },
+  {
+    kind: 'body',
+    metatype: CreateServiceDto,
+    property: 'isActive',
+    base: { title: 'Aa', shortDescription: 'Aa' },
+  },
+  {
+    kind: 'body',
+    metatype: CreateServiceDto,
+    property: 'isFeatured',
+    base: { title: 'Aa', shortDescription: 'Aa' },
+  },
   { kind: 'body', metatype: UpdateServiceDto, property: 'isActive' },
   { kind: 'body', metatype: UpdateServiceDto, property: 'isFeatured' },
 
@@ -189,16 +195,31 @@ const CASES: readonly BooleanCase[] = [
   { kind: 'body', metatype: UpdatePackageDto, property: 'isActive' },
   { kind: 'body', metatype: UpdatePackageDto, property: 'isFeatured' },
 
-  { kind: 'body', metatype: CreateCaseStudyCategoryDto, property: 'isActive', base: { name: 'Aa' } },
+  {
+    kind: 'body',
+    metatype: CreateCaseStudyCategoryDto,
+    property: 'isActive',
+    base: { name: 'Aa' },
+  },
   { kind: 'body', metatype: UpdateCaseStudyCategoryDto, property: 'isActive' },
 
-  { kind: 'body', metatype: CreateCaseStudyDto, property: 'isFeatured', base: { title: 'Aa', excerpt: 'Aa', content: 'Aa' } },
+  {
+    kind: 'body',
+    metatype: CreateCaseStudyDto,
+    property: 'isFeatured',
+    base: { title: 'Aa', excerpt: 'Aa', content: 'Aa' },
+  },
   { kind: 'body', metatype: UpdateCaseStudyDto, property: 'isFeatured' },
 
   { kind: 'body', metatype: CreatePartnerDto, property: 'isActive', base: { name: 'Aa' } },
   { kind: 'body', metatype: UpdatePartnerDto, property: 'isActive' },
 
-  { kind: 'body', metatype: CreateFaqDto, property: 'isPublished', base: { question: 'Aaa', answer: 'Aa' } },
+  {
+    kind: 'body',
+    metatype: CreateFaqDto,
+    property: 'isPublished',
+    base: { question: 'Aaa', answer: 'Aa' },
+  },
   { kind: 'body', metatype: UpdateFaqDto, property: 'isPublished' },
 
   { kind: 'body', metatype: CreateTaskDto, property: 'isClientVisible', base: { title: 'Aa' } },
@@ -207,7 +228,12 @@ const CASES: readonly BooleanCase[] = [
   { kind: 'body', metatype: CreateTimeEntryDto, property: 'billable', base: { minutes: 30 } },
   { kind: 'body', metatype: UpdateTimeEntryDto, property: 'billable' },
 
-  { kind: 'body', metatype: CreateContactDto, property: 'isPrimary', base: { firstName: 'Aa', lastName: 'Aa' } },
+  {
+    kind: 'body',
+    metatype: CreateContactDto,
+    property: 'isPrimary',
+    base: { firstName: 'Aa', lastName: 'Aa' },
+  },
   { kind: 'body', metatype: UpdateContactDto, property: 'isPrimary' },
 ];
 
@@ -276,7 +302,9 @@ describe('les booleens d entree de l API — table de verite du pipe reel', () =
 describe('le montage reproduit bien la production', () => {
   class SansTypeExplicite {
     @IsOptional()
-    @Transform(({ value }) => (value === undefined ? undefined : value === true || value === 'true'))
+    @Transform(({ value }) =>
+      value === undefined ? undefined : value === true || value === 'true',
+    )
     @IsBoolean()
     flag?: boolean;
   }
@@ -284,7 +312,9 @@ describe('le montage reproduit bien la production', () => {
   class AvecTypeExplicite {
     @IsOptional()
     @TypeDecorator(() => String)
-    @Transform(({ value }) => (value === undefined ? undefined : value === true || value === 'true'))
+    @Transform(({ value }) =>
+      value === undefined ? undefined : value === true || value === 'true',
+    )
     @IsBoolean()
     flag?: boolean;
   }

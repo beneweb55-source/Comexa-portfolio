@@ -57,7 +57,7 @@ export class CreateTaskDto {
   @MaxLength(64)
   milestoneId?: string;
 
-  @ApiPropertyOptional({ description: "Tache parente (sous-tache)." })
+  @ApiPropertyOptional({ description: 'Tache parente (sous-tache).' })
   @IsOptional()
   @IsString()
   @MaxLength(64)

@@ -1,4 +1,9 @@
-import { SCOPE_ANY, SCOPE_OWN, type AccessPolicy, type ScopeName } from '../../common/auth/principal.js';
+import {
+  SCOPE_ANY,
+  SCOPE_OWN,
+  type AccessPolicy,
+  type ScopeName,
+} from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 

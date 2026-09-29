@@ -110,7 +110,10 @@ export class CreateProspectDto {
   // la colonne, pas une appreciation commerciale.
   @ApiPropertyOptional({ example: 12000.5, maximum: 99_999_999_999.99 })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Le budget estime doit avoir au plus deux decimales.' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'Le budget estime doit avoir au plus deux decimales.' },
+  )
   @Min(0, { message: 'Un budget estime ne peut pas etre negatif.' })
   @Max(99_999_999_999.99)
   estimatedBudget?: number;
@@ -273,7 +276,7 @@ export class ListProspectsQueryDto extends PaginationQueryDto {
   @MaxLength(ID_MAX)
   ownerId?: string;
 
-  @ApiPropertyOptional({ description: 'Recherche sur le nom, le contact et l\'adresse e-mail.' })
+  @ApiPropertyOptional({ description: "Recherche sur le nom, le contact et l'adresse e-mail." })
   @IsOptional()
   @IsString()
   @MaxLength(NAME_MAX)

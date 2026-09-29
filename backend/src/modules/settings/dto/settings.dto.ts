@@ -36,8 +36,7 @@ export const SETTING_DESCRIPTION_MAX_LENGTH = 300;
 
 export class SettingsQueryDto {
   @ApiPropertyOptional({
-    description:
-      'Inclut les parametres internes. Reserve aux porteurs de `setting:write:any`.',
+    description: 'Inclut les parametres internes. Reserve aux porteurs de `setting:write:any`.',
     default: false,
   })
   // Transformation explicite : sans elle, `?includeInternal=false` afficherait

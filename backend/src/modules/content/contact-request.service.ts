@@ -164,7 +164,11 @@ export class ContactRequestService {
    * effacerait le nom du premier, et « qui a traite cette demande » n'aurait plus
    * de reponse.
    */
-  async update(id: string, dto: UpdateContactRequestDto, actorId: string): Promise<ContactRequestRow> {
+  async update(
+    id: string,
+    dto: UpdateContactRequestDto,
+    actorId: string,
+  ): Promise<ContactRequestRow> {
     const existing = await this.prisma.contactRequest.findFirst({
       where: { id, deletedAt: null },
       select: { id: true, handledById: true, status: true },
@@ -175,7 +179,7 @@ export class ContactRequestService {
     if (dto.status === ContactRequestStatus.CONVERTED) {
       throw AppException.unprocessable(
         'CONTACT_REQUEST_CONVERT',
-        "Une demande se convertit depuis le module commercial, qui cree le prospect et le rattache.",
+        'Une demande se convertit depuis le module commercial, qui cree le prospect et le rattache.',
       );
     }
 

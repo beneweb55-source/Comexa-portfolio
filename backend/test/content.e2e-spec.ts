@@ -98,7 +98,13 @@ interface ErrorBody {
 
 interface LoginData {
   accessToken: string;
-  user: { id: string; email: string; roles: string[]; permissions: string[]; clientId: string | null };
+  user: {
+    id: string;
+    email: string;
+    roles: string[];
+    permissions: string[];
+    clientId: string | null;
+  };
 }
 
 function errorOf(response: request.Response): ErrorBody['error'] {
@@ -361,7 +367,7 @@ describe('Contenu public et cloisonnement des documents (bout en bout, base reel
       }),
       prisma.document.create({
         data: {
-          name: "Partage avec le dossier B",
+          name: 'Partage avec le dossier B',
           originalName: 'b.pdf',
           mimeType: 'application/pdf',
           sizeBytes: 4096,
@@ -395,7 +401,7 @@ describe('Contenu public et cloisonnement des documents (bout en bout, base reel
     const permissions = (profil.body as SuccessBody<{ permissions: string[] }>).data.permissions;
     assert.ok(
       permissions.includes('document:read:client'),
-      "le role CLIENT doit porter document:read:client (catalogue ou permissions en base)",
+      'le role CLIENT doit porter document:read:client (catalogue ou permissions en base)',
     );
   });
 
@@ -608,7 +614,11 @@ describe('Contenu public et cloisonnement des documents (bout en bout, base reel
     );
 
     // Les traces techniques sont bien enregistrees par le serveur.
-    assert.notEqual(demande.ipAddress, null, "l'adresse IP est lue sur la requete, pas dans le corps");
+    assert.notEqual(
+      demande.ipAddress,
+      null,
+      "l'adresse IP est lue sur la requete, pas dans le corps",
+    );
   });
 
   it('refuse un corps de demande de contact qui tente de fixer son etat', async () => {
@@ -767,11 +777,7 @@ function verifierAucunPrix(objets: Array<Record<string, unknown>>, ou: string): 
 
   for (const objet of objets) {
     for (const cle of Object.keys(objet)) {
-      assert.equal(
-        MOTIFS_DE_PRIX.test(cle),
-        false,
-        `${ou} expose un champ de tarif : ${cle}`,
-      );
+      assert.equal(MOTIFS_DE_PRIX.test(cle), false, `${ou} expose un champ de tarif : ${cle}`);
     }
   }
 }
@@ -785,11 +791,7 @@ function verifierAucunPrix(objets: Array<Record<string, unknown>>, ou: string): 
  * porterait les permissions qu'on a imaginees, et les assertions de
  * cloisonnement ne prouveraient plus rien sur le catalogue.
  */
-async function connecter(
-  app: INestApplication,
-  baseUrl: string,
-  email: string,
-): Promise<string> {
+async function connecter(app: INestApplication, baseUrl: string, email: string): Promise<string> {
   const response = await request(app.getHttpServer())
     .post(`${baseUrl}/auth/login`)
     .send({ email, password: PASSWORD })

@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service.js';
 import type { AccessPolicy } from '../../common/auth/principal.js';
-import { paginated, resolvePagination, type PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import {
+  paginated,
+  resolvePagination,
+  type PaginationQueryDto,
+} from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { ActivityType, NotificationType, ProjectStatus } from '../../generated/prisma/enums.js';
@@ -661,7 +665,7 @@ export class ProjectsService {
       await this.activity.record(
         {
           type: ActivityType.NOTE,
-          message: "Un membre a quitte le projet.",
+          message: 'Un membre a quitte le projet.',
           projectId,
           clientId: project.clientId,
           actorId: policy.userId,

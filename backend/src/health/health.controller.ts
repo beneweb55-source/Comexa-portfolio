@@ -23,7 +23,7 @@ export class HealthController {
   @Public()
   @SkipThrottle()
   @Get()
-  @ApiOperation({ summary: "Etat du service et de sa base de donnees" })
+  @ApiOperation({ summary: 'Etat du service et de sa base de donnees' })
   async check(): Promise<{
     status: string;
     database: string;

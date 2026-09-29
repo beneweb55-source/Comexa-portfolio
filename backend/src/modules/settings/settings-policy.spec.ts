@@ -57,7 +57,16 @@ describe('isValidSettingKey — format des cles', () => {
   });
 
   it('refuse les separateurs mal places et les caracteres etrangers', () => {
-    for (const key of ['company..name', '.company', 'company.', 'company name', 'company/name', 'company:name', '', ' ']) {
+    for (const key of [
+      'company..name',
+      '.company',
+      'company.',
+      'company name',
+      'company/name',
+      'company:name',
+      '',
+      ' ',
+    ]) {
       assert.equal(isValidSettingKey(key), false, `« ${key} » aurait du etre refuse`);
     }
   });

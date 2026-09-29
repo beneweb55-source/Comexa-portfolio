@@ -125,17 +125,26 @@ describe('statusAfterPayment — le statut vient de la SOMME', () => {
   const total = money('1000.00');
 
   it('un encaissement partiel donne PARTIALLY_PAID', () => {
-    assert.equal(statusAfterPayment(InvoiceStatus.SENT, paid(['400.00']), total), InvoiceStatus.PARTIALLY_PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.SENT, paid(['400.00']), total),
+      InvoiceStatus.PARTIALLY_PAID,
+    );
   });
 
   it('un encaissement complet donne PAID', () => {
-    assert.equal(statusAfterPayment(InvoiceStatus.SENT, paid(['1000.00']), total), InvoiceStatus.PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.SENT, paid(['1000.00']), total),
+      InvoiceStatus.PAID,
+    );
   });
 
   it('un encaissement qui DEPASSE le du donne PAID, pas autre chose', () => {
     // Le trop-percu se corrige par un avoir ; il ne doit pas laisser la facture
     // dans un etat intermediaire alors qu'elle est entierement soldee.
-    assert.equal(statusAfterPayment(InvoiceStatus.SENT, paid(['1200.00']), total), InvoiceStatus.PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.SENT, paid(['1200.00']), total),
+      InvoiceStatus.PAID,
+    );
   });
 
   it('plusieurs encaissements s ADDITIONNENT', () => {
@@ -154,17 +163,32 @@ describe('statusAfterPayment — le statut vient de la SOMME', () => {
     // annulation : la facture a ete PAYEE, elle doit redevenir ENVOYEE. Un
     // `if (paiement) status = PAID` la laisserait payee pour toujours, et le
     // solde afficherait 1000 du que personne ne reclame.
-    assert.equal(statusAfterPayment(InvoiceStatus.PAID, paid(['1000.00']), total), InvoiceStatus.PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.PAID, paid(['1000.00']), total),
+      InvoiceStatus.PAID,
+    );
     assert.equal(statusAfterPayment(InvoiceStatus.PAID, paid([]), total), InvoiceStatus.SENT);
 
     // Retrait partiel : de soldee a partiellement payee.
-    assert.equal(statusAfterPayment(InvoiceStatus.PAID, paid(['600.00']), total), InvoiceStatus.PARTIALLY_PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.PAID, paid(['600.00']), total),
+      InvoiceStatus.PARTIALLY_PAID,
+    );
   });
 
   it('revient a SENT quand le dernier centime est retire', () => {
-    assert.equal(statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, paid(['400.00']), total), InvoiceStatus.PARTIALLY_PAID);
-    assert.equal(statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, paid([]), total), InvoiceStatus.SENT);
-    assert.equal(statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, zero(), total), InvoiceStatus.SENT);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, paid(['400.00']), total),
+      InvoiceStatus.PARTIALLY_PAID,
+    );
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, paid([]), total),
+      InvoiceStatus.SENT,
+    );
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.PARTIALLY_PAID, zero(), total),
+      InvoiceStatus.SENT,
+    );
   });
 
   it('un remboursement integral ramene a SENT, jamais a un etat negatif', () => {
@@ -182,20 +206,35 @@ describe('statusAfterPayment — le statut vient de la SOMME', () => {
   it('PRESERVE une facture annulee, meme avec un paiement residuel', () => {
     // L'annulation est un acte, pas un solde : un remboursement en cours ne doit
     // pas transformer une piece annulee en piece envoyee.
-    assert.equal(statusAfterPayment(InvoiceStatus.CANCELLED, paid(['400.00']), total), InvoiceStatus.CANCELLED);
-    assert.equal(statusAfterPayment(InvoiceStatus.CANCELLED, zero(), total), InvoiceStatus.CANCELLED);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.CANCELLED, paid(['400.00']), total),
+      InvoiceStatus.CANCELLED,
+    );
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.CANCELLED, zero(), total),
+      InvoiceStatus.CANCELLED,
+    );
   });
 
   it('PRESERVE une facture remboursee', () => {
     assert.equal(statusAfterPayment(InvoiceStatus.REFUNDED, zero(), total), InvoiceStatus.REFUNDED);
-    assert.equal(statusAfterPayment(InvoiceStatus.REFUNDED, paid(['100.00']), total), InvoiceStatus.REFUNDED);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.REFUNDED, paid(['100.00']), total),
+      InvoiceStatus.REFUNDED,
+    );
   });
 
   it('un retard se resorbe des le premier encaissement partiel', () => {
     // `OVERDUE` decrit une date, pas un montant : des qu'un paiement arrive, la
     // facture redevient une facture partiellement payee.
-    assert.equal(statusAfterPayment(InvoiceStatus.OVERDUE, paid(['1.00']), total), InvoiceStatus.PARTIALLY_PAID);
-    assert.equal(statusAfterPayment(InvoiceStatus.OVERDUE, paid(['1000.00']), total), InvoiceStatus.PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.OVERDUE, paid(['1.00']), total),
+      InvoiceStatus.PARTIALLY_PAID,
+    );
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.OVERDUE, paid(['1000.00']), total),
+      InvoiceStatus.PAID,
+    );
   });
 
   it('un total NUL est paye des le premier centime, pas avant', () => {
@@ -203,7 +242,10 @@ describe('statusAfterPayment — le statut vient de la SOMME', () => {
     // nulle elle reste SENT — on ne peut pas la payer — et le premier centime la
     // solde, puisqu'il n'y a plus rien a devoir.
     assert.equal(statusAfterPayment(InvoiceStatus.SENT, zero(), zero()), InvoiceStatus.SENT);
-    assert.equal(statusAfterPayment(InvoiceStatus.SENT, paid(['0.01']), zero()), InvoiceStatus.PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.SENT, paid(['0.01']), zero()),
+      InvoiceStatus.PAID,
+    );
   });
 
   it('ne depend PAS de l ORDRE des mouvements, seulement de leur somme', () => {
@@ -217,7 +259,10 @@ describe('statusAfterPayment — le statut vient de la SOMME', () => {
       statusAfterPayment(InvoiceStatus.SENT, enDeuxFois, total),
       statusAfterPayment(InvoiceStatus.SENT, enUneFois, total),
     );
-    assert.equal(statusAfterPayment(InvoiceStatus.SENT, enDeuxFois, total), InvoiceStatus.PARTIALLY_PAID);
+    assert.equal(
+      statusAfterPayment(InvoiceStatus.SENT, enDeuxFois, total),
+      InvoiceStatus.PARTIALLY_PAID,
+    );
   });
 
   it('ne produit jamais un statut hors de l enumeration', () => {

@@ -130,11 +130,7 @@ describe("Parcours d'authentification (bout en bout, base reelle)", () => {
     // `passwordPolicyViolation` renvoie `null` quand le mot de passe convient,
     // et une phrase explicative sinon.
     const violation = passwordPolicyViolation(PASSWORD);
-    assert.equal(
-      violation,
-      null,
-      `mot de passe de test refuse par la politique : ${violation}`,
-    );
+    assert.equal(violation, null, `mot de passe de test refuse par la politique : ${violation}`);
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
@@ -361,7 +357,10 @@ describe("Parcours d'authentification (bout en bout, base reelle)", () => {
   it("refuse un refresh token inconnu sans donner d'indice", async () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/auth/refresh`)
-      .set('Cookie', `${REFRESH_COOKIE}=jeton-completement-invente-et-suffisamment-long-pour-passer`)
+      .set(
+        'Cookie',
+        `${REFRESH_COOKIE}=jeton-completement-invente-et-suffisamment-long-pour-passer`,
+      )
       .send({});
 
     assert.equal(response.status, 401);

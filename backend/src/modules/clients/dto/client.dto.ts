@@ -253,7 +253,8 @@ export class CreateContactDto {
   jobTitle?: string;
 
   @ApiPropertyOptional({
-    description: "Interlocuteur principal. Un client n'a qu'un seul principal : le definir retire le drapeau aux autres.",
+    description:
+      "Interlocuteur principal. Un client n'a qu'un seul principal : le definir retire le drapeau aux autres.",
   })
   // Le piege de conversion est documente une seule fois, dans boolean-filter.ts.
   @BooleanFilter()

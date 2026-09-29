@@ -67,7 +67,8 @@ const MAX_DEPTH = 8;
  * differente par convention de nommage — et la premiere qui manquerait serait
  * celle qu'un service utiliserait.
  */
-const SENSITIVE_KEY = /pass|pwd|secret|token|hash|credential|authorization|authheader|cookie|privatekey|apikey|accesskey|signingkey|salt|signature|bearer/;
+const SENSITIVE_KEY =
+  /pass|pwd|secret|token|hash|credential|authorization|authheader|cookie|privatekey|apikey|accesskey|signingkey|salt|signature|bearer/;
 
 /**
  * Un JWT : trois segments separes par des points, le premier commencant par
@@ -86,12 +87,7 @@ const BEARER_VALUE = /^bearer\s+\S+/i;
 
 /** Une valeur JSON, apres passage dans le filtre. */
 export type RedactedValue =
-  | string
-  | number
-  | boolean
-  | null
-  | RedactedValue[]
-  | { [key: string]: RedactedValue };
+  string | number | boolean | null | RedactedValue[] | { [key: string]: RedactedValue };
 
 /** Vrai si le nom de cle trahit un secret. Exporte pour etre teste directement. */
 export function isSensitiveKey(key: string): boolean {

@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  type AccessPolicy,
-  type ScopeName,
-} from '../../common/auth/principal.js';
+import { type AccessPolicy, type ScopeName } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
 import { ProjectStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';

@@ -30,7 +30,7 @@ export class SettingsController {
 
   @Get()
   @RequirePermissions('setting:read:any')
-  @ApiOperation({ summary: "Lister les parametres (les parametres internes sont masques)" })
+  @ApiOperation({ summary: 'Lister les parametres (les parametres internes sont masques)' })
   list(@CurrentUser() user: AuthenticatedUser, @Query() query: SettingsQueryDto) {
     return this.settings.list(user, query);
   }

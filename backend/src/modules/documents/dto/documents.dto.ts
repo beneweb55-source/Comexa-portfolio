@@ -55,7 +55,7 @@ const MAX_ID_LENGTH = 40;
  */
 export class UploadDocumentDto {
   @ApiPropertyOptional({
-    description: "Nom lisible du document. A defaut, le nom du fichier envoye, nettoye.",
+    description: 'Nom lisible du document. A defaut, le nom du fichier envoye, nettoye.',
     maxLength: MAX_NAME_LENGTH,
   })
   @emptyToUndefined()

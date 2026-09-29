@@ -73,12 +73,19 @@ describe('UpdateSettingsDto — la porte d entree', () => {
 
   it('refuse une cle en majuscules ou mal formee', async () => {
     for (const key of ['Company.Name', 'company..name', 'company name', '']) {
-      await assert.rejects(() => validateBody({ settings: [{ key, value: 'x' }] }), BadRequestException, key);
+      await assert.rejects(
+        () => validateBody({ settings: [{ key, value: 'x' }] }),
+        BadRequestException,
+        key,
+      );
     }
   });
 
   it('refuse un parametre sans valeur et un lot vide', async () => {
-    await assert.rejects(() => validateBody({ settings: [{ key: 'company.name' }] }), BadRequestException);
+    await assert.rejects(
+      () => validateBody({ settings: [{ key: 'company.name' }] }),
+      BadRequestException,
+    );
     await assert.rejects(() => validateBody({ settings: [] }), BadRequestException);
     await assert.rejects(() => validateBody({}), BadRequestException);
   });

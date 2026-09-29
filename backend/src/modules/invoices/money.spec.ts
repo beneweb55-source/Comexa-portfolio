@@ -145,10 +145,7 @@ describe('computeLine', () => {
 
 describe('computeTotals', () => {
   it('TVA a 0 % : le total vaut EXACTEMENT le net', () => {
-    const totals = computeTotals(
-      [{ quantity: 4, unitPrice: '25.00', discountPercent: 0 }],
-      0,
-    );
+    const totals = computeTotals([{ quantity: 4, unitPrice: '25.00', discountPercent: 0 }], 0);
     assert.equal(fixed(totals.subtotal), '100.00');
     assert.equal(fixed(totals.discountAmount), '0.00');
     assert.equal(fixed(totals.taxAmount), '0.00');
@@ -159,10 +156,7 @@ describe('computeTotals', () => {
     // Convention retenue : la TVA se calcule sur le net. Le jeu de donnees est
     // choisi pour que les deux lectures (sur le brut, sur le net) DIFFERENT :
     // 100 - 10 = 90, TVA 20 % = 18, total 108. Sur le brut, on lirait 120.
-    const totals = computeTotals(
-      [{ quantity: 1, unitPrice: '100.00', discountPercent: 10 }],
-      20,
-    );
+    const totals = computeTotals([{ quantity: 1, unitPrice: '100.00', discountPercent: 10 }], 20);
     assert.equal(fixed(totals.subtotal), '100.00');
     assert.equal(fixed(totals.discountAmount), '10.00');
     assert.equal(fixed(totals.taxAmount), '18.00');
@@ -171,10 +165,7 @@ describe('computeTotals', () => {
 
   it('arrondit la TVA au centime, une seule fois', () => {
     // 19,99 x 20 % = 3,998 -> 4,00.
-    const totals = computeTotals(
-      [{ quantity: 1, unitPrice: '19.99', discountPercent: 0 }],
-      20,
-    );
+    const totals = computeTotals([{ quantity: 1, unitPrice: '19.99', discountPercent: 0 }], 20);
     assert.equal(fixed(totals.taxAmount), '4.00');
     assert.equal(fixed(totals.total), '23.99');
   });
@@ -218,48 +209,93 @@ describe('INVARIANT : total == somme des totaux de lignes', () => {
    * taux a 5,5 % — parce qu'un invariant qui ne tient que sur des nombres ronds
    * ne prouve rien.
    */
-  const cases: readonly { readonly name: string; readonly entries: readonly LineEntry[]; readonly rate: string }[] =
-    [
-      {
-        name: 'remise 0 %, TVA 20 %',
-        entries: [
-          { title: 'A', description: null, quantity: 3, unitPrice: '19.99', discountPercent: 0 },
-          { title: 'B', description: null, quantity: 1, unitPrice: '149.00', discountPercent: 0 },
-        ],
-        rate: '20',
-      },
-      {
-        name: 'remise 100 % sur une ligne, 7,5 % sur une autre',
-        entries: [
-          { title: 'Offerte', description: null, quantity: 1, unitPrice: '89.90', discountPercent: 100 },
-          { title: 'Remisee', description: null, quantity: 2, unitPrice: '33.33', discountPercent: '7.5' },
-        ],
-        rate: '20',
-      },
-      {
-        name: 'quantite fractionnaire et remise a trois decimales',
-        entries: [
-          { title: 'Heures', description: null, quantity: '2.75', unitPrice: '61.70', discountPercent: '12.345' },
-          { title: 'Jours', description: null, quantity: '0.333', unitPrice: '450.00', discountPercent: '3.333' },
-        ],
-        rate: '5.5',
-      },
-      {
-        name: 'TVA 0 %',
-        entries: [
-          { title: 'Detaxe', description: null, quantity: 7, unitPrice: '0.07', discountPercent: '1.5' },
-        ],
-        rate: '0',
-      },
-      {
-        name: 'centimes serres',
-        entries: [
-          { title: 'Petit', description: null, quantity: 1, unitPrice: '0.01', discountPercent: '33.333' },
-          { title: 'Autre', description: null, quantity: 3, unitPrice: '0.01', discountPercent: '0.001' },
-        ],
-        rate: '20',
-      },
-    ];
+  const cases: readonly {
+    readonly name: string;
+    readonly entries: readonly LineEntry[];
+    readonly rate: string;
+  }[] = [
+    {
+      name: 'remise 0 %, TVA 20 %',
+      entries: [
+        { title: 'A', description: null, quantity: 3, unitPrice: '19.99', discountPercent: 0 },
+        { title: 'B', description: null, quantity: 1, unitPrice: '149.00', discountPercent: 0 },
+      ],
+      rate: '20',
+    },
+    {
+      name: 'remise 100 % sur une ligne, 7,5 % sur une autre',
+      entries: [
+        {
+          title: 'Offerte',
+          description: null,
+          quantity: 1,
+          unitPrice: '89.90',
+          discountPercent: 100,
+        },
+        {
+          title: 'Remisee',
+          description: null,
+          quantity: 2,
+          unitPrice: '33.33',
+          discountPercent: '7.5',
+        },
+      ],
+      rate: '20',
+    },
+    {
+      name: 'quantite fractionnaire et remise a trois decimales',
+      entries: [
+        {
+          title: 'Heures',
+          description: null,
+          quantity: '2.75',
+          unitPrice: '61.70',
+          discountPercent: '12.345',
+        },
+        {
+          title: 'Jours',
+          description: null,
+          quantity: '0.333',
+          unitPrice: '450.00',
+          discountPercent: '3.333',
+        },
+      ],
+      rate: '5.5',
+    },
+    {
+      name: 'TVA 0 %',
+      entries: [
+        {
+          title: 'Detaxe',
+          description: null,
+          quantity: 7,
+          unitPrice: '0.07',
+          discountPercent: '1.5',
+        },
+      ],
+      rate: '0',
+    },
+    {
+      name: 'centimes serres',
+      entries: [
+        {
+          title: 'Petit',
+          description: null,
+          quantity: 1,
+          unitPrice: '0.01',
+          discountPercent: '33.333',
+        },
+        {
+          title: 'Autre',
+          description: null,
+          quantity: 3,
+          unitPrice: '0.01',
+          discountPercent: '0.001',
+        },
+      ],
+      rate: '20',
+    },
+  ];
 
   for (const testCase of cases) {
     it(`tient sur : ${testCase.name}`, () => {
@@ -269,8 +305,14 @@ describe('INVARIANT : total == somme des totaux de lignes', () => {
       // flottant, ce qui reintroduirait exactement le bruit que le noyau evite.
       assert.equal(lineTotalDelta(totals).equals(zero()), true, 'ecart de lignes non nul');
       assert.equal(lineTotalDelta(totals).toFixed(2), '0.00');
-      assert.equal(sumLineTotals(totals.lines).equals(totals.subtotal.minus(totals.discountAmount)), true);
-      assert.equal(totals.total.equals(totals.subtotal.minus(totals.discountAmount).plus(totals.taxAmount)), true);
+      assert.equal(
+        sumLineTotals(totals.lines).equals(totals.subtotal.minus(totals.discountAmount)),
+        true,
+      );
+      assert.equal(
+        totals.total.equals(totals.subtotal.minus(totals.discountAmount).plus(totals.taxAmount)),
+        true,
+      );
     });
   }
 
@@ -278,7 +320,13 @@ describe('INVARIANT : total == somme des totaux de lignes', () => {
     // Un total juste peut cacher deux erreurs opposees. On refait donc le calcul
     // de chaque ligne a la main, depuis ses propres entrees.
     const entries: readonly LineEntry[] = [
-      { title: 'A', description: null, quantity: '3.5', unitPrice: '12.99', discountPercent: '7.25' },
+      {
+        title: 'A',
+        description: null,
+        quantity: '3.5',
+        unitPrice: '12.99',
+        discountPercent: '7.25',
+      },
       { title: 'B', description: null, quantity: 1, unitPrice: '1000.00', discountPercent: '0.5' },
       { title: 'C', description: null, quantity: 12, unitPrice: '0.99', discountPercent: 0 },
     ];
@@ -347,7 +395,13 @@ describe('storedLineEntries', () => {
     // `quantity` et `unitPrice` ne change pas la FORME du document, seulement
     // son montant.
     const entries = storedLineEntries([
-      { title: 'A', description: 'desc', quantity: '2.5', unitPrice: '40.00', discountPercent: '10' },
+      {
+        title: 'A',
+        description: 'desc',
+        quantity: '2.5',
+        unitPrice: '40.00',
+        discountPercent: '10',
+      },
     ]);
     const first = entries[0];
 
@@ -426,6 +480,9 @@ describe('buildLineRows', () => {
     // tronque. Un document dont les lignes ne correspondent pas aux totaux est
     // un document faux, pas une erreur visible.
     const totals = computeTotals(entries, 20);
-    assert.throws(() => buildLineRows([entries[0] as LineEntry], totals, 20), /Lignes incoherentes/);
+    assert.throws(
+      () => buildLineRows([entries[0] as LineEntry], totals, 20),
+      /Lignes incoherentes/,
+    );
   });
 });

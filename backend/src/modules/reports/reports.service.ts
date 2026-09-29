@@ -21,11 +21,7 @@ import {
   type ReportResult,
   type ReportSnapshot,
 } from './report-snapshot.js';
-import {
-  GenerateReportDto,
-  REPORT_TYPE_LABELS,
-  ReportListQueryDto,
-} from './dto/reports.dto.js';
+import { GenerateReportDto, REPORT_TYPE_LABELS, ReportListQueryDto } from './dto/reports.dto.js';
 
 /**
  * SERVICE DES RAPPORTS.
@@ -82,7 +78,10 @@ export interface ReportDetail extends ReportSummary {
   readonly snapshot: ReportSnapshot | null;
 }
 
-interface ReportRow extends Omit<ReportSummary, 'periodStart' | 'periodEnd' | 'generatedByName' | 'createdAt' | 'completedAt'> {
+interface ReportRow extends Omit<
+  ReportSummary,
+  'periodStart' | 'periodEnd' | 'generatedByName' | 'createdAt' | 'completedAt'
+> {
   periodStart: Date | null;
   periodEnd: Date | null;
   createdAt: Date;

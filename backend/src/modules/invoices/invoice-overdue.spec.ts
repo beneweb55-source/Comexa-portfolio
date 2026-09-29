@@ -18,7 +18,10 @@ import {
 } from '../../generated/prisma/enums.js';
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActivityInput, ActivityService } from '../activity/activity.service.js';
-import type { NotificationInput, NotificationService } from '../notifications/notification.service.js';
+import type {
+  NotificationInput,
+  NotificationService,
+} from '../notifications/notification.service.js';
 import {
   SWEEPABLE_INVOICE_STATUSES,
   isOverdueCandidate,
@@ -435,10 +438,10 @@ describe('InvoiceOverdueService.sweepOverdue', () => {
 
     // Les porteurs ACTIFS du dossier, et eux seuls : ni l'autre dossier, ni le
     // compte suspendu, ni le compte archive.
-    assert.deepEqual(
-      test.notifications.map((entry) => entry.userId).sort(),
-      ['user-porteur-1', 'user-porteur-2'],
-    );
+    assert.deepEqual(test.notifications.map((entry) => entry.userId).sort(), [
+      'user-porteur-1',
+      'user-porteur-2',
+    ]);
 
     const input = test.notifications[0]!.input;
     assert.equal(input.type, NotificationType.INVOICE_OVERDUE);
@@ -502,7 +505,11 @@ describe('InvoiceOverdueService.sweepOverdue', () => {
     assert.equal(result.markedOverdue, 0);
     assert.equal(result.notified, 0);
     assert.equal(test.statusOf('inv-late'), InvoiceStatus.PAID);
-    assert.equal(test.notifications.length, 0, "pas de relance sur une facture qui vient d'etre payee");
+    assert.equal(
+      test.notifications.length,
+      0,
+      "pas de relance sur une facture qui vient d'etre payee",
+    );
     assert.equal(test.activities.length, 0);
     assert.equal(test.audit.length, 0);
   });

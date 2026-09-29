@@ -338,10 +338,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
     // 2. L'audit ne se supprime pas en cascade : on le retire explicitement.
     await prisma.auditLog.deleteMany({
       where: {
-        OR: [
-          { actorId: { in: userIds } },
-          { entityId: { in: [...entityIds, ...userIds] } },
-        ],
+        OR: [{ actorId: { in: userIds } }, { entityId: { in: [...entityIds, ...userIds] } }],
       },
     });
 
@@ -647,10 +644,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
       prospectIds: [...createdProspectIds, ...trackedProspects.map((row) => row.id)],
       clientIds: [...createdClientIds, ...trackedClients.map((row) => row.id)],
       userIds: createdUserIds,
-      contactRequestIds: [
-        ...createdContactRequestIds,
-        ...trackedRequests.map((row) => row.id),
-      ],
+      contactRequestIds: [...createdContactRequestIds, ...trackedRequests.map((row) => row.id)],
     });
 
     await app.close();
@@ -724,7 +718,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
       .get(`${baseUrl}/clients/${otherClientId}`)
       .set(bearer(clientToken));
 
-    assert.equal(other.status, 404, "viser un autre dossier ne doit pas repondre 403");
+    assert.equal(other.status, 404, 'viser un autre dossier ne doit pas repondre 403');
     assert.equal(errorOf(other).code, 'CLIENT_NOT_FOUND');
 
     // Et la modification du dossier d'un autre est refusee elle aussi — ici par
@@ -765,10 +759,14 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
       .get(`${baseUrl}/clients/${ownClientId}`)
       .set(bearer(clientToken));
 
-    assert.equal(allowed.status, 200, 'le meme jeton doit fonctionner une fois le rattachement retabli');
+    assert.equal(
+      allowed.status,
+      200,
+      'le meme jeton doit fonctionner une fois le rattachement retabli',
+    );
   });
 
-  it("circonscrit les contacts du portail a SON dossier", async () => {
+  it('circonscrit les contacts du portail a SON dossier', async () => {
     const mine = await request(app.getHttpServer())
       .get(`${baseUrl}/clients/${ownClientId}/contacts`)
       .set(bearer(clientToken));
@@ -831,11 +829,18 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
 
     // La reference est produite par le compteur partage, jamais par le module.
     assert.match(prospect.reference, REFERENCE_PATTERN);
-    assert.ok(prospect.reference.startsWith('PRO-'), `prefixe attendu PRO- : ${prospect.reference}`);
+    assert.ok(
+      prospect.reference.startsWith('PRO-'),
+      `prefixe attendu PRO- : ${prospect.reference}`,
+    );
 
     // Le statut initial vient du schema, et le DTO ne permet pas de le choisir.
     assert.equal(prospect.status, LeadStatus.NEW);
-    assert.equal(prospect.ownerId, salesUserId, 'sans responsable demande, la fiche revient au porteur');
+    assert.equal(
+      prospect.ownerId,
+      salesUserId,
+      'sans responsable demande, la fiche revient au porteur',
+    );
     assert.equal(prospect.convertedClientId, null);
     assert.equal(prospect.deletedAt, null);
 
@@ -1061,7 +1066,10 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
       .send({ status: LeadStatus.LOST, lostReason: 'Budget reporte a l an prochain.' });
 
     assert.equal(lost.status, 200);
-    assert.equal((lost.body as SuccessBody<ProspectData>).data.lostReason, 'Budget reporte a l an prochain.');
+    assert.equal(
+      (lost.body as SuccessBody<ProspectData>).data.lostReason,
+      'Budget reporte a l an prochain.',
+    );
 
     // Quitter LOST doit effacer la raison : la fiche ne doit pas conserver une
     // perte passee comme si elle etait encore d'actualite.
@@ -1073,7 +1081,11 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
     assert.equal(resumed.status, 200);
     const body = (resumed.body as SuccessBody<ProspectData>).data;
     assert.equal(body.status, LeadStatus.NEW);
-    assert.equal(body.lostReason, null, 'la raison de la perte appartient a l evenement, pas a la fiche');
+    assert.equal(
+      body.lostReason,
+      null,
+      'la raison de la perte appartient a l evenement, pas a la fiche',
+    );
 
     // Et une raison fournie vers une autre etape n'est pas retenue non plus.
     const moved = await request(app.getHttpServer())
@@ -1127,7 +1139,11 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
     assert.ok(client.reference.startsWith('CLI-'), `prefixe attendu CLI- : ${client.reference}`);
     assert.equal(client.companyName, P1_NAME);
     assert.equal(client.status, ClientStatus.ACTIVE);
-    assert.equal(client.accountManagerId, salesUserId, 'le dossier revient au responsable du prospect');
+    assert.equal(
+      client.accountManagerId,
+      salesUserId,
+      'le dossier revient au responsable du prospect',
+    );
 
     // L'interlocuteur du prospect devient le contact principal du dossier.
     const contacts = await request(app.getHttpServer())
@@ -1464,7 +1480,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
   // fois pour la meme demande.
   // ---------------------------------------------------------------------------
 
-  it("convertit une demande de contact en prospect : le formulaire public ouvre enfin une piste", async () => {
+  it('convertit une demande de contact en prospect : le formulaire public ouvre enfin une piste', async () => {
     // 1. LE VISITEUR, sans jeton, remplit le formulaire public. C'est le seul
     //    envoi de ce fichier qui passe par la route publique : elle est quotaee,
     //    et les autres fixtures de ce scenario sont ecrites en base (voir
@@ -1480,8 +1496,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
         jobTitle: 'Directrice',
         website: 'https://atelier-e2e.example',
         subject: 'Refonte du site vitrine',
-        message:
-          'Bonjour, nous souhaitons refondre notre site vitrine et le rendre multilingue.',
+        message: 'Bonjour, nous souhaitons refondre notre site vitrine et le rendre multilingue.',
         budgetRange: BudgetRange.FROM_15K_TO_30K,
         source: 'e2e-crm',
       });
@@ -1663,8 +1678,9 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
     assert.equal(forbidden.status, 403);
     assert.equal(errorOf(forbidden).code, 'FORBIDDEN');
 
-    const anonymous = await request(app.getHttpServer())
-      .post(`${baseUrl}/contact-requests/${UNKNOWN_ID}/convert`);
+    const anonymous = await request(app.getHttpServer()).post(
+      `${baseUrl}/contact-requests/${UNKNOWN_ID}/convert`,
+    );
 
     assert.equal(anonymous.status, 401);
   });
@@ -1723,10 +1739,7 @@ describe('CRM — prospects, clients, contacts (bout en bout, base reelle)', () 
       .send({ status: ContactRequestStatus.IN_REVIEW, notes: 'Prise en charge.' });
 
     assert.equal(handled.status, 200);
-    assert.equal(
-      (handled.body as SuccessBody<ContactRequestData>).data.handledById,
-      adminUserId,
-    );
+    assert.equal((handled.body as SuccessBody<ContactRequestData>).data.handledById, adminUserId);
 
     // C'est le COMMERCIAL qui convertit, pas le traitant.
     const response = await request(app.getHttpServer())

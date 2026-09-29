@@ -78,7 +78,7 @@ export class RoleController {
    */
   @Get('permissions')
   @RequirePermissions('permission:read:any')
-  @ApiOperation({ summary: 'Le catalogue des permissions tel qu\'il existe en base.' })
+  @ApiOperation({ summary: "Le catalogue des permissions tel qu'il existe en base." })
   async listPermissions(@CurrentUser() actor: AuthenticatedUser): Promise<PermissionView[]> {
     return this.roles.listPermissions(actor);
   }

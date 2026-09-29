@@ -132,7 +132,7 @@ export class ProspectsController {
 
   @Get(':id/history')
   @RequireAnyPermission('prospect:read:any', 'prospect:read:own')
-  @ApiOperation({ summary: "Journal des etapes, du plus ancien au plus recent." })
+  @ApiOperation({ summary: 'Journal des etapes, du plus ancien au plus recent.' })
   async history(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -144,7 +144,9 @@ export class ProspectsController {
   @Post(':id/convert')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('prospect:convert:any')
-  @ApiOperation({ summary: 'Convertir en client : ouvre le dossier client. Refuse si deja converti.' })
+  @ApiOperation({
+    summary: 'Convertir en client : ouvre le dossier client. Refuse si deja converti.',
+  })
   async convert(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

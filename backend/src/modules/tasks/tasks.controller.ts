@@ -7,7 +7,13 @@ import {
   RequirePermissions,
 } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
-import { AssignTaskDto, CreateTaskDto, TaskQueryDto, UpdateTaskDto, UpdateTaskStatusDto } from './dto/task.dto.js';
+import {
+  AssignTaskDto,
+  CreateTaskDto,
+  TaskQueryDto,
+  UpdateTaskDto,
+  UpdateTaskStatusDto,
+} from './dto/task.dto.js';
 import { TasksService } from './tasks.service.js';
 
 /**

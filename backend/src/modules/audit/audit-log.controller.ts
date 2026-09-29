@@ -22,7 +22,7 @@ import { ListAuditLogsQueryDto } from './dto/audit-log.dto.js';
  * point qu'un import errone compilerait, pour appeler l'ecriture la ou on croit
  * lire.
  */
-@ApiTags('Journal d\'audit')
+@ApiTags("Journal d'audit")
 @Controller('audit-logs')
 export class AuditLogController {
   constructor(private readonly logs: AuditLogService) {}

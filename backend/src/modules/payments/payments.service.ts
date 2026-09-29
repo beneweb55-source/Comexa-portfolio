@@ -5,11 +5,7 @@ import { paginated, resolvePagination, type Paginated } from '../../common/dto/p
 import { AppException } from '../../common/errors/app-error.js';
 import { REFERENCE_SCOPES } from '../../common/references/reference.scopes.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import {
-  ActivityType,
-  NotificationType,
-  PaymentStatus,
-} from '../../generated/prisma/enums.js';
+import { ActivityType, NotificationType, PaymentStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { CounterService } from '../counters/counter.service.js';
@@ -319,10 +315,7 @@ export class PaymentsService {
       });
 
       if (updated.count === 0) {
-        throw AppException.conflict(
-          'PAYMENT_ALREADY_REMOVED',
-          'Ce paiement a deja ete annule.',
-        );
+        throw AppException.conflict('PAYMENT_ALREADY_REMOVED', 'Ce paiement a deja ete annule.');
       }
 
       await this.invoices.lockForPayment(tx, payment.invoiceId, ownClientId);

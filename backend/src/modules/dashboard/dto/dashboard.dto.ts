@@ -15,8 +15,7 @@ import { PERIOD_PRESETS, type PeriodPreset } from '../../reports/report-period.j
 export class AgencyDashboardQueryDto {
   @ApiPropertyOptional({
     enum: PERIOD_PRESETS,
-    description:
-      "Fenetre des encaissements et des entrees de la periode. THIS_MONTH par defaut.",
+    description: 'Fenetre des encaissements et des entrees de la periode. THIS_MONTH par defaut.',
   })
   @IsOptional()
   @IsIn([...PERIOD_PRESETS], { message: 'Periode predefinie inconnue.' })

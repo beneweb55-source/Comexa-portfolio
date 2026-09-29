@@ -35,7 +35,9 @@ export class QuoteInvoiceController {
 
   @Post(':id/invoice')
   @RequirePermissions('invoice:write:any')
-  @ApiOperation({ summary: 'Generer la facture d un devis accepte (lignes copiees, totaux recalcules).' })
+  @ApiOperation({
+    summary: 'Generer la facture d un devis accepte (lignes copiees, totaux recalcules).',
+  })
   async createFromQuote(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

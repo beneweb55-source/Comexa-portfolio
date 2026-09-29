@@ -70,7 +70,10 @@ const DEVELOPER_PERMISSIONS = [
 
 describe('resolvePerimeter — quelle vue un porteur peut-il ouvrir', () => {
   it('donne la vue client a un porteur de l espace client', () => {
-    assert.equal(resolvePerimeter(input({ isClient: true, clientId: 'cli_1', hasOwnScope: true })), 'client');
+    assert.equal(
+      resolvePerimeter(input({ isClient: true, clientId: 'cli_1', hasOwnScope: true })),
+      'client',
+    );
   });
 
   it('refuse la vue d agence a un client, MEME si la permission lui a ete accordee', () => {
@@ -87,8 +90,12 @@ describe('resolvePerimeter — quelle vue un porteur peut-il ouvrir', () => {
   it('refuse un compte client sans fiche client, au lieu d elargir son perimetre', () => {
     // Donnee incoherente. Le repli naturel — « pas de clientId, donc on retombe
     // sur le perimetre suivant » — ouvrirait la vue d'agence a un client.
-    assertForbidden(() => resolvePerimeter(input({ isClient: true, clientId: null, hasAgencyScope: true })));
-    assertForbidden(() => resolvePerimeter(input({ isClient: true, clientId: null, hasOwnScope: true })));
+    assertForbidden(() =>
+      resolvePerimeter(input({ isClient: true, clientId: null, hasAgencyScope: true })),
+    );
+    assertForbidden(() =>
+      resolvePerimeter(input({ isClient: true, clientId: null, hasOwnScope: true })),
+    );
     assertForbidden(() => resolvePerimeter(input({ isClient: true, clientId: '' })));
   });
 
@@ -137,11 +144,14 @@ describe('personalSectionsFor — sections de la vue personnelle', () => {
   });
 
   it('n ouvre rien a un porteur sans droits', () => {
-    assert.deepEqual(personalSectionsFor(() => false), {
-      tasks: false,
-      timeEntries: false,
-      notifications: false,
-    });
+    assert.deepEqual(
+      personalSectionsFor(() => false),
+      {
+        tasks: false,
+        timeEntries: false,
+        notifications: false,
+      },
+    );
   });
 
   it('reconnait chacun des scopes de tache pris isolement', () => {
@@ -177,12 +187,15 @@ describe('clientSectionsFor — sections de l espace client', () => {
   });
 
   it('n ouvre rien a un porteur sans droits', () => {
-    assert.deepEqual(clientSectionsFor(() => false), {
-      projects: false,
-      invoices: false,
-      quotes: false,
-      documents: false,
-      notifications: false,
-    });
+    assert.deepEqual(
+      clientSectionsFor(() => false),
+      {
+        projects: false,
+        invoices: false,
+        quotes: false,
+        documents: false,
+        notifications: false,
+      },
+    );
   });
 });

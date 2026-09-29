@@ -16,7 +16,11 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
-import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import {
+  CurrentUser,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators.js';
 import { MAX_UPLOAD_BYTES } from '../../common/storage/storage.types.js';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { DocumentCategory, DocumentVisibility } from '../../generated/prisma/enums.js';
@@ -94,7 +98,7 @@ export class DocumentsController {
   @ApiOperation({
     summary: 'Deposer un document',
     description:
-      "Le fichier part dans le stockage objet ; la base ne conserve que la metadonnee. " +
+      'Le fichier part dans le stockage objet ; la base ne conserve que la metadonnee. ' +
       'Visibilite INTERNAL par defaut.',
   })
   async upload(
@@ -166,7 +170,7 @@ export class DocumentsController {
    */
   @Get(':id/download')
   @RequireAnyPermission('document:read:any', 'document:read:own', 'document:read:client')
-  @ApiOperation({ summary: "Obtenir une URL de telechargement signee" })
+  @ApiOperation({ summary: 'Obtenir une URL de telechargement signee' })
   async download(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -194,7 +198,7 @@ export class DocumentsController {
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Get(':id/content')
   @RequireAnyPermission('document:read:any', 'document:read:own', 'document:read:client')
-  @ApiOperation({ summary: "Telecharger le contenu du document (flux direct)" })
+  @ApiOperation({ summary: 'Telecharger le contenu du document (flux direct)' })
   async content(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,

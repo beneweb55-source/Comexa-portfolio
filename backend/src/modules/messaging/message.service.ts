@@ -211,7 +211,7 @@ export class MessageService {
         if (documents.length !== uniqueAttachments.length) {
           throw AppException.unprocessable(
             'MESSAGE_ATTACHMENT_UNKNOWN',
-            "Une ou plusieurs pieces jointes sont introuvables.",
+            'Une ou plusieurs pieces jointes sont introuvables.',
           );
         }
       }

@@ -48,10 +48,7 @@ export class PaymentsController {
   @Get(':id')
   @RequireAnyPermission('payment:read:any', 'payment:read:own')
   @ApiOperation({ summary: 'Lire un encaissement et la facture qu il solde.' })
-  async findOne(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ): Promise<unknown> {
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<unknown> {
     return this.payments.getOne(id, new AccessPolicy(user));
   }
 

@@ -68,10 +68,7 @@ export class InvoicesController {
   @Get(':id')
   @RequireAnyPermission('invoice:read:any', 'invoice:read:own')
   @ApiOperation({ summary: 'Lire une facture, ses lignes et ses paiements.' })
-  async findOne(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ): Promise<unknown> {
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<unknown> {
     return this.invoices.getOne(id, new AccessPolicy(user));
   }
 

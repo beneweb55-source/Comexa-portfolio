@@ -14,7 +14,10 @@ import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActivityInput, ActivityService } from '../activity/activity.service.js';
 import type { ClientsService } from '../clients/clients.service.js';
 import type { CounterService } from '../counters/counter.service.js';
-import type { NotificationInput, NotificationService } from '../notifications/notification.service.js';
+import type {
+  NotificationInput,
+  NotificationService,
+} from '../notifications/notification.service.js';
 import type { RequestMetadata } from '../invoices/request-meta.js';
 import { money } from '../invoices/money.js';
 import { QuotesService } from './quotes.service.js';
@@ -183,7 +186,9 @@ function harness(
       where: { clientId: string };
     }): Promise<Array<{ email: string | null; firstName: string; lastName: string }>> =>
       contacts
-        .filter((candidate) => candidate.clientId === args.where.clientId && candidate.email !== null)
+        .filter(
+          (candidate) => candidate.clientId === args.where.clientId && candidate.email !== null,
+        )
         .map((candidate) => ({
           email: candidate.email,
           firstName: candidate.firstName,
@@ -252,7 +257,14 @@ describe('QuotesService.send — le courriel', () => {
           },
         }),
       ],
-      [{ clientId: 'client-a', email: 'direction@dossier.fr', firstName: 'Awa', lastName: 'Diallo' }],
+      [
+        {
+          clientId: 'client-a',
+          email: 'direction@dossier.fr',
+          firstName: 'Awa',
+          lastName: 'Diallo',
+        },
+      ],
       ['user-porteur-1'],
     );
 
@@ -327,7 +339,14 @@ describe('QuotesService.send — le courriel', () => {
   it('un relais en panne ne fait PAS echouer l envoi', async () => {
     const test = harness(
       [quote({})],
-      [{ clientId: 'client-a', email: 'direction@dossier.fr', firstName: 'Awa', lastName: 'Diallo' }],
+      [
+        {
+          clientId: 'client-a',
+          email: 'direction@dossier.fr',
+          firstName: 'Awa',
+          lastName: 'Diallo',
+        },
+      ],
       [],
       true,
     );

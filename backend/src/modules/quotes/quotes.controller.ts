@@ -70,10 +70,7 @@ export class QuotesController {
   @Get(':id')
   @RequireAnyPermission('quote:read:any', 'quote:read:own')
   @ApiOperation({ summary: "Lire un devis et ses lignes (le sien pour l'espace client)." })
-  async findOne(
-    @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
-  ): Promise<Quote> {
+  async findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string): Promise<Quote> {
     return this.quotes.getOne(id, new AccessPolicy(user));
   }
 

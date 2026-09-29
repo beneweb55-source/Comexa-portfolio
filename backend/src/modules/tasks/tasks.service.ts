@@ -245,12 +245,7 @@ export class TasksService {
    *    `project:write:any` aurait suffi a distribuer le travail, et la permission
    *    `task:assign:any` n'aurait rien protege.
    */
-  async create(
-    projectId: string,
-    dto: CreateTaskDto,
-    policy: AccessPolicy,
-    meta: RequestContext,
-  ) {
+  async create(projectId: string, dto: CreateTaskDto, policy: AccessPolicy, meta: RequestContext) {
     const scope = this.writeScope(policy);
     this.refuseClientSpace(policy);
     const project = await this.projects.requireReadable(projectId, policy);
@@ -373,9 +368,7 @@ export class TasksService {
           ...(dto.description === undefined ? {} : { description: dto.description }),
           ...(dto.milestoneId === undefined ? {} : { milestoneId: dto.milestoneId }),
           ...(dto.priority === undefined ? {} : { priority: dto.priority }),
-          ...(dto.estimateMinutes === undefined
-            ? {}
-            : { estimateMinutes: dto.estimateMinutes }),
+          ...(dto.estimateMinutes === undefined ? {} : { estimateMinutes: dto.estimateMinutes }),
           ...(dto.startDate === undefined ? {} : { startDate: toDateOrNull(dto.startDate) }),
           ...(dto.dueDate === undefined ? {} : { dueDate: toDateOrNull(dto.dueDate) }),
           ...(dto.isClientVisible === undefined ? {} : { isClientVisible: dto.isClientVisible }),

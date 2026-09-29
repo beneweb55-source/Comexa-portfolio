@@ -35,11 +35,7 @@ export const LEAD_TRANSITIONS: Record<LeadStatus, readonly LeadStatus[]> = {
     LeadStatus.NEGOTIATION,
     LeadStatus.LOST,
   ],
-  [LeadStatus.QUALIFIED]: [
-    LeadStatus.PROPOSAL_SENT,
-    LeadStatus.NEGOTIATION,
-    LeadStatus.LOST,
-  ],
+  [LeadStatus.QUALIFIED]: [LeadStatus.PROPOSAL_SENT, LeadStatus.NEGOTIATION, LeadStatus.LOST],
   [LeadStatus.PROPOSAL_SENT]: [LeadStatus.NEGOTIATION, LeadStatus.WON, LeadStatus.LOST],
   [LeadStatus.NEGOTIATION]: [LeadStatus.PROPOSAL_SENT, LeadStatus.WON, LeadStatus.LOST],
   [LeadStatus.WON]: [],

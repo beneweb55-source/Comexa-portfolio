@@ -132,17 +132,20 @@ describe('resolvePeriod — periodes refusees', () => {
   it('refuse une fin anterieure au debut', () => {
     assertRejects(
       () =>
-        resolvePeriod(
-          { periodStart: new Date(2026, 5, 1), periodEnd: new Date(2026, 4, 1) },
-          NOW,
-        ),
+        resolvePeriod({ periodStart: new Date(2026, 5, 1), periodEnd: new Date(2026, 4, 1) }, NOW),
       'REPORT_PERIOD_INVALID',
     );
   });
 
   it('refuse une periode explicite sans une de ses deux bornes', () => {
-    assertRejects(() => resolvePeriod({ periodStart: new Date(2026, 4, 1) }, NOW), 'REPORT_PERIOD_INCOMPLETE');
-    assertRejects(() => resolvePeriod({ periodEnd: new Date(2026, 4, 1) }, NOW), 'REPORT_PERIOD_INCOMPLETE');
+    assertRejects(
+      () => resolvePeriod({ periodStart: new Date(2026, 4, 1) }, NOW),
+      'REPORT_PERIOD_INCOMPLETE',
+    );
+    assertRejects(
+      () => resolvePeriod({ periodEnd: new Date(2026, 4, 1) }, NOW),
+      'REPORT_PERIOD_INCOMPLETE',
+    );
   });
 
   it('refuse de melanger un preset et des bornes explicites', () => {
@@ -151,7 +154,11 @@ describe('resolvePeriod — periodes refusees', () => {
     assertRejects(
       () =>
         resolvePeriod(
-          { preset: 'THIS_MONTH', periodStart: new Date(2026, 4, 1), periodEnd: new Date(2026, 4, 2) },
+          {
+            preset: 'THIS_MONTH',
+            periodStart: new Date(2026, 4, 1),
+            periodEnd: new Date(2026, 4, 2),
+          },
           NOW,
         ),
       'REPORT_PERIOD_AMBIGUOUS',
@@ -160,7 +167,11 @@ describe('resolvePeriod — periodes refusees', () => {
 
   it('refuse une date invalide plutot que de propager un NaN dans la requete', () => {
     assertRejects(
-      () => resolvePeriod({ periodStart: new Date('pas-une-date'), periodEnd: new Date(2026, 4, 1) }, NOW),
+      () =>
+        resolvePeriod(
+          { periodStart: new Date('pas-une-date'), periodEnd: new Date(2026, 4, 1) },
+          NOW,
+        ),
       'REPORT_PERIOD_INVALID',
     );
   });
@@ -169,7 +180,10 @@ describe('resolvePeriod — periodes refusees', () => {
     const start = new Date(2000, 0, 1);
     const end = new Date(2000, 0, 1 + MAX_PERIOD_DAYS + 1);
 
-    assertRejects(() => resolvePeriod({ periodStart: start, periodEnd: end }, NOW), 'REPORT_PERIOD_INVALID');
+    assertRejects(
+      () => resolvePeriod({ periodStart: start, periodEnd: end }, NOW),
+      'REPORT_PERIOD_INVALID',
+    );
   });
 });
 
@@ -188,7 +202,10 @@ describe('isPeriodPreset', () => {
 
 describe('withinPeriod et serializePeriod', () => {
   it('traduit les bornes en filtre Prisma inclusif', () => {
-    const bounds = resolvePeriod({ periodStart: new Date(2026, 4, 1), periodEnd: new Date(2026, 4, 31, 23, 59, 59, 999) }, NOW);
+    const bounds = resolvePeriod(
+      { periodStart: new Date(2026, 4, 1), periodEnd: new Date(2026, 4, 31, 23, 59, 59, 999) },
+      NOW,
+    );
     const filter = withinPeriod(bounds);
 
     assert.equal(filter.gte.getTime(), bounds.start.getTime());

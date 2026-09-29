@@ -267,7 +267,6 @@ export function buildMessagePage<T extends CursorRow>(
   return {
     items,
     hasMore,
-    nextCursor:
-      hasMore && last ? encodeMessageCursor(last.createdAt, last.id) : null,
+    nextCursor: hasMore && last ? encodeMessageCursor(last.createdAt, last.id) : null,
   };
 }

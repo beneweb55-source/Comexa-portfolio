@@ -296,10 +296,7 @@ export class DashboardService {
    * c'est `resolvePerimeter` qui le refuse — pas un `if` ajoute ici. La regle
    * vit a un seul endroit, et elle est testee.
    */
-  async agency(
-    user: AuthenticatedUser,
-    query: AgencyDashboardQueryDto,
-  ): Promise<AgencyDashboard> {
+  async agency(user: AuthenticatedUser, query: AgencyDashboardQueryDto): Promise<AgencyDashboard> {
     this.requirePerimeter(user, 'agency');
 
     const now = new Date();
@@ -610,9 +607,7 @@ export class DashboardService {
     };
   }
 
-  private async personalNotifications(
-    userId: string,
-  ): Promise<PersonalDashboard['notifications']> {
+  private async personalNotifications(userId: string): Promise<PersonalDashboard['notifications']> {
     const [unread, recent] = await Promise.all([
       this.prisma.notification.count({ where: { userId, readAt: null } }),
       this.prisma.notification.findMany({
@@ -783,10 +778,7 @@ export class DashboardService {
     };
   }
 
-  private async clientInvoices(
-    clientId: string,
-    now: Date,
-  ): Promise<ClientDashboard['invoices']> {
+  private async clientInvoices(clientId: string, now: Date): Promise<ClientDashboard['invoices']> {
     const alive = { clientId, deletedAt: null };
     const open = { ...alive, status: { in: [...OPEN_INVOICE_STATUSES] } };
 

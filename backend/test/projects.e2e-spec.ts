@@ -357,15 +357,13 @@ describe('Projets, taches, jalons et temps (bout en bout, base reelle)', () => {
   // ---------------------------------------------------------------------------
 
   it('cree un projet, lui donne une reference numerotee et inscrit son responsable dans l’equipe', async () => {
-    const response = await as(pmToken)
-      .post('/projects')
-      .send({
-        name: 'Refonte du site vitrine',
-        description: 'Projet de test bout en bout.',
-        clientId: clientAId,
-        managerId: pmUserId,
-        priority: 'HIGH',
-      });
+    const response = await as(pmToken).post('/projects').send({
+      name: 'Refonte du site vitrine',
+      description: 'Projet de test bout en bout.',
+      clientId: clientAId,
+      managerId: pmUserId,
+      priority: 'HIGH',
+    });
 
     assert.equal(response.status, 201, response.text);
     const project = dataOf<ProjectData>(response);
@@ -655,7 +653,9 @@ describe('Projets, taches, jalons et temps (bout en bout, base reelle)', () => {
     assert.equal(creee.status, 201, creee.text);
     const task = dataOf<TaskData>(creee);
 
-    const response = await as(devToken).post(`/tasks/${task.id}/time-entries`).send({ minutes: 60 });
+    const response = await as(devToken)
+      .post(`/tasks/${task.id}/time-entries`)
+      .send({ minutes: 60 });
 
     assert.equal(response.status, 404, response.text);
     assert.equal(errorOf(response).code, 'TASK_NOT_FOUND');

@@ -79,7 +79,9 @@ export class QuoteLineDto {
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0, { message: 'Une remise ne peut pas etre negative.' })
-  @Max(100, { message: 'Une remise ne peut pas depasser 100 %. Le prix ne peut pas devenir negatif.' })
+  @Max(100, {
+    message: 'Une remise ne peut pas depasser 100 %. Le prix ne peut pas devenir negatif.',
+  })
   discountPercent?: number;
 }
 
@@ -119,7 +121,11 @@ export class CreateQuoteDto {
   @MaxLength(3)
   currency?: string;
 
-  @ApiPropertyOptional({ example: 20, default: 0, description: 'Taux de TVA de la piece, en pourcent.' })
+  @ApiPropertyOptional({
+    example: 20,
+    default: 0,
+    description: 'Taux de TVA de la piece, en pourcent.',
+  })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -146,7 +152,10 @@ export class CreateQuoteDto {
   @MaxLength(40)
   clientId?: string;
 
-  @ApiProperty({ type: [QuoteLineDto], description: 'Au moins une ligne. Aucun total n est accepte.' })
+  @ApiProperty({
+    type: [QuoteLineDto],
+    description: 'Au moins une ligne. Aucun total n est accepte.',
+  })
   @IsArray()
   @ArrayMinSize(1, { message: 'Un devis doit porter au moins une ligne.' })
   @ArrayMaxSize(MAX_LINES)
@@ -248,7 +257,7 @@ export class ListQuotesQueryDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({
     description:
-      "Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.",
+      'Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.',
   })
   @IsOptional()
   @IsString()

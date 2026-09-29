@@ -74,7 +74,7 @@ export class UserController {
    */
   @Post()
   @RequirePermissions('user:manage:any')
-  @ApiOperation({ summary: 'Creer un compte. Le mot de passe genere n\'est renvoye qu\'ici.' })
+  @ApiOperation({ summary: "Creer un compte. Le mot de passe genere n'est renvoye qu'ici." })
   async create(
     @Body() dto: CreateUserDto,
     @CurrentUser() actor: AuthenticatedUser,

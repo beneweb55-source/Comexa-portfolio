@@ -345,7 +345,12 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     const a1 = await request(app.getHttpServer())
       .post(`${baseUrl}/quotes`)
       .set(auth(adminToken))
-      .send({ subject: 'Refonte du site', clientId: clientAId, taxRate: 20, items: QUOTE_A1_LINES });
+      .send({
+        subject: 'Refonte du site',
+        clientId: clientAId,
+        taxRate: 20,
+        items: QUOTE_A1_LINES,
+      });
 
     assert.equal(a1.status, 201, `creation du devis A1 : ${a1.status} ${JSON.stringify(a1.body)}`);
     quoteA1Id = (a1.body as SuccessBody<QuotePayload>).data.id;
@@ -353,7 +358,12 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     const a2 = await request(app.getHttpServer())
       .post(`${baseUrl}/quotes`)
       .set(auth(adminToken))
-      .send({ subject: 'Prestation express', clientId: clientAId, taxRate: 0, items: QUOTE_A2_LINES });
+      .send({
+        subject: 'Prestation express',
+        clientId: clientAId,
+        taxRate: 0,
+        items: QUOTE_A2_LINES,
+      });
 
     assert.equal(a2.status, 201);
     quoteA2Id = (a2.body as SuccessBody<QuotePayload>).data.id;
@@ -367,7 +377,12 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     const quoteB = await request(app.getHttpServer())
       .post(`${baseUrl}/quotes`)
       .set(auth(adminToken))
-      .send({ subject: 'Prestation client B', clientId: clientBId, taxRate: 20, items: QUOTE_B_LINES });
+      .send({
+        subject: 'Prestation client B',
+        clientId: clientBId,
+        taxRate: 20,
+        items: QUOTE_B_LINES,
+      });
 
     assert.equal(quoteB.status, 201);
     quoteBId = (quoteB.body as SuccessBody<QuotePayload>).data.id;
@@ -915,7 +930,10 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     assert.equal(requestedOther.status, 200);
     const list = (requestedOther.body as SuccessBody<InvoicePayload[]>).data;
 
-    assert.ok(list.length > 0, 'le compte client doit voir SES factures — sinon ce test ne prouve rien');
+    assert.ok(
+      list.length > 0,
+      'le compte client doit voir SES factures — sinon ce test ne prouve rien',
+    );
     for (const item of list) {
       assert.equal(item.clientId, clientAId, 'une facture hors perimetre a fuite dans la liste');
       assert.notEqual(item.id, invoiceBId);
@@ -932,7 +950,11 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
 
     assert.ok(paymentList.length > 0, 'le compte client doit voir SES encaissements');
     for (const item of paymentList) {
-      assert.equal(item.invoice.clientId, clientAId, 'un paiement hors perimetre a fuite dans la liste');
+      assert.equal(
+        item.invoice.clientId,
+        clientAId,
+        'un paiement hors perimetre a fuite dans la liste',
+      );
       assert.notEqual(item.id, paymentB.payment.id);
     }
 
@@ -1019,12 +1041,14 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     // paiements portant la meme reference — et la contrainte `@unique` les
     // refuserait plus tard, au pire endroit possible.
     const references = await Promise.all(
-      Array.from({ length: 10 }, () =>
-        counters.reference({ scope: REFERENCE_SCOPES.PAYMENT }),
-      ),
+      Array.from({ length: 10 }, () => counters.reference({ scope: REFERENCE_SCOPES.PAYMENT })),
     );
 
-    assert.equal(new Set(references).size, references.length, `collision : ${references.join(', ')}`);
+    assert.equal(
+      new Set(references).size,
+      references.length,
+      `collision : ${references.join(', ')}`,
+    );
 
     for (const reference of references) {
       assert.match(reference, /^PAY-\d{4}-\d{4,}$/);
@@ -1039,7 +1063,10 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
     });
 
     assert.ok(counter, 'la reservation doit avoir cree la ligne de compteur');
-    assert.ok(counter.value >= references.length, 'le compteur doit avoir avance de tous les numeros');
+    assert.ok(
+      counter.value >= references.length,
+      'le compteur doit avoir avance de tous les numeros',
+    );
   });
 
   it("repart a 0001 en changeant d'annee, sans toucher a l'annee en cours", async () => {

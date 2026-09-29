@@ -179,7 +179,12 @@ describe('modifiabilite d’une tache close', () => {
   });
 
   it('une tache ouverte reste modifiable par son assigne', () => {
-    for (const statut of [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.BLOCKED, TaskStatus.IN_REVIEW]) {
+    for (const statut of [
+      TaskStatus.TODO,
+      TaskStatus.IN_PROGRESS,
+      TaskStatus.BLOCKED,
+      TaskStatus.IN_REVIEW,
+    ]) {
       assert.equal(isTaskEditable(statut, false), true, `statut ${statut}`);
     }
   });

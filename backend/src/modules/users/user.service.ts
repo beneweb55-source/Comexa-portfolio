@@ -197,7 +197,10 @@ export class UserService {
       where: { code: { in: roleCodes } },
       select: { id: true, code: true },
     });
-    assertRolesKnown(roleCodes, roles.map((role) => role.code));
+    assertRolesKnown(
+      roleCodes,
+      roles.map((role) => role.code),
+    );
 
     // Le rattachement est resolu AVANT toute ecriture : dossier lu, role
     // verifie, droit du porteur controle. Une creation refusee ne doit pas
@@ -542,7 +545,10 @@ export class UserService {
         where: { code: { in: nextCodes } },
         select: { id: true, code: true },
       });
-      assertRolesKnown(nextCodes, roles.map((role) => role.code));
+      assertRolesKnown(
+        nextCodes,
+        roles.map((role) => role.code),
+      );
 
       await assertAdministratorRemains({
         actorId: actor.id,
@@ -914,9 +920,7 @@ async function requireUserIn(
 }
 
 /** Nombre de comptes ACTIFS portant le role ADMIN. */
-function activeAdministratorCount(
-  db: Prisma.TransactionClient | PrismaService,
-): Promise<number> {
+function activeAdministratorCount(db: Prisma.TransactionClient | PrismaService): Promise<number> {
   return db.user.count({
     where: {
       deletedAt: null,
@@ -927,10 +931,7 @@ function activeAdministratorCount(
 }
 
 /** Ferme toutes les sessions ouvertes d'un compte. Rend le nombre ferme. */
-async function revokeSessions(
-  tx: Prisma.TransactionClient,
-  userId: string,
-): Promise<number> {
+async function revokeSessions(tx: Prisma.TransactionClient, userId: string): Promise<number> {
   const { count } = await tx.refreshToken.updateMany({
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },

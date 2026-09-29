@@ -173,10 +173,7 @@ export function isInternalSetting(key: string): boolean {
 /** Valeur JSON admise dans la colonne `value`. */
 export type JsonScalar = string | number | boolean;
 export type JsonValue =
-  | JsonScalar
-  | null
-  | readonly JsonValue[]
-  | { readonly [key: string]: JsonValue };
+  JsonScalar | null | readonly JsonValue[] | { readonly [key: string]: JsonValue };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null) {
@@ -215,7 +212,9 @@ export function normalizeSettingValue(value: unknown, depth = 0): JsonValue {
 
   if (typeof value === 'string') {
     if (value.length > SETTING_STRING_MAX_LENGTH) {
-      reject(`Chaine trop longue : ${value.length} caracteres, maximum ${SETTING_STRING_MAX_LENGTH}.`);
+      reject(
+        `Chaine trop longue : ${value.length} caracteres, maximum ${SETTING_STRING_MAX_LENGTH}.`,
+      );
     }
     return value;
   }

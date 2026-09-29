@@ -265,10 +265,7 @@ export class MailService implements OnModuleDestroy {
    * obligatoirement renseignee.
    */
   private baseUrl(): string {
-    return (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000').replace(
-      /\/+$/,
-      '',
-    );
+    return (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000').replace(/\/+$/, '');
   }
 
   onModuleDestroy(): void {

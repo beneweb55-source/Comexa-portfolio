@@ -119,7 +119,9 @@ export function presentRoles(rows: readonly RoleRow[]): RoleView[] {
 }
 
 export function presentRoleDetail(row: RoleDetailRow): RoleDetailView {
-  const permissions = row.permissions.map((link) => presentPermission(link.permission)).sort(comparePermissions);
+  const permissions = row.permissions
+    .map((link) => presentPermission(link.permission))
+    .sort(comparePermissions);
 
   return {
     code: row.code,

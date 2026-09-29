@@ -66,7 +66,9 @@ export class MilestonesController {
 
   @Delete('milestones/:id')
   @RequirePermissions('milestone:write:any')
-  @ApiOperation({ summary: 'Retirer un jalon du planning (refuse si atteint ou porteur de taches).' })
+  @ApiOperation({
+    summary: 'Retirer un jalon du planning (refuse si atteint ou porteur de taches).',
+  })
   async remove(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

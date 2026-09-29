@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { type AccessPolicy } from '../../common/auth/principal.js';
-import { paginated, resolvePagination, type PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import {
+  paginated,
+  resolvePagination,
+  type PaginationQueryDto,
+} from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import {
@@ -237,11 +241,13 @@ export class MilestonesService {
       }
     }
 
-    const reaching = dto.status === MilestoneStatus.REACHED && before.status !== MilestoneStatus.REACHED;
+    const reaching =
+      dto.status === MilestoneStatus.REACHED && before.status !== MilestoneStatus.REACHED;
     // Quitter REACHED n'est autorise que vers IN_PROGRESS (voir la table) : la
     // date d'atteinte doit alors disparaitre, sinon le jalon resterait date dans
     // les rapports tout en etant de nouveau en cours.
-    const reopening = before.status === MilestoneStatus.REACHED && dto.status !== undefined && !reaching;
+    const reopening =
+      before.status === MilestoneStatus.REACHED && dto.status !== undefined && !reaching;
 
     await this.prisma.$transaction(async (tx) => {
       // Compare-and-swap sur le statut : deux personnes qui declarent le meme

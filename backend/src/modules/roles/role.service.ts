@@ -182,7 +182,10 @@ export class RoleService {
         select: { id: true, code: true },
       });
 
-      assertPermissionsKnown(requested, known.map((permission) => permission.code));
+      assertPermissionsKnown(
+        requested,
+        known.map((permission) => permission.code),
+      );
 
       await tx.rolePermission.deleteMany({ where: { roleId: before.id } });
 

@@ -45,18 +45,20 @@ import type { ActiveSession } from './token.service.js';
 export const REFRESH_COOKIE = 'refresh_token';
 
 /** Contexte de session, extrait de la requete. */
-export const Session = createParamDecorator((_data: unknown, ctx: ExecutionContext): SessionMeta => {
-  const request = ctx.switchToHttp().getRequest<Request>();
+export const Session = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): SessionMeta => {
+    const request = ctx.switchToHttp().getRequest<Request>();
 
-  // La lecture de l'adresse et de l'agent vit desormais dans
-  // `common/http/client-ip.ts` : ce decorateur en portait une copie, comme deux
-  // autres modules. Ce que la valeur vaut, et le reglage `TRUST_PROXY`, sont
-  // expliques la-bas.
-  return {
-    ipAddress: clientIp(request),
-    userAgent: clientUserAgent(request),
-  };
-});
+    // La lecture de l'adresse et de l'agent vit desormais dans
+    // `common/http/client-ip.ts` : ce decorateur en portait une copie, comme deux
+    // autres modules. Ce que la valeur vaut, et le reglage `TRUST_PROXY`, sont
+    // expliques la-bas.
+    return {
+      ipAddress: clientIp(request),
+      userAgent: clientUserAgent(request),
+    };
+  },
+);
 
 /**
  * Reponse d'une connexion ou d'un rafraichissement.

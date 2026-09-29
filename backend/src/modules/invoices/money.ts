@@ -152,10 +152,7 @@ export interface ComputedTotals {
  * possible ici : le schema n'a pas de colonne pour une TVA calculee sur le brut
  * avant remise.
  */
-export function computeTotals(
-  lines: readonly LineInput[],
-  taxRate: DecimalInput,
-): ComputedTotals {
+export function computeTotals(lines: readonly LineInput[], taxRate: DecimalInput): ComputedTotals {
   const computed = lines.map(computeLine);
 
   const subtotal = sumMoney(computed.map((line) => line.gross));

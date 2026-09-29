@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { AppException } from '../../common/errors/app-error.js';
-import {
-  SLUG_MAX_LENGTH,
-  assertValidSlug,
-  resolveSlug,
-  slugify,
-} from './slug.js';
+import { SLUG_MAX_LENGTH, assertValidSlug, resolveSlug, slugify } from './slug.js';
 
 /**
  * CE QUE CES TESTS PROTEGENT.

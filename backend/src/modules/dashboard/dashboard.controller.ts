@@ -52,7 +52,7 @@ export class DashboardController {
 
   @Get('client')
   @RequirePermissions('dashboard:read:own')
-  @ApiOperation({ summary: "Espace client : mes projets, mes factures, mes documents" })
+  @ApiOperation({ summary: 'Espace client : mes projets, mes factures, mes documents' })
   client(@CurrentUser() user: AuthenticatedUser, @Query() _query: ClientDashboardQueryDto) {
     return this.dashboard.client(user);
   }

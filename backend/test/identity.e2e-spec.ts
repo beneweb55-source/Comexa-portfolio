@@ -220,7 +220,7 @@ function hasKeyDeep(value: unknown, key: string): boolean {
   return false;
 }
 
-describe("Identite et acces (bout en bout, base reelle)", () => {
+describe('Identite et acces (bout en bout, base reelle)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let baseUrl: string;
@@ -516,7 +516,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
     assert.equal(errorOf(journal).code, 'FORBIDDEN');
   });
 
-  it('cree un compte et ne rend le mot de passe genere QU\'UNE FOIS', async () => {
+  it("cree un compte et ne rend le mot de passe genere QU'UNE FOIS", async () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -571,17 +571,27 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: EMAIL_CREATED, firstName: 'Doublon', lastName: 'Adresse', roleCodes: ['SALES'] });
+      .send({
+        email: EMAIL_CREATED,
+        firstName: 'Doublon',
+        lastName: 'Adresse',
+        roleCodes: ['SALES'],
+      });
 
     assert.equal(response.status, 409);
     assert.equal(errorOf(response).code, 'EMAIL_ALREADY_USED');
   });
 
-  it('refuse un role absent de l\'enumeration des la validation', async () => {
+  it("refuse un role absent de l'enumeration des la validation", async () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/users`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'e2e-ident-role-faux@comexa.example', firstName: 'Faux', lastName: 'Role', roleCodes: ['SUPERADMIN'] });
+      .send({
+        email: 'e2e-ident-role-faux@comexa.example',
+        firstName: 'Faux',
+        lastName: 'Role',
+        roleCodes: ['SUPERADMIN'],
+      });
 
     // 400 et non 422 : `@IsEnum` refuse la valeur avant que le service ne voie la
     // requete. C'est le comportement voulu — un role hors enumeration ne peut de
@@ -665,7 +675,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
         clientId: dossierAId,
       });
 
-    assert.equal(created.status, 201, "le rattachement ne doit pas empecher la creation");
+    assert.equal(created.status, 201, 'le rattachement ne doit pas empecher la creation');
     const createdBody = created.body as SuccessBody<CreatedAccountData>;
 
     clientUserId = createdBody.data.user.id;
@@ -702,7 +712,11 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       .post(`${baseUrl}/auth/login`)
       .send({ email: EMAIL_CLIENT, password: createdBody.data.temporaryPassword });
 
-    assert.equal(login.status, 200, 'le mot de passe genere par la creation doit ouvrir une session');
+    assert.equal(
+      login.status,
+      200,
+      'le mot de passe genere par la creation doit ouvrir une session',
+    );
     const loginBody = login.body as SuccessBody<LoginData>;
     assert.equal(loginBody.data.user.mustChangePassword, true);
     assert.equal(loginBody.data.user.clientId, dossierAId, 'le jeton doit porter le perimetre');
@@ -728,7 +742,11 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       .get(`${baseUrl}/clients/${dossierAId}`)
       .set('Authorization', `Bearer ${clientToken}`);
 
-    assert.equal(ownDossier.status, 200, 'le compte doit atteindre le dossier auquel il est rattache');
+    assert.equal(
+      ownDossier.status,
+      200,
+      'le compte doit atteindre le dossier auquel il est rattache',
+    );
     assert.equal((ownDossier.body as SuccessBody<ClientData>).data.id, dossierAId);
 
     // --- MOITIE 2 : IL N'ATTEINT PAS L'AUTRE -----------------------------------
@@ -740,7 +758,11 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       .get(`${baseUrl}/clients/${dossierBId}`)
       .set('Authorization', `Bearer ${clientToken}`);
 
-    assert.equal(otherDossier.status, 404, "le dossier d'un autre client doit etre INTROUVABLE, pas interdit");
+    assert.equal(
+      otherDossier.status,
+      404,
+      "le dossier d'un autre client doit etre INTROUVABLE, pas interdit",
+    );
     assert.equal(errorOf(otherDossier).code, 'CLIENT_NOT_FOUND');
 
     // --- LE MEME PRINCIPE SUR LES COMPTES --------------------------------------
@@ -831,7 +853,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       where: { email: EMAIL_REFUSED },
       select: { id: true },
     });
-    assert.equal(residue, null, "un refus ne doit laisser aucun compte derriere lui");
+    assert.equal(residue, null, 'un refus ne doit laisser aucun compte derriere lui');
 
     // 3. LE PORTEUR NE PEUT PAS LIRE LE DOSSIER VISE. On lui accorde le droit de
     //    gerer les comptes — donc le garde de la route passe — mais pas celui de
@@ -895,7 +917,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
    * « null » ailleurs (`tasks/dto/task.dto.ts`) : ici, l'absence ne touche pas le
    * rattachement, `null` le retire, une valeur le pose.
    */
-  it("distingue « absent » de « null », et refuse un changement de role qui laisserait le rattachement orphelin", async () => {
+  it('distingue « absent » de « null », et refuse un changement de role qui laisserait le rattachement orphelin', async () => {
     // 1. ABSENT : un renommage ne doit pas emporter le perimetre au passage. C'est
     //    le piege classique du `data.clientId = dto.clientId` ecrit sans garde.
     const renamed = await request(app.getHttpServer())
@@ -1027,7 +1049,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
     assert.deepEqual((stillAdmin.body as SuccessBody<UserData>).data.roles, ['ADMIN']);
   });
 
-  it('remplace les roles d\'un autre compte', async () => {
+  it("remplace les roles d'un autre compte", async () => {
     const response = await request(app.getHttpServer())
       .post(`${baseUrl}/users/${createdUserId}/roles`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -1135,7 +1157,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       select: { passwordHash: true },
     });
 
-    assert.notEqual(after.passwordHash, before.passwordHash, 'l\'empreinte doit avoir change');
+    assert.notEqual(after.passwordHash, before.passwordHash, "l'empreinte doit avoir change");
 
     const sessions = await prisma.refreshToken.findMany({
       where: { userId: targetUserId },
@@ -1173,7 +1195,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
   // Suppression logique
   // ---------------------------------------------------------------------------
 
-  it('supprime logiquement un compte, ferme ses sessions et le retire de l\'annuaire', async () => {
+  it("supprime logiquement un compte, ferme ses sessions et le retire de l'annuaire", async () => {
     const response = await request(app.getHttpServer())
       .delete(`${baseUrl}/users/${createdUserId}`)
       .set('Authorization', `Bearer ${adminToken}`);
@@ -1220,13 +1242,16 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
 
     assert.equal(developer.status, 200);
     const detail = (developer.body as SuccessBody<RoleData>).data;
-    assert.ok(detail.permissions && detail.permissions.length > 0, 'DEVELOPER doit avoir des droits');
+    assert.ok(
+      detail.permissions && detail.permissions.length > 0,
+      'DEVELOPER doit avoir des droits',
+    );
     // Le compte annonce dans la liste doit correspondre au detail : deux
     // requetes, une seule verite. Un ecart signalerait un `_count` mal filtre.
     assert.equal(detail.permissionCount, detail.permissions?.length);
   });
 
-  it('rend 404 pour un role qui n\'existe pas, sans erreur de validation Prisma', async () => {
+  it("rend 404 pour un role qui n'existe pas, sans erreur de validation Prisma", async () => {
     const response = await request(app.getHttpServer())
       .get(`${baseUrl}/roles/PATRON`)
       .set('Authorization', `Bearer ${adminToken}`);
@@ -1260,7 +1285,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
     assert.deepEqual(error.details, { permissions: ['licorne:voler:any'] });
   });
 
-  it('remplace les permissions d\'un role et les relit a l\'identique', async () => {
+  it("remplace les permissions d'un role et les relit a l'identique", async () => {
     // Le scenario remet a DEVELOPER EXACTEMENT les permissions qu'il detient
     // deja. C'est volontaire : le test reste vrai meme si le seed evolue, alors
     // qu'une liste ecrite en dur deviendrait fausse en silence — et un test
@@ -1270,7 +1295,8 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
       .get(`${baseUrl}/roles/DEVELOPER`)
       .set('Authorization', `Bearer ${adminToken}`);
 
-    const codes = (current.body as SuccessBody<RoleData>).data.permissions?.map((p) => p.code) ?? [];
+    const codes =
+      (current.body as SuccessBody<RoleData>).data.permissions?.map((p) => p.code) ?? [];
     assert.ok(codes.length > 0);
 
     const response = await request(app.getHttpServer())
@@ -1287,7 +1313,7 @@ describe("Identite et acces (bout en bout, base reelle)", () => {
     );
   });
 
-  it('sert le catalogue tel qu\'il est en base', async () => {
+  it("sert le catalogue tel qu'il est en base", async () => {
     const response = await request(app.getHttpServer())
       .get(`${baseUrl}/permissions`)
       .set('Authorization', `Bearer ${adminToken}`);

@@ -378,8 +378,8 @@ describe('catalogue des permissions — coherence interne', () => {
     assert.deepEqual(
       [...ALL_PERMISSION_CODES].sort(),
       [...keys].sort(),
-      '`ALL_PERMISSION_CODES` ne correspond plus aux cles de `PERMISSIONS`. L\'index est un ' +
-        '`Object.keys` fige a l\'evaluation : le rendre manuel le ferait diverger en silence.',
+      "`ALL_PERMISSION_CODES` ne correspond plus aux cles de `PERMISSIONS`. L'index est un " +
+        "`Object.keys` fige a l'evaluation : le rendre manuel le ferait diverger en silence.",
     );
   });
 
@@ -407,10 +407,10 @@ describe('catalogue des permissions — coherence interne', () => {
           code,
           why:
             `portee « ${scope} » hors du vocabulaire declare (${[...scopes].join(', ')}). ` +
-            'Une portee inconnue n\'est pas une faute d\'orthographe a corriger ici : c\'est une ' +
+            "Une portee inconnue n'est pas une faute d'orthographe a corriger ici : c'est une " +
             'decision a prendre. Si elle filtre des LIGNES, elle doit devenir une constante de ' +
             '`principal.ts` comme `own` ou `assigned`. Si elle separe une CAPACITE, elle rejoint ' +
-            '`DECLARED_SCOPES` avec le commentaire qui l\'explique.',
+            "`DECLARED_SCOPES` avec le commentaire qui l'explique.",
         });
       }
     }
@@ -418,7 +418,7 @@ describe('catalogue des permissions — coherence interne', () => {
     assert.deepEqual(malformed, []);
   });
 
-  it('n\'accorde a un role que des codes qui existent reellement', () => {
+  it("n'accorde a un role que des codes qui existent reellement", () => {
     const unknown: PermissionUse[] = [];
 
     for (const [role, grants] of Object.entries(ROLE_PERMISSIONS)) {
@@ -445,13 +445,13 @@ describe('catalogue des permissions — coherence interne', () => {
     );
   });
 
-  it('couvre exactement les roles declares par l\'enum RoleCode', () => {
+  it("couvre exactement les roles declares par l'enum RoleCode", () => {
     assert.deepEqual(
       Object.keys(ROLE_PERMISSIONS).sort(),
       Object.keys(RoleCode).sort(),
-      'L\'enum `RoleCode` et `ROLE_PERMISSIONS` ne decrivent plus les memes roles. Un role present ' +
-        'dans l\'enum mais absent ici n\'a AUCUN droit : il s\'authentifie, et chaque route lui ' +
-        'repond 403 — sans qu\'aucune ligne de code ne soit fautive.',
+      "L'enum `RoleCode` et `ROLE_PERMISSIONS` ne decrivent plus les memes roles. Un role present " +
+        "dans l'enum mais absent ici n'a AUCUN droit : il s'authentifie, et chaque route lui " +
+        "repond 403 — sans qu'aucune ligne de code ne soit fautive.",
     );
   });
 });
@@ -476,20 +476,20 @@ describe('catalogue des permissions — usage reel dans le code de production', 
     assert.ok(
       SCAN.filesScanned > 50,
       `Le balayage n'a lu que ${SCAN.filesScanned} fichier(s) sous src/. Il ne parcourt donc pas ce ` +
-        'qu\'il croit parcourir, et les deux tests suivants ne prouveraient rien.',
+        "qu'il croit parcourir, et les deux tests suivants ne prouveraient rien.",
     );
 
     assert.ok(
       SCAN.decoratorUses.length >= 30,
       `Le balayage n'a trouve que ${SCAN.decoratorUses.length} code(s) dans des decorateurs. Les ` +
-        'controleurs en declarent bien davantage : la forme des appels a change, ou l\'expression ' +
+        "controleurs en declarent bien davantage : la forme des appels a change, ou l'expression " +
         'de recherche ne correspond plus.',
     );
 
     assert.ok(
       SCAN.scopeUses.length > 0,
-      'Aucun appel `requireScope` litteral n\'a ete reconnu. Les perimetres sont peut-etre tous ' +
-        'derives de constantes — auquel cas ce n\'est pas une panne, mais il faut alors elargir le ' +
+      "Aucun appel `requireScope` litteral n'a ete reconnu. Les perimetres sont peut-etre tous " +
+        "derives de constantes — auquel cas ce n'est pas une panne, mais il faut alors elargir le " +
         'balayage, pas supprimer cette assertion sans le dire.',
     );
   });
@@ -500,10 +500,10 @@ describe('catalogue des permissions — usage reel dans le code de production', 
     assert.deepEqual(
       unknown,
       [],
-      'Un controleur exige un code de permission que le catalogue ne declare pas. Ce n\'est pas une ' +
-        'erreur de compilation, et ce n\'est pas un 500 : c\'est un 403 definitif pour TOUT LE MONDE, ' +
+      "Un controleur exige un code de permission que le catalogue ne declare pas. Ce n'est pas une " +
+        "erreur de compilation, et ce n'est pas un 500 : c'est un 403 definitif pour TOUT LE MONDE, " +
         'administrateur compris, puisque `PermissionsGuard` ne trouve ce code dans aucun role. ' +
-        'Corriger ici, ou declarer le code dans `permissions.catalogue.ts` puis l\'accorder.',
+        "Corriger ici, ou declarer le code dans `permissions.catalogue.ts` puis l'accorder.",
     );
   });
 
@@ -513,9 +513,9 @@ describe('catalogue des permissions — usage reel dans le code de production', 
     assert.deepEqual(
       unknown,
       [],
-      'Un perimetre demande un scope qui n\'existe pas au catalogue. Ces appels ne passent par aucun ' +
-        'decorateur : l\'erreur n\'apparait ni a la compilation ni au demarrage, mais au moment ou un ' +
-        'porteur legitime se voit refuser l\'acces a ses propres lignes.',
+      "Un perimetre demande un scope qui n'existe pas au catalogue. Ces appels ne passent par aucun " +
+        "decorateur : l'erreur n'apparait ni a la compilation ni au demarrage, mais au moment ou un " +
+        "porteur legitime se voit refuser l'acces a ses propres lignes.",
     );
   });
 });

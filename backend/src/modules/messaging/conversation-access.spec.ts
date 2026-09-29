@@ -78,10 +78,7 @@ describe('participationWhere — la contrainte dappartenance', () => {
 
 describe('notificationRecipients — qui prevenir', () => {
   it('exclut lauteur du message', () => {
-    const recipients = notificationRecipients(
-      [participant(VIEWER), participant(OTHER)],
-      VIEWER,
-    );
+    const recipients = notificationRecipients([participant(VIEWER), participant(OTHER)], VIEWER);
 
     assert.deepEqual(recipients, [OTHER]);
   });
@@ -129,15 +126,23 @@ describe('curseur de pagination', () => {
     assert.equal(decodeMessageCursor(''), null);
     assert.equal(decodeMessageCursor(Buffer.from('sans-separateur').toString('base64url')), null);
     assert.equal(decodeMessageCursor(Buffer.from('|msg-1').toString('base64url')), null);
-    assert.equal(decodeMessageCursor(Buffer.from('pas-une-date|msg-1').toString('base64url')), null);
+    assert.equal(
+      decodeMessageCursor(Buffer.from('pas-une-date|msg-1').toString('base64url')),
+      null,
+    );
   });
 
   it('refuse un identifiant vide ou demesure', () => {
-    assert.equal(decodeMessageCursor(Buffer.from(`${createdAt.toISOString()}|`).toString('base64url')), null);
+    assert.equal(
+      decodeMessageCursor(Buffer.from(`${createdAt.toISOString()}|`).toString('base64url')),
+      null,
+    );
 
     const tooLong = 'x'.repeat(65);
     assert.equal(
-      decodeMessageCursor(Buffer.from(`${createdAt.toISOString()}|${tooLong}`).toString('base64url')),
+      decodeMessageCursor(
+        Buffer.from(`${createdAt.toISOString()}|${tooLong}`).toString('base64url'),
+      ),
       null,
     );
   });
@@ -149,10 +154,7 @@ describe('beforeCursorWhere — la fenetre suivante', () => {
     const where = beforeCursorWhere({ createdAt, id: 'msg-5' });
 
     assert.deepEqual(where, {
-      OR: [
-        { createdAt: { lt: createdAt } },
-        { createdAt, id: { lt: 'msg-5' } },
-      ],
+      OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: 'msg-5' } }],
     });
   });
 });
@@ -202,9 +204,7 @@ describe('unreadMessagesWhere — le compteur de non-lus', () => {
   });
 
   it('traite « jamais lu » comme « tout est non lu »', () => {
-    const where = unreadMessagesWhere(VIEWER, [
-      { conversationId: 'conv-1', lastReadAt: null },
-    ]);
+    const where = unreadMessagesWhere(VIEWER, [{ conversationId: 'conv-1', lastReadAt: null }]);
 
     assert.deepEqual(where, {
       deletedAt: null,

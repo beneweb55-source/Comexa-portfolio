@@ -58,7 +58,7 @@ function assertCode(code: string, details?: unknown): (error: unknown) => boolea
 }
 
 describe('unknownCodes', () => {
-  it('rend les codes absents de l\'ensemble connu', () => {
+  it("rend les codes absents de l'ensemble connu", () => {
     assert.deepEqual(unknownCodes(['A', 'B', 'C'], ['A', 'C']), ['B']);
   });
 
@@ -76,7 +76,7 @@ describe('unknownCodes', () => {
 });
 
 describe('isKnownRoleCode', () => {
-  it('reconnait les sept valeurs de l\'enumeration', () => {
+  it("reconnait les sept valeurs de l'enumeration", () => {
     for (const code of Object.values(RoleCode)) {
       assert.equal(isKnownRoleCode(code), true, `${code} doit etre reconnu`);
     }
@@ -99,20 +99,28 @@ describe('assertNotSelfAccount', () => {
   });
 
   it('refuse de se supprimer soi-meme', () => {
-    assert.throws(() => assertNotSelfAccount(ACTOR, ACTOR, 'DELETE'), assertCode('SELF_DELETE_FORBIDDEN'));
+    assert.throws(
+      () => assertNotSelfAccount(ACTOR, ACTOR, 'DELETE'),
+      assertCode('SELF_DELETE_FORBIDDEN'),
+    );
   });
 
   it('refuse de se suspendre soi-meme', () => {
     // Le code est distinct de celui de la suppression : le frontend doit pouvoir
     // afficher deux messages differents, et l'un des deux est un geste qu'on
     // annule en cliquant sur « reactiver », l'autre non.
-    assert.throws(() => assertNotSelfAccount(ACTOR, ACTOR, 'SUSPEND'), assertCode('SELF_SUSPEND_FORBIDDEN'));
+    assert.throws(
+      () => assertNotSelfAccount(ACTOR, ACTOR, 'SUSPEND'),
+      assertCode('SELF_SUSPEND_FORBIDDEN'),
+    );
   });
 });
 
 describe('assertRolesKnown', () => {
   it('laisse passer quand tous les codes existent en base', () => {
-    assert.doesNotThrow(() => assertRolesKnown(['DEVELOPER', 'SALES'], ['DEVELOPER', 'SALES', 'ADMIN']));
+    assert.doesNotThrow(() =>
+      assertRolesKnown(['DEVELOPER', 'SALES'], ['DEVELOPER', 'SALES', 'ADMIN']),
+    );
   });
 
   it('laisse passer une liste vide', () => {
@@ -161,15 +169,18 @@ describe('assertAdministratorRemains', () => {
     );
   });
 
-  it('laisse passer l\'AJOUT de ADMIN', () => {
+  it("laisse passer l'AJOUT de ADMIN", () => {
     assert.doesNotThrow(() =>
       assertAdministratorRemains(
-        change({ currentRoles: [RoleCode.DEVELOPER], nextRoles: [RoleCode.DEVELOPER, RoleCode.ADMIN] }),
+        change({
+          currentRoles: [RoleCode.DEVELOPER],
+          nextRoles: [RoleCode.DEVELOPER, RoleCode.ADMIN],
+        }),
       ),
     );
   });
 
-  it('refuse de se retirer son propre ADMIN, meme s\'il en reste cinq', () => {
+  it("refuse de se retirer son propre ADMIN, meme s'il en reste cinq", () => {
     // La regle 1 passe AVANT celle du dernier administrateur : se demettre
     // soi-meme reste interdit quel que soit leur nombre.
     assert.throws(
@@ -252,7 +263,7 @@ describe('assertAdministratorRemains', () => {
     );
   });
 
-  it('refuse aussi quand le compte vise n\'a plus aucun role', () => {
+  it("refuse aussi quand le compte vise n'a plus aucun role", () => {
     assert.throws(
       () =>
         assertAdministratorRemains(
@@ -269,7 +280,7 @@ describe('assertAdministratorRemains', () => {
 });
 
 describe('assertNotLastActiveAdministrator', () => {
-  it('laisse passer quand la cible n\'est pas un administrateur actif', () => {
+  it("laisse passer quand la cible n'est pas un administrateur actif", () => {
     assert.doesNotThrow(() =>
       assertNotLastActiveAdministrator(false, 1, 'message qui ne doit jamais sortir'),
     );
@@ -283,8 +294,11 @@ describe('assertNotLastActiveAdministrator', () => {
     // `activeAdminCount` est dans les details : le frontend peut alors expliquer
     // la situation (« il ne reste qu\'un administrateur actif ») sans avoir a la
     // deduire d\'un message traduit.
-    assert.throws(() => assertNotLastActiveAdministrator(true, 1, 'message'), assertCode('LAST_ADMIN_PROTECTED', {
-      activeAdminCount: 1,
-    }));
+    assert.throws(
+      () => assertNotLastActiveAdministrator(true, 1, 'message'),
+      assertCode('LAST_ADMIN_PROTECTED', {
+        activeAdminCount: 1,
+      }),
+    );
   });
 });

@@ -156,10 +156,7 @@ describe('narrowVisibilities — un filtre ne peut pas elargir', () => {
   });
 
   it('repond la liste complete quand aucun filtre n est demande', () => {
-    assert.deepEqual(
-      [...narrowVisibilities(ALL_VISIBILITIES, undefined)],
-      [...ALL_VISIBILITIES],
-    );
+    assert.deepEqual([...narrowVisibilities(ALL_VISIBILITIES, undefined)], [...ALL_VISIBILITIES]);
   });
 
   it('refuse un client qui demande les documents internes', () => {

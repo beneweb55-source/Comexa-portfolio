@@ -78,10 +78,7 @@ describe('readReportSnapshot — relecture apres stockage', () => {
     const result = readReportSnapshot(stored)?.result;
 
     assert.equal(result?.type, 'REVENUE');
-    assert.equal(
-      result?.type === 'REVENUE' ? result.collected.total : null,
-      '4200.00',
-    );
+    assert.equal(result?.type === 'REVENUE' ? result.collected.total : null, '4200.00');
   });
 
   it('refuse — en renvoyant null — une valeur qui n est pas un instantane', () => {

@@ -152,7 +152,7 @@ export class ContentAdminController {
   @Delete('case-study-categories/:id')
   @RequirePermissions('casestudy:write:any')
   @ApiOperation({
-    summary: "Retirer une categorie",
+    summary: 'Retirer une categorie',
     description: 'Les etudes de cas rattachees restent en ligne, sans categorie.',
   })
   async deleteCategory(@Param('id') id: string): Promise<void> {
@@ -183,7 +183,7 @@ export class ContentAdminController {
     summary: 'Modifier une etude de cas',
     description:
       "Le passage a PUBLISHED pose la date de publication si elle n'existe pas encore ; " +
-      "une republication ne la reecrit pas.",
+      'une republication ne la reecrit pas.',
   })
   async updateCaseStudy(@Param('id') id: string, @Body() dto: UpdateCaseStudyDto) {
     return this.content.updateCaseStudy(id, dto);
@@ -211,7 +211,7 @@ export class ContentAdminController {
   @RequirePermissions('testimonial:write:any')
   @ApiOperation({
     summary: 'Creer un temoignage',
-    description: "Cree toujours non publie : la mise en ligne est une autre route, un autre droit.",
+    description: 'Cree toujours non publie : la mise en ligne est une autre route, un autre droit.',
   })
   async createTestimonial(@Body() dto: CreateTestimonialDto) {
     return this.content.createTestimonial(dto);

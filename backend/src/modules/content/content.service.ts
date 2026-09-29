@@ -225,7 +225,8 @@ export class ContentService {
     if (slug !== undefined) await this.assertSlugFree('service', slug, id);
 
     return this.attempt(
-      () => this.prisma.service.update({ where: { id }, data: { ...dto, ...(slug ? { slug } : {}) } }),
+      () =>
+        this.prisma.service.update({ where: { id }, data: { ...dto, ...(slug ? { slug } : {}) } }),
       slug,
     );
   }
@@ -281,7 +282,8 @@ export class ContentService {
     if (slug !== undefined) await this.assertSlugFree('package', slug, id);
 
     return this.attempt(
-      () => this.prisma.package.update({ where: { id }, data: { ...dto, ...(slug ? { slug } : {}) } }),
+      () =>
+        this.prisma.package.update({ where: { id }, data: { ...dto, ...(slug ? { slug } : {}) } }),
       slug,
     );
   }
@@ -300,9 +302,7 @@ export class ContentService {
     const where: Prisma.CaseStudyCategoryWhereInput = {
       deletedAt: null,
       ...(query.active === undefined ? {} : { isActive: query.active }),
-      ...(query.search
-        ? { name: { contains: query.search, mode: 'insensitive' as const } }
-        : {}),
+      ...(query.search ? { name: { contains: query.search, mode: 'insensitive' as const } } : {}),
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -635,11 +635,7 @@ export class ContentService {
    * n'est pas une garantie — deux creations simultanees passeraient toutes les
    * deux — d'ou le rattrapage de `P2002` dans `attempt`.
    */
-  private async assertSlugFree(
-    model: SlugModel,
-    slug: string,
-    exceptId?: string,
-  ): Promise<void> {
+  private async assertSlugFree(model: SlugModel, slug: string, exceptId?: string): Promise<void> {
     const clash = await this.findBySlug(model, slug, exceptId);
     if (clash) throw slugConflict(slug);
   }

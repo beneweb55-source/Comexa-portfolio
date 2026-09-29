@@ -8,7 +8,10 @@ import { ActivityType, InvoiceStatus, NotificationType } from '../../generated/p
 import type { PrismaService } from '../../prisma/prisma.service.js';
 import type { ActivityInput, ActivityService } from '../activity/activity.service.js';
 import type { CounterService } from '../counters/counter.service.js';
-import type { NotificationInput, NotificationService } from '../notifications/notification.service.js';
+import type {
+  NotificationInput,
+  NotificationService,
+} from '../notifications/notification.service.js';
 import { InvoicesService } from './invoices.service.js';
 import { money } from './money.js';
 import type { RequestMetadata } from './request-meta.js';
@@ -416,10 +419,7 @@ describe('InvoicesService.send — le courriel', () => {
 
     await test.service.send('inv-1', policy(), META);
 
-    await assert.rejects(
-      () => test.service.send('inv-1', policy(), META),
-      /deja ete envoyee/,
-    );
+    await assert.rejects(() => test.service.send('inv-1', policy(), META), /deja ete envoyee/);
 
     assert.equal(test.mail.invoices.length, 1, 'un seul courriel pour une seule piece envoyee');
   });

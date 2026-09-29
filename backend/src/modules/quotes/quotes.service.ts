@@ -17,13 +17,22 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { ClientsService } from '../clients/clients.service.js';
 import { CounterService, resolveStamp, stampReference } from '../counters/counter.service.js';
-import { type BillingContact, clientPortalUserIds, primaryContactEmail } from '../invoices/audience.js';
+import {
+  type BillingContact,
+  clientPortalUserIds,
+  primaryContactEmail,
+} from '../invoices/audience.js';
 import {
   acceptancePerimeter,
   assertRequestedClientAllowed,
   clientPerimeter,
 } from '../invoices/billing-access.js';
-import { buildLineRows, computeTotals, storedLineEntries, toLineEntries } from '../invoices/money.js';
+import {
+  buildLineRows,
+  computeTotals,
+  storedLineEntries,
+  toLineEntries,
+} from '../invoices/money.js';
 import type { RequestMetadata } from '../invoices/request-meta.js';
 import { isUniqueViolationOn } from '../invoices/unique-violation.js';
 import { NotificationService } from '../notifications/notification.service.js';
@@ -467,7 +476,11 @@ export class QuotesService {
    * propage : le statut, l'activite et la notification sont la verite de
    * l'operation, le courriel est un effet qui depend d'un relais externe.
    */
-  async send(quoteId: string, policy: AccessPolicy, meta: RequestMetadata): Promise<QuoteWithItems> {
+  async send(
+    quoteId: string,
+    policy: AccessPolicy,
+    meta: RequestMetadata,
+  ): Promise<QuoteWithItems> {
     const actorId = policy.userId;
     const ownClientId = clientPerimeter(policy, 'quote', 'write');
 
@@ -731,9 +744,7 @@ export class QuotesService {
         where: { id: actorId },
         select: { firstName: true, lastName: true },
       });
-      const acceptedByName = acceptor
-        ? `${acceptor.firstName} ${acceptor.lastName}`.trim()
-        : null;
+      const acceptedByName = acceptor ? `${acceptor.firstName} ${acceptor.lastName}`.trim() : null;
 
       const client = await resolveClientForAcceptance(this.clients, tx, quote, actorId, now);
 

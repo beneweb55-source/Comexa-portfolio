@@ -133,7 +133,7 @@ describe('redactJson', () => {
     );
   });
 
-  it('masque dans un tableau d\'objets', () => {
+  it("masque dans un tableau d'objets", () => {
     // `createMany` de roles : un tableau de liens, chacun portant des champs.
     assert.deepEqual(
       redactJson([
@@ -201,7 +201,7 @@ describe('redactJson', () => {
     });
   });
 
-  it('s\'arrete net au-dela de la profondeur maximale', () => {
+  it("s'arrete net au-dela de la profondeur maximale", () => {
     let deep: unknown = 'sentinelle';
     for (let level = 0; level < 12; level += 1) {
       deep = { niveau: deep };
