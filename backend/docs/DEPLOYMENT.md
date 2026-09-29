@@ -85,6 +85,10 @@ une seule instance :
 
 1. Inscription sur <https://www.oracle.com/cloud/free/>, region **la plus proche
    de vos utilisateurs** (elle est definitive : on ne peut pas la changer).
+   Depuis l'Algerie, les deux plus proches sont **`eu-marseille-1`** (France
+   Sud) et `eu-paris-1`. Une carte bancaire est exigee a l'inscription, meme pour
+   le palier gratuit — et les cartes a debit immediat, prepayees, virtuelles ou a
+   usage unique sont refusees.
 2. **Compute → Instances → Create instance** :
    - Image : **Ubuntu 24.04**
    - Shape : **`VM.Standard.A1.Flex`** (ARM Ampere), **2 OCPU / 12 Go**.
@@ -100,11 +104,50 @@ une seule instance :
 > Reessayez, changez de domaine de disponibilite, ou repassez quelques heures
 > plus tard. C'est une loterie d'approvisionnement, pas un diagnostic.
 
-### Google Cloud — alternative
+> **Un risque a connaitre AVANT de choisir ce palier : la recuperation des
+> instances inactives.** Oracle peut reprendre automatiquement une instance
+> Always Free jugee inactive sur une fenetre **continue de 7 jours** — quand
+> TROIS mesures passent sous 20 % en meme temps : le CPU (95e centile), le
+> reseau, et la memoire pour les formes A1. Une API a faible trafic remplit les
+> trois, par construction : elle fonctionne, et c'est precisement ce qui la rend
+> « inactive » au sens de la mesure. L'instance peut donc disparaitre sans
+> avertissement. Le volume de demarrage survit ; la machine, non.
+>
+> Ce n'est pas une raison d'ecarter ce palier, c'est une raison de traiter cette
+> VM comme **remplacable**. Tout ce qui compte est dans git (§7), dans
+> `.env.production` (§10), et la base vit chez Neon : rien d'irremplacable ne
+> tient sur le disque de cette machine. Concretement, cela veut dire que
+> `git clone`, un `.env.production` et deux commandes Compose suffisent a la
+> reconstruire — le jour ou cela devient penible, c'est ce enchainement qu'il
+> faudra ecrire comme un script. Il n'existe pas encore.
+>
+> Deux gestes utiles des maintenant : une **surveillance externe** qui interroge
+> `/api/health` toutes les 5 minutes (UptimeRobot, Healthchecks.io) — elle ne
+> protege pas de la recuperation, mais elle vous previent que la machine a
+> disparu, au lieu de vous le faire decouvrir par un client ; et les
+> **sauvegardes de §15**, qui ne dependent pas de cette machine.
+>
+> Le passage en compte *Pay As You Go* est souvent presente comme exemptant les
+> ressources Always Free de ce mecanisme. Cette exemption n'est **pas documentee**
+> par Oracle, et les retours de la communaute se contredisent : a traiter comme
+> non confirme, jamais comme une garantie.
 
-`e2-micro` dans `us-central1`, `us-west1` ou `us-east1` est gratuit en
-permanence (1 vCPU partage, **1 Go de RAM**). C'est plus serre : prevoyez de
-baisser `--max-old-space-size` si Node se fait tuer par l'OOM killer.
+### Google Cloud — pourquoi ce palier ne convient pas ici
+
+`e2-micro` dans `us-central1`, `us-west1` ou `us-east1` est gratuit en permanence
+(1 vCPU partage, **1 Go de RAM**, 30 Go de disque). Ces trois regions sont les
+seules : en deployer ailleurs est facture au tarif normal.
+
+> **Ces 1 Go sont ceux de la MACHINE ENTIERE** — noyau, Docker, Caddy et l'API
+> comprises. Or `docker-compose.prod.yml` demande a lui seul `mem_limit: 1g` pour
+> l'API, avec un tas Node plafonne a 768 Mo. Il ne reste donc rien pour le reste,
+> et le noyau tue le processus ; `restart: unless-stopped` le relance, et l'API
+> alterne entre fonctionnement et mort — le genre de panne qui ne se diagnostique
+> jamais, parce qu'elle se repare toute seule juste assez longtemps pour ne pas
+> etre vue.
+>
+> Ce n'est pas un reglage a ajuster en baissant `--max-old-space-size` : c'est un
+> plafond de memoire. Pour cette pile, prenez Oracle, ou un palier payant.
 
 ---
 
