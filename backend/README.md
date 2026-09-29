@@ -108,6 +108,7 @@ Les tests demarrent l'application par `configureApp()` — la meme fonction que
 | `docs/API.md` | Le contrat HTTP : routes, permissions, enveloppe, codes d'erreur, ecarts connus. |
 | `docs/TESTING.md` | Les deux suites, la base partagee, les regles que chaque spec doit suivre. |
 | `docs/security-audit.md` | Revue de securite : RBAC, IDOR, mot de passe, en-tetes. |
+| `docs/DEPLOYMENT.md` | Le runbook de mise en production : VM, TLS, stockage objet, courriel. |
 | `/api/docs` | OpenAPI genere depuis le code (hors production). |
 
 ---
@@ -123,49 +124,87 @@ docker compose up --build
 en production se fait par `node dist/main.js` — jamais par `tsx`, qui n'emet pas
 la metadonnee de decorateurs dont depend l'injection de dependances de Nest.
 
+### En production
+
+`docker-compose.yml` est la pile de **developpement** : base PostgreSQL jetable
+et MinIO en local, avec des variables `COMEXA_*` qui ne peuvent pas etre
+renseignees par accident. La production utilise un fichier distinct :
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml \
+  --profile tools run --rm migrate
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+Deux conteneurs seulement — l'API et **Caddy**, qui termine le TLS et obtient son
+certificat Let's Encrypt tout seul. La base est Neon, les fichiers sont dans un
+stockage S3-compatible, et les deux viennent de `.env.production` (ignore par
+git). `--profile tools` met a part `migrate` et `seed` : une migration doit
+rester un geste delibere, jamais un effet de bord d'un redemarrage.
+
+> **Pourquoi une VM toujours allumee et pas une plateforme serverless.**
+> `InvoiceOverdueService` porte un `@Cron(EVERY_HOUR)`, la passerelle socket.io
+> garde des connexions ouvertes, et le limiteur de debit tient son etat en
+> memoire vive. Une plateforme qui endort les services fait taire le cron, coupe
+> les sockets ; deux instances doublent la limite reelle. Le detail du choix et
+> les mesures qui l'ont motive sont dans `docs/DEPLOYMENT.md`.
+
 ---
 
-## 7. Limite connue : `npm run lint` n'est pas executable ici
+## 7. `npm run lint`
 
-**Le fait.** `npm run lint` echoue avec
-`ERR_MODULE_NOT_FOUND: Cannot find package 'eslint' imported from .../eslint.config.mjs`.
-Ce n'est pas une regression : ce script n'a jamais pu tourner dans cette
-arborescence, pour une raison de disposition des fichiers.
+```bash
+npm run lint    # eslint "{src,test,prisma}/**/*.ts" --fix
+```
 
-**La cause.** Le script vaut `eslint "{src,test,prisma}/**/*.ts" --fix` et ne
-passe **pas** de `--config`. Quand un `--config` est absent, ESLint remonte
-l'arborescence depuis chaque fichier analyse et s'arrete au premier
-`eslint.config.*` rencontre. Ce dossier n'en contient aucun : il remonte donc
-jusqu'a `../eslint.config.mjs`, la configuration **Next.js du frontend**, dont
-les imports (`eslint/config`, `eslint-config-next`, `eslint-config-next/core-web-vitals`)
-ne se resolvent pas — la racine du depot n'a pas de `node_modules` dans un clone
-du backend seul. D'ou l'echec.
+**Il fonctionne, et sort propre sur tout l'arbre.** Mesure du 29/09/2026 :
+`./node_modules/.bin/eslint "{src,test,prisma}/**/*.ts"` sort en code `0`, sans
+un seul diagnostic.
 
-**Pourquoi cela n'a pas ete corrige ici.** Une configuration a bien ete ecrite
-puis retiree : elle est bloquee par le garde-fou `config-protection` de
-l'outillage local, qui interdit toute modification d'un fichier
-`eslint.config.*`. Ce garde-fou protege une intention juste — empecher qu'on
-affaiblisse les regles pour faire taire des avertissements — et il ne revient
-pas a cette livraison de le desactiver. Le retrait laisse le depot exactement
-dans son etat anterieur : ni pire, ni mieux.
+C'est possible parce que ce dossier porte desormais son propre
+`eslint.config.mjs`. Sans ce fichier, ESLint ne trouvait aucune configuration
+locale et remontait jusqu'a celle du **frontend**, dont les imports
+(`eslint/config`, `eslint-config-next`) ne se resolvent pas ici : la racine du
+depot n'a pas de `node_modules`. D'ou l'ancien
+`ERR_MODULE_NOT_FOUND: Cannot find package 'eslint'`.
 
-**Le remede, quand ce sera le moment.** Deux options, dans cet ordre.
+### Ce que la configuration ne fait pas
 
-1. Ajouter un `eslint.config.mjs` **dans ce dossier**, compose depuis les
-   paquets deja declares et deja installes : `@typescript-eslint/eslint-plugin`
-   et `@typescript-eslint/parser` en 8.71.0, `eslint-plugin-prettier`,
-   `eslint-config-prettier`, `eslint` en 10.11.0. Leurs plages de dependances
-   sont mutuellement compatibles (le plugin annonce
-   `eslint: ^8.57.0 || ^9.0.0 || ^10.0.0` et `typescript: >=4.8.4 <6.1.0`).
-   Ne pas activer l'analyse sensible aux types : `test/`, `prisma/` et `src/` ne
-   relevent pas du meme programme TypeScript (`tsconfig.json` et
-   `tsconfig.e2e.json`), et un fichier hors programme ferait echouer l'analyse.
-2. Installer `eslint` a la racine du depot — **a eviter** : cela touche
-   l'environnement du frontend, qui appartient a un autre developpeur.
+Elle n'affaiblit rien, et c'est **verifie plutot qu'affirme** : un local
+inutilise qui ne porte pas le prefixe `_` fait toujours echouer la commande. Un
+seul reglage a ete ajuste, `@typescript-eslint/no-unused-vars`, pour tolerer les
+noms prefixes par `_` (`argsIgnorePattern`, `varsIgnorePattern`,
+`caughtErrorsIgnorePattern`, `ignoreRestSiblings`). Ce n'est pas une
+echappatoire : ce depot nomme `_` huit parametres volontairement inutilises —
+signature d'interface des pilotes de stockage, parametre decore `@Query()` qui
+n'existe que pour la validation, et l'idiome d'omission
+`const { x: _x, ...rest } = obj`.
 
-**Le piege a connaitre avant de lancer `--fix`.** Le script porte `--fix`. Le
-jour ou la resolution sera corrigee, la premiere execution reecrira les fichiers
-analyses selon les regles retenues. Lancez d'abord
-`./node_modules/.bin/eslint "{src,test,prisma}/**/*.ts"` **sans** `--fix`, et
-lisez le nombre de diagnostics : c'est la seule facon de decider si le jeu de
+### Deux pieges de forme, tous les deux mesures
+
+Ils sont documentes en tete de `eslint.config.mjs` et valent d'etre connus avant
+d'y toucher :
+
+1. Un commentaire **de bloc** ne peut pas citer le glob du script `lint` : la
+   sequence `*/` qu'il contient ferme le commentaire au milieu. La premiere
+   version du fichier etait invalide pour cette raison exacte.
+2. `tseslint.configs['flat/base']` est un **objet**, mais
+   `configs['flat/recommended']` est un **tableau de 3** qui doit etre deploye
+   (`...`). Pose comme element unique, il forme un tableau imbrique et ESLint
+   refuse la configuration entiere : `TypeError: Unexpected array`.
+
+`src/generated/` est ignore : c'est le client Prisma, un artefact derive,
+regenere par `prisma:generate`. Le reformater ne produirait qu'un diff efface a
+la generation suivante.
+
+### Le piege du `--fix`
+
+Le script porte `--fix`. Sur un arbre propre, c'est sans effet. Mais si vous
+modifiez les regles, lancez d'abord la commande **sans** `--fix` :
+
+```bash
+./node_modules/.bin/eslint "{src,test,prisma}/**/*.ts"
+```
+
+et lisez le nombre de diagnostics. C'est la seule facon de decider si un jeu de
 regles decrit le code existant ou s'il le reecrit.

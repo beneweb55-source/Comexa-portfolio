@@ -11,6 +11,25 @@ logs
 .env.*
 !.env.example
 
+# Les memes motifs, a TOUTE PROFONDEUR. Les trois lignes ci-dessus sont ancrees a
+# la racine du contexte de build : un `.env` glisse dans un sous-dossier
+# entrerait dans une couche. Le contexte vaut aujourd'hui `backend/`, donc les
+# deux formes couvrent la meme chose — c'est une ceinture pour le jour ou le
+# contexte s'elargira, ou ou un outil ecrira un `.env` ailleurs qu'a la racine.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Client Prisma genere dans l'arborescence source.
+#
+# Le Dockerfile lance `npx prisma generate` SANS `DATABASE_URL`, precisement pour
+# qu'aucun secret n'entre dans une couche. Mais les etapes `build` et `runtime`
+# font toutes deux `COPY src ./src` : si ce dossier existe chez celui qui
+# construit, il ECRASE le client fraichement genere par un client derive d'un
+# AUTRE schema — donc par du code incoherent avec les migrations appliquees.
+# Absent du contexte, il ne peut pas entrer.
+src/generated
+
 *.log
 .git
 .gitignore
@@ -19,3 +38,12 @@ logs
 # Documentation : utile en developpement, inutile dans l'image.
 docs
 *.md
+
+# Ordonnancement : ces fichiers decrivent COMMENT lancer l'image, ils ne servent
+# pas a la construire. Les laisser dans le contexte ferait invalider le cache de
+# build a chaque retouche d'un Caddyfile, pour un fichier qui n'entre jamais dans
+# une couche.
+docker-compose.yml
+docker-compose.prod.yml
+deploy
+.dockerignore

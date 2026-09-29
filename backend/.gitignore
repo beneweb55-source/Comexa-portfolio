@@ -54,6 +54,28 @@ tmp-*
 # (`production.env`, `secrets.env`) reste ignore.
 *.env
 
+# Sauvegardes de base, exports SQL et jarres de cookies.
+#
+# Ceinture et bretelles, et pas seulement de la prudence : ce depot est PUBLIC,
+# et deux commandes du runbook de deploiement (`docs/DEPLOYMENT.md`) ecrivent des
+# fichiers porteurs de secrets DANS L'ARBRE DE TRAVAIL.
+#
+#   `pg_dump ... --file="comexa-<date>.dump"` -> une sauvegarde LOGIQUE COMPLETE
+#     de la base de production : empreintes argon2 des mots de passe, clients,
+#     devis, factures, paiements. Un `git add -A` l'aurait publiee sur GitHub. Un
+#     dump au format `custom` ne se lit pas comme un secret dans un diff, et
+#     `pg_restore -l` suffit a le parcourir.
+#   `curl -c cookies.txt` -> le cookie de rafraichissement, donc un jeton
+#     utilisable jusqu'a 30 jours sur le compte ADMIN.
+#
+# Le runbook ecrit desormais HORS du depot, et ces regles sont la seconde
+# barriere : pour le jour ou quelqu'un suivra une version plus ancienne du
+# document, ou improvisera une commande d'export.
+*.dump
+*.sql
+cookies.txt
+*.cookies
+
 # Fichiers envoyes en developpement quand STORAGE_DRIVER=local.
 # En production ils partent dans un stockage S3-compatible, pas sur le disque.
 #

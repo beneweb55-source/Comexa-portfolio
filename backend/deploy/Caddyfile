@@ -1,0 +1,66 @@
+# =============================================================================
+# Caddy — terminaison TLS et reverse proxy vers l'API
+# =============================================================================
+# Monte en lecture seule dans le conteneur `caddy` (voir docker-compose.prod.yml).
+# Les deux variables ci-dessous viennent de `.env.production`, et Compose refuse
+# de demarrer si l'une des deux manque.
+#
+# CE FICHIER NE DECLARE QU'UN SEUL NOM DE DOMAINE, ET C'EST VOULU. Le jour ou le
+# frontend est heberge sur la meme machine, un bloc supplementaire suffit ici :
+# Caddy delivre alors un certificat par nom, sans configuration partagee.
+# =============================================================================
+
+{
+	# Adresse de contact ACME.
+	#
+	# Ce n'est pas un champ decoratif : Let's Encrypt ecrit ici a 20 jours de
+	# l'expiration. Si le renouvellement automatique venait a echouer — port 80
+	# ferme par un redemarrage, quota atteint, domaine mal resolu — c'est le seul
+	# canal qui l'annonce AVANT que le site ne tombe en certificat invalide.
+	email {$ACME_EMAIL}
+}
+
+{$API_DOMAIN} {
+	# L'API renvoie du JSON, qui compresse tres bien. `zstd` d'abord (les
+	# navigateurs recents), `gzip` en repli.
+	encode zstd gzip
+
+	header {
+		# Une reponse JSON ne doit jamais etre interpretee comme un autre type :
+		# c'est la defense de base contre un contenu renvoye par l'API qui serait
+		# lu comme du HTML par un navigateur.
+		X-Content-Type-Options nosniff
+		# Une API ne s'affiche dans aucune cadre. Sans cet en-tete, une page
+		# tierce peut l'incruster et faire cliquer l'utilisateur a sa place.
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		# Un an de HTTPS obligatoire.
+		#
+		# PORTEE REELLE de `includeSubDomains`, parce qu'elle se surestime
+		# facilement : un en-tete HSTS ne vaut QUE pour l'hote qui l'a emis. Servi
+		# sur `api.exemple.tld`, il couvre donc `api.exemple.tld` et ses propres
+		# sous-domaines (`x.api.exemple.tld`) — pas `www.exemple.tld`, qui ne
+		# verra cet en-tete que le jour ou il sera a son tour servi en HTTPS.
+		#
+		# Le mot-cle ne devient genant que si un sous-domaine DE `api.exemple.tld`
+		# restait en HTTP. C'est improbable ici, d'ou sa presence.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# L'API ne renseigne pas son identite. Docker n'a pas a le faire a sa place.
+		-Server
+	}
+
+	# Rien a ajouter pour les WebSockets : Caddy relaie l'en-tete `Upgrade` sans
+	# configuration, contrairement a nginx qui exige `proxy_set_header Upgrade` et
+	# `proxy_set_header Connection` sous peine de voir le handshake echouer en 400.
+	reverse_proxy api:3001
+
+	log {
+		# Fichier et non sortie standard : le volume `/data` persiste entre deux
+		# conteneurs, la sortie standard non. C'est ce journal qui repond a
+		# « quelle requete a produit ce 502 » apres un redeploiement.
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
