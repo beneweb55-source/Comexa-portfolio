@@ -206,18 +206,24 @@ marque *beta*, avec une limite de bande passante non documentee.
 
 **2. Render, palier gratuit.** Pas de carte : la documentation de Render l'ecrit
 elle-meme. Trois consequences a connaitre avant de choisir cette voie :
-- l'instance **s'endort apres 15 minutes** d'inactivite et met une quinzaine de
-  secondes a se reveiller. Un ping toutes les 10 minutes la maintient eveillee, et
-  les 750 heures par mois du palier suffisent a couvrir un mois continu ;
+- l'instance **s'endort apres 15 minutes** d'inactivite, et met de quelques
+  dizaines de secondes a une minute a se reveiller (les deux mesures ont ete
+  vues : ~15 s en mediane, jusqu'a une minute). Un appel toutes les 10 minutes la
+  maintient eveillee, et les 750 heures par mois du palier suffisent a couvrir un
+  mois continu de 744 heures — avec 6 heures de marge, donc sans place pour un
+  second service gratuit dans le meme workspace ;
 - **512 Mo de RAM et 0,1 vCPU** quand ce depot demande 1 Go et 1 vCPU : il faut
   baisser `--max-old-space-size` en consequence ;
 - **le SMTP sortant est bloque** sur le palier gratuit — ports 25, 465 et 587 —
   depuis le 26/09/2025. `smtp-relay.brevo.com:587` ne repondra donc pas, et
-  l'envoi de courriel echouera **silencieusement** : c'est la panne la plus dure a
-  diagnostiquer de cette liste, parce que rien ne la signale. La sortie est l'API
-  HTTP de Brevo sur le port 443, que ce backend ne sait pas encore utiliser —
-  c'est une modification a faire dans le module de courriel **avant** de choisir
-  Render.
+  l'envoi de courriel echouerait **silencieusement** : c'est la panne la plus dure
+  a diagnostiquer de cette liste, parce que rien ne la signale. Le module de
+  courriel sait desormais l'eviter : renseigner `BREVO_API_KEY` fait passer les
+  envois par l'API HTTP de Brevo, sur le port 443, qui n'est jamais filtre
+  (§9.1). C'est la raison d'etre de ce second transport.
+
+Le deploiement complet sur Render — creation du service, variables
+d'environnement, migrations et reveil periodique — est decrit a l'**annexe A**.
 
 **Ce qui n'existe plus en 2026**, malgre ce qu'en disent encore beaucoup
 d'articles : Koyeb a ete rachete par Mistral AI le 17/02/2026 et son palier
@@ -324,17 +330,31 @@ c'est-a-dire trop tard.
 
 ## 7. Recuperer le code
 
-Le depot est public : aucun jeton n'est necessaire.
+**Le depot est prive, donc un jeton est necessaire.** Un `git clone` en HTTPS sur
+un depot prive demande des identifiants, et sur une machine sans navigateur il
+n'y a rien pour les saisir : la commande echoue ou reste en attente.
+
+Le plus simple est un **jeton d'acces personnel** en lecture seule sur ce depot
+(GitHub : *Settings → Developer settings → Personal access tokens → Fine-grained*,
+droits *Contents: Read*), puis :
 
 ```bash
 git clone --branch feat/backend-comexa-api \
-  https://github.com/beneweb55-source/Comexa-portfolio.git ~/comexa
+  https://<jeton>@github.com/beneweb55-source/Comexa-portfolio.git ~/comexa
 cd ~/comexa/backend
 ```
+
+Le jeton se retrouve alors dans `~/comexa/.git/config`, en clair, sur cette
+machine. Il est en LECTURE SEULE et limite a ce depot : c'est ce qui rend le
+compromis acceptable. Si la machine est partagee, une cle de deploiement SSH est
+preferable — elle se retire cote GitHub en un clic.
 
 > La branche. L'API vit sur `feat/backend-comexa-api`. Le jour ou elle est
 > fusionnee dans `main`, remplacez le `--branch` ci-dessus — sinon cette machine
 > continuera de suivre une branche qui ne bouge plus.
+
+> **Sur Render, rien de tout ceci ne sert** : la connexion se fait par
+> l'autorisation de la *GitHub App*, decrite en A.3.
 
 ---
 
@@ -594,19 +614,19 @@ docker compose --env-file .env.production -f docker-compose.prod.yml \
   seed
 ```
 
-**Les quatre `-e` sont a renseigner, aucun n'est facultatif.** Le détail :
+**Les quatre `-e` sont a renseigner, aucun n'est facultatif.** Le detail :
 
 - `SEED_ALLOW_PRODUCTION=yes` — le seed refuse de tourner en production sans ce
   drapeau (`prisma/seed.ts:1290`). Il n'est **volontairement pas** dans
   `docker-compose.prod.yml` : l'y laisser faisait de ce refus une formalite.
 - `SEED_ADMIN_PASSWORD` et `SEED_DEMO_PASSWORD` — si vous les omettez, le seed en
-  **génère** et les **affiche** (`prisma/seed.ts:1557` et `:1570`). Ils se
-  retrouvent alors en clair dans les journaux du conteneur, conservés sur le
-  disque de la VM. Les fournir ici ne laisse rien derrière.
-- `SEED_ADMIN_EMAIL` — **la valeur par défaut n'est pas celle des captures
-  d'écran** : sans cette variable, l'administrateur est créé sous
-  `admin@comexa.example` (`prisma/seed.ts:1306`). Une version antérieure de ce
-  runbook annonçait `admin@comexa.com` : suivie à la lettre, elle donnait un
+  **genere** et les **affiche** (`prisma/seed.ts:1557` et `:1570`). Ils se
+  retrouvent alors en clair dans les journaux du conteneur, conserves sur le
+  disque de la VM. Les fournir ici ne laisse rien derriere.
+- `SEED_ADMIN_EMAIL` — **la valeur par defaut n'est pas celle des captures
+  d'ecran** : sans cette variable, l'administrateur est cree sous
+  `admin@comexa.example` (`prisma/seed.ts:1306`). Une version anterieure de ce
+  runbook annoncait `admin@comexa.com` : suivie a la lettre, elle donnait un
   `401` au premier appel.
 
 > Le seed **ne reecrit pas** le mot de passe d'un compte existant (voir
@@ -626,9 +646,11 @@ Ensuite, **premier appel authentifie a faire** : le changement de mot de passe.
 > **Le `-c` ecrit dans `/tmp`, jamais dans le depot.** Ce n'est pas un detail de
 > rangement : ce fichier contient le cookie de rafraichissement, donc un jeton
 > valable jusqu'a 30 jours sur le compte **administrateur**. Dans l'arbre de
-> travail d'un depot **public**, il ne fallait qu'un `git add -A` distrait.
-> `/tmp` est efface au redemarrage, et `cookies.txt` est de toute facon
-> desormais ignore par git (`.gitignore`).
+> travail, il ne fallait qu'un `git add -A` distrait. La visibilite du depot ne
+> protege de rien : il est prive aujourd'hui, mais un depot s'ouvre en un clic,
+> s'archive, se duplique, et un commit reste dans l'historique meme si le
+> fichier est supprime ensuite. `/tmp` est efface au redemarrage, et
+> `cookies.txt` est de toute facon desormais ignore par git (`.gitignore`).
 
 ```bash
 COOKIES=/tmp/comexa-admin-cookies.txt
@@ -720,7 +742,7 @@ accidentelle, une migration destructrice, un `DELETE` sans `WHERE`.
 ### Prendre la sauvegarde
 
 ```bash
-# 1. Le dossier. HORS de ~/comexa, qui est un depot git PUBLIC.
+# 1. Le dossier. HORS de ~/comexa, qui est l'arbre de travail du depot.
 mkdir -p ~/backups/comexa && chmod 700 ~/backups/comexa
 
 # 2. Le mot de passe : jamais dans la ligne de commande, jamais dans l'historique.
@@ -744,11 +766,13 @@ unset PGPASSWORD
 > **DEUX CHOSES QUE CETTE COMMANDE NE DOIT PAS FAIRE, ET QU'ELLE FAISAIT.**
 >
 > 1. **Ecrire dans `~/comexa`.** La version precedente produisait
->    `comexa-<date>.dump` dans l'arbre du depot — un depot **public**. Un
->    `git add -A`, geste banal, publiait alors une sauvegarde logique COMPLETE de
->    la production : empreintes argon2 des mots de passe, clients, devis,
->    factures, paiements. Le fichier est desormais dans `~/backups`, et `*.dump`
->    a ete ajoute a `.gitignore` comme seconde barriere.
+>    `comexa-<date>.dump` dans l'arbre du depot. Un `git add -A` suivi d'un
+>    `push`, deux gestes banals, publiaient alors une sauvegarde logique COMPLETE
+>    de la production : empreintes argon2 des mots de passe, clients, devis,
+>    factures, paiements. Que le depot soit prive n'y change rien — un commit
+>    reste dans l'historique, et l'historique se clone. Le fichier est desormais
+>    dans `~/backups`, et `*.dump` a ete ajoute a `.gitignore` comme seconde
+>    barriere.
 > 2. **Mettre le mot de passe dans `argv`.** L'ancienne forme,
 >    `pg_dump "$DIRECT_URL"`, placait la chaine Neon entiere — mot de passe
 >    compris — dans la table des processus, lisible par tout compte de la machine
@@ -872,10 +896,11 @@ La derniere ligne est la seule qui oblige a changer un reglage : voir A.4.
 
 Mesures du 29/09/2026, conservees ici pour la meme raison qu'au §1.
 
-1. **15 minutes sans trafic entrant endorment le service**, qui redemarre en une
-   minute environ. Consequence directe : sans reveil periodique, le `@Cron`
-   horaire de `InvoiceOverdueService` ne s'execute jamais, et la relance des
-   factures en retard est silencieusement morte. Voir A.6.
+1. **15 minutes sans trafic entrant endorment le service**, qui met de quelques
+   dizaines de secondes a une minute a repartir. Consequence directe : sans
+   reveil periodique, le `@Cron` horaire de `InvoiceOverdueService` ne s'execute
+   jamais, et la relance des factures en retard est silencieusement morte. Voir
+   A.6.
 2. **750 heures-instance par mois et par workspace.** Un mois de 31 jours en
    compte 744 : un service maintenu eveille en permanence y tient, avec
    **6 heures de marge**. Pas de quoi ajouter un second service gratuit au meme
@@ -894,6 +919,16 @@ d'eveil.
 
 1. **New + → Web Service**, puis *Build and deploy from a Git repository*.
    Indiquer le depot `beneweb55-source/Comexa-portfolio`.
+
+   > **Le depot est prive, et cela se paie une fois.** Render ne peut pas lire un
+   > depot prive sans y etre autorise : a la premiere connexion, il demande
+   > l'installation de son *GitHub App*. L'accorder, puis **verifier qu'elle
+   > porte bien sur ce depot** — GitHub propose *All repositories* ou une
+   > selection, et une selection qui omet `Comexa-portfolio` produit un
+   > deploiement qui echoue a la recuperation du code, avec un message qui ne
+   > dit pas qu'il s'agit d'un probleme de droits. Sans cette autorisation, il
+   > n'y a rien a construire.
+
 2. Renseigner les champs ainsi :
 
 | Champ | Valeur | Pourquoi |
@@ -1056,5 +1091,6 @@ Dans l'ordre ; chaque etape repond a une question differente.
   sans objet — mais l'interdit le jour ou vous voudriez monter en puissance
   sans deplacer cet etat.
 - **Un premier appel lent.** Apres un endormissement, la premiere requete attend
-  le redemarrage, soit une minute environ. Le reveil de A.6 supprime ce cas de
-  figure en pratique — a condition de ne pas le desactiver.
+  le redemarrage, de quelques dizaines de secondes a une minute (A.2). Le reveil
+  de A.6 supprime ce cas de figure en pratique — a condition de ne pas le
+  desactiver.
