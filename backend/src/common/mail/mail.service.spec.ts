@@ -16,20 +16,28 @@ import { MailService } from './mail.service.js';
  *
  * `MailService` choisit son transport, et ce choix est la seule decision
  * d'architecture de ce module : le backend est deploye sur un hebergeur qui
- * filtre les ports SMTP, donc `BREVO_API_KEY` (API HTTP, port 443) doit
- * l'emporter sur `SMTP_HOST` quand les deux sont presents. La regle inverse
- * ferait retomber en SILENCE sur le transport qui ne fonctionne pas : le serveur
- * demarrerait, chaque envoi echouerait, et personne ne le saurait avant qu'un
- * utilisateur ne signale qu'il n'a jamais recu son lien de reinitialisation.
+ * filtre les ports SMTP, donc le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY`
+ * (API HTTP, port 443) doit l'emporter sur `SMTP_HOST` quand les deux sont
+ * presents. La regle inverse ferait retomber en SILENCE sur le transport qui ne
+ * fonctionne pas : le serveur demarrerait, chaque envoi echouerait, et personne
+ * ne le saurait avant qu'un utilisateur ne signale qu'il n'a jamais recu son lien
+ * de reinitialisation.
  *
- * Quatre points sont donc fixes ici :
+ * Cinq points sont donc fixes ici :
  *
  *   1. la precedence — l'API HTTP gagne, et c'est le transport qui ENVOIE
  *      vraiment qui le prouve, pas seulement le journal ;
  *   2. l'annonce du transport actif au demarrage, parce que « pourquoi ce
  *      courriel n'est-il pas parti » se repond d'abord en lisant cette ligne ;
  *   3. l'echec au DEMARRAGE sur un expediteur malforme, plutot qu'a l'envoi ;
- *   4. l'absence de transport, qui doit etre SIGNALEE et non silencieuse.
+ *   4. l'absence de transport, qui doit etre SIGNALEE et non silencieuse ;
+ *   5. le rejet du fournisseur, qui doit REMONTER au lieu d'etre transforme en
+ *      succes — c'est le mensonge le plus couteux que ce module puisse produire,
+ *      et le transport ne suffit pas a l'empecher : c'est ici que se decide si
+ *      l'echec atteint l'appelant ou s'arrete.
+ *
+ * La forme des reponses simulees a suivi le changement de fournisseur, et elle
+ * compte autant que le reste : voir `successBody` ci-dessous.
  *
  * Aucun appel reseau : `fetch` est remplace, et le seul cas qui emprunte le
  * transport SMTP est dirige vers un port local sans ecouteur.
@@ -49,6 +57,18 @@ const MAIL: OutgoingMail = {
 const FROM = 'Comexa <no-reply@comexa.com>';
 
 /**
+ * Identifiants d'API : les DEUX, parce que le transport exige le couple.
+ *
+ * Les valeurs n'ont pas besoin d'etre secretes ici — `fetch` est remplace, donc
+ * rien ne part — et les garder lisibles rend les messages d'echec plus courts a
+ * diagnostiquer.
+ */
+const API_CREDENTIALS: Record<string, string> = {
+  MAILJET_API_KEY: 'clef-publique',
+  MAILJET_SECRET_KEY: 'clef-secrete',
+};
+
+/**
  * `ConfigService` reduit a ce que `MailService` utilise.
  *
  * Le vrai service resout des fichiers et des variables d'environnement ; le
@@ -61,13 +81,47 @@ function configOf(values: Record<string, string | number>): ConfigService {
   } as unknown as ConfigService;
 }
 
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/**
+ * Reponse de succes telle que Mailjet la rend.
+ *
+ * LA FORME COMPTE AUTANT QUE LE CONTENU. Le transport ne se fie pas au code HTTP :
+ * il relit le corps et n'annonce un succes que si celui-ci l'ECRIT, sous
+ * `Messages[].Status`. Un simulacre plus simple — `{"messageId":"..."}`, ce que
+ * renvoyait le transport precedent sous un HTTP 201 — serait classe « reponse
+ * illisible », et `send()` leverait. Toutes les assertions de ce fichier sur le
+ * contenu des courriels echoueraient alors pour une raison qui n'a rien a voir
+ * avec ce qu'elles verifient.
+ */
+function successBody(): unknown {
+  return {
+    Messages: [
+      {
+        Status: 'success',
+        To: [{ Email: 'client@exemple.tld', MessageUUID: 'uuid-de-test' }],
+      },
+    ],
+  };
+}
+
 /**
  * Remplace `fetch` par une reponse de succes et retient les corps envoyes.
  *
  * Aucun appel reseau n'a lieu, et le corps reellement transmis est inspecte :
  * c'est ce qui permet de verifier le lien profond construit par les gabarits.
+ * `respond` permet au cas qui en a besoin de simuler un echec du fournisseur ;
+ * le rang de l'appel lui est passe, pour un stub qui repondrait differemment au
+ * deuxieme envoi.
  */
-function stubFetchCapture(): { bodies: string[]; restore: () => void } {
+function stubFetchCapture(
+  respond: (call: number) => Response = () => jsonResponse(200, successBody()),
+): { bodies: string[]; restore: () => void } {
   const bodies: string[] = [];
 
   const stub = mock.method(
@@ -75,10 +129,7 @@ function stubFetchCapture(): { bodies: string[]; restore: () => void } {
     'fetch',
     async (_input: FetchInput, init?: FetchInit): Promise<Response> => {
       bodies.push(typeof init?.body === 'string' ? init.body : '');
-      return new Response(JSON.stringify({ messageId: '<a@b>' }), {
-        status: 201,
-        headers: { 'content-type': 'application/json' },
-      });
+      return respond(bodies.length - 1);
     },
   );
 
@@ -90,6 +141,33 @@ function payloadOf(bodies: string[], index = 0): Record<string, unknown> {
   const body = bodies[index];
   assert.ok(body, `aucun envoi enregistre a l'index ${index}`);
   return JSON.parse(body) as Record<string, unknown>;
+}
+
+/**
+ * La seule entree de `Messages`, deja dereferencee.
+ *
+ * Mailjet encapsule le courriel dans un tableau d'un element. Traverser ces deux
+ * niveaux dans chaque assertion ferait lire une erreur de FORME comme une erreur
+ * de CONTENU : « le lien est absent du HTML » au lieu de « la reponse n'a pas la
+ * forme attendue ». Le dereferencement est fait ici, une fois, et il echoue avec
+ * un message qui dit lequel des deux niveaux manque.
+ */
+function messageOf(bodies: string[], index = 0): Record<string, unknown> {
+  const messages = payloadOf(bodies, index)['Messages'];
+
+  if (!Array.isArray(messages)) {
+    assert.fail('Messages doit etre un tableau dans le corps envoye');
+  }
+
+  const message = messages[0];
+  assert.ok(message !== null && typeof message === 'object', 'Messages[0] doit etre un objet');
+
+  return message as Record<string, unknown>;
+}
+
+/** Contenu d'un envoi, lu sur la piece qui part reellement. */
+function partOf(bodies: string[], key: 'HTMLPart' | 'TextPart' | 'Subject', index = 0): string {
+  return String(messageOf(bodies, index)[key] ?? '');
 }
 
 /**
@@ -130,13 +208,13 @@ afterEach(() => {
 });
 
 describe('MailService — choix du transport', () => {
-  it("retient l'API HTTP quand BREVO_API_KEY est renseignee", () => {
+  it("retient l'API HTTP quand le couple de clefs Mailjet est renseigne", () => {
     const logs = captureLogs();
-    const service = new MailService(configOf({ BREVO_API_KEY: 'clef', SMTP_FROM: FROM }));
+    const service = new MailService(configOf({ ...API_CREDENTIALS, SMTP_FROM: FROM }));
 
-    assert.equal(kindOf(service), 'brevo-api');
+    assert.equal(kindOf(service), 'mailjet-api');
     assert.equal(service.isConfigured, true);
-    assert.match(logs.lines.join('\n'), /API HTTP Brevo/);
+    assert.match(logs.lines.join('\n'), /API HTTP Mailjet/);
     assert.match(logs.lines.join('\n'), /port 443/);
   });
 
@@ -144,8 +222,8 @@ describe('MailService — choix du transport', () => {
     const logs = captureLogs();
     const service = new MailService(
       configOf({
-        BREVO_API_KEY: 'clef',
-        SMTP_HOST: 'smtp-relay.brevo.com',
+        ...API_CREDENTIALS,
+        SMTP_HOST: 'smtp.exemple.tld',
         SMTP_PORT: 587,
         SMTP_FROM: FROM,
       }),
@@ -154,8 +232,27 @@ describe('MailService — choix du transport', () => {
     // C'est la decision qui rend le deploiement viable sur un hebergeur qui
     // filtre le SMTP : choisir l'autre transport ferait echouer chaque envoi
     // sans le dire.
-    assert.equal(kindOf(service), 'brevo-api');
-    assert.match(logs.lines.join('\n'), /API HTTP Brevo/);
+    assert.equal(kindOf(service), 'mailjet-api');
+    assert.match(logs.lines.join('\n'), /API HTTP Mailjet/);
+  });
+
+  it('signale une cle seule et retombe sur le SMTP, au lieu de la garder en silence', () => {
+    // Le transport exige le couple : une cle publique sans sa secrete donne un 401
+    // a chaque envoi. Se taire ferait chercher la panne partout sauf dans la
+    // variable non remplie — d'ou l'avertissement, qui doit NOMMER la manquante.
+    const logs = captureLogs();
+    const service = new MailService(
+      configOf({
+        MAILJET_API_KEY: 'clef-publique',
+        SMTP_HOST: 'smtp.exemple.tld',
+        SMTP_PORT: 587,
+        SMTP_FROM: FROM,
+      }),
+    );
+
+    assert.equal(kindOf(service), 'smtp');
+    assert.match(logs.lines.join('\n'), /MAILJET_SECRET_KEY/);
+    assert.match(logs.lines.join('\n'), /ENSEMBLE/);
   });
 
   it('retient le SMTP quand seul SMTP_HOST est renseigne', () => {
@@ -180,7 +277,7 @@ describe('MailService — choix du transport', () => {
     // L'absence doit etre VISIBLE : c'est elle qui explique, plus tard, pourquoi
     // le lien de reinitialisation n'est jamais arrive.
     assert.match(logs.lines.join('\n'), /aucun transport configure/);
-    assert.match(logs.lines.join('\n'), /BREVO_API_KEY/);
+    assert.match(logs.lines.join('\n'), /MAILJET_API_KEY/);
     assert.match(logs.lines.join('\n'), /SMTP_HOST/);
   });
 
@@ -192,7 +289,7 @@ describe('MailService — choix du transport', () => {
     // `Record<string, string | number>` — et le fichier est compile aussi par
     // `tsconfig.e2e.json`, donc l'erreur sort au build des tests de bout en bout.
     const cases: Record<string, string>[] = [
-      { BREVO_API_KEY: 'clef' },
+      { ...API_CREDENTIALS },
       { SMTP_HOST: 'smtp.exemple.tld' },
     ];
 
@@ -209,9 +306,9 @@ describe('MailService — choix du transport', () => {
     // Le defaut de `env.validation.ts` est une adresse valide : sans `SMTP_FROM`,
     // le service doit demarrer, pas lever.
     const logs = captureLogs();
-    const service = new MailService(configOf({ BREVO_API_KEY: 'clef' }));
+    const service = new MailService(configOf({ ...API_CREDENTIALS }));
 
-    assert.equal(kindOf(service), 'brevo-api');
+    assert.equal(kindOf(service), 'mailjet-api');
     assert.match(logs.lines.join('\n'), /no-reply@comexa\.example/);
   });
 });
@@ -224,10 +321,10 @@ describe('MailService — envoi', () => {
     try {
       const service = new MailService(
         configOf({
-          BREVO_API_KEY: 'clef',
+          ...API_CREDENTIALS,
           // Le SMTP est renseigne AUSSI : c'est la situation reelle d'une
           // installation qui possede les deux jeux d'identifiants.
-          SMTP_HOST: 'smtp-relay.brevo.com',
+          SMTP_HOST: 'smtp.exemple.tld',
           SMTP_FROM: FROM,
         }),
       );
@@ -237,8 +334,42 @@ describe('MailService — envoi', () => {
       // Le transport qui ENVOIE est celui qu'on a annonce : c'est la seule
       // preuve qui compte, le journal ne suffirait pas.
       assert.equal(stub.bodies.length, 1);
-      assert.deepEqual(payloadOf(stub.bodies)['to'], [{ email: 'client@exemple.tld' }]);
-      assert.equal(payloadOf(stub.bodies)['subject'], MAIL.subject);
+      assert.deepEqual(messageOf(stub.bodies)['To'], [{ Email: 'client@exemple.tld' }]);
+      assert.equal(partOf(stub.bodies, 'Subject'), MAIL.subject);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it('laisse REMONTER un rejet du fournisseur au lieu de le transformer en succes', async () => {
+    captureLogs();
+    const stub = stubFetchCapture(() =>
+      // HTTP 200, et pourtant un rejet : c'est exactement la reponse que Mailjet
+      // rend quand il refuse un envoi. L'avaler ici ferait croire a l'appelant
+      // que la facture est partie — et personne n'irait jamais chercher la panne,
+      // ni du cote de l'expediteur, ni du cote du quota.
+      jsonResponse(200, {
+        Messages: [
+          {
+            Status: 'error',
+            Errors: [
+              {
+                ErrorCode: 'mj-0004',
+                StatusCode: 400,
+                ErrorMessage: 'Sender is not validated',
+                ErrorRelatedTo: ['Messages.0.From'],
+              },
+            ],
+            To: [],
+          },
+        ],
+      }),
+    );
+
+    try {
+      const service = new MailService(configOf({ ...API_CREDENTIALS, SMTP_FROM: FROM }));
+
+      await assert.rejects(() => service.send(MAIL), /Sender is not validated/);
     } finally {
       stub.restore();
     }
@@ -301,7 +432,7 @@ describe('MailService — gabarits et liens profonds', () => {
     try {
       const service = new MailService(
         configOf({
-          BREVO_API_KEY: 'clef',
+          ...API_CREDENTIALS,
           // Le slash final est le cas reel : une variable saisie a la main dans
           // un tableau de bord en porte presque toujours un.
           FRONTEND_URL: 'https://app.comexa.tld/',
@@ -316,15 +447,16 @@ describe('MailService — gabarits et liens profonds', () => {
         expiresInLabel: '1 heure',
       });
 
-      const payload = payloadOf(stub.bodies);
-      const html = String(payload['htmlContent'] ?? '');
-      const text = String(payload['textContent'] ?? '');
+      const html = partOf(stub.bodies, 'HTMLPart');
+      const text = partOf(stub.bodies, 'TextPart');
 
       assert.match(html, /https:\/\/app\.comexa\.tld\/reset-password\?token=jeton-abc/);
       assert.match(text, /https:\/\/app\.comexa\.tld\/reset-password\?token=jeton-abc/);
       assert.equal(html.includes('comexa.tld//reset'), false, 'aucun double slash attendu');
-      // Le destinataire est un TABLEAU chez Brevo, pas une chaine.
-      assert.deepEqual(payload['to'], [{ email: 'client@exemple.tld' }]);
+      // Le destinataire est un TABLEAU d'objets `{ Email }` : c'est la forme que
+      // Mailjet attend, et une chaine simple serait refusee sans autre forme de
+      // proces au moment de l'envoi.
+      assert.deepEqual(messageOf(stub.bodies)['To'], [{ Email: 'client@exemple.tld' }]);
     } finally {
       stub.restore();
     }
@@ -337,7 +469,7 @@ describe('MailService — gabarits et liens profonds', () => {
     try {
       const service = new MailService(
         configOf({
-          BREVO_API_KEY: 'clef',
+          ...API_CREDENTIALS,
           FRONTEND_URL: 'https://app.comexa.tld',
           SMTP_FROM: FROM,
         }),
@@ -353,8 +485,7 @@ describe('MailService — gabarits et liens profonds', () => {
         expiresInLabel: '1 heure',
       });
 
-      const html = String(payloadOf(stub.bodies)['htmlContent'] ?? '');
-      assert.match(html, /token=a%20b%2Fc%2Bd/);
+      assert.match(partOf(stub.bodies, 'HTMLPart'), /token=a%20b%2Fc%2Bd/);
     } finally {
       stub.restore();
     }
@@ -367,7 +498,7 @@ describe('MailService — gabarits et liens profonds', () => {
     try {
       const service = new MailService(
         configOf({
-          BREVO_API_KEY: 'clef',
+          ...API_CREDENTIALS,
           FRONTEND_URL: 'https://app.comexa.tld',
           SMTP_FROM: FROM,
         }),
@@ -385,10 +516,11 @@ describe('MailService — gabarits et liens profonds', () => {
         path: '/espace-client/factures/abc',
       });
 
-      const payload = payloadOf(stub.bodies);
-      const html = String(payload['htmlContent'] ?? '');
+      const html = partOf(stub.bodies, 'HTMLPart');
 
-      assert.equal(payload['subject'], 'Comexa — facture F-2026-001');
+      // L'objet est une propriete de premier niveau du MESSAGE, pas du corps
+      // entier : il se lit sous `Messages[0]`, comme le reste.
+      assert.equal(messageOf(stub.bodies)['Subject'], 'Comexa — facture F-2026-001');
       assert.match(html, /15\/09\/2026/);
       assert.match(html, /https:\/\/app\.comexa\.tld\/espace-client\/factures\/abc/);
       assert.match(html, /120 000,00/);
@@ -404,7 +536,7 @@ describe('MailService — gabarits et liens profonds', () => {
     try {
       const service = new MailService(
         configOf({
-          BREVO_API_KEY: 'clef',
+          ...API_CREDENTIALS,
           FRONTEND_URL: 'https://app.comexa.tld',
           SMTP_FROM: FROM,
         }),
@@ -420,7 +552,7 @@ describe('MailService — gabarits et liens profonds', () => {
         path: '/devis/d-2026-002',
       });
 
-      const html = String(payloadOf(stub.bodies)['htmlContent'] ?? '');
+      const html = partOf(stub.bodies, 'HTMLPart');
 
       // Un devis sans date de validite ne se perime pas : annoncer une date qui
       // n'existe pas serait pire que de n'en annoncer aucune.
@@ -434,11 +566,13 @@ describe('MailService — gabarits et liens profonds', () => {
   it('ferme le transport sans erreur a la destruction du module', () => {
     captureLogs();
 
-    // Trois cas, y compris celui sans transport — ou `close` doit rester sans
-    // effet plutot que de lever sur un `null`.
+    // Quatre cas, y compris celui sans transport — ou `close` doit rester sans
+    // effet plutot que de lever sur un `null` — et celui d'une cle seule, qui a
+    // bien resolu un transport SMTP et doit donc le fermer aussi.
     const cases: Record<string, string>[] = [
-      { BREVO_API_KEY: 'clef', SMTP_FROM: FROM },
+      { ...API_CREDENTIALS, SMTP_FROM: FROM },
       { SMTP_HOST: 'smtp.exemple.tld', SMTP_FROM: FROM },
+      { MAILJET_API_KEY: 'clef-seule', SMTP_HOST: 'smtp.exemple.tld', SMTP_FROM: FROM },
       { SMTP_FROM: FROM },
     ];
 

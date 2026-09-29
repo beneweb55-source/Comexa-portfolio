@@ -141,22 +141,31 @@ export class EnvironmentVariables {
 
   // --- Courriel transactionnel -------------------------------------------------
   //
-  // DEUX CHEMINS D'ENVOI, UN SEUL EXIGE. `BREVO_API_KEY` (API HTTP, port 443)
-  // et `SMTP_HOST` (relais SMTP) sont tous deux facultatifs ici, mais l'un des
-  // deux est OBLIGATOIRE en production : voir `assertMailConfigured`. La
-  // distinction est volontaire. Sans serveur d'envoi, l'API continue de tourner
-  // — indispensable en developpement, ou personne ne veut configurer un relais
-  // pour tester une connexion — mais en production, un « mot de passe oublie »
-  // qui repond 200 sans rien envoyer est un mensonge a l'utilisateur : il attend
-  // un courriel qui n'arrivera jamais, et personne ne s'en apercoit avant qu'il
-  // n'appelle.
+  // DEUX CHEMINS D'ENVOI, UN SEUL EXIGE. Le couple `MAILJET_API_KEY` +
+  // `MAILJET_SECRET_KEY` (API HTTP, port 443) et `SMTP_HOST` (relais SMTP) sont
+  // tous facultatifs ici, mais l'un des deux est OBLIGATOIRE en production :
+  // voir `assertMailConfigured`. La distinction est volontaire. Sans serveur
+  // d'envoi, l'API continue de tourner — indispensable en developpement, ou
+  // personne ne veut configurer un relais pour tester une connexion — mais en
+  // production, un « mot de passe oublie » qui repond 200 sans rien envoyer est
+  // un mensonge a l'utilisateur : il attend un courriel qui n'arrivera jamais,
+  // et personne ne s'en apercoit avant qu'il n'appelle.
   //
-  // `BREVO_API_KEY` est prefere quand il est present (voir
+  // L'API HTTP est preferee quand elle est configuree (voir
   // `MailService.resolveTransport`) : plusieurs hebergeurs gratuits bloquent en
   // sortie les ports SMTP 25, 465 et 587, et le port 443 ne l'est jamais.
+  //
+  // DEUX VARIABLES ET NON UNE. Mailjet authentifie en HTTP Basic, ou la cle
+  // publique sert d'identifiant et la cle secrete de mot de passe. Il n'existe
+  // pas de forme condensee : fournir une seule des deux donne un 401 a chaque
+  // envoi, ce qui est la raison pour laquelle les deux sont exigees ensemble.
   @IsOptional()
   @IsString()
-  BREVO_API_KEY?: string;
+  MAILJET_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  MAILJET_SECRET_KEY?: string;
 
   @IsOptional()
   @IsString()
@@ -180,6 +189,37 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   SMTP_FROM = 'Comexa <no-reply@comexa.example>';
+
+  /**
+   * Derogation explicite au refus de demarrer sans moyen d'envoi.
+   *
+   * POURQUOI ELLE EXISTE. Le refus ci-dessous (`assertMailConfigured`) protege
+   * une vraie panne : un « mot de passe oublie » qui repond 200 sans jamais rien
+   * envoyer. Il a pourtant un cout qu'on ne mesurait pas : tant qu'aucun
+   * transport n'est configure, RIEN ne se deploie — pas meme les parties du
+   * backend qui n'ont aucun rapport avec le courriel. Cette variable rend ce
+   * cout CHOISI plutot que subi.
+   *
+   * ELLE NE DESARME RIEN PAR DEFAUT. `false` est le defaut, et il faut
+   * l'activer volontairement. Un deploiement qui l'active se signale tout seul :
+   * `MailService` ecrit un avertissement au demarrage, et chaque envoi manque
+   * recopie le courriel complet dans les journaux sous une banniere.
+   *
+   * A RETIRER des que le transport est configure : le refus redevient alors la
+   * seule lecture possible.
+   *
+   * CHAINE, ET NON BOOLEEN, POUR LE MEME PIEGE QUE `TRUST_PROXY` :
+   * `validateEnv` s'execute avec `enableImplicitConversion`, ou la chaine
+   * `'false'` devient `true` — l'inverse exact de la demande. Un champ booleen
+   * ici activerait donc la derogation sur un deploiement qui a pourtant ecrit
+   * « false ». La traduction est faite par `allowsBootWithoutMail`, qui REFUSE
+   * une valeur qui n'en est pas une : sans ce refus, une faute de frappe
+   * eteindrait la derogation en silence, et le serveur refuserait de demarrer
+   * sans qu'on voie pourquoi.
+   */
+  @IsOptional()
+  @IsString()
+  ALLOW_BOOT_WITHOUT_MAIL = 'false';
 
   // --- Stockage des fichiers ---------------------------------------------------
   //
@@ -256,29 +296,94 @@ function assertSecretsDiffer(env: EnvironmentVariables): void {
  * « consultez votre boite » a tout le monde, et personne ne recevrait rien.
  *
  * DEUX CHEMINS SATISFONT CETTE EXIGENCE, ET C'EST VOULU : `SMTP_HOST` (relais
- * SMTP) ou `BREVO_API_KEY` (API HTTP). Exiger le premier seul reviendrait a
- * interdire de deployer sur un hebergeur qui filtre les ports SMTP — ils sont
- * plusieurs a le faire, dont l'offre gratuite de Render, ou la connexion vers
- * `smtp-relay.brevo.com:587` n'aboutit jamais au lieu d'echouer franchement.
- * Le message nomme donc les deux, et rappelle lequel fonctionne partout.
+ * SMTP) ou le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` (API HTTP). Exiger
+ * le premier seul reviendrait a interdire de deployer sur un hebergeur qui filtre
+ * les ports SMTP — ils sont plusieurs a le faire, dont l'offre gratuite de
+ * Render, ou la connexion vers un relais SMTP sur le port 587 n'aboutit jamais au
+ * lieu d'echouer franchement. Le message nomme donc les deux, et rappelle lequel
+ * fonctionne partout.
+ *
+ * UNE DEROGATION EXPLICITE, ET VOLONTAIRE, LEVE CETTE EXIGENCE :
+ * `ALLOW_BOOT_WITHOUT_MAIL`. Elle existe parce que le cout du refus n'etait pas
+ * seulement l'absence de courriel — c'etait l'impossibilite de deployer quoi que
+ * ce soit, y compris les parties du backend sans aucun rapport avec l'envoi, tant
+ * qu'aucun fournisseur n'est configure. La derogation rend cet etat CHOISI. Elle
+ * ne desarme pas le controle (le defaut reste `false`), et l'etat degrade
+ * s'annonce ensuite tout seul dans les journaux de `MailService`.
  *
  * On refuse de demarrer plutot que de laisser cette panne silencieuse
  * s'installer. En developpement, l'absence de transport est normale : le lien
  * est ecrit dans les journaux (voir `MailService`).
  */
+
+/**
+ * Traduit `ALLOW_BOOT_WITHOUT_MAIL` en booleen.
+ *
+ * Meme contrat que `parseTrustProxy` — chaine en entree, memes orthographes
+ * acceptees — avec une difference deliberee : une valeur NON RECONNUE LEVE, au
+ * lieu de retomber sur le defaut comme le fait `readBoolean` cote stockage. Un
+ * repli silencieux serait ici trompeur : quelqu'un qui ecrit `oui` a bien
+ * l'intention d'ouvrir la derogation, et s'il obtenait `false` sans un mot, il
+ * verrait le serveur refuser de demarrer et chercherait la panne partout sauf
+ * dans la variable qu'il vient de poser.
+ */
+export function allowsBootWithoutMail(raw: string | undefined): boolean {
+  const value = (raw ?? '').trim();
+  const lowered = value.toLowerCase();
+
+  if (value.length === 0 || ['false', '0', 'no', 'off'].includes(lowered)) {
+    return false;
+  }
+
+  if (['true', '1', 'yes', 'on'].includes(lowered)) {
+    return true;
+  }
+
+  throw new Error(
+    `ALLOW_BOOT_WITHOUT_MAIL : « ${value} » n'est pas une valeur booleenne reconnue. ` +
+      'Attendu : false (le defaut), ou true. Sont aussi acceptes 1, 0, yes, no, on, off.',
+  );
+}
+
 function assertMailConfigured(env: EnvironmentVariables): void {
   if (env.NODE_ENV !== NodeEnv.Production) {
     return;
   }
 
-  if (!env.SMTP_HOST && !env.BREVO_API_KEY) {
-    throw new Error(
-      "Aucun moyen d'envoi de courriel n'est configure : sans transport, le parcours " +
-        '"mot de passe oublie" repondrait 200 sans jamais envoyer de courriel. ' +
-        'Renseigner BREVO_API_KEY (API HTTP, port 443 : fonctionne meme la ou le SMTP ' +
-        'est bloque) ou, a defaut, SMTP_HOST, SMTP_PORT, SMTP_USER et SMTP_PASSWORD.',
-    );
+  if (env.SMTP_HOST || (env.MAILJET_API_KEY && env.MAILJET_SECRET_KEY)) {
+    return;
   }
+
+  if (allowsBootWithoutMail(env.ALLOW_BOOT_WITHOUT_MAIL)) {
+    // Le demarrage est autorise, mais l'etat reste anormal : `MailService` ecrit
+    // l'avertissement correspondant des que le module est instancie, et chaque
+    // envoi manque recopie le courriel dans les journaux sous une banniere.
+    return;
+  }
+
+  // UNE SEULE DES DEUX CLES EST UN CAS A PART, ET IL MERITE SON PROPRE MESSAGE.
+  // Sans cette distinction, l'exploitant lit « aucun moyen d'envoi » alors qu'il
+  // vient d'en coller un, et cherche la panne partout sauf dans la variable qu'il
+  // n'a pas remplie. Le refus reste le meme ; seule la raison change.
+  const missing = env.MAILJET_API_KEY
+    ? env.MAILJET_SECRET_KEY
+      ? null
+      : 'MAILJET_SECRET_KEY'
+    : env.MAILJET_SECRET_KEY
+      ? 'MAILJET_API_KEY'
+      : null;
+
+  throw new Error(
+    (missing
+      ? `${missing} est manquante : Mailjet authentifie en HTTP Basic, avec la cle ` +
+        'publique ET la cle secrete, et une seule des deux donne un 401 a chaque envoi. '
+      : "Aucun moyen d'envoi de courriel n'est configure : ") +
+      'sans transport, le parcours "mot de passe oublie" repondrait 200 sans jamais ' +
+      'envoyer de courriel. Renseigner MAILJET_API_KEY et MAILJET_SECRET_KEY (API HTTP, ' +
+      'port 443 : fonctionne meme la ou le SMTP est bloque) ou, a defaut, SMTP_HOST, ' +
+      'SMTP_PORT, SMTP_USER et SMTP_PASSWORD. Pour deployer malgre tout, en sachant que ' +
+      'le courriel ne partira pas : ALLOW_BOOT_WITHOUT_MAIL=true.',
+  );
 }
 
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {

@@ -9,7 +9,7 @@ import { createSmtpTransport, formatFromHeader } from './smtp.transport.js';
  *
  * Le transport SMTP n'est plus le chemin d'envoi de la production (le palier
  * gratuit de Render filtre les ports 25, 465 et 587, et le courriel part par
- * l'API HTTP de Brevo). Il reste le chemin des deploiements sur machine
+ * l'API HTTP de Mailjet). Il reste le chemin des deploiements sur machine
  * classique, et il a ete EXTRAIT du constructeur de `MailService` : une
  * extraction qui change le comportement est une panne qui n'apparait qu'au
  * premier envoi reel, chez quelqu'un qui a un relais SMTP. Ces tests fixent dont

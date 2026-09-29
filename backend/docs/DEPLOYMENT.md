@@ -8,7 +8,7 @@ config`, sortie reelle des commandes citees), pas recopiee d'un tutoriel.
 > **Deux chemins, un seul jeu de reglages.** Les sections 1 a 17 decrivent le
 > deploiement sur **VM**. Si vous n'avez pas de machine — pas de carte bancaire,
 > rien a administrer — l'**annexe A** decrit le meme deploiement sur **Render**,
-> avec ce que ce palier gratuit impose en plus. Neon, Brevo et Backblaze B2 s'y
+> avec ce que ce palier gratuit impose en plus. Neon, Mailjet et Backblaze B2 s'y
 > configurent a l'identique.
 
 ---
@@ -21,7 +21,7 @@ config`, sortie reelle des commandes citees), pas recopiee d'un tutoriel.
 | Base de donnees | **Neon** (deja en place) | Hors de la machine : survit a sa perte |
 | Fichiers | **Backblaze B2** (S3-compatible, 10 Go gratuits, sans carte) | Les binaires ne vont jamais en base |
 | TLS | **Caddy** | Certificat Let's Encrypt automatique |
-| Courriel | **Brevo** (300/jour gratuits, sans domaine) | Reinitialisation de mot de passe |
+| Courriel | **Mailjet** (6 000/mois et 200/jour gratuits, sans domaine) | Reinitialisation de mot de passe, envoi des devis et des factures |
 
 ### Pourquoi une VM, et pas une plateforme serverless
 
@@ -52,8 +52,8 @@ une seule instance :
       zone DNS — **ou** un sous-domaine gratuit (voir l'encadre plus bas).
 - [ ] Un **compte Backblaze** — 10 Go gratuits a vie, **aucune carte bancaire
       demandee** tant que vous restez sous 10 Go.
-- [ ] Un **compte Brevo** — 300 courriels/jour gratuits, aucun domaine requis
-      (verification d'un simple expediteur).
+- [ ] Un **compte Mailjet** — 6 000 courriels/mois et 200/jour gratuits, aucun
+      domaine requis (validation d'une simple adresse d'expedition).
 - [ ] La **chaine de connexion Neon**, en deux exemplaires : l'hote *pooli*
       (`-pooler`) et l'hote *direct*.
 - [ ] Environ **45 minutes**.
@@ -215,12 +215,12 @@ elle-meme. Trois consequences a connaitre avant de choisir cette voie :
 - **512 Mo de RAM et 0,1 vCPU** quand ce depot demande 1 Go et 1 vCPU : il faut
   baisser `--max-old-space-size` en consequence ;
 - **le SMTP sortant est bloque** sur le palier gratuit — ports 25, 465 et 587 —
-  depuis le 26/09/2025. `smtp-relay.brevo.com:587` ne repondra donc pas, et
+  depuis le 26/09/2025. Un relais SMTP sur le port 587 ne repondra donc pas, et
   l'envoi de courriel echouerait **silencieusement** : c'est la panne la plus dure
   a diagnostiquer de cette liste, parce que rien ne la signale. Le module de
-  courriel sait desormais l'eviter : renseigner `BREVO_API_KEY` fait passer les
-  envois par l'API HTTP de Brevo, sur le port 443, qui n'est jamais filtre
-  (§9.1). C'est la raison d'etre de ce second transport.
+  courriel sait l'eviter : renseigner le couple `MAILJET_API_KEY` +
+  `MAILJET_SECRET_KEY` fait passer les envois par une API HTTP, sur le port 443,
+  qui n'est jamais filtre (§9.1). C'est la raison d'etre de ce second transport.
 
 Le deploiement complet sur Render — creation du service, variables
 d'environnement, migrations et reveil periodique — est decrit a l'**annexe A**.
@@ -399,12 +399,20 @@ S3_FORCE_PATH_STYLE=true
 
 ---
 
-## 9. Le courriel (Brevo)
+## 9. Le courriel (Mailjet)
 
-Compte sur <https://www.brevo.com/> — 300 courriels/jour, **aucun domaine requis**
-sur le palier gratuit.
+Compte sur <https://www.mailjet.com/> — **6 000 courriels/mois et 200/jour**, sans
+carte bancaire et sans verification par SMS, **aucun domaine requis** pour
+commencer (il suffit de valider une adresse d'expedition).
 
-Brevo expose **deux chemins d'envoi**, et le backend sait parler les deux. Le
+> **Pourquoi le nom de Brevo a circule ici, et pourquoi il n'y est plus.** Brevo
+> demande une verification par SMS a l'inscription ; elle n'a pas abouti. Le
+> module de courriel avait justement ete ecrit pour rendre ce genre de
+> substitution peu couteuse — un transport, une ligne de choix, deux variables —
+> et ce remplacement a servi de premier essai reel a cette abstraction : aucun
+> gabarit, aucune route, aucun test de bout en bout n'a bouge.
+
+Mailjet expose **deux chemins d'envoi**, et le backend sait parler les deux. Le
 choix n'est pas cosmetique : il decide si le courriel part ou non.
 
 ### 9.1 Par l'API HTTP — le chemin a preferer
@@ -416,37 +424,72 @@ SMTP **n'echoue pas** : la connexion n'aboutit jamais, il n'y a aucune erreur
 d'authentification, et le seul symptome est un courriel qui n'arrive pas. Le port
 `443`, lui, n'est jamais filtre — c'est celui par lequel l'API repond.
 
-1. **SMTP & API → API Keys → Generate a new API key.**
-2. Copiez la cle. **Ce n'est PAS la cle de l'onglet SMTP** : celle-la commence
-   par `xkeysib-` et l'API la refuse avec un `401`.
-3. Verifiez l'adresse d'expediteur dans **Senders, Domains & Dedicated IPs**.
-   Une adresse non verifiee fait refuser l'envoi avec un `400` mentionnant
-   `sender`.
+1. **Account Settings → API Key Management.** Mailjet y affiche **deux** cles :
+   une *API Key* (publique) et une *Secret Key*. Les deux sont necessaires : la
+   premiere sert d'identifiant, la seconde de mot de passe, en HTTP Basic. **Il
+   n'existe pas de forme condensee.**
+2. Copiez-les. **Ce ne sont PAS les identifiants SMTP du meme ecran** : ceux-la
+   servent a §9.2, et l'API les refuse avec un `401`.
+3. Validez l'adresse d'expedition dans **Sender domains & addresses**. Mailjet
+   envoie un courriel a cette boite ; il faut y cliquer le lien. Une adresse non
+   validee fait refuser l'envoi.
 
 ```bash
-BREVO_API_KEY=<cle d'API, onglet API Keys>
+MAILJET_API_KEY=<API Key>
+MAILJET_SECRET_KEY=<Secret Key>
 SMTP_FROM="Comexa <no-reply@exemple.tld>"
 ```
 
 `SMTP_HOST` reste **vide** dans ce cas.
 
+> **Le refus peut arriver sous un `200`, et c'est le piege de cette API.**
+> Mailjet repond `200 OK` meme quand il rejette le message : le rejet vit dans le
+> **corps** de la reponse, sous `Messages[].Status`, et le vrai code dans
+> `Errors[].StatusCode`. Un transport qui se fierait au code HTTP annoncerait un
+> succes sur un courriel que personne ne recevra — pire qu'un echec franc, puisque
+> plus personne ne cherche la panne du cote de l'envoi. Le transport lit donc le
+> corps, et va plus loin : **une reponse qu'il ne sait pas lire est traitee comme
+> un echec, jamais comme un succes.** Le doute n'est pas un accord. C'est ce qui
+> fait remonter un envoi refuse jusqu'a l'appelant au lieu de disparaitre.
+
+> **Deux limites du palier gratuit ne produisent AUCUNE erreur.**
+> - **200 courriels par jour.** Au-dela, les messages sont abandonnes en silence :
+>   pas de `429`, pas de ligne dans les journaux.
+> - **Le « Test Mode » d'un compte neuf : 10 courriels par heure.** Mailjet leve
+>   cette limite apres une verification manuelle du compte — usage prevu, volume
+>   envoye, origine de la liste, site web — demandee par courriel et traitee en
+>   general en un jour ouvre. Un envoi qui part une fois puis s'arrete au bout de
+>   dix est ce symptome-la, pas une regression.
+
+> **Un domaine, a terme, n'est pas un luxe.** Sans domaine, la seule adresse
+> validable est une adresse gratuite (`@gmail.com`, ...). Envoyer
+> `From: vous@gmail.com` par un service d'envoi tiers **echoue au controle
+> DMARC** que Gmail applique depuis fevrier 2024 : Mailjet accepte l'envoi, et le
+> destinataire ne le voit jamais — le refus arrive plus tard, dans une boite qui
+> n'est pas la votre, sous la forme d'un rebond `550 5.7.26`. Valider une adresse
+> gratuite suffit donc pour **essayer**, et encore : sur votre propre boite. Pas
+> pour facturer un client. Le jour ou le frontend est en ligne, lui rattacher un
+> domaine et declarer ses enregistrements SPF et DKIM est la seule correction qui
+> compte.
+
 ### 9.2 Par SMTP — pour une machine classique
 
-Utile sur la VM de l'annexe « VM » (Oracle, ou une machine a vous), ou aucun
-filtrage en sortie n'existe.
+Utile sur une VM (Oracle, ou une machine a vous), ou aucun filtrage en sortie
+n'existe.
 
-1. **SMTP & API → SMTP** : notez le serveur (`smtp-relay.brevo.com`), le port
-   `587`, votre identifiant SMTP et la cle SMTP.
+1. **Account Settings → API Key Management**, puis le tableau des identifiants
+   SMTP : le serveur (chez Mailjet, `in-v3.mailjet.com`), le port `587`, et un
+   couple identifiant / mot de passe **distinct** des deux cles d'API.
 
 ```bash
-SMTP_HOST=smtp-relay.brevo.com
+SMTP_HOST=in-v3.mailjet.com
 SMTP_PORT=587
 SMTP_USER=<identifiant SMTP>
-SMTP_PASSWORD=<cle SMTP>
+SMTP_PASSWORD=<mot de passe SMTP>
 SMTP_FROM="Comexa <no-reply@exemple.tld>"
 ```
 
-`BREVO_API_KEY` reste **vide** dans ce cas.
+`MAILJET_API_KEY` et `MAILJET_SECRET_KEY` restent **vides** dans ce cas.
 
 ### 9.3 Ce que fait le backend, dans tous les cas
 
@@ -456,19 +499,26 @@ SMTP_FROM="Comexa <no-reply@exemple.tld>"
 > chaque envoi en silence. La presence des identifiants **est** le choix — il n'y
 > a pas de variable a positionner.
 >
-> **Le serveur refuse de demarrer** en production si ni `BREVO_API_KEY` ni
-> `SMTP_HOST` n'est renseigne. Ce n'est pas une tracasserie : la route « mot de
-> passe oublie » repond toujours `200`, meme sur une adresse inconnue, pour ne pas
-> reveler quels comptes existent. Cette reponse n'est honnete que si le courriel
-> part quand le compte existe.
+> **Le serveur refuse de demarrer** en production si ni le couple
+> `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` ni `SMTP_HOST` n'est renseigne. Ce
+> n'est pas une tracasserie : la route « mot de passe oublie » repond toujours
+> `200`, meme sur une adresse inconnue, pour ne pas reveler quels comptes
+> existent. Cette reponse n'est honnete que si le courriel part quand le compte
+> existe. **Une seule des deux cles est un cas a part** : le refus nomme alors
+> celle qui manque, parce qu'un « aucun moyen d'envoi » affiche devant une cle
+> qu'on vient de coller envoie chercher la panne partout sauf dans la variable
+> non remplie.
+>
+> **`ALLOW_BOOT_WITHOUT_MAIL=true` leve ce refus**, et c'est le seul moyen de
+> deployer le backend avant d'avoir un compte chez un fournisseur. A retirer des
+> que le transport est configure : dans cet etat, « mot de passe oublie » repond
+> `200` sans rien expedier, chaque envoi manque est recopie dans les journaux sous
+> une banniere, et `MailService` ecrit un avertissement au demarrage.
 >
 > **Le transport retenu est annonce au demarrage.** Cherchez la ligne `Courriel :`
 > dans les journaux (`docker compose logs api` sur la VM, l'onglet *Logs* sur
 > Render). Elle dit quel chemin est actif et avec quel expediteur : c'est la
 > premiere chose a lire quand un courriel ne part pas.
->
-> Sur le palier gratuit de Brevo, un pied de page « Sent with Brevo » est ajoute
-> aux messages. C'est le prix du palier gratuit, pas un defaut de configuration.
 
 ---
 
@@ -502,11 +552,15 @@ Les deux secrets doivent **differ** : `env.validation.ts` refuse le demarrage
 s'ils sont identiques, et chacun doit faire au moins 32 caracteres.
 
 Les valeurs qui **changent** par rapport au fichier de developpement. Chacune est
-declaree **une seule fois** dans `.env.example` : la section « PRODUCTION » de ce
-fichier donne le numero de ligne a modifier, elle ne recopie aucune valeur (deux
-occurrences d'une meme cle, dans un fichier que `dotenv` et `docker compose` ne
-lisent pas dans le meme ordre, donnent une valeur de developpement qui gagne en
-silence) :
+declaree **une seule fois** dans `.env.example` : la section « Ce que
+`.env.production` doit porter EN PLUS » **nomme la section a modifier**, elle ne
+recopie aucune valeur (deux occurrences d'une meme cle, dans un fichier que
+`dotenv` et `docker compose` ne lisent pas dans le meme ordre, donnent une valeur
+de developpement qui gagne en silence). Ces declarations sont citees **par le nom
+de leur section, jamais par un numero de ligne** : un numero devient faux au
+premier paragraphe insere, et envoie alors vers une variable sans rapport.
+
+Les variables a changer :
 
 | Variable | Valeur en production | Pourquoi |
 |---|---|---|
@@ -519,8 +573,9 @@ silence) :
 | `COOKIE_SAMESITE` | `lax` (meme domaine parent) ou `none` (**frontend heberge ailleurs**, ex. Vercel) | Sinon la session disparait au rechargement. `none` exige HTTPS **et** retire la barriere `SameSite` : `CORS_ORIGIN` doit alors ne contenir que vos domaines, jamais `*` |
 | `STORAGE_DRIVER` | `s3` | `local` est **refuse au demarrage** en production |
 | `S3_*` | voir §8 | |
-| `BREVO_API_KEY` | voir §9.1 | **L'un des deux est obligatoire.** A preferer : le port 443 n'est jamais filtre |
-| `SMTP_*` | voir §9.2 | **L'un des deux est obligatoire.** A n'utiliser que si l'API HTTP est impossible |
+| `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` | voir §9.1 | **L'un des deux chemins est obligatoire.** A preferer : le port 443 n'est jamais filtre. **Les deux cles vont ensemble** — une seule donne un `401` a chaque envoi, et le demarrage est refuse |
+| `SMTP_*` | voir §9.2 | **L'un des deux chemins est obligatoire.** A n'utiliser que si l'API HTTP est impossible |
+| `ALLOW_BOOT_WITHOUT_MAIL` | `false` | Doit rester `false` en production. `true` leve le refus de demarrer sans transport : « mot de passe oublie » repond alors `200` sans rien envoyer |
 
 Verifiez le fichier **avant** de demarrer. Les quatre commandes ci-dessous
 repondent chacune a une erreur qui ne se manifeste pas au demarrage :
@@ -546,12 +601,19 @@ grep -n "^STORAGE_DRIVER=s3"    .env.production   # doit renvoyer une ligne
 grep -n "^TRUST_PROXY=1"        .env.production   # doit renvoyer une ligne
 
 # 5. UN moyen d'envoi de courriel, et UN SEUL. `grep -c` compte les lignes NON
-#    VIDES : la somme doit valoir exactement 1. Zero fait refuser le demarrage en
-#    production ; deux ne cassent rien (l'API gagne) mais signalent une
-#    configuration laissee a moitie faite, et le SMTP reste dans le fichier a
-#    portee de qui le lit.
-grep -c "^BREVO_API_KEY=..*" .env.production
-grep -c "^SMTP_HOST=..*"     .env.production
+#    VIDES. Trois compteurs, dont la lecture est plus fine qu'une somme :
+#      - les deux cles Mailjet valent SOIT 1 et 1, SOIT 0 et 0. Un 1 et un 0 est
+#        le pire des cas : Mailjet authentifie en HTTP Basic, et une cle seule
+#        donne un 401 a chaque envoi. Le serveur refuse d'ailleurs de demarrer
+#        dans cet etat, en nommant la manquante ;
+#      - si le couple est vide (0 et 0), SMTP_HOST doit valoir 1.
+grep -c "^MAILJET_API_KEY=..*"    .env.production
+grep -c "^MAILJET_SECRET_KEY=..*" .env.production
+grep -c "^SMTP_HOST=..*"          .env.production
+
+# 6. La derogation de courriel doit etre FERMEE. `true` ici est legal, mais
+#    signifie que « mot de passe oublie » repond 200 sans rien envoyer.
+grep -n "^ALLOW_BOOT_WITHOUT_MAIL=true" .env.production   # ne doit RIEN renvoyer
 ```
 
 ---
@@ -839,8 +901,12 @@ unset PGPASSWORD
 | `502` de Caddy | L'API n'ecoute pas | `... logs api` — souvent une variable d'environnement manquante |
 | Certificat non delivre | DNS pas propage, ou port 80 ferme | `dig +short api.exemple.tld`, puis §4 |
 | `STORAGE_DRIVER=local est refuse en production` | `.env.production` non charge | Le `--env-file` a ete oublie |
-| Le serveur refuse de demarrer, aucun moyen d'envoi cite | C'est **voulu** | Renseigner §9 — `BREVO_API_KEY` **ou** `SMTP_HOST` |
-| Le serveur demarre, aucun courriel n'arrive, aucune erreur | L'hebergeur filtre le SMTP en sortie : la connexion n'aboutit jamais | Passer a `BREVO_API_KEY` (§9.1) et laisser `SMTP_HOST` vide |
+| Le serveur refuse de demarrer, aucun moyen d'envoi cite | C'est **voulu** | Renseigner §9 — le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` **ou** `SMTP_HOST` |
+| Le serveur refuse de demarrer en nommant `MAILJET_SECRET_KEY` (ou `MAILJET_API_KEY`) | Une seule des deux cles est renseignee | Coller **les deux** : Mailjet authentifie en HTTP Basic, et une cle seule donne un `401` a chaque envoi |
+| Le serveur demarre, aucun courriel n'arrive, aucune erreur | L'hebergeur filtre le SMTP en sortie : la connexion n'aboutit jamais | Passer au couple `MAILJET_*` (§9.1) et laisser `SMTP_HOST` vide |
+| Mailjet accepte l'envoi, et le courriel n'arrive pas | Plafond gratuit atteint — 200/jour, ou 10/heure tant que le compte est en « Test Mode ». **Ces deux limites ne produisent aucune erreur** | §9.1 — attendre, ou faire verifier le compte par Mailjet |
+| `400` de l'API Mailjet citant l'expediteur | L'adresse de `SMTP_FROM` n'est pas validee chez Mailjet | §9.1, etape 3 — cliquer le lien envoye a cette boite |
+| `401` de l'API Mailjet | Les identifiants SMTP ont ete colles a la place des deux cles d'API | §9.1, etape 1 — « Account Settings → API Key Management » |
 | `429` pour tout le monde | Le limiteur compte sous l'adresse du proxy | `TRUST_PROXY=1` (deja force par Compose) |
 | Connecte, puis deconnecte au rechargement | Cookie refuse par le navigateur | `COOKIE_SAMESITE` correct, et HTTPS reellement actif |
 | `403 PASSWORD_CHANGE_REQUIRED` | Premier mot de passe jamais change | §13 |
@@ -859,9 +925,11 @@ unset PGPASSWORD
 
 - **Le frontend.** Perimetre distinct, heberge separement. Caddy n'a qu'un bloc ;
   un second suffira le jour ou il rejoint cette machine.
-- **Le renouvellement du domaine** et les enregistrements SPF/DKIM. Brevo fournit
-  ceux de son propre domaine ; y ajouter le votre ameliore la delivrabilite et se
-  configure chez votre registraire, pas ici.
+- **Le renouvellement du domaine** et les enregistrements SPF/DKIM. Un service
+  d'envoi fournit ceux de son propre domaine ; y ajouter le votre ameliore la
+  delivrabilite et se configure chez votre registraire, pas ici. **Sans domaine,
+  c'est la ligne qui manque** : l'encadre DMARC du §9.1 explique pourquoi une
+  adresse gratuite validee permet d'essayer, pas de facturer.
 - **Le durcissement de la VM** (fail2ban, mises a jour automatiques, cle SSH
   renommee, desactivation de l'authentification par mot de passe). Recommande,
   hors du perimetre de ce runbook.
@@ -871,7 +939,7 @@ unset PGPASSWORD
 ## Annexe A. Deployer sur Render (sans VM)
 
 Second chemin de deploiement, pour le cas ou aucune VM n'est disponible. Il ne
-remplace pas les sections 1 a 17 : Neon, Brevo et Backblaze B2 s'y configurent
+remplace pas les sections 1 a 17 : Neon, Mailjet et Backblaze B2 s'y configurent
 exactement de la meme facon. **Seul l'hebergement change.**
 
 > **A lire avant de choisir.** Le §1 explique pourquoi une VM a ete retenue : le
@@ -906,9 +974,10 @@ Mesures du 29/09/2026, conservees ici pour la meme raison qu'au §1.
    **6 heures de marge**. Pas de quoi ajouter un second service gratuit au meme
    workspace.
 3. **Les ports SMTP 25, 465 et 587 sont bloques en sortie.** C'est ce qui a
-   motive le transport par API HTTP de Brevo (`BREVO_API_KEY`, port 443) decrit
-   au §9.1. Sur Render, renseigner `SMTP_HOST` ne produit pas une erreur
-   d'authentification mais une connexion qui n'aboutit jamais.
+   motive le transport par API HTTP de Mailjet (le couple `MAILJET_API_KEY` +
+   `MAILJET_SECRET_KEY`, port 443) decrit au §9.1. Sur Render, renseigner
+   `SMTP_HOST` ne produit pas une erreur d'authentification mais une connexion
+   qui n'aboutit jamais.
 
 Les WebSockets, eux, ne posent pas de probleme : les messages echanges sur une
 connexion ouverte comptent comme du trafic entrant et maintiennent le service
@@ -951,8 +1020,8 @@ d'eveil.
 ### A.4 Les variables d'environnement
 
 A saisir dans *Environment → Environment Variables*. `backend/.env.example`
-documente les 28 variables ; ce tableau ne retient que celles qui changent ou
-qui sont obligatoires.
+documente chaque variable ; ce tableau ne retient que celles qui changent ou qui
+sont obligatoires.
 
 **Obligatoires**
 
@@ -963,7 +1032,8 @@ qui sont obligatoires.
 | `DIRECT_URL` | URL Neon **directe** | Lue en premier par la CLI Prisma ; necessaire si vous lancez une migration depuis l'onglet *Shell* de Render |
 | `JWT_ACCESS_SECRET` | chaine aleatoire longue | **Doit differer** de `JWT_REFRESH_SECRET`, sinon le demarrage est refuse (`assertSecretsDiffer`) |
 | `JWT_REFRESH_SECRET` | autre chaine aleatoire longue | Voir ci-dessus |
-| `BREVO_API_KEY` | cle d'API Brevo (SMTP & API → API Keys) | §9.1. Laisser `SMTP_HOST` **vide** |
+| `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` | *API Key* et *Secret Key* (Account Settings → API Key Management) | §9.1. **Les deux, jamais une seule** : une cle seule donne un `401` a chaque envoi. Laisser `SMTP_HOST` **vide** |
+| `ALLOW_BOOT_WITHOUT_MAIL` | `false` | Doit rester `false`. `true` fait demarrer le serveur sans transport : « mot de passe oublie » repond alors `200` sans rien envoyer |
 | `STORAGE_DRIVER` | `s3` | Le disque est ephemere : `local` est refuse au demarrage |
 
 Pour engendrer les deux secrets, plutot que de les inventer a la main :
@@ -1071,14 +1141,25 @@ Dans l'ordre ; chaque etape repond a une question differente.
    repetes finissent par annuler le deploiement.
 3. **Les journaux de demarrage annoncent les bons services.** Chercher, dans
    l'onglet *Logs* :
-   - une ligne `Courriel : API HTTP Brevo, expediteur ...`. Si elle dit `SMTP`,
+   - une ligne `Courriel : API HTTP Mailjet, expediteur ...`. Si elle dit `SMTP`,
      c'est que `SMTP_HOST` a ete renseigne alors qu'il ne faut pas (A.2,
      limite 3) ;
    - une ligne de stockage annoncant le pilote S3, et non « stockage local ».
 4. **Le mot de passe oublie arrive vraiment.** C'est le seul essai qui exerce le
-   chemin complet — Brevo, l'expediteur verifie, le lien profond construit
-   depuis `FRONTEND_URL`. Le declencher depuis le frontend, pas avec `curl` :
-   c'est le parcours reel qu'on veut valider.
+   chemin complet — Mailjet, l'adresse d'expedition validee, le lien profond
+   construit depuis `FRONTEND_URL`. Le declencher depuis le frontend, pas avec
+   `curl` : c'est le parcours reel qu'on veut valider.
+
+   > **Ce que ce test ne prouve pas.** Sur le palier gratuit, Mailjet plafonne a
+   > 200 courriels par jour et, tant que le compte n'est pas verifie
+   > manuellement, a 10 par heure — **sans renvoyer la moindre erreur au-dela**.
+   > Un envoi qui reussit une fois puis cesse de partir sans rien dire est ce
+   > symptome-la, pas une regression (§9.1).
+   >
+   > Et si l'adresse de `SMTP_FROM` est une adresse gratuite plutot qu'une
+   > adresse de votre domaine, le message partira de Mailjet et sera refuse par
+   > le destinataire (DMARC, §9.1). Verifier depuis une **autre** boite que la
+   > votre : c'est la seule facon de voir cette difference.
 
 ### A.8 Ce que cette voie ne permet pas
 

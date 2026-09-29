@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createBrevoApiTransport, parseSender } from './brevo.transport.js';
+import { createMailjetApiTransport } from './mailjet.transport.js';
 import { createSmtpTransport } from './smtp.transport.js';
+import { parseSender } from './sender.js';
 import type { MailTransport, OutgoingMail } from './mail.types.js';
 
 /**
@@ -75,11 +76,28 @@ export class MailService implements OnModuleDestroy {
    */
   private resolveTransport(): MailTransport | null {
     const from = parseSender(this.config.get<string>('SMTP_FROM') ?? DEFAULT_FROM);
-    const apiKey = this.config.get<string>('BREVO_API_KEY');
+    const apiKey = this.config.get<string>('MAILJET_API_KEY');
+    const secretKey = this.config.get<string>('MAILJET_SECRET_KEY');
 
-    if (apiKey) {
-      this.logger.log(`Courriel : API HTTP Brevo, expediteur "${from.email}" (port 443).`);
-      return createBrevoApiTransport({ apiKey, from }, this.logger);
+    // LES DEUX CLES SONT EXIGEES ENSEMBLE. Mailjet authentifie en HTTP Basic :
+    // une cle publique sans sa cle secrete ne produit pas un envoi degrade mais
+    // un 401 a chaque tentative. Exiger le couple ici transforme une erreur de
+    // configuration en trace de demarrage lisible, au lieu d'une panne qui ne se
+    // manifeste qu'a l'usage — et sur le chemin le plus rare, celui du courriel.
+    if (apiKey && secretKey) {
+      this.logger.log(`Courriel : API HTTP Mailjet, expediteur "${from.email}" (port 443).`);
+      return createMailjetApiTransport({ apiKey, secretKey, from }, this.logger);
+    }
+
+    // Une seule des deux cles : on le DIT. Se taire ferait retomber sur le SMTP
+    // (ou sur rien), et l'exploitant chercherait longtemps pourquoi son envoi par
+    // API ne part jamais alors qu'il a bien colle une cle quelque part.
+    if (apiKey || secretKey) {
+      this.logger.warn(
+        'Courriel : MAILJET_API_KEY et MAILJET_SECRET_KEY doivent etre renseignees ' +
+          `ENSEMBLE (seule ${apiKey ? 'MAILJET_API_KEY' : 'MAILJET_SECRET_KEY'} est ` +
+          "presente). L'API Mailjet est ignoree en attendant.",
+      );
     }
 
     const host = this.config.get<string>('SMTP_HOST');
@@ -96,9 +114,22 @@ export class MailService implements OnModuleDestroy {
       });
     }
 
+    // En production, cet etat n'est atteignable QUE par une derogation explicite
+    // (`ALLOW_BOOT_WITHOUT_MAIL=true`, voir `env.validation.ts`). Le message doit
+    // donc dire ce qui NE MARCHERA PAS, et pas seulement ce qui manque : un
+    // deploiement dans cet etat accepte sciemment de perdre les courriels, et
+    // c'est la seule ligne qui le lui rappellera au demarrage.
+    const production = this.config.get<string>('NODE_ENV') === 'production';
+
     this.logger.warn(
-      'Courriel : aucun transport configure (ni BREVO_API_KEY ni SMTP_HOST). ' +
-        'Les courriels seront ecrits dans les journaux au lieu de partir.',
+      production
+        ? 'Courriel : aucun transport configure (ni MAILJET_API_KEY + MAILJET_SECRET_KEY ' +
+            'ni SMTP_HOST), ET CE SERVEUR TOURNE EN PRODUCTION. Le parcours « mot de passe ' +
+            "oublie » repondra 200 sans qu'aucun courriel ne parte. Cet etat n'est possible " +
+            'que parce que ALLOW_BOOT_WITHOUT_MAIL=true : retirer cette variable des que le ' +
+            'transport est configure.'
+        : 'Courriel : aucun transport configure (ni MAILJET_API_KEY + MAILJET_SECRET_KEY ' +
+            'ni SMTP_HOST). Les courriels seront ecrits dans les journaux au lieu de partir.',
     );
     return null;
   }
@@ -119,9 +150,9 @@ export class MailService implements OnModuleDestroy {
           '  --- Corps ---',
           mail.text,
           '========================================================================',
-          'Configurez BREVO_API_KEY (recommande : le port 443 sort partout) ou',
-          'SMTP_HOST pour un envoi reel. En production, le serveur refuse de demarrer',
-          'sans aucun des deux (voir src/config/env.validation.ts).',
+          'Configurez MAILJET_API_KEY et MAILJET_SECRET_KEY (recommande : le port 443',
+          'sort partout) ou SMTP_HOST pour un envoi reel. En production, le serveur',
+          'refuse de demarrer sans aucun des deux (voir src/config/env.validation.ts).',
         ].join('\n'),
       );
       return;

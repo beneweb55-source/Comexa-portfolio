@@ -183,8 +183,8 @@ services:
 
       # En local, le lien de reinitialisation est ecrit dans les journaux plutot
       # qu'envoye : il n'y a pas de serveur SMTP. Le serveur refuse de demarrer
-      # en production sans `SMTP_HOST`, mais cette pile-ci n'est pas la
-      # production.
+      # en production si ni le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` ni
+      # `SMTP_HOST` n'est renseigne, mais cette pile-ci n'est pas la production.
       SMTP_HOST: ''
     ports:
       - '3001:3001'
