@@ -16,6 +16,23 @@ dist/
 # ce qui a ete fait pour l'inversion des filtres booleens.
 .probe/
 
+# Sondes jetables a la racine, sous un autre nom. Meme raison que `.probe/`
+# ci-dessus, ET MEME PANNE : deux fichiers d'enquete ont ete committes parce que
+# le motif `.probe/` ne couvrait qu'un dossier, et sous un seul nom.
+#
+#   - `tmp-cron-check.mts` : onze lignes verifiant qu'une tache planifiee etait
+#     bien enregistree. Le fichier importait depuis `.e2e-build/`, un dossier
+#     compile et ignore : dans un clone neuf, il n'aurait meme pas pu tourner.
+#     Sa verification n'est pas perdue pour autant — `invoice-overdue.spec.ts`
+#     porte l'assertion equivalente, et celle-la tourne sous `npm test`.
+#   - `cron.out` : une capture de sortie, vide de surcroit. Un fichier vide ne
+#     pese rien, ne casse rien, et se fait donc remarquer par personne.
+#
+# Ni l'un ni l'autre n'est reference ailleurs dans le depot. `tmp-*` couvre les
+# sondes quelle que soit leur extension, `*.out` les captures de sortie.
+tmp-*
+*.out
+
 # Secrets : jamais committes. Le modele, lui, l'est — d'ou la negation.
 #
 # LE MOTIF EST VOLONTAIREMENT LARGE, ET C'EST UNE CORRECTION. Les trois lignes
