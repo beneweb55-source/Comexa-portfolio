@@ -8,6 +8,7 @@ importer quoi que ce soit de Nest ou de Prisma.
 |---|---|
 | `api/envelope.ts` | Forme de la reponse : succes, erreur, pagination, limites. |
 | `api/error-codes.ts` | Les valeurs de `error.code` : 18 codes generaux, 137 codes de ressource. |
+| `api/openapi.json` | Le contrat complet, **genere depuis le code** : 112 chemins, 165 operations. |
 
 ---
 
@@ -31,6 +32,33 @@ D'ou une copie assumee, avec une regle qui la rend sure :
 > ici a la main — c'est le prix de l'isolation, et il est faible : ce sont des
 > formes qui bougent rarement.
 
+## `api/openapi.json` — le contrat complet, et il est genere
+
+Les deux fichiers ci-dessus sont ecrits a la main. Celui-la ne l'est pas : il est
+**produit par le code**, puis committe tel quel. Il decrit les 165 operations de
+l'API — chemins, parametres, corps attendus, formes des reponses — ainsi que les
+DTO, les enums du domaine et les codes de permission. C'est donc lui qui repond a
+tout ce que ce dossier ne contient pas.
+
+```bash
+cd backend
+npm run openapi:export
+```
+
+> **CE FICHIER N'EST PAS SERVI EN LIGNE, ET C'EST VOULU.** `/api/docs` ne sert le
+> document que hors production : sur le service deploye, il repond **404**. C'est
+> une decision de securite — un plan detaille de l'API, publie, aide surtout a la
+> cartographier. Le document vit donc dans le depot, ou il est versionne et
+> lisible par quiconque clone. En local, `npm run start:dev` sert le meme document
+> sur `/api/docs`, avec Swagger UI pour l'explorer.
+
+Le tenir a jour ne repose pas sur la discipline, contrairement aux deux autres :
+`backend/test/docs.e2e-spec.ts` compare ce fichier a la sortie fraiche de
+`configureApp` et **echoue** s'il a pris du retard, en nommant les operations
+concernees. Un DTO modifie sans relancer l'export fait donc tomber la suite e2e —
+ce qui est exactement le moment ou l'on veut l'apprendre, et non celui ou
+quelqu'un integre un contrat perime.
+
 ## Comment consommer
 
 Le frontend est a la racine du depot. `jsconfig.json` ne declare aujourd'hui
@@ -47,24 +75,27 @@ Deux facons de s'en servir, au choix :
   ```json
   "@comexa/shared/*": ["./shared/*"]
   ```
-- **Copie** — recopier les deux fichiers dans `src/lib/api/` si l'on prefere
-  que tout le code du frontend vive sous `src/`. Le contenu est autonome, il
-  n'y a rien a adapter.
+- **Copie** — recopier les deux fichiers ecrits a la main dans `src/lib/api/` si
+  l'on prefere que tout le code du frontend vive sous `src/`. Le contenu est
+  autonome, il n'y a rien a adapter. `api/openapi.json` ne se recopie pas : il
+  s'ouvre, ou il alimente un generateur de client.
 
 Aucune des deux n'est prise par defaut : le proprietaire du frontend choisit sa
 convention, et ce dossier ne la lui impose pas.
 
 ## Ce qui n'est PAS ici, et pourquoi
 
-- **Les formes de chaque DTO** (projet, devis, facture, ...). Elles sont
-  decrites par OpenAPI, genere depuis le code et servi sur `/api/docs`. Les
-  recopier ici creerait quarante occasions de derive pour un gain nul : un
-  client OpenAPI les produit.
+- **Les formes de chaque DTO** (projet, devis, facture, ...). Elles sont dans
+  `api/openapi.json`, juste a cote. Les recopier a la main creerait quarante
+  occasions de derive pour un gain nul : un generateur de client les produit a
+  partir du document, et le document est verifie par un test.
 - **Les codes de permission** (`project:write:any`, ...). Le frontend ne les
   devine pas : il les recoit a l'authentification et les teste a l'execution.
   Une union fermee ici deviendrait fausse au premier role ajoute.
 - **Les enums du domaine** (statuts de devis, de facture, de tache). Ils sont
   dans le schema OpenAPI, qui est la source.
 
-Ce dossier ne contient donc que ce qu'OpenAPI **ne sait pas dire** : l'enveloppe
-qui entoure chaque reponse, et la liste des codes d'erreur.
+Ce dossier contient donc, ecrits a la main, les deux seules choses qu'OpenAPI
+**ne sait pas dire** : l'enveloppe qui entoure chaque reponse, et la liste des
+codes d'erreur. Et, a cote d'elles, le document OpenAPI lui-meme — le seul des
+trois qu'aucune main ne touche.

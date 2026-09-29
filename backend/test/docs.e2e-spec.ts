@@ -2,7 +2,7 @@
 // chargement des modules, et ils ont besoin de `Reflect.metadata` deja installe.
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import type { INestApplication } from '@nestjs/common';
@@ -10,6 +10,7 @@ import type { OpenAPIObject, OperationObject } from '@nestjs/swagger';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
+import { serializeOpenApi } from '../src/common/openapi/serialize-openapi.js';
 
 /**
  * LA DOCUMENTATION OPENAPI CONTRE L'API REELLE.
@@ -39,7 +40,7 @@ import { configureApp } from '../src/app.setup.js';
  * que `main.ts` sert sur `/api/docs`.
  *
  * -----------------------------------------------------------------------------
- * LES QUATRE INVARIANTS, ET CE QU'ILS EMPECHENT
+ * LES CINQ INVARIANTS, ET CE QU'ILS EMPECHENT
  * -----------------------------------------------------------------------------
  *  1. LE NOMBRE DE ROUTES PUBLIQUES DOCUMENTEES EGALE LE NOMBRE DE `@Public()`
  *     ECRITS DANS LE CODE. C'est le seul controle de ce fichier qui croise deux
@@ -67,6 +68,21 @@ import { configureApp } from '../src/app.setup.js';
  *     « autant de routes publiques » comparerait 0 a 0 et passerait au vert sans
  *     rien verifier. Les deux tests de la derniere section l'excluent.
  *
+ *  5. LE DOCUMENT COMMITTE EST CELUI QUE LE CODE PRODUIT. Le contrat du frontend
+ *     vit dans `shared/api/openapi.json`, parce que `/api/docs` est ferme en
+ *     production. Ce fichier est donc la seule description des DTO accessible a
+ *     l'associe : s'il prend du retard, il ne devient pas seulement imprecis, il
+ *     decrit une API qui n'existe plus — et rien dans le depot ne le signalerait.
+ *     Le test compare le fichier a la sortie fraiche de `configureApp`,
+ *     serialisee par la MEME fonction que le script d'export : les deux cotes ne
+ *     peuvent donc pas diverger par une difference de mise en forme.
+ *
+ *     C'EST LE SEUL TEST DE CE FICHIER QUI REGARDE AILLEURS QUE DANS `src/`. Les
+ *     quatre autres verifient une propriete interne du document ; celui-ci verifie
+ *     qu'un ARTEFACT LIVRE lui correspond. Il echoue donc aussi lorsqu'un DTO
+ *     change sans que `npm run openapi:export` ait ete relance — ce qui est
+ *     exactement le moment ou l'associe integrerait un contrat perime.
+ *
  * -----------------------------------------------------------------------------
  * DEPENDANCE ASSUMEE : UNE BASE JOIGNABLE
  * -----------------------------------------------------------------------------
@@ -81,6 +97,16 @@ const SCHEMA_DE_SECURITE = 'access-token';
 
 const RACINE_SRC = resolve(process.cwd(), 'src');
 const RACINE_TEST = resolve(process.cwd(), 'test');
+
+/**
+ * Le document OpenAPI committe, a la racine du DEPOT — pas dans `backend/`.
+ *
+ * `process.cwd()` vaut `backend/` (meme convention que les deux constantes
+ * ci-dessus) : le depot est donc son parent. Ce fichier est le contrat que lit le
+ * frontend, puisque `configureApp` ne sert le document que hors production et que
+ * `/api/docs` repond 404 sur le service deploye.
+ */
+const CHEMIN_DOCUMENT_COMMITTE = resolve(process.cwd(), '..', 'shared', 'api', 'openapi.json');
 
 /**
  * Compte les `@Public()` REELLEMENT APPLIQUES dans `src/`.
@@ -144,6 +170,58 @@ function listerOperations(document: OpenAPIObject): Operation[] {
 /** Vrai si l'operation se declare publiquement (`security: []`), au sens OpenAPI. */
 function estPublique(operation: OperationObject): boolean {
   return Array.isArray(operation.security) && operation.security.length === 0;
+}
+
+/** Les operations d'un document, indexees par « METHODE /chemin », en JSON. */
+function signatures(document: OpenAPIObject): Map<string, string> {
+  const index = new Map<string, string>();
+
+  for (const [chemin, item] of Object.entries(document.paths ?? {})) {
+    for (const [methode, operation] of Object.entries(item)) {
+      if (!(METHODES_HTTP as readonly string[]).includes(methode)) continue;
+      index.set(`${methode.toUpperCase()} ${chemin}`, JSON.stringify(operation));
+    }
+  }
+
+  return index;
+}
+
+/**
+ * Compare deux documents operation par operation, et nomme ce qui a bouge.
+ *
+ * Un `deepEqual` sur cet arbre ne dirait rien d'exploitable : le rapport
+ * nommerait un objet, pas la route concernee, et il faudrait ouvrir un fichier de
+ * 197 Ko pour apprendre qu'un DTO a change. Ici le message nomme les operations,
+ * ce qui suffit a savoir quel controleur vient d'etre touche.
+ */
+function decrireEcart(committe: OpenAPIObject, frais: OpenAPIObject): string {
+  const dansLeFichier = signatures(committe);
+  const dansLeCode = signatures(frais);
+
+  const ajoutees = [...dansLeCode.keys()].filter((cle) => !dansLeFichier.has(cle));
+  const retirees = [...dansLeFichier.keys()].filter((cle) => !dansLeCode.has(cle));
+  const modifiees = [...dansLeCode.keys()].filter(
+    (cle) => dansLeFichier.has(cle) && dansLeFichier.get(cle) !== dansLeCode.get(cle),
+  );
+
+  const lister = (titre: string, valeurs: string[]): string[] =>
+    valeurs.length === 0
+      ? []
+      : [
+          `  ${titre} : ${valeurs.length}`,
+          ...valeurs.slice(0, 10).map((valeur) => `    ${valeur}`),
+          ...(valeurs.length > 10 ? [`    ... et ${valeurs.length - 10} autre(s)`] : []),
+        ];
+
+  return [
+    `  fichier  : ${dansLeFichier.size} operations`,
+    `  code     : ${dansLeCode.size} operations`,
+    ...lister('presentes dans le code seulement (a documenter)', ajoutees),
+    ...lister('presentes dans le fichier seulement (a retirer)', retirees),
+    ...lister('presentes des deux cotes, mais differentes', modifiees),
+    '',
+    'Regenerer le document : npm run openapi:export',
+  ].join('\n');
 }
 
 describe('Documentation OpenAPI servie', () => {
@@ -232,6 +310,41 @@ describe('Documentation OpenAPI servie', () => {
       "Une case vide dans Swagger UI. La cause la plus frequente est un `summary: ''` " +
         'injecte par `ApiOperation` depuis un decorateur applique en dernier — ' +
         'typiquement un decorateur compose qui oublie de passer `summary: undefined`.',
+    );
+  });
+
+  it('est committe dans shared/api/openapi.json, et a jour', () => {
+    assert.ok(document);
+
+    assert.ok(
+      existsSync(CHEMIN_DOCUMENT_COMMITTE),
+      `Le document OpenAPI n'est pas dans le depot : ${CHEMIN_DOCUMENT_COMMITTE} est ` +
+        "absent. Le frontend lit ce fichier pour integrer l'API, puisque /api/docs est " +
+        'ferme en production. Le generer : npm run openapi:export',
+    );
+
+    const contenu = readFileSync(CHEMIN_DOCUMENT_COMMITTE, 'utf8');
+    const attendu = serializeOpenApi(document);
+
+    if (contenu === attendu) return;
+
+    // Le fichier existe mais ne correspond pas. On essaie de le lire pour nommer
+    // les operations en cause ; s'il est illisible, c'est en soi le diagnostic —
+    // il ne peut pas venir de `npm run openapi:export`, qui ecrit du JSON.
+    let committe: OpenAPIObject | null = null;
+
+    try {
+      committe = JSON.parse(contenu) as OpenAPIObject;
+    } catch {
+      committe = null;
+    }
+
+    assert.fail(
+      `${CHEMIN_DOCUMENT_COMMITTE} a pris du retard sur le code.\n` +
+        (committe === null
+          ? "  Le fichier n'est pas du JSON lisible : il n'a pas ete produit par " +
+            '`npm run openapi:export`, ou il a ete modifie a la main.'
+          : decrireEcart(committe, document)),
     );
   });
 });

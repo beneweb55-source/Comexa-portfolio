@@ -1,0 +1,31 @@
+{
+  // Configuration de compilation pour L'EXPORT DU DOCUMENT OpenAPI
+  // (`npm run openapi:export`, voir `scripts/export-openapi.ts`).
+  //
+  // POURQUOI UNE TROISIEME CONFIGURATION, ET PAS `tsconfig.e2e.json`.
+  //
+  // `tsconfig.e2e.json` compile `src/`, `test/` et `prisma/` — il herite du
+  // `include` de `tsconfig.json`, et n'en change que la sortie. Reutiliser sa
+  // sortie pour cet export marcherait par accident, mais ferait dependre deux
+  // artefacts l'un de l'autre : `.e2e-build/` appartient a `test:e2e`, qui le
+  // remplit par `npm run build:e2e`. Un export qui lirait dedans serait casse le
+  // jour ou `test:e2e` change de dossier, et le lien entre les deux ne serait
+  // ecrit nulle part.
+  //
+  // `include` REMPLACE celui du parent — ce n'est pas un ajout. La liste ne
+  // contient donc que ce qui est necessaire : `src/` (l'application) et le seul
+  // script d'export. `test/` et `prisma/` en sortent : ni les specs ni le seed
+  // n'ont leur mot a dire dans le document OpenAPI, et les compiler ici ne
+  // ferait qu'allonger la commande.
+  //
+  // `incremental` est desactive pour la meme raison que dans
+  // `tsconfig.e2e.json` : le `.tsbuildinfo` de la racine decrit la compilation
+  // vers `dist/`, et le partager entre deux `outDir` differents produit des
+  // compilations partielles silencieusement fausses.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./.export-build",
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "scripts/export-openapi.ts"]
+}

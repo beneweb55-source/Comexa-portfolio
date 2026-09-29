@@ -15,6 +15,7 @@
     "format": "prettier --write \"{src,test,prisma,scripts}/**/*.ts\"",
     "build:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
+    "openapi:export": "tsc -p tsconfig.export.json && node .export-build/scripts/export-openapi.js",
     "verify:storage": "node --import tsx scripts/verify-storage.ts",
     "smoke:prod": "node --import tsx scripts/smoke-prod.ts",
     "test": "node --import tsx --test \"src/**/*.spec.ts\"",

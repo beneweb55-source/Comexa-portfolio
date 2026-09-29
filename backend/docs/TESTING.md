@@ -29,9 +29,9 @@ passent. C'est aussi pourquoi la production demarre par `node dist/main.js`.
 
 ### Pourquoi `--test-concurrency=1`
 
-Par defaut, `node --test` execute les **fichiers de test en parallele**. Huit
-(aujourd'hui neuf) suites frappant **une seule base** se marchent dessus : une
-suite compte les lignes qu'une autre est en train d'ecrire.
+Par defaut, `node --test` execute les **fichiers de test en parallele**. Dix
+fichiers frappant **une seule base** se marchent dessus : une suite compte les
+lignes qu'une autre est en train d'ecrire.
 
 Mesure, meme commit, meme base :
 
@@ -68,11 +68,19 @@ Etat confirme, arbre actuel, meme commande et meme base :
 
 | Mesure | Resultat |
 |---|---|
-| Suites | 9 |
-| Tests | 180 |
+| Fichiers de `test/` | 10 |
+| Tests | 188 |
 | Echecs | **0** |
 | Annulations | 0 |
-| Duree | ~696 s |
+| Duree | ~931 s |
+
+Le decompte porte sur les FICHIERS et non sur ce que `node --test` appelle des
+« suites » : son rapport en compte onze, parce qu'il compte les `describe` et que
+`docs.e2e-spec.ts` en porte deux. Un chiffre qui depend du decoupage interne d'un
+fichier ne dit rien d'utile ; le nombre de fichiers, si.
+
+La duree, elle, a ete mesuree pendant que des compilations tournaient en
+parallele sur la meme machine : c'est un majorant, pas une reference.
 
 Une execution verte est donc la seule lecture valable de ce tableau-ci. Si vous
 relancez la suite et lisez autre chose que zero echec, ce n'est pas la norme :
@@ -183,6 +191,7 @@ notifie pas l'auteur de sa propre action »), sans dependre d'un voisin.
 | `billing.e2e-spec.ts` | Devis, factures, paiements, perimetre client |
 | `messaging.e2e-spec.ts` | Conversations, messages, notifications |
 | `analytics.e2e-spec.ts` | Rapports, tableaux de bord, parametres |
+| `docs.e2e-spec.ts` | Le document OpenAPI : exigence de securite, resumes, egalite avec `shared/api/openapi.json` |
 | `full-chain.e2e-spec.ts` | La chaine complete, visiteur -> projet termine |
 
 Le dernier est l'audit exige par le client : il deroule les quinze etapes de la

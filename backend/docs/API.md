@@ -568,6 +568,39 @@ absentes et repondent 404 : un plan detaille de l'API aiderait surtout quelqu'un
 la cartographier. Le frontend de developpement y accede, la production non — ne
 construisez donc rien qui en depende a l'execution.
 
+### Le document est aussi committe, et c'est celui que lit le frontend
+
+L'associe a besoin de ce document pour integrer l'API, et il ne peut pas
+l'obtenir du service deploye : les deux routes ci-dessus y repondent 404. Le
+document est donc **committe dans le depot**, a cote des types partages :
+
+```
+shared/api/openapi.json      112 chemins, 165 operations
+```
+
+Il se regenere depuis le code — ce qui lui garantit de ne jamais decrire une API
+qui n'existe plus :
+
+```bash
+cd backend
+npm run openapi:export
+```
+
+La commande compile `src/` et `scripts/export-openapi.ts` (voir
+`tsconfig.export.json`, sortie `.export-build/`), demarre le vrai `AppModule`
+pour obtenir le document de la MEME fonction `configureApp` que la production, et
+l'ecrit a la racine du depot. Elle lit `backend/.env` — le demarrage ouvre une
+connexion PostgreSQL, sans lire ni ecrire aucune donnee metier — et elle refuse
+de tourner si `NODE_ENV` vaut `production`, cas ou `configureApp` ne construit
+aucun document.
+
+Corriger le fichier a la main ne sert a rien : `test/docs.e2e-spec.ts` le compare
+a la sortie fraiche et echoue au premier ecart, en nommant les operations
+concernees. Un DTO modifie sans relancer l'export fait donc tomber la suite e2e.
+
+En local, `npm run start:dev` sert ce meme document sur `/api/docs`, avec
+l'interface Swagger pour l'explorer.
+
 ### Authentification : une exigence globale, et des exceptions declarees
 
 Le schema Bearer est declare sous le nom `access-token`, et `persistAuthorization`
@@ -598,7 +631,8 @@ Deux tests tiennent cet accord entre le code et le document :
 `src/common/decorators/public.decorator.spec.ts` verifie la mecanique du
 decorateur, et `test/docs.e2e-spec.ts` verifie le document que `configureApp`
 produit reellement — il compare notamment le nombre de routes publiques
-documentees au nombre de `@Public()` ecrits dans les sources.
+documentees au nombre de `@Public()` ecrits dans les sources, et l'egalite entre
+le document genere et `shared/api/openapi.json`.
 
 ---
 

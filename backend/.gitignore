@@ -9,6 +9,11 @@ dist/
 # `nest build` le vide a chaque build.
 .e2e-build/
 
+# Sortie de compilation de l'export OpenAPI (voir tsconfig.export.json).
+# Meme raison que `.e2e-build/` : c'est un artefact derive, distinct de `dist/`.
+# Le document lui-meme, lui, EST committe — dans `shared/api/openapi.json`.
+.export-build/
+
 # Sondes de diagnostic jetables. Ce sont des scripts d'enquete ponctuels
 # (mesurer la metadonnee `design:type` d'un DTO, par exemple), pas du code
 # livre : ils n'ont rien a faire dans l'histoire du depot. Un diagnostic qui
