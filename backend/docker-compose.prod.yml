@@ -86,12 +86,36 @@ services:
       # diagnostiquee.
       NODE_OPTIONS: '--max-old-space-size=768'
     expose:
-      # `expose` et non `ports` : le conteneur n'est joignable que par Caddy, sur
-      # le reseau interne. Publier 3001 sur l'hote ouvrirait un second chemin
-      # d'acces en clair, a cote du HTTPS, sans que rien ne le signale.
+      # `expose` et non `ports` — mais l'isolation ne vient PAS de ce mot-cle, et
+      # le croire serait la faute la plus couteuse de ce fichier.
+      #
+      # `expose` ne restreint rien : c'est une DECLARATION, qui documente le port
+      # et alimente `docker compose ps`. Ce qui ferme reellement l'acces depuis
+      # l'exterieur, c'est de ne pas ecrire de `ports` : sans publication, Docker
+      # ne pose aucune regle de redirection sur l'hote. La precision compte, parce
+      # qu'un `expose` ajoute a cote d'un `ports` publie ne protegerait rien du
+      # tout — et la lecture inverse ferait oublier le vrai mecanisme.
+      #
+      # En clair : joignable par les autres conteneurs de la pile, pas par l'hote.
+      # Publier 3001 ouvrirait un second chemin d'acces en clair, a cote du HTTPS,
+      # sans que rien ne le signale.
       - '3001'
     security_opt:
       - no-new-privileges:true
+
+    # Aucune capacite n'est necessaire — et ce n'est pas une supposition, cela se
+    # lit dans le Dockerfile. `runtime` declare `USER node` (uid 1000), donc
+    # `dumb-init` comme Node tournent en non-root ; le port ecoute (3001) est
+    # au-dessus de 1024, ce qui ne demande pas NET_BIND_SERVICE ; et le seul chemin
+    # d'ecriture est `/app/storage`, cree et appartenant a `node`.
+    #
+    # Les deux reglages sont complementaires et ne se remplacent pas :
+    # `no-new-privileges` empeche de GAGNER des privileges en cours d'execution
+    # (binaire setuid, capacite de fichier), `cap_drop` retire ceux qu'on detient
+    # deja. Un conteneur compromis qui garde par exemple NET_RAW peut forger des
+    # paquets ; c'est ce que la seconde ligne ferme.
+    cap_drop:
+      - ALL
 
     # Plafonds de ressources. Ils ne sont pas la pour la densite — il n'y a
     # qu'un locataire sur cette machine — mais pour que le depassement d'un
@@ -120,7 +144,18 @@ services:
 
   # --- Terminaison TLS --------------------------------------------------------
   caddy:
-    image: caddy:2-alpine
+    # TAG EPINGLE, VOLONTAIREMENT.
+    #
+    # `caddy:2-alpine` suivait la derniere 2.x publiee : un `docker compose pull`,
+    # ou un `up -d --build` apres changement d'image, pouvait donc changer le
+    # serveur web d'une machine que personne n'administre au quotidien, sans
+    # qu'aucune ligne de ce depot n'ait bouge. Caddy fait evoluer sa syntaxe de
+    # configuration entre versions mineures : un rechargement qui echoue laisse le
+    # site injoignable, et la cause ne se trouve pas dans le journal de l'API.
+    #
+    # Version verifiee sur le registre le 29/09/2026. Pour monter de version
+    # DELIBEREMENT, voir §14 du runbook — c'est un geste, pas un effet de bord.
+    image: caddy:2.11.4-alpine
     restart: unless-stopped
     depends_on:
       # Simple ordre de demarrage, volontairement : `service_healthy` ferait
@@ -131,9 +166,23 @@ services:
     ports:
       - '80:80'
       - '443:443'
-      # HTTP/3. Facultatif, mais l'ouvrir coute une ligne et evite un repli
-      # silencieux en HTTP/2 pour les clients qui tentent QUIC.
-      - '443:443/udp'
+      # PAS de `443:443/udp`, ET C'EST UN CHOIX.
+      #
+      # Ce port sert HTTP/3 (QUIC). Caddy documente qu'en tirer parti demande la
+      # capacite `NET_ADMIN`, sans laquelle il tourne avec les tampons UDP par
+      # defaut du noyau et le signale en avertissement. Or le `cap_drop: ALL`
+      # ci-dessous est precisement la pour que ce conteneur n'ait QUE ce dont il a
+      # besoin — ouvrir le port reviendrait a se donner une capacite de
+      # reconfiguration reseau pour une optimisation de latence.
+      #
+      # L'arbitrage : HTTP/3 est un confort, pas une exigence. Un client qui tente
+      # QUIC se replie de lui-meme en HTTP/2 sur TLS, sans rien afficher. Ouvrir le
+      # port sans `NET_ADMIN` aurait donne un HTTP/3 degrade en plus des
+      # avertissements — moins bien que de ne pas l'ouvrir.
+      #
+      # Pour l'activer malgre tout : decommenter la ligne ci-dessous ET ajouter
+      # `NET_ADMIN` a `cap_add`.
+      # - '443:443/udp'
     environment:
       # Le `:?` fait ECHOUER `docker compose up` si la variable manque, au lieu
       # de laisser Caddy partir avec un domaine vide et reclamer un certificat
@@ -147,6 +196,31 @@ services:
       # repetees pour un meme domaine.
       - comexa_caddy_data:/data
       - comexa_caddy_config:/config
+
+    security_opt:
+      - no-new-privileges:true
+
+    # UNE SEULE CAPACITE, ET ELLE EST MESUREE.
+    #
+    # L'image officielle de Caddy ne declare aucun `USER` : elle tourne en root,
+    # et son Dockerfile pose `setcap cap_net_bind_service=+ep /usr/bin/caddy`
+    # pour pouvoir lier 80 et 443. C'est precisement cette capacite que le
+    # conteneur doit conserver — la retirer empeche le demarrage.
+    #
+    # `cap_add` est donc ici le COMPLEMENT de `cap_drop`, pas une exception : le
+    # conteneur n'a que NET_BIND_SERVICE, au lieu de la quinzaine de capacites que
+    # Docker accorde par defaut a un conteneur root.
+    #
+    # Si Caddy refuse malgre tout de demarrer sur une erreur de permission, la
+    # correction tient en deux lignes : retirer `cap_drop` et `cap_add` d'ici pour
+    # revenir aux capacites par defaut de Docker. Le passage par `cap_add` n'a
+    # jamais ete execute sur une vraie machine (voir §16 du runbook), et cette
+    # sortie de secours est ecrite ici pour que personne n'ait a la chercher.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
     logging: *logging
 
   # --- Migrations -------------------------------------------------------------

@@ -52,6 +52,19 @@
 	# Rien a ajouter pour les WebSockets : Caddy relaie l'en-tete `Upgrade` sans
 	# configuration, contrairement a nginx qui exige `proxy_set_header Upgrade` et
 	# `proxy_set_header Connection` sous peine de voir le handshake echouer en 400.
+	#
+	# RIEN A AJOUTER NON PLUS POUR QU'ILS SURVIVENT A UN RECHARGEMENT, et il vaut
+	# mieux l'ecrire que de laisser chercher. C'est l'affaire du `grace_period`
+	# global de Caddy, dont la valeur par defaut est ETERNELLE : la documentation
+	# dit que les connexions ne sont jamais fermees de force. Un rechargement
+	# ferme les connexions inactives et attend les autres — le chat n'est donc pas
+	# coupe par un `caddy reload`. Il n'y a pas de directive a poser ici.
+	#
+	# Et surtout : en ajouter une sans pouvoir l'essayer serait un risque gratuit.
+	# Une directive inconnue ne degrade pas le service, elle empeche Caddy de
+	# charger sa configuration — donc un site injoignable, pour rien. Si l'attente
+	# d'un rechargement devait un jour etre BORNEE, le reglage est le
+	# `grace_period` du bloc global en tete de ce fichier, pas une option d'ici.
 	reverse_proxy api:3001
 
 	log {

@@ -502,6 +502,32 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 Le volume `comexa_caddy_data` conserve les certificats : pas de nouvelle demande
 a Let's Encrypt a chaque redeploiement.
 
+### Mettre a jour Caddy — un geste, pas un effet de bord
+
+La version de Caddy est **epinglee** dans `docker-compose.prod.yml`
+(`caddy:2.11.4-alpine`). C'est delibere : un tag flottant ferait changer le serveur
+web qui termine votre TLS au premier `pull`, sur une machine que personne
+n'administre au quotidien, sans qu'aucune ligne du depot n'ait bouge. Caddy fait
+evoluer sa syntaxe entre versions mineures, et une configuration qui ne se charge
+plus ne degrade pas le service — elle le rend injoignable.
+
+Pour monter de version, donc :
+
+```bash
+cd ~/comexa/backend
+# 1. Relire la note de version avant de toucher au tag :
+#    https://github.com/caddyserver/caddy/releases
+# 2. Changer le tag dans docker-compose.prod.yml, puis :
+docker compose --env-file .env.production -f docker-compose.prod.yml pull caddy
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+docker compose --env-file .env.production -f docker-compose.prod.yml logs --tail 30 caddy
+# attendu : aucune erreur de configuration, et le certificat toujours servi
+curl -sSI https://api.exemple.tld/api/health | head -1
+```
+
+Le retour arriere est un `git checkout` du tag precedent suivi du meme `up -d` :
+les certificats vivent dans le volume, pas dans l'image.
+
 ---
 
 ## 15. Sauvegardes
@@ -622,6 +648,9 @@ unset PGPASSWORD
 | Le frontend est bloque, mais le serveur demarre sans rien signaler | `CORS_ORIGIN` reste sur `http://localhost:3000` | §10 — verifier les cles dupliquees (`uniq -d`) |
 | Le `seed` refuse de tourner malgre la commande du runbook | `SEED_ALLOW_PRODUCTION` n'est plus pose par Compose | §13 — le passer a l'appel, avec les deux mots de passe |
 | `401` au premier appel authentifie | L'administrateur n'est pas sous l'adresse attendue | §13 — l'adresse par defaut est `admin@comexa.example`, ou celle de `SEED_ADMIN_EMAIL` |
+| Caddy sort sur `permission denied` en liant `:80` ou `:443` | `cap_drop: ALL` sans `cap_add: NET_BIND_SERVICE` | Les deux sont declares cote a cote pour `caddy` dans `docker-compose.prod.yml`. Si l'erreur persiste, retirer ces deux lignes pour revenir aux capacites par defaut de Docker |
+| Un client ne parvient pas a utiliser HTTP/3 | Le port `443/udp` n'est pas publie, et c'est **voulu** | Voir le commentaire des `ports` : HTTP/3 demande `NET_ADMIN`. Les clients se replient seuls en HTTP/2 |
+| `pull` ne change pas la version de Caddy | Le tag est epingle | Voulu — §14, « Mettre a jour Caddy » |
 
 ---
 
