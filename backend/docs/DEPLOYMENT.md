@@ -121,6 +121,20 @@ une seule instance :
 > reconstruire — le jour ou cela devient penible, c'est ce enchainement qu'il
 > faudra ecrire comme un script. Il n'existe pas encore.
 >
+> **Et pourquoi cela n'arrive probablement pas.** Les trois mesures forment un
+> **ET**, pas un OU : il suffit que l'une seule reste au-dessus de 20 % pour
+> sortir de la definition. Sur une forme A1, la memoire est la moins couteuse a
+> tenir : 20 % de 12 Go font 2,4 Go, et un conteneur qui retient de la memoire ne
+> consomme pas de CPU pour autant — contrairement a un script qui ferait tourner
+> `openssl speed` en boucle. Des outils communautaires existent pour cela. Mais
+> c'est du territoire **non documente par Oracle**, et deux avertissements valent
+> mieux qu'un espoir : la mesure est un **95e centile**, pas une moyenne — pour la
+> faire bouger, il faut de la charge pendant au moins 5 % de la fenetre, soit
+> environ **1 h 12 par jour** cumulees. Un ping quotidien n'y change donc rien,
+> et c'est precisement l'erreur que reprennent la plupart des guides. Rien de
+> tout cela ne doit remplacer le paragraphe precedent sur le caractere
+> remplacable de la machine : c'est un pari raisonnable, pas un acquis.
+>
 > Deux gestes utiles des maintenant : une **surveillance externe** qui interroge
 > `/api/health` toutes les 5 minutes (UptimeRobot, Healthchecks.io) — elle ne
 > protege pas de la recuperation, mais elle vous previent que la machine a
@@ -131,6 +145,13 @@ une seule instance :
 > ressources Always Free de ce mecanisme. Cette exemption n'est **pas documentee**
 > par Oracle, et les retours de la communaute se contredisent : a traiter comme
 > non confirme, jamais comme une garantie.
+>
+> A verifier sur la source, car ces valeurs ont deja change sans annonce :
+> *Oracle Cloud Infrastructure Free Tier* —
+> <https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier.htm>, rubrique
+> des ressources inactives. Pour le passage de 4 OCPU / 24 Go a 2 OCPU / 12 Go
+> le 15/06/2026, sans communique : <https://www.infoq.com/news/2026/07/oracle-cloud-free-tier-limits/>
+> et <https://korben.info/oracle-cloud-always-free-arm-reduit.html>.
 
 ### Google Cloud — pourquoi ce palier ne convient pas ici
 
