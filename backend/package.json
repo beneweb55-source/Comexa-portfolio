@@ -16,6 +16,7 @@
     "build:e2e": "tsc -p tsconfig.e2e.json",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "verify:storage": "node --import tsx scripts/verify-storage.ts",
+    "smoke:prod": "node --import tsx scripts/smoke-prod.ts",
     "test": "node --import tsx --test \"src/**/*.spec.ts\"",
     "test:watch": "node --import tsx --test --watch \"src/**/*.spec.ts\"",
     "test:cov": "node --import tsx --test --experimental-test-coverage \"src/**/*.spec.ts\"",

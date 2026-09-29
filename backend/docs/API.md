@@ -837,6 +837,85 @@ une signature decoree.
   (`fields` sur une violation d'unicite, `prismaCode`) valent `null` hors
   developpement : le detail ne sort que sur la machine de developpement.
 
+### Le compte administrateur neuf ne peut RIEN faire avant d'avoir change son mot de passe
+
+C'est le point qui a rendu le service deploye inutilisable, et l'endroit ou il
+aurait du etre ecrit ne le portait pas.
+
+`upsertAccount` (`prisma/seed.ts`) cree le compte administrateur avec
+`mustChangePassword: true`, et le commentaire donne la raison : le mot de passe
+est connu de qui a lance le seed, il doit donc etre change a la premiere
+connexion. La decision est bonne.
+
+`docs/DEPLOYMENT.md` §13 decrit l'etape pour la **voie VM**, et la decrit bien —
+l'avertissement « tant que ce n'est pas fait, tout repond `403
+PASSWORD_CHANGE_REQUIRED` » y figure mot pour mot. Mais l'**annexe A**, qui
+decrit la voie **Render**, n'en dit pas un mot : elle couvre les migrations (A.5)
+et la verification (A.7) sans jamais parler du compte administrateur. Or c'est
+cette voie-la qui est deployee. La lacune n'est donc pas dans le fond, elle est
+dans l'annexe, et elle suffit a bloquer. Le garde
+(`common/guards/access.guards.ts`) ferme **tout** pour un porteur dont le drapeau
+est pose, sauf les routes marquees `@AllowPasswordChangeRequired()`. Donc :
+
+| Appel, avec le jeton d'un administrateur neuf | Resultat |
+|---|---|
+| `POST /api/auth/login` | **200** — le jeton est bel et bien delivre |
+| `GET /api/auth/me` | 200 — c'est ce qui permet d'afficher l'ecran de changement |
+| `POST /api/auth/change-password` | 200 |
+| **Toute autre route, y compris `GET /api/users`** | **403 `PASSWORD_CHANGE_REQUIRED`** |
+
+La connexion reussit, puis la premiere route metier echoue. Un deploiement neuf
+est donc inutilisable en l'etat, et le seul symptome est un 403 sur la premiere
+requete venue — mesure sur `https://comexa-portfolio.onrender.com`, sur
+`GET /api/contact-requests`.
+
+**La mise en service est une etape de deploiement, pas un detail.** Elle tient en
+un appel, avec le mot de passe du seed :
+
+```
+POST /api/auth/change-password
+{ "currentPassword": "<SEED_ADMIN_PASSWORD>", "newPassword": "<le mot de passe voulu>", "confirmPassword": "<le meme>" }
+```
+
+Le drapeau retombe et **ne se repose jamais** : `changePassword` ecrit
+`mustChangePassword: false`, et rien d'autre dans le code ne le remet a `true`
+pour un compte existant — le seed ne retouche pas le mot de passe d'un compte
+deja present. Un deploiement n'a donc besoin de cette etape **qu'une seule fois**.
+
+`npm run smoke:prod` la detecte et l'effectue, puis REMET le mot de passe a sa
+valeur de `backend/.env` : le compte se retrouve avec le mot de passe que
+l'operateur connait deja, et le drapeau tombe. Le retour en arriere est possible
+parce que `changePassword` n'interdit que « identique a l'actuel » — il n'existe
+aucun historique de mots de passe. La manœuvre est idempotente : sur un compte
+deja en service, le script ne touche a rien.
+
+### `GET /documents/:id/content` ne sert pas de flux en production
+
+Le tableau de la section 10 annonce `200` pour cette route. En production, avec
+`STORAGE_DRIVER=s3`, elle repond **422 `STORAGE_STREAM_UNSUPPORTED`**. Ce n'est
+pas une panne : c'est le partage des roles entre deux routes, et il est voulu.
+
+`StorageDriver` et `StreamingStorageDriver` sont deux interfaces **separees**
+(`common/storage/storage.types.ts`), et le commentaire dit pourquoi :
+« un stockage objet n'a aucune raison d'exposer une lecture qui ferait transiter
+les octets par l'API — le tout interet de l'URL signee est justement de
+l'eviter. Seul le pilote local en a besoin. »
+
+| Route | Ce qu'elle fait | Ou elle sert |
+|---|---|---|
+| `GET /documents/:id/download` | Rend une **URL signee** vers le stockage | **Production** — le fichier ne traverse jamais l'API |
+| `GET /documents/:id/content` | Sert le **flux** des octets | **Developpement** — le pilote local ne signe rien |
+
+**Consequence pour le frontend, et c'est la seule chose a retenir : utiliser
+`/download`.** Un appel a `/content` en production rend un 422, et le message
+renvoie explicitement vers `/download`. Le refus est nomme et non un 500 : c'est
+un contrat, pas un incident.
+
+Mesure faite en suivant reellement le lien signe jusqu'a
+`s3.us-east-005.backblazeb2.com` : le contenu est identique **octet pour octet**
+a celui qui a ete depose. Le stockage objet repond donc bien depuis le reseau de
+Render.
+
 ---
 
 ## 10. Inventaire des routes
@@ -996,7 +1075,7 @@ Trois colonnes, trois lectures :
 | `PATCH /documents/:id` | `document:write:any` **ou** `document:write:own` | 200 |
 | `DELETE /documents/:id` | `document:delete:any` | 200 |
 | `GET /documents/:id/download` | `document:read:any` **ou** `document:read:own` **ou** `document:read:client` | 200 |
-| `GET /documents/:id/content` | `document:read:any` **ou** `document:read:own` **ou** `document:read:client` | 200 |
+| `GET /documents/:id/content` | `document:read:any` **ou** `document:read:own` **ou** `document:read:client` | 200 **ou** 422 — voir §9 |
 
 #### `invoices/invoices.controller.ts`
 

@@ -189,3 +189,48 @@ Le dernier est l'audit exige par le client : il deroule les quinze etapes de la
 chaine metier par l'API HTTP reelle, et confronte chaque reference relue a
 `^(PRO|CLI|PRJ|DEV|FAC|PAY)-\d{4}-\d{4}$` — la seule preuve que la table
 `Counter` est reellement traversee.
+
+## 6. Les deux verifications hors suite
+
+Ces deux scripts ne sont pas des tests : ils ne tournent pas dans la suite, ne
+sont pas hermetiques, et **parlent a des services reels**. Ils repondent a des
+questions qu'aucune suite locale ne peut trancher.
+
+| Commande | Ce qu'elle etablit | Cible |
+|---|---|---|
+| `npm run verify:storage` | Le stockage objet est utilisable tel quel : ecriture, relecture, **lien signe reellement suivi**, absence reconnue, suppression confirmee | Backblaze B2, depuis la machine |
+| `npm run smoke:prod` | La chaine metier complete tient sur le service **deploye**, de VISITEUR a PROJET TERMINE | Le service Render, par HTTP |
+
+### Pourquoi ils ne sont pas dans `test` ni `test:e2e`
+
+Ce n'est pas un oubli. `test:e2e` monte l'application EN MEMOIRE : il ne peut donc
+rien dire de ce qui n'existe qu'une fois deploye — que le conteneur demarre avec
+les variables qu'il a vraiment, que Neon soit joignable **depuis Render**, que les
+migrations soient appliquees sur la base que le service interroge, que le stockage
+reponde depuis ce reseau-la. Ce sont exactement les points sur lesquels un
+deploiement echoue alors que la suite locale est verte.
+
+### `smoke:prod` ECRIT DANS LA BASE DE PRODUCTION
+
+Un dossier client, un projet, des taches, un devis, une facture, un paiement,
+quatre documents. Tout est supprime a la fin, **y compris quand une etape
+echoue**, et le nettoyage se verifie lui-meme — il compte ce qui reste et doit
+trouver zero. Deux mesures rendent cela praticable :
+
+- le balayage des restes au demarrage reprend ce qu'une execution interrompue a
+  laisse, **avec un delai de garde de 30 minutes** : sans ce seuil, deux
+  executions simultanees se supprimeraient mutuellement leurs comptes — c'est un
+  bug reel, documente dans `full-chain.e2e-spec.ts` ;
+- rien n'est envoye a une adresse joignable : tous les comptes portent un domaine
+  `@comexa.example`, reserve par la RFC 2606.
+
+Lancer l'un ou l'autre **sans argument** vise la cible par defaut. Pour
+`smoke:prod`, on peut en changer :
+
+```bash
+npm run smoke:prod -- https://autre-service.onrender.com
+SMOKE_BASE_URL=https://autre-service.onrender.com npm run smoke:prod
+```
+
+Les deux lisent leurs identifiants dans `backend/.env` — jamais dans
+`.env.render`, qui est le fichier des variables d'hebergeur.

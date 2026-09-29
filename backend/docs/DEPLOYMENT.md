@@ -1105,6 +1105,62 @@ migration. L'URL directe est celle qui convient : l'hote pooli gere mal le DDL.
 > base Neon : cette commande **efface** les donnees avant de rejouer les
 > migrations. Elle ne vise que la base locale.
 
+#### Le premier administrateur, puis sa mise en service
+
+Deux gestes, et le second n'est pas facultatif. Cette annexe les omettait tous
+les deux : la voie VM les decrit (§13), la voie Render non — et c'est celle-ci
+qui est deployee.
+
+**1. Creer le compte.** Le service deploye ne lance jamais le seed : `SEED_*`
+n'est volontairement pas dans ses variables (A.4). Le seed tourne depuis votre
+machine, dans `backend/` :
+
+```bash
+SEED_ADMIN_EMAIL='vous@exemple.tld' \
+SEED_ADMIN_PASSWORD='<mot de passe initial, 12 caracteres minimum>' \
+SEED_DEMO_PASSWORD='<mot de passe des comptes de demonstration>' \
+npm run db:seed
+```
+
+> **Le garde-fou du seed ne protege pas ce chemin-la.** Le refus de tourner en
+> production (`prisma/seed.ts`) ne se declenche que si `NODE_ENV` vaut
+> `production` — or votre `.env` local ne le met pas. Le seed ecrit donc, sans
+> rien demander, dans la base que designe **`DATABASE_URL`**, qui est ici la base
+> Neon de production. C'est voulu pour ce geste precis, mais soyez-en conscient :
+> le `SEED_ALLOW_PRODUCTION=yes` des exemples plus haut n'est requis que si vous
+> lancez le seed avec `NODE_ENV=production`.
+>
+> Le seed **ne reecrit pas** le mot de passe d'un compte existant
+> (`upsertAccount`) : le relancer est sans danger, et ne remet rien a zero.
+
+**2. Mettre le compte en service.** Le seed cree l'administrateur avec
+`mustChangePassword: true`, et le serveur ferme alors **tout** sauf ce qui permet
+d'en sortir. Concretement, avec le jeton d'un administrateur neuf :
+`POST /api/auth/login` repond **200** — le jeton est bien delivre — puis
+**la premiere route metier venue repond 403 `PASSWORD_CHANGE_REQUIRED`**. Vu du
+frontend, cela ressemble a une panne d'autorisation ; ce n'en est pas une.
+
+Un seul appel suffit, et un seul sera jamais necessaire :
+
+```bash
+curl -sS -X POST https://<votre-service>.onrender.com/api/auth/change-password \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -d '{"currentPassword":"<mot de passe initial>","newPassword":"<le mot de passe voulu>","confirmPassword":"<le meme>"}'
+```
+
+Le drapeau retombe et **ne se repose jamais** : `changePassword` ecrit
+`mustChangePassword: false`, et rien d'autre ne le remet a `true` pour un compte
+existant — le seed ne retouche pas le mot de passe d'un compte deja present.
+Un deploiement n'a donc besoin de cette etape **qu'une seule fois**.
+
+**`npm run smoke:prod` fait les deux automatiquement**, s'il trouve le compte en
+premiere connexion : il le met en service, parcourt la chaine metier complete,
+puis **remet le mot de passe a sa valeur de `backend/.env`**. Le compte se
+retrouve donc avec le mot de passe que vous connaissez deja, et le drapeau
+tombe. La manœuvre est idempotente — sur un compte deja en service, le script ne
+touche a rien. Detail dans `docs/API.md` §9.
+
 ### A.6 Le reveil periodique — obligatoire, pas optionnel
 
 C'est la piece qui rend cette voie praticable, et la seule a ne pas oublier.
