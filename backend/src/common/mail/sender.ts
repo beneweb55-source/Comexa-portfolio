@@ -34,7 +34,17 @@ import type { MailAddress } from './mail.types.js';
  * volontiers tels qu'ils ont ete saisis.
  */
 export function parseSender(raw: string): MailAddress {
-  const value = raw.trim();
+  // LES GUILLEMETS SONT RETIRES AVANT LE MOTIF, ET PAS SEULEMENT APRES.
+  // C'est le cas de tres loin le plus courant en pratique : un fichier `.env`
+  // ecrit `SMTP_FROM="Comexa <a@b.c>"`, et le modele du depot fait exactement
+  // ca. Or tous les lecteurs ne retirent pas ces guillemets — `docker run
+  // --env-file` les conserve tels quels, et un tableau de bord d'hebergeur le
+  // fait volontiers aussi. Sans ce retrait, la valeur recue finit par un
+  // guillemet, le motif d'angle ne s'applique donc plus, et l'adresse retournee
+  // devient la chaine ENTIERE : elle contient une arobase, donc elle franchit
+  // la verification ci-dessous, et le fournisseur refuse ensuite chaque envoi
+  // en designant un expediteur que personne n'a jamais ecrit.
+  const value = unquote(raw.trim());
   const angled = /^(.*?)\s*<\s*([^<>]+?)\s*>$/.exec(value);
 
   // Les groupes sont lus avec un repli explicite, et non par confiance :

@@ -70,6 +70,26 @@ describe('parseSender — decomposition de SMTP_FROM', () => {
     });
   });
 
+  it('enleve les guillemets qui entourent la VALEUR ENTIERE, comme dans un .env', () => {
+    // Le cas que ce test protege est celui du modele du depot lui-meme :
+    // `.env.example` ecrit `SMTP_FROM="Comexa <no-reply@comexa.example>"`, et
+    // `.env.render` fait pareil. Les guillemets y protegent les espaces et les
+    // chevrons, mais tous les lecteurs ne les retirent pas — `docker run
+    // --env-file` est connu pour les conserver. Sans le retrait, la valeur recue
+    // finit par un guillemet, le motif d'angle ne s'applique plus, et l'adresse
+    // retournee devient la chaine entiere : elle contient une arobase, donc
+    // elle franchit la verification, et le fournisseur refuse chaque envoi en
+    // designant un expediteur que personne n'a ecrit.
+    assert.deepEqual(parseSender('"Comexa <no-reply@comexa.com>"'), {
+      email: 'no-reply@comexa.com',
+      name: 'Comexa',
+    });
+
+    assert.deepEqual(parseSender("'no-reply@comexa.com'"), {
+      email: 'no-reply@comexa.com',
+    });
+  });
+
   it("accepte un angle sans nom d'affichage, sans produire de nom vide", () => {
     assert.deepEqual(parseSender('<no-reply@comexa.com>'), {
       email: 'no-reply@comexa.com',
