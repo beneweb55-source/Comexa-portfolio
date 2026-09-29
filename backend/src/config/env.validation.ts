@@ -141,13 +141,23 @@ export class EnvironmentVariables {
 
   // --- Courriel transactionnel -------------------------------------------------
   //
-  // `SMTP_HOST` est FACULTATIF ici mais OBLIGATOIRE en production : voir
-  // `assertMailConfigured`. La distinction est volontaire. Sans serveur
-  // d'envoi, l'API continue de tourner — indispensable en developpement, ou
-  // personne ne veut configurer un relais SMTP pour tester une connexion — mais
-  // en production, un « mot de passe oublie » qui repond 200 sans rien envoyer
-  // est un mensonge a l'utilisateur : il attend un courriel qui n'arrivera
-  // jamais, et personne ne s'en apercoit avant qu'il n'appelle.
+  // DEUX CHEMINS D'ENVOI, UN SEUL EXIGE. `BREVO_API_KEY` (API HTTP, port 443)
+  // et `SMTP_HOST` (relais SMTP) sont tous deux facultatifs ici, mais l'un des
+  // deux est OBLIGATOIRE en production : voir `assertMailConfigured`. La
+  // distinction est volontaire. Sans serveur d'envoi, l'API continue de tourner
+  // — indispensable en developpement, ou personne ne veut configurer un relais
+  // pour tester une connexion — mais en production, un « mot de passe oublie »
+  // qui repond 200 sans rien envoyer est un mensonge a l'utilisateur : il attend
+  // un courriel qui n'arrivera jamais, et personne ne s'en apercoit avant qu'il
+  // n'appelle.
+  //
+  // `BREVO_API_KEY` est prefere quand il est present (voir
+  // `MailService.resolveTransport`) : plusieurs hebergeurs gratuits bloquent en
+  // sortie les ports SMTP 25, 465 et 587, et le port 443 ne l'est jamais.
+  @IsOptional()
+  @IsString()
+  BREVO_API_KEY?: string;
+
   @IsOptional()
   @IsString()
   SMTP_HOST?: string;
@@ -237,28 +247,36 @@ function assertSecretsDiffer(env: EnvironmentVariables): void {
 }
 
 /**
- * En production, un serveur d'envoi doit etre configure.
+ * En production, un moyen d'envoi doit etre configure.
  *
  * Le raisonnement : le parcours « mot de passe oublie » repond toujours 200, y
  * compris quand l'adresse est inconnue — c'est necessaire pour ne pas reveler
  * quels comptes existent. Cette reponse constante n'est honnete que si le
- * courriel part quand le compte existe. Sans SMTP, l'API repondrait « consultez
- * votre boite » a tout le monde, et personne ne recevrait rien.
+ * courriel part quand le compte existe. Sans transport, l'API repondrait
+ * « consultez votre boite » a tout le monde, et personne ne recevrait rien.
  *
- * On refuse donc de demarrer plutot que de laisser cette panne silencieuse
- * s'installer. En developpement, l'absence de SMTP est normale : le lien est
- * ecrit dans les journaux (voir `MailService`).
+ * DEUX CHEMINS SATISFONT CETTE EXIGENCE, ET C'EST VOULU : `SMTP_HOST` (relais
+ * SMTP) ou `BREVO_API_KEY` (API HTTP). Exiger le premier seul reviendrait a
+ * interdire de deployer sur un hebergeur qui filtre les ports SMTP — ils sont
+ * plusieurs a le faire, dont l'offre gratuite de Render, ou la connexion vers
+ * `smtp-relay.brevo.com:587` n'aboutit jamais au lieu d'echouer franchement.
+ * Le message nomme donc les deux, et rappelle lequel fonctionne partout.
+ *
+ * On refuse de demarrer plutot que de laisser cette panne silencieuse
+ * s'installer. En developpement, l'absence de transport est normale : le lien
+ * est ecrit dans les journaux (voir `MailService`).
  */
 function assertMailConfigured(env: EnvironmentVariables): void {
   if (env.NODE_ENV !== NodeEnv.Production) {
     return;
   }
 
-  if (!env.SMTP_HOST) {
+  if (!env.SMTP_HOST && !env.BREVO_API_KEY) {
     throw new Error(
-      "SMTP_HOST est obligatoire en production : sans serveur d'envoi, le parcours " +
+      "Aucun moyen d'envoi de courriel n'est configure : sans transport, le parcours " +
         '"mot de passe oublie" repondrait 200 sans jamais envoyer de courriel. ' +
-        'Renseigner SMTP_HOST, SMTP_PORT, SMTP_USER et SMTP_PASSWORD.',
+        'Renseigner BREVO_API_KEY (API HTTP, port 443 : fonctionne meme la ou le SMTP ' +
+        'est bloque) ou, a defaut, SMTP_HOST, SMTP_PORT, SMTP_USER et SMTP_PASSWORD.',
     );
   }
 }

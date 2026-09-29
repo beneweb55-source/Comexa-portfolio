@@ -5,6 +5,12 @@ Runbook pour mettre l'API en production sur **une VM unique, toujours allumee**.
 Chaque affirmation de ce document a ete mesuree (version de Node, `docker compose
 config`, sortie reelle des commandes citees), pas recopiee d'un tutoriel.
 
+> **Deux chemins, un seul jeu de reglages.** Les sections 1 a 17 decrivent le
+> deploiement sur **VM**. Si vous n'avez pas de machine — pas de carte bancaire,
+> rien a administrer — l'**annexe A** decrit le meme deploiement sur **Render**,
+> avec ce que ce palier gratuit impose en plus. Neon, Brevo et Backblaze B2 s'y
+> configurent a l'identique.
+
 ---
 
 ## 1. L'architecture retenue, et pourquoi
@@ -375,11 +381,42 @@ S3_FORCE_PATH_STYLE=true
 
 ## 9. Le courriel (Brevo)
 
-1. Compte sur <https://www.brevo.com/> — 300 courriels/jour, **aucun domaine
-   requis** sur le palier gratuit.
-2. **SMTP & API → SMTP** : notez le serveur (`smtp-relay.brevo.com`), le port
+Compte sur <https://www.brevo.com/> — 300 courriels/jour, **aucun domaine requis**
+sur le palier gratuit.
+
+Brevo expose **deux chemins d'envoi**, et le backend sait parler les deux. Le
+choix n'est pas cosmetique : il decide si le courriel part ou non.
+
+### 9.1 Par l'API HTTP — le chemin a preferer
+
+**C'est le seul chemin qui fonctionne sur un hebergeur qui filtre le SMTP**, et
+donc celui de l'annexe A (Render). Plusieurs plateformes bloquent en sortie les
+ports `25`, `465` et `587` pour empecher le spam. Sur ces plateformes, un envoi
+SMTP **n'echoue pas** : la connexion n'aboutit jamais, il n'y a aucune erreur
+d'authentification, et le seul symptome est un courriel qui n'arrive pas. Le port
+`443`, lui, n'est jamais filtre — c'est celui par lequel l'API repond.
+
+1. **SMTP & API → API Keys → Generate a new API key.**
+2. Copiez la cle. **Ce n'est PAS la cle de l'onglet SMTP** : celle-la commence
+   par `xkeysib-` et l'API la refuse avec un `401`.
+3. Verifiez l'adresse d'expediteur dans **Senders, Domains & Dedicated IPs**.
+   Une adresse non verifiee fait refuser l'envoi avec un `400` mentionnant
+   `sender`.
+
+```bash
+BREVO_API_KEY=<cle d'API, onglet API Keys>
+SMTP_FROM="Comexa <no-reply@exemple.tld>"
+```
+
+`SMTP_HOST` reste **vide** dans ce cas.
+
+### 9.2 Par SMTP — pour une machine classique
+
+Utile sur la VM de l'annexe « VM » (Oracle, ou une machine a vous), ou aucun
+filtrage en sortie n'existe.
+
+1. **SMTP & API → SMTP** : notez le serveur (`smtp-relay.brevo.com`), le port
    `587`, votre identifiant SMTP et la cle SMTP.
-3. Verifiez l'adresse d'expediteur que vous mettrez dans `SMTP_FROM`.
 
 ```bash
 SMTP_HOST=smtp-relay.brevo.com
@@ -389,10 +426,26 @@ SMTP_PASSWORD=<cle SMTP>
 SMTP_FROM="Comexa <no-reply@exemple.tld>"
 ```
 
-> Le serveur **refuse de demarrer** en production sans `SMTP_HOST`. Ce n'est pas
-> une tracasserie : la route « mot de passe oublie » repond toujours `200`, meme
-> sur une adresse inconnue, pour ne pas reveler quels comptes existent. Cette
-> reponse n'est honnete que si le courriel part quand le compte existe.
+`BREVO_API_KEY` reste **vide** dans ce cas.
+
+### 9.3 Ce que fait le backend, dans tous les cas
+
+> **Si les deux sont renseignes, l'API HTTP gagne** (voir
+> `MailService.resolveTransport`). Ce n'est pas un detail d'implementation :
+> choisir l'autre transport sur un hebergeur qui filtre le SMTP ferait echouer
+> chaque envoi en silence. La presence des identifiants **est** le choix — il n'y
+> a pas de variable a positionner.
+>
+> **Le serveur refuse de demarrer** en production si ni `BREVO_API_KEY` ni
+> `SMTP_HOST` n'est renseigne. Ce n'est pas une tracasserie : la route « mot de
+> passe oublie » repond toujours `200`, meme sur une adresse inconnue, pour ne pas
+> reveler quels comptes existent. Cette reponse n'est honnete que si le courriel
+> part quand le compte existe.
+>
+> **Le transport retenu est annonce au demarrage.** Cherchez la ligne `Courriel :`
+> dans les journaux (`docker compose logs api` sur la VM, l'onglet *Logs* sur
+> Render). Elle dit quel chemin est actif et avec quel expediteur : c'est la
+> premiere chose a lire quand un courriel ne part pas.
 >
 > Sur le palier gratuit de Brevo, un pied de page « Sent with Brevo » est ajoute
 > aux messages. C'est le prix du palier gratuit, pas un defaut de configuration.
@@ -446,7 +499,8 @@ silence) :
 | `COOKIE_SAMESITE` | `lax` (meme domaine parent) ou `none` (**frontend heberge ailleurs**, ex. Vercel) | Sinon la session disparait au rechargement. `none` exige HTTPS **et** retire la barriere `SameSite` : `CORS_ORIGIN` doit alors ne contenir que vos domaines, jamais `*` |
 | `STORAGE_DRIVER` | `s3` | `local` est **refuse au demarrage** en production |
 | `S3_*` | voir §8 | |
-| `SMTP_*` | voir §9 | `SMTP_HOST` est **obligatoire** en production |
+| `BREVO_API_KEY` | voir §9.1 | **L'un des deux est obligatoire.** A preferer : le port 443 n'est jamais filtre |
+| `SMTP_*` | voir §9.2 | **L'un des deux est obligatoire.** A n'utiliser que si l'API HTTP est impossible |
 
 Verifiez le fichier **avant** de demarrer. Les quatre commandes ci-dessous
 repondent chacune a une erreur qui ne se manifeste pas au demarrage :
@@ -470,6 +524,14 @@ awk -F= '/^[A-Z_][A-Z0-9_]*=/ {print $1}' .env.production | sort | uniq -d
 grep -n "^NODE_ENV=production"  .env.production   # doit renvoyer une ligne
 grep -n "^STORAGE_DRIVER=s3"    .env.production   # doit renvoyer une ligne
 grep -n "^TRUST_PROXY=1"        .env.production   # doit renvoyer une ligne
+
+# 5. UN moyen d'envoi de courriel, et UN SEUL. `grep -c` compte les lignes NON
+#    VIDES : la somme doit valoir exactement 1. Zero fait refuser le demarrage en
+#    production ; deux ne cassent rien (l'API gagne) mais signalent une
+#    configuration laissee a moitie faite, et le SMTP reste dans le fichier a
+#    portee de qui le lit.
+grep -c "^BREVO_API_KEY=..*" .env.production
+grep -c "^SMTP_HOST=..*"     .env.production
 ```
 
 ---
@@ -753,7 +815,8 @@ unset PGPASSWORD
 | `502` de Caddy | L'API n'ecoute pas | `... logs api` — souvent une variable d'environnement manquante |
 | Certificat non delivre | DNS pas propage, ou port 80 ferme | `dig +short api.exemple.tld`, puis §4 |
 | `STORAGE_DRIVER=local est refuse en production` | `.env.production` non charge | Le `--env-file` a ete oublie |
-| Le serveur refuse de demarrer, `SMTP_HOST` cite | C'est **voulu** | Renseigner §9 |
+| Le serveur refuse de demarrer, aucun moyen d'envoi cite | C'est **voulu** | Renseigner §9 — `BREVO_API_KEY` **ou** `SMTP_HOST` |
+| Le serveur demarre, aucun courriel n'arrive, aucune erreur | L'hebergeur filtre le SMTP en sortie : la connexion n'aboutit jamais | Passer a `BREVO_API_KEY` (§9.1) et laisser `SMTP_HOST` vide |
 | `429` pour tout le monde | Le limiteur compte sous l'adresse du proxy | `TRUST_PROXY=1` (deja force par Compose) |
 | Connecte, puis deconnecte au rechargement | Cookie refuse par le navigateur | `COOKIE_SAMESITE` correct, et HTTPS reellement actif |
 | `403 PASSWORD_CHANGE_REQUIRED` | Premier mot de passe jamais change | §13 |
@@ -778,3 +841,220 @@ unset PGPASSWORD
 - **Le durcissement de la VM** (fail2ban, mises a jour automatiques, cle SSH
   renommee, desactivation de l'authentification par mot de passe). Recommande,
   hors du perimetre de ce runbook.
+
+---
+
+## Annexe A. Deployer sur Render (sans VM)
+
+Second chemin de deploiement, pour le cas ou aucune VM n'est disponible. Il ne
+remplace pas les sections 1 a 17 : Neon, Brevo et Backblaze B2 s'y configurent
+exactement de la meme facon. **Seul l'hebergement change.**
+
+> **A lire avant de choisir.** Le §1 explique pourquoi une VM a ete retenue : le
+> palier gratuit de Render endort un service inactif, et `InvoiceOverdueService`
+> porte un `@Cron` horaire qui ne part alors *jamais*. Cette annexe ne fait pas
+> disparaitre cette contrainte — elle l'encadre par un reveil periodique (A.6),
+> qui est la piece sans laquelle le reste ne sert a rien. **Si vous pouvez
+> obtenir une VM, la VM reste le meilleur choix.**
+
+### A.1 Ce que Render fait a votre place
+
+| Ce que la VM faisait | Ce qui le remplace |
+|---|---|
+| Caddy + certificat Let's Encrypt | Render termine le TLS lui-meme |
+| `systemd` + `docker compose up -d` | Render construit l'image et redemarre le conteneur |
+| `docker compose logs -f` | L'onglet *Logs* du tableau de bord |
+| Le disque de la VM | **Rien** — il est efface a chaque redeploiement |
+
+La derniere ligne est la seule qui oblige a changer un reglage : voir A.4.
+
+### A.2 Les trois limites du palier gratuit, et ce qu'elles imposent
+
+Mesures du 29/09/2026, conservees ici pour la meme raison qu'au §1.
+
+1. **15 minutes sans trafic entrant endorment le service**, qui redemarre en une
+   minute environ. Consequence directe : sans reveil periodique, le `@Cron`
+   horaire de `InvoiceOverdueService` ne s'execute jamais, et la relance des
+   factures en retard est silencieusement morte. Voir A.6.
+2. **750 heures-instance par mois et par workspace.** Un mois de 31 jours en
+   compte 744 : un service maintenu eveille en permanence y tient, avec
+   **6 heures de marge**. Pas de quoi ajouter un second service gratuit au meme
+   workspace.
+3. **Les ports SMTP 25, 465 et 587 sont bloques en sortie.** C'est ce qui a
+   motive le transport par API HTTP de Brevo (`BREVO_API_KEY`, port 443) decrit
+   au §9.1. Sur Render, renseigner `SMTP_HOST` ne produit pas une erreur
+   d'authentification mais une connexion qui n'aboutit jamais.
+
+Les WebSockets, eux, ne posent pas de probleme : les messages echanges sur une
+connexion ouverte comptent comme du trafic entrant et maintiennent le service
+eveille. Le chat temps reel fonctionne donc — et allonge meme la periode
+d'eveil.
+
+### A.3 Creer le service
+
+1. **New + → Web Service**, puis *Build and deploy from a Git repository*.
+   Indiquer le depot `beneweb55-source/Comexa-portfolio`.
+2. Renseigner les champs ainsi :
+
+| Champ | Valeur | Pourquoi |
+|---|---|---|
+| Language | **Docker** | Le `Dockerfile` du depot est deja ecrit et teste ; laisser Render installer Node l'obligerait a deviner l'etape `prisma generate` |
+| Branch | `main` apres fusion, sinon la branche de travail | |
+| Root Directory | `backend` | Le depot est un monorepo : la racine est `Comexa Portfolio`, l'API vit dans `backend/` |
+| Dockerfile Path | `./Dockerfile` | Chemin **relatif au Root Directory**, donc `backend/Dockerfile` |
+| Instance Type | **Free** | |
+| Health Check Path | `/api/health` | Route reelle, qui interroge la base — le `/api` vient de `API_PREFIX` |
+| Auto-Deploy | **Yes** | Redeploie a chaque `git push` sur la branche surveillee |
+
+> Laisser `Docker Build Context` vide. Le contexte par defaut est le Root
+> Directory, c'est-a-dire `backend/`, et le `Dockerfile` fait bien
+> `COPY package.json`, `COPY prisma` et `COPY src` depuis cette racine.
+
+3. **Ne pas demarrer le service tout de suite.** A.4 demande les variables
+   d'environnement, et un demarrage sans elles echoue.
+
+### A.4 Les variables d'environnement
+
+A saisir dans *Environment → Environment Variables*. `backend/.env.example`
+documente les 28 variables ; ce tableau ne retient que celles qui changent ou
+qui sont obligatoires.
+
+**Obligatoires**
+
+| Variable | Valeur | Note |
+|---|---|---|
+| `NODE_ENV` | `production` | Active les controles de demarrage (`assertMailConfigured`, refus du stockage local) et supprime les traces de pile des reponses |
+| `DATABASE_URL` | URL Neon **pooli** (hote `-pooler`) | Celle que l'application utilise |
+| `DIRECT_URL` | URL Neon **directe** | Lue en premier par la CLI Prisma ; necessaire si vous lancez une migration depuis l'onglet *Shell* de Render |
+| `JWT_ACCESS_SECRET` | chaine aleatoire longue | **Doit differer** de `JWT_REFRESH_SECRET`, sinon le demarrage est refuse (`assertSecretsDiffer`) |
+| `JWT_REFRESH_SECRET` | autre chaine aleatoire longue | Voir ci-dessus |
+| `BREVO_API_KEY` | cle d'API Brevo (SMTP & API → API Keys) | §9.1. Laisser `SMTP_HOST` **vide** |
+| `STORAGE_DRIVER` | `s3` | Le disque est ephemere : `local` est refuse au demarrage |
+
+Pour engendrer les deux secrets, plutot que de les inventer a la main :
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+```
+
+**Stockage — Backblaze B2** (meme compte qu'au §3)
+
+| Variable | Valeur |
+|---|---|
+| `S3_REGION` | la region du compte, telle qu'affichee en console (ex. `us-west-004`) |
+| `S3_BUCKET` | le nom du bucket |
+| `S3_ENDPOINT` | `https://s3.<S3_REGION>.backblazeb2.com` |
+| `S3_ACCESS_KEY_ID` | *keyID* de la cle d'application B2 |
+| `S3_SECRET_ACCESS_KEY` | *applicationKey* associee |
+| `S3_FORCE_PATH_STYLE` | `true` |
+
+Deux pieges sur ce bloc. `S3_ENDPOINT` doit inclure le schema : le SDK le prend
+tel quel. Et **`S3_FORCE_PATH_STYLE` reste a `true`** — Backblaze n'accepte pas
+l'adressage par sous-domaine que le SDK emploierait sinon. C'est deja le defaut
+du code, mais l'ecrire evite qu'un futur changement de defaut ne casse ce
+deploiement sans prevenir.
+
+Employer une **cle d'application** B2, jamais la cle maitre : elle peut etre
+limitee a ce seul bucket.
+
+**Selon votre situation**
+
+| Variable | Valeur | Note |
+|---|---|---|
+| `COOKIE_SAMESITE` | `none` | **Obligatoire si le frontend est sur Vercel.** Un site different est un site tiers : un cookie `lax` n'y est jamais envoye, et la connexion semble echouer sans message |
+| `CORS_ORIGIN` | l'URL Vercel de production, exacte et sans slash final (ex. `https://comexa.vercel.app`) | Mettre l'URL de **production**, pas une URL de previsualisation |
+| `FRONTEND_URL` | la meme URL | Sert a construire les liens profonds des courriels (§9.3) |
+| `TRUST_PROXY` | `1` | Render place **un** proxy devant le conteneur. Sans ce reglage, tous les visiteurs partagent l'adresse du proxy : le limiteur de debit les compte comme un seul client, et le premier venu epuise la limite pour tout le monde |
+| `PORT` | ne pas la definir | Render l'injecte, et `main.ts` la lit deja |
+
+> `COOKIE_SAMESITE=none` exige un cookie `Secure`, ce que la production fait
+> deja. En revanche, `none` avec un frontend servi en `http://` ne fonctionne
+> pas : la combinaison ne devient testable qu'une fois le frontend en HTTPS.
+
+### A.5 Appliquer les migrations depuis votre machine
+
+Les migrations ne sont **pas** jouees par le conteneur au demarrage, et c'est
+volontaire : un demarrage qui applique un DDL sur la base de production rendrait
+le retour arriere dependant d'un redemarrage.
+
+Depuis `backend/`, avec le `.env` local qui porte `DIRECT_URL` :
+
+```bash
+npm run prisma:deploy    # = prisma migrate deploy
+npm run prisma:status    # = prisma migrate status, pour verifier
+```
+
+A faire **avant** le premier demarrage, puis apres chaque fusion qui ajoute une
+migration. L'URL directe est celle qui convient : l'hote pooli gere mal le DDL.
+
+> Ne jamais lancer `npm run db:reset` (`prisma migrate reset --force`) contre la
+> base Neon : cette commande **efface** les donnees avant de rejouer les
+> migrations. Elle ne vise que la base locale.
+
+### A.6 Le reveil periodique — obligatoire, pas optionnel
+
+C'est la piece qui rend cette voie praticable, et la seule a ne pas oublier.
+
+Le palier gratuit endort le service apres 15 minutes sans trafic entrant. Or
+`InvoiceOverdueService` porte un `@Cron(CronExpression.EVERY_HOUR)` : endormi,
+il ne part pas du tout. Pas d'erreur, pas de trace, des factures en retard qui
+ne sont jamais relancees.
+
+Il faut donc un **appel sortant regulier** vers `/api/health`, **toutes les 10
+minutes**, depuis un service qui ne dort pas. Un planificateur externe gratuit
+convient : `cron-job.org`, UptimeRobot, ou tout autre.
+
+```
+URL        https://<votre-service>.onrender.com/api/health
+Methode    GET
+Frequence  toutes les 10 minutes
+```
+
+Deux remarques.
+
+- **10 minutes, pas 14.** La marge n'est pas un exces de prudence : un
+  planificateur gratuit peut lui-meme accuser du retard, et le compteur des 15
+  minutes ne repart pas de zero apres un echec isole.
+- **Ne pas utiliser un *Cron Job* Render pour cela.** Les services d'un meme
+  workspace partagent les 750 heures-instance (A.2), et ce planificateur en
+  consommerait aussi. Un reveil externe ne coute rien.
+
+Le reveil rend le `@Cron` possible ; il ne le rend pas ponctuel. Un `@Cron`
+horaire s'execute « environ » toutes les heures, avec le retard du reveil — sans
+consequence ici, la relance des factures en retard n'ayant pas a se faire a la
+minute pres.
+
+### A.7 Verifier que le deploiement a reussi
+
+Dans l'ordre ; chaque etape repond a une question differente.
+
+1. **Le deploiement est passe au vert.** Sinon, ouvrir les journaux de *build* :
+   le `Dockerfile` engendre le client Prisma pendant la construction, et une
+   erreur TypeScript n'apparait qu'ici.
+2. **`GET https://<service>.onrender.com/api/health` repond `200`.** Render
+   attend cette route avant de declarer le service en bonne sante ; des echecs
+   repetes finissent par annuler le deploiement.
+3. **Les journaux de demarrage annoncent les bons services.** Chercher, dans
+   l'onglet *Logs* :
+   - une ligne `Courriel : API HTTP Brevo, expediteur ...`. Si elle dit `SMTP`,
+     c'est que `SMTP_HOST` a ete renseigne alors qu'il ne faut pas (A.2,
+     limite 3) ;
+   - une ligne de stockage annoncant le pilote S3, et non « stockage local ».
+4. **Le mot de passe oublie arrive vraiment.** C'est le seul essai qui exerce le
+   chemin complet — Brevo, l'expediteur verifie, le lien profond construit
+   depuis `FRONTEND_URL`. Le declencher depuis le frontend, pas avec `curl` :
+   c'est le parcours reel qu'on veut valider.
+
+### A.8 Ce que cette voie ne permet pas
+
+- **Aucun disque persistant.** C'est la raison du `STORAGE_DRIVER=s3` ; un
+  retour a `local` ferait disparaitre les fichiers au premier redeploiement,
+  alors que leurs lignes resteraient en base.
+- **Une seule instance.** Le limiteur de debit et le verrouillage de compte
+  tiennent leur etat en memoire vive : deux instances, et chaque limite est
+  reellement doublee. Le palier gratuit n'en offre qu'une, ce qui rend la chose
+  sans objet — mais l'interdit le jour ou vous voudriez monter en puissance
+  sans deplacer cet etat.
+- **Un premier appel lent.** Apres un endormissement, la premiere requete attend
+  le redemarrage, soit une minute environ. Le reveil de A.6 supprime ce cas de
+  figure en pratique — a condition de ne pas le desactiver.

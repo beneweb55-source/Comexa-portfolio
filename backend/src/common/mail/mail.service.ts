@@ -1,16 +1,26 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createTransport, type Transporter } from 'nodemailer';
+import { createBrevoApiTransport, parseSender } from './brevo.transport.js';
+import { createSmtpTransport } from './smtp.transport.js';
+import type { MailTransport, OutgoingMail } from './mail.types.js';
 
 /**
  * Envoi de courriels transactionnels.
  *
- * UN SEUL POINT DE VERITE SUR LE TRANSPORT. Sans `SMTP_HOST`, il n'y a pas de
- * transport — et surtout, l'absence est SIGNALEE, pas silencieuse. Le message
- * part dans les journaux avec une banniere explicite. C'est ce qui permet de
- * tester « mot de passe oublie » en developpement sans relais SMTP, tout en
- * gardant la certitude qu'en production (ou `env.validation` exige `SMTP_HOST`)
- * le courriel est reellement remis a un serveur.
+ * UN SEUL POINT DE VERITE SUR LE TRANSPORT, et il en existe DEUX depuis que le
+ * SMTP ne suffit plus : plusieurs hebergeurs gratuits bloquent en sortie les
+ * ports 25, 465 et 587. Sur ces plateformes, un service qui ne saurait parler
+ * que SMTP demarre normalement puis echoue a chaque envoi sans que rien ne le
+ * signale. Deux transports, donc, mais une seule regle de choix, ecrite dans
+ * `resolveTransport()` juste en dessous, et annoncee dans les journaux au
+ * demarrage : « pourquoi ce courriel n'est-il pas parti » se repond d'abord en
+ * lisant quelle ligne a ete ecrite au boot.
+ *
+ * Sans aucun des deux reglages, il n'y a pas de transport — et surtout, l'absence
+ * est SIGNALEE, pas silencieuse. Le message part dans les journaux avec une
+ * banniere explicite. C'est ce qui permet de tester « mot de passe oublie » en
+ * developpement sans relais, tout en gardant la certitude qu'en production (ou
+ * `env.validation` exige l'un des deux) le courriel est reellement remis.
  *
  * Ce service ne fabrique PAS de contenu anonyme : les gabarits sont dans des
  * methodes nommees (`sendPasswordReset`, `sendInvoice`, `sendQuote`), parce qu'un
@@ -24,41 +34,73 @@ import { createTransport, type Transporter } from 'nodemailer';
  * `try` : le statut du document est la verite, le courriel est un effet.
  */
 
-export interface OutgoingMail {
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-}
+/**
+ * Le type a demenage dans `mail.types.ts` le jour ou il a fallu le partager avec
+ * les deux transports. Il reste reexporte par ce fichier pour qu'aucun import
+ * existant ne casse.
+ */
+export type { OutgoingMail } from './mail.types.js';
+
+/** Expediteur par defaut, identique a celui de `env.validation.ts`. */
+const DEFAULT_FROM = 'Comexa <no-reply@comexa.example>';
 
 @Injectable()
 export class MailService implements OnModuleDestroy {
   private readonly logger = new Logger(MailService.name);
-  private readonly transport: Transporter | null;
-  private readonly from: string;
+  private readonly transport: MailTransport | null;
 
   constructor(private readonly config: ConfigService) {
-    this.from = this.config.get<string>('SMTP_FROM') ?? 'Comexa <no-reply@comexa.example>';
+    this.transport = this.resolveTransport();
+  }
 
-    const host = this.config.get<string>('SMTP_HOST');
-    const port = this.config.get<number>('SMTP_PORT') ?? 587;
-    const user = this.config.get<string>('SMTP_USER');
-    const password = this.config.get<string>('SMTP_PASSWORD');
+  /**
+   * Choix du transport, en un seul endroit.
+   *
+   * L'API HTTP GAGNE QUAND ELLE EST CONFIGUREE, meme si le SMTP l'est aussi, et
+   * cette regle n'est pas arbitraire : le SMTP peut etre bloque en sortie par
+   * l'hebergeur, l'API HTTP non. Une installation qui possede les deux reglages
+   * veut donc dire « utilise l'API si tu peux ». La precedence inverse ferait
+   * retomber en silence sur le transport qui ne fonctionne pas — exactement la
+   * panne que ce fichier existe pour rendre impossible.
+   *
+   * AUCUNE VARIABLE NE CHOISIT LE TRANSPORT. Un troisieme reglage
+   * (`MAIL_TRANSPORT=...`) pourrait contredire les identifiants presents, et
+   * l'application enverrait alors par un chemin dont elle n'annonce pas
+   * l'existence. La presence des identifiants EST le choix.
+   *
+   * L'expediteur est decompose ici pour les deux transports, afin qu'une adresse
+   * malformee arrete le demarrage au lieu de ne produire que des refus a chaque
+   * envoi — une panne qu'on ne decouvrirait qu'en demandant a un client s'il a
+   * bien recu son lien.
+   */
+  private resolveTransport(): MailTransport | null {
+    const from = parseSender(this.config.get<string>('SMTP_FROM') ?? DEFAULT_FROM);
+    const apiKey = this.config.get<string>('BREVO_API_KEY');
 
-    if (!host) {
-      this.transport = null;
-      return;
+    if (apiKey) {
+      this.logger.log(`Courriel : API HTTP Brevo, expediteur "${from.email}" (port 443).`);
+      return createBrevoApiTransport({ apiKey, from }, this.logger);
     }
 
-    this.transport = createTransport({
-      host,
-      port,
-      // Port 465 = TLS implicite des la connexion. Les autres ports demarrent
-      // en clair et passent en STARTTLS. Deduire ce reglage du port evite une
-      // variable de plus, qui serait un jour desaccordee du port.
-      secure: port === 465,
-      ...(user && password ? { auth: { user, pass: password } } : {}),
-    });
+    const host = this.config.get<string>('SMTP_HOST');
+
+    if (host) {
+      const port = this.config.get<number>('SMTP_PORT') ?? 587;
+      this.logger.log(`Courriel : SMTP ${host}:${port}, expediteur "${from.email}".`);
+      return createSmtpTransport({
+        host,
+        port,
+        user: this.config.get<string>('SMTP_USER'),
+        password: this.config.get<string>('SMTP_PASSWORD'),
+        from,
+      });
+    }
+
+    this.logger.warn(
+      'Courriel : aucun transport configure (ni BREVO_API_KEY ni SMTP_HOST). ' +
+        'Les courriels seront ecrits dans les journaux au lieu de partir.',
+    );
+    return null;
   }
 
   /** Vrai si un serveur d'envoi est configure. */
@@ -71,21 +113,24 @@ export class MailService implements OnModuleDestroy {
       this.logger.warn(
         [
           '',
-          '================ COURRIEL NON ENVOYE (SMTP non configure) ================',
+          '=========== COURRIEL NON ENVOYE (aucun transport configure) ============',
           `  A       : ${mail.to}`,
           `  Objet   : ${mail.subject}`,
           '  --- Corps ---',
           mail.text,
           '========================================================================',
-          'Configurez SMTP_HOST pour un envoi reel. En production, le serveur refuse',
-          'de demarrer sans lui (voir src/config/env.validation.ts).',
+          'Configurez BREVO_API_KEY (recommande : le port 443 sort partout) ou',
+          'SMTP_HOST pour un envoi reel. En production, le serveur refuse de demarrer',
+          'sans aucun des deux (voir src/config/env.validation.ts).',
         ].join('\n'),
       );
       return;
     }
 
-    await this.transport.sendMail({
-      from: this.from,
+    // Le transport porte l'expediteur : le SMTP le recompose en en-tete, l'API
+    // HTTP l'envoie en deux champs. `MailService` n'a donc plus a le connaitre,
+    // et les deux chemins ne peuvent plus diverger sur cette valeur.
+    await this.transport.send({
       to: mail.to,
       subject: mail.subject,
       text: mail.text,
