@@ -365,7 +365,12 @@ preferable — elle se retire cote GitHub en un clic.
      `S3_BUCKET`)
    - **Files in Bucket are: Private** — jamais public : les fichiers sont servis
      par des URL signees a duree courte, pas par un lien permanent.
-   - Notez la **region** (`us-west-004`, `eu-central-003`…).
+   - Notez la **region** (`us-west-004`, `eu-central-003`…). Elle figure dans la
+     fiche du bucket, champ *Endpoint*, sous la forme
+     `s3.<region>.backblazeb2.com`. **C'est cette valeur-la qui fait foi**, et
+     non celle dont on se souvient : un compte B2 est lie a une seule region, et
+     un endpoint qui ne correspond pas au bucket donne un « bucket not found »
+     qui ne dit pas qu'il s'agit d'un probleme de region.
 2. **Application Keys → Add a New Application Key**
    - **Restreignez la cle a ce bucket.** Inutile de donner a l'application
      l'acces a tout le compte.
@@ -1054,10 +1059,14 @@ node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 | `S3_FORCE_PATH_STYLE` | `true` |
 
 Deux pieges sur ce bloc. `S3_ENDPOINT` doit inclure le schema : le SDK le prend
-tel quel. Et **`S3_FORCE_PATH_STYLE` reste a `true`** — Backblaze n'accepte pas
-l'adressage par sous-domaine que le SDK emploierait sinon. C'est deja le defaut
-du code, mais l'ecrire evite qu'un futur changement de defaut ne casse ce
-deploiement sans prevenir.
+tel quel. Et **`S3_FORCE_PATH_STYLE` reste a `true`** : les exemples
+d'integration Backblaze l'exigent, sans quoi le SDK construit
+`<bucket>.<endpoint>` la ou B2 attend `<endpoint>/<bucket>`. Le point n'est pas
+tranche par toutes les sources — B2 a historiquement accepte les deux formes, et
+un annuaire de fournisseurs le classe meme en adressage par sous-domaine — mais
+c'est l'adressage par chemin que recommandent les guides fondes sur le SDK, et
+c'est deja le defaut du code. L'ecrire evite qu'un futur changement de defaut ne
+casse ce deploiement sans prevenir.
 
 Employer une **cle d'application** B2, jamais la cle maitre : elle peut etre
 limitee a ce seul bucket.
