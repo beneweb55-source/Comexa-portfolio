@@ -568,9 +568,37 @@ absentes et repondent 404 : un plan detaille de l'API aiderait surtout quelqu'un
 la cartographier. Le frontend de developpement y accede, la production non — ne
 construisez donc rien qui en depende a l'execution.
 
-L'authentification par Bearer est declaree dans le document (`access-token`) et
-`persistAuthorization` est actif : le jeton saisi dans l'interface survit au
-rechargement de la page.
+### Authentification : une exigence globale, et des exceptions declarees
+
+Le schema Bearer est declare sous le nom `access-token`, et `persistAuthorization`
+est actif : le jeton saisi dans l'interface survit au rechargement de la page.
+
+Ce jeton est exige **globalement**, au niveau racine du document (`security`), et
+non operation par operation. Ce n'est pas un raccourci : `JwtAuthGuard` est
+enregistre en `APP_GUARD`, donc l'API **refuse par defaut** — toute route exige un
+jeton sauf mention contraire. Une exigence globale decrit exactement cela, et elle
+resiste a l'ajout d'une route : celle-ci est protegee sans que personne ait a y
+penser, et elle est documentee comme telle.
+
+L'effet secondaire est ce qui rend l'affichage juste. Une route reellement ouverte
+declare l'inverse, `security: []` — « aucune exigence », ce qui n'est pas la meme
+chose que « non declaree », qui herite du global. Ces routes n'affichent donc
+aucun cadenas, et Swagger UI n'y attache pas d'en-tete `Authorization`.
+
+C'est `@Public()` qui pose les deux : la metadonnee que lit le garde, et le
+`security: []`. Les fusionner fait qu'une route ne peut pas devenir publique sans
+que sa documentation suive. Les routes concernees sont celles qui portent
+`@Public()` — la sante (§8), les cinq routes d'authentification (connexion,
+rafraichissement, deconnexion, mot de passe oublie, reinitialisation ; §2) et les
+onze routes de contenu public. L'inventaire complet est en §10, ou ces routes se
+reconnaissent a leur colonne **Permission** valant `publique`. Les trois sources
+doivent concorder : l'inventaire, les `@Public()` du code, et le document genere.
+
+Deux tests tiennent cet accord entre le code et le document :
+`src/common/decorators/public.decorator.spec.ts` verifie la mecanique du
+decorateur, et `test/docs.e2e-spec.ts` verifie le document que `configureApp`
+produit reellement — il compare notamment le nombre de routes publiques
+documentees au nombre de `@Public()` ecrits dans les sources.
 
 ---
 

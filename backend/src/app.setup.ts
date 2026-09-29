@@ -1,7 +1,7 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
@@ -30,6 +30,20 @@ export interface AppSetupResult {
   /** Prefixe global des routes, tel qu'applique (`api` par defaut). */
   readonly apiPrefix: string;
   readonly isProduction: boolean;
+  /**
+   * Le document OpenAPI genere, ou `undefined` en production — ou il n'est pas
+   * construit du tout.
+   *
+   * Expose ICI parce qu'un document OpenAPI est une affirmation sur l'API, et
+   * qu'une affirmation se verifie. Sans ce retour, `public.decorator.spec.ts`
+   * devrait reconstruire un document de son cote, avec son propre
+   * `DocumentBuilder` : il testerait alors une copie de la configuration, et
+   * pourrait passer au vert pendant que le document reellement servi est faux.
+   * C'est precisement ce que ce depot refuse ailleurs (voir l'en-tete du
+   * fichier : une seule fonction d'assemblage, appelee par `main.ts` et par les
+   * tests).
+   */
+  readonly document?: OpenAPIObject;
 }
 
 /**
@@ -96,6 +110,8 @@ export function configureApp(app: INestApplication): AppSetupResult {
    * production elle aiderait surtout quelqu'un a la cartographier. Le frontend
    * de developpement y accede, la production non.
    */
+  let document: OpenAPIObject | undefined;
+
   if (!isProduction) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('API Comexa')
@@ -109,13 +125,33 @@ export function configureApp(app: INestApplication): AppSetupResult {
       .setVersion('1.0')
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
       .addCookieAuth('refresh_token')
+      // EXIGENCE DE SECURITE GLOBALE.
+      //
+      // `addBearerAuth` ne fait que DECLARER un schema : il ajoute l'entree
+      // `components.securitySchemes` et fait apparaitre le bouton « Authorize »
+      // dans Swagger UI. Il ne dit a aucune operation d'envoyer le jeton.
+      //
+      // Sans la ligne ci-dessous, le bouton fonctionne donc en apparence et
+      // n'a aucun effet : Swagger UI n'ajoute l'en-tete `Authorization` que sur
+      // les operations dont le `security` le reclame. Les 165 operations du
+      // document n'en declaraient aucune, et chacune partait sans
+      // authentification, en 401.
+      //
+      // La portee globale est ici la bonne, et pas un raccourci : `JwtAuthGuard`
+      // est enregistre en `APP_GUARD` (voir app.module.ts), donc toute route
+      // exige un jeton SAUF `@Public()`. Les 19 routes publiques annulent cette
+      // exigence elles-memes — `security: []`, pose par le decorateur
+      // `common/decorators/public.decorator.ts`. C'est ce qui garde les deux
+      // sources d'accord : la route ne peut pas devenir publique sans que sa
+      // documentation suive.
+      .addSecurityRequirements('access-token')
       .build();
 
-    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup(`${apiPrefix}/docs`, app, document, {
       swaggerOptions: { persistAuthorization: true, tagsSorter: 'alpha' },
     });
   }
 
-  return { apiPrefix, isProduction };
+  return { apiPrefix, isProduction, document };
 }
