@@ -97,9 +97,21 @@ export const ERROR_CODES = [
  *      `QUOTE_NOT_SENT`), et deux d'un ternaire (`identity-rules.ts` :
  *      `SELF_DELETE_FORBIDDEN`, `SELF_SUSPEND_FORBIDDEN`).
  *
- * Total mesure : 137 codes distincts pour 204 sites d'appel. Le fosse entre 40
- * et 137 n'est pas une erreur de frappe : c'est la difference entre ce qu'un
- * grep sait voir et ce que le code fait.
+ * Total mesure : 137 codes distincts pour 204 sites d'appel. Les deux chiffres
+ * ne se mesurent PAS de la meme facon, et la commande de regeneration ci-dessous
+ * ne les donne pas tels quels : elle atteint 198 de ces 204 sites, et 132 des 137
+ * codes. Les six appels qu'elle manque passent leur code autrement qu'en clair
+ * sur la meme ligne — un retour a la ligne (trois appels dans `auth.service.ts`,
+ * un dans `identity-rules.ts`) ou une variable (`blocker`, deux fois dans
+ * `quotes.service.ts`).
+ *
+ * Les 204 sont le nombre d'appels aux QUATRE fabriques que cette commande vise
+ * (`notFound`, `conflict`, `unprocessable`, `badRequest`) ; `forbidden` et
+ * `unauthenticated` ne figurent pas dans sa liste, et leurs appels ne sont donc
+ * comptes nulle part ici.
+ *
+ * Le fosse entre 40 et 137 n'est pas une erreur de frappe : c'est la difference
+ * entre ce qu'un grep sait voir et ce que le code fait.
  *
  * La consequence pratique pour le frontend est celle deja enoncee : `error.code`
  * se teste, il ne s'enumere pas. Ce tableau sert a la documentation, aux tests

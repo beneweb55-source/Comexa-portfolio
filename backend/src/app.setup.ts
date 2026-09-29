@@ -139,11 +139,17 @@ export function configureApp(app: INestApplication): AppSetupResult {
       //
       // La portee globale est ici la bonne, et pas un raccourci : `JwtAuthGuard`
       // est enregistre en `APP_GUARD` (voir app.module.ts), donc toute route
-      // exige un jeton SAUF `@Public()`. Les 19 routes publiques annulent cette
+      // exige un jeton SAUF `@Public()`. Les 17 routes publiques annulent cette
       // exigence elles-memes — `security: []`, pose par le decorateur
       // `common/decorators/public.decorator.ts`. C'est ce qui garde les deux
       // sources d'accord : la route ne peut pas devenir publique sans que sa
       // documentation suive.
+      //
+      // Ce nombre a deja derive : il valait 19 dans une version anterieure de ce
+      // commentaire. Il n'est pas verifie ici, et rien ne le verifierait.
+      // `test/docs.e2e-spec.ts` compare, lui, le NOMBRE de routes publiques du
+      // document au nombre de `@Public()` du code — c'est la-bas que la
+      // coherence est tenue, pas dans cette ligne.
       .addSecurityRequirements('access-token')
       .build();
 

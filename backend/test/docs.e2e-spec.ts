@@ -186,39 +186,156 @@ function signatures(document: OpenAPIObject): Map<string, string> {
   return index;
 }
 
+/** Les schemas de `components`, indexes par nom, en JSON. */
+function schemasIndexes(document: OpenAPIObject): Map<string, string> {
+  const schemas = document.components?.schemas ?? {};
+
+  return new Map(Object.entries(schemas).map(([nom, schema]) => [nom, JSON.stringify(schema)]));
+}
+
+/** Une liste plafonnee a dix lignes, precedee de son compte. */
+function listerAvecPlafond(titre: string, valeurs: string[]): string[] {
+  return valeurs.length === 0
+    ? []
+    : [
+        `  ${titre} : ${valeurs.length}`,
+        ...valeurs.slice(0, 10).map((valeur) => `    ${valeur}`),
+        ...(valeurs.length > 10 ? [`    ... et ${valeurs.length - 10} autre(s)`] : []),
+      ];
+}
+
+/** Ajoutees, retirees et modifiees, entre deux index « nom -> JSON ». */
+function comparerIndex(
+  dansLeFichier: Map<string, string>,
+  dansLeCode: Map<string, string>,
+): { ajoutees: string[]; retirees: string[]; modifiees: string[] } {
+  return {
+    ajoutees: [...dansLeCode.keys()].filter((cle) => !dansLeFichier.has(cle)),
+    retirees: [...dansLeFichier.keys()].filter((cle) => !dansLeCode.has(cle)),
+    modifiees: [...dansLeCode.keys()].filter(
+      (cle) => dansLeFichier.has(cle) && dansLeFichier.get(cle) !== dansLeCode.get(cle),
+    ),
+  };
+}
+
 /**
- * Compare deux documents operation par operation, et nomme ce qui a bouge.
+ * Les FEUILLES du document, indexees par pointeur JSON.
+ *
+ * Une feuille est une valeur scalaire (ou une longueur de tableau) : c'est le
+ * seul niveau ou deux documents se comparent vraiment. Les objets intermediaires
+ * ne sont que des chemins.
+ */
+function aplatir(valeur: unknown, chemin: string, index: Map<string, string>): void {
+  if (valeur === null || typeof valeur !== 'object') {
+    index.set(chemin, JSON.stringify(valeur));
+    return;
+  }
+
+  if (Array.isArray(valeur)) {
+    index.set(`${chemin}/longueur`, String(valeur.length));
+    valeur.forEach((element, position) => aplatir(element, `${chemin}/${position}`, index));
+    return;
+  }
+
+  for (const [cle, sousValeur] of Object.entries(valeur as Record<string, unknown>)) {
+    aplatir(sousValeur, `${chemin}/${cle}`, index);
+  }
+}
+
+/** Tout le document, aplati en « pointeur JSON -> valeur ». */
+function feuilles(document: OpenAPIObject): Map<string, string> {
+  const index = new Map<string, string>();
+  aplatir(document, '', index);
+  return index;
+}
+
+/** Vrai si aucun des deux index ne nomme quoi que ce soit. */
+function rienDansLesIndex(
+  operations: { ajoutees: string[]; retirees: string[]; modifiees: string[] },
+  schemas: { ajoutees: string[]; retirees: string[]; modifiees: string[] },
+): boolean {
+  return [...Object.values(operations), ...Object.values(schemas)].every(
+    (valeurs) => valeurs.length === 0,
+  );
+}
+
+/**
+ * Le premier pointeur JSON divergent, ou `null` si les documents sont identiques.
+ *
+ * C'est le filet des deux index ci-dessus : quand ils ne nomment rien, l'ecart
+ * est ailleurs dans le document (`info.version`, `components.securitySchemes`,
+ * un `format`...), et il faut tout de meme le nommer.
+ */
+function premierPointeurDifferent(committe: OpenAPIObject, frais: OpenAPIObject): string | null {
+  const dansLeFichier = feuilles(committe);
+  const dansLeCode = feuilles(frais);
+
+  for (const [pointeur, valeur] of dansLeCode) {
+    if (!dansLeFichier.has(pointeur)) return `${pointeur} (absent du fichier)`;
+    if (dansLeFichier.get(pointeur) !== valeur) {
+      return `${pointeur} — fichier : ${dansLeFichier.get(pointeur)}, code : ${valeur}`;
+    }
+  }
+
+  for (const pointeur of dansLeFichier.keys()) {
+    if (!dansLeCode.has(pointeur)) return `${pointeur} (present seulement dans le fichier)`;
+  }
+
+  return null;
+}
+
+/**
+ * Compare deux documents et nomme ce qui a bouge — OPERATIONS ET SCHEMAS.
  *
  * Un `deepEqual` sur cet arbre ne dirait rien d'exploitable : le rapport
  * nommerait un objet, pas la route concernee, et il faudrait ouvrir un fichier de
- * 197 Ko pour apprendre qu'un DTO a change. Ici le message nomme les operations,
+ * 220 Ko pour apprendre qu'un DTO a change. Ici le message nomme les operations,
  * ce qui suffit a savoir quel controleur vient d'etre touche.
+ *
+ * LES SCHEMAS SONT COMPTES A PART, ET CE N'EST PAS UN DOUBLON. `signatures` ne
+ * regarde que les operations ; or un corps de requete y est un simple `$ref`
+ * vers un nom de schema — le contenu du DTO n'y apparait donc pas. Sans la
+ * seconde lecture, la modification la plus banale du depot (« un champ ajoute a
+ * un DTO ») produirait un message qui affiche « 165 operations » des deux cotes
+ * et ne nomme RIEN : exactement le cas que cette fonction existe pour eclairer.
+ *
+ * ET UN FILET POUR TOUT LE RESTE. Ces deux index ne couvrent que `paths` et
+ * `components.schemas` ; une derive ailleurs — `info.version`,
+ * `components.securitySchemes` — fait bien echouer le test (qui compare le
+ * fichier entier), mais un rapport qui ne nomme rien est un rapport qu'on
+ * n'utilise pas. Quand aucun des deux index ne trouve d'ecart, le message cherche
+ * donc la premiere FEUILLE divergente et l'affiche par son pointeur JSON.
  */
 function decrireEcart(committe: OpenAPIObject, frais: OpenAPIObject): string {
-  const dansLeFichier = signatures(committe);
-  const dansLeCode = signatures(frais);
+  const operationsDuFichier = signatures(committe);
+  const operationsDuCode = signatures(frais);
+  const schemasDuFichier = schemasIndexes(committe);
+  const schemasDuCode = schemasIndexes(frais);
 
-  const ajoutees = [...dansLeCode.keys()].filter((cle) => !dansLeFichier.has(cle));
-  const retirees = [...dansLeFichier.keys()].filter((cle) => !dansLeCode.has(cle));
-  const modifiees = [...dansLeCode.keys()].filter(
-    (cle) => dansLeFichier.has(cle) && dansLeFichier.get(cle) !== dansLeCode.get(cle),
-  );
-
-  const lister = (titre: string, valeurs: string[]): string[] =>
-    valeurs.length === 0
-      ? []
-      : [
-          `  ${titre} : ${valeurs.length}`,
-          ...valeurs.slice(0, 10).map((valeur) => `    ${valeur}`),
-          ...(valeurs.length > 10 ? [`    ... et ${valeurs.length - 10} autre(s)`] : []),
-        ];
+  const operations = comparerIndex(operationsDuFichier, operationsDuCode);
+  const schemas = comparerIndex(schemasDuFichier, schemasDuCode);
 
   return [
-    `  fichier  : ${dansLeFichier.size} operations`,
-    `  code     : ${dansLeCode.size} operations`,
-    ...lister('presentes dans le code seulement (a documenter)', ajoutees),
-    ...lister('presentes dans le fichier seulement (a retirer)', retirees),
-    ...lister('presentes des deux cotes, mais differentes', modifiees),
+    `  fichier  : ${operationsDuFichier.size} operations, ${schemasDuFichier.size} schemas`,
+    `  code     : ${operationsDuCode.size} operations, ${schemasDuCode.size} schemas`,
+    ...listerAvecPlafond(
+      'operations presentes dans le code seulement (a documenter)',
+      operations.ajoutees,
+    ),
+    ...listerAvecPlafond(
+      'operations presentes dans le fichier seulement (a retirer)',
+      operations.retirees,
+    ),
+    ...listerAvecPlafond('operations presentes des deux cotes, mais differentes', operations.modifiees),
+    ...listerAvecPlafond('schemas presents dans le code seulement (a documenter)', schemas.ajoutees),
+    ...listerAvecPlafond('schemas presents dans le fichier seulement (a retirer)', schemas.retirees),
+    ...listerAvecPlafond('schemas presents des deux cotes, mais differents', schemas.modifiees),
+    ...(rienDansLesIndex(operations, schemas)
+      ? [
+          "  Aucune operation ni schema ne differe : l'ecart est ailleurs dans le document.",
+          `  Premier pointeur different : ${premierPointeurDifferent(committe, frais) ?? '(non identifie)'}`,
+        ]
+      : []),
     '',
     'Regenerer le document : npm run openapi:export',
   ].join('\n');
@@ -323,7 +440,14 @@ describe('Documentation OpenAPI servie', () => {
         'ferme en production. Le generer : npm run openapi:export',
     );
 
-    const contenu = readFileSync(CHEMIN_DOCUMENT_COMMITTE, 'utf8');
+    // `\r\n` -> `\n` AVANT DE COMPARER. La cause est traitee a la racine par le
+    // `.gitattributes` de la racine du depot (`shared/api/openapi.json text
+    // eol=lf`, sans quoi git pour Windows le restitue en CRLF et ce test echoue
+    // sur un arbre propre). Cette normalisation est la ceinture : elle evite
+    // qu'un fichier restitue autrement fasse echouer la suite pour une raison
+    // qui n'a rien a voir avec l'API. Les fins de ligne ne portent aucune
+    // information dans du JSON — les neutraliser ne retire rien a l'assertion.
+    const contenu = readFileSync(CHEMIN_DOCUMENT_COMMITTE, 'utf8').replace(/\r\n/g, '\n');
     const attendu = serializeOpenApi(document);
 
     if (contenu === attendu) return;

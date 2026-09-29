@@ -70,8 +70,15 @@ export const ALLOW_PASSWORD_CHANGE_REQUIRED_KEY = 'allowPasswordChangeRequired';
  * Le cas typique : un compte cree par un administrateur, qui connait donc le mot
  * de passe initial. Tant qu'il n'a pas ete change, TOUT est ferme — sauf les
  * routes qui permettent justement de sortir de cet etat et celles qui servent a
- * savoir ou l'on en est (`/auth/change-password`, `/auth/me`, `/auth/logout`,
- * `/auth/refresh`).
+ * savoir ou l'on en est.
+ *
+ * TROIS ROUTES LE PORTENT, et la liste est verifiee dans
+ * `auth.controller.ts` : `POST /auth/logout-all`, `POST /auth/change-password` et
+ * `GET /auth/me`. Cette liste avait derive — elle citait `/auth/logout` et
+ * `/auth/refresh`, qui n'en ont pas besoin puisqu'ils sont `@Public()` et que le
+ * garde les laisse donc passer avant de regarder ce drapeau. Citer une route qui
+ * n'est pas concernee est pire que de n'en citer aucune : cela fait croire que la
+ * liste a ete relue.
  *
  * Sans ce mecanisme, `mustChangePassword` ne serait qu'un drapeau transmis au
  * frontend, c'est-a-dire exactement ce que le cahier des charges interdit :

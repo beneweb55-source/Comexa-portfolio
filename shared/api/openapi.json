@@ -33,7 +33,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -59,7 +66,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -178,7 +192,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Changer son mot de passe (mot de passe actuel exige).",
@@ -193,7 +214,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Profil et permissions de l'utilisateur connecte.",
@@ -208,7 +236,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Sessions ouvertes de ce compte.",
@@ -319,7 +357,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Marquer une notification comme lue",
@@ -400,6 +445,7 @@
             "in": "query",
             "description": "Recherche sur le nom, le prenom ou l'adresse e-mail (partielle, insensible a la casse).",
             "schema": {
+              "maxLength": 120,
               "example": "benali",
               "type": "string"
             }
@@ -448,7 +494,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Creer un compte. Le mot de passe genere n'est renvoye qu'ici.",
@@ -472,7 +525,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Profil d'un compte et ses roles (le sien pour un porteur `own`).",
@@ -504,7 +564,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Modifier l'identite d'un compte (nom, prenom, e-mail, telephone, rattachement client).",
@@ -608,7 +675,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Remplacer les roles d'un compte.",
@@ -632,7 +706,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Reinitialiser le mot de passe d'un compte. Le nouveau mot de passe n'est renvoye qu'ici.",
@@ -647,7 +728,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Lister les roles (sans leurs permissions).",
@@ -671,7 +762,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Detail d'un role et ses permissions.",
@@ -705,7 +803,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Remplacer les permissions d'un role (ADMIN exclu).",
@@ -720,7 +825,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Le catalogue des permissions tel qu'il existe en base.",
@@ -762,6 +877,7 @@
             "in": "query",
             "description": "Identifiant du porteur dont on veut l'historique.",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -769,7 +885,9 @@
             "name": "action",
             "required": false,
             "in": "query",
+            "description": "Le code de l'action, en entier.\n\nCorrespondance EXACTE, et non partielle. Les actions sont un vocabulaire\nferme ecrit dans le code (`USER_CREATED`, `ROLE_PERMISSIONS_REPLACED`...) :\nune recherche partielle rendrait « USER_READ » capable de ramener\n« USER_READ_ALL » le jour ou l'action existera, et un filtre d'audit qui\nramene autre chose que ce qu'on a demande est pire qu'un filtre absent —\nc'est la conclusion qu'on tirerait d'une enquete qui ne porterait pas sur ce\nqu'on croit.",
             "schema": {
+              "maxLength": 64,
               "example": "USER_SUSPENDED",
               "type": "string"
             }
@@ -779,6 +897,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "example": "User",
               "type": "string"
             }
@@ -789,6 +908,7 @@
             "in": "query",
             "description": "Identifiant de l'objet concerne.",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -869,6 +989,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -878,6 +999,7 @@
             "in": "query",
             "description": "Recherche sur la raison sociale et la raison legale.",
             "schema": {
+              "maxLength": 200,
               "type": "string"
             }
           }
@@ -1174,6 +1296,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1183,6 +1306,7 @@
             "in": "query",
             "description": "Recherche sur le nom, le contact et l'adresse e-mail.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           }
@@ -1395,7 +1519,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Convertir en client : ouvre le dossier client. Refuse si deja converti.",
@@ -1420,7 +1551,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Convertir une demande de contact en prospect",
@@ -1478,7 +1616,9 @@
             "name": "clientId",
             "required": false,
             "in": "query",
+            "description": "Filtre par client. Il ne peut PAS elargir le perimetre : le filtre de scope\nest combine en ET avec celui-ci, donc un compte client qui demande l'identifiant\nd'un autre client obtient une liste vide, pas la liste de l'autre.",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1487,6 +1627,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1496,6 +1637,7 @@
             "in": "query",
             "description": "Recherche sur le nom, la reference ou le code.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           }
@@ -1851,6 +1993,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1859,6 +2002,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1868,6 +2012,7 @@
             "in": "query",
             "description": "Recherche sur le titre.",
             "schema": {
+              "maxLength": 160,
               "type": "string"
             }
           },
@@ -1986,6 +2131,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -1994,6 +2140,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2003,6 +2150,7 @@
             "in": "query",
             "description": "Recherche sur le titre.",
             "schema": {
+              "maxLength": 160,
               "type": "string"
             }
           },
@@ -2349,6 +2497,7 @@
             "in": "query",
             "description": "Filtre sur la personne. Ignore sous time:read:own.",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2357,6 +2506,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2365,6 +2515,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2390,6 +2541,7 @@
             "name": "billable",
             "required": false,
             "in": "query",
+            "description": "Sans conversion, `?billable=false` filtrait sur « facturable » au lieu de\n« non facturable » : la chaine `\"false\"` est vraie en JavaScript, et la\nconversion implicite du pipe passe avant tout `@Transform`. Un bogue\nsilencieux, qui ne se voit qu'en comparant les totaux. Le piege et sa mesure\nsont documentes une seule fois, dans `common/dto/boolean-filter.ts`.",
             "schema": {
               "type": "boolean"
             }
@@ -2471,6 +2623,7 @@
             "in": "query",
             "description": "Filtre sur la personne. Ignore sous time:read:own.",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2479,6 +2632,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2487,6 +2641,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           },
@@ -2512,6 +2667,7 @@
             "name": "billable",
             "required": false,
             "in": "query",
+            "description": "Sans conversion, `?billable=false` filtrait sur « facturable » au lieu de\n« non facturable » : la chaine `\"false\"` est vraie en JavaScript, et la\nconversion implicite du pipe passe avant tout `@Transform`. Un bogue\nsilencieux, qui ne se voit qu'en comparant les totaux. Le piege et sa mesure\nsont documentes une seule fois, dans `common/dto/boolean-filter.ts`.",
             "schema": {
               "type": "boolean"
             }
@@ -2646,7 +2802,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Creer une conversation",
@@ -2670,7 +2833,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lire une conversation dont on est participant",
@@ -2702,7 +2872,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Modifier le sujet ou archiver une conversation",
@@ -2736,7 +2913,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Ajouter un participant",
@@ -2768,7 +2952,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Retirer un participant",
@@ -2814,7 +3005,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lire les messages, pagines par curseur",
@@ -2974,7 +3172,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Generer un rapport et enregistrer son resultat",
@@ -2998,7 +3203,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Consulter un rapport et le resultat fige a sa date",
@@ -3033,7 +3245,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Vue d'agence : portefeuille, activite, encours, encaissements",
@@ -3048,7 +3267,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Vue personnelle : mes taches, mes echeances, mes notifications",
@@ -3063,7 +3289,14 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Espace client : mes projets, mes factures, mes documents",
@@ -3089,7 +3322,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lister les parametres (les parametres internes sont masques)",
@@ -3112,7 +3352,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Creer ou modifier un lot de parametres, en une seule transaction",
@@ -3209,7 +3456,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -3252,6 +3509,7 @@
             "in": "query",
             "description": "Restreint a une categorie d'etudes de cas.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -3315,7 +3573,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -3331,7 +3599,17 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
           }
         },
         "security": [],
@@ -3401,6 +3679,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -3431,6 +3710,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -3559,6 +3839,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -3589,6 +3870,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -3716,6 +3998,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -3746,6 +4029,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -3874,6 +4158,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -3904,6 +4189,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -4032,6 +4318,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -4062,6 +4349,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -4224,6 +4512,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -4254,6 +4543,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -4381,6 +4671,7 @@
             "in": "query",
             "description": "Recherche sur le titre ou le nom.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -4411,6 +4702,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           }
@@ -4553,6 +4845,7 @@
             "in": "query",
             "description": "Recherche sur l'email, le nom, le sujet et le message.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -4561,6 +4854,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -4569,6 +4863,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -4743,6 +5038,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -4752,6 +5048,7 @@
             "in": "query",
             "description": "Recherche sur le titre et le reference.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -4926,7 +5223,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Deposer un document",
@@ -4997,6 +5301,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5005,6 +5310,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5013,6 +5319,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5022,6 +5329,7 @@
             "in": "query",
             "description": "Recherche sur le nom du document et le nom du fichier.",
             "schema": {
+              "maxLength": 120,
               "type": "string"
             }
           },
@@ -5062,7 +5370,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Consulter la metadonnee d'un document",
@@ -5094,7 +5409,14 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Modifier la metadonnee d'un document (nom, categorie, visibilite)",
@@ -5224,6 +5546,7 @@
             "in": "query",
             "description": "Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5232,6 +5555,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5241,13 +5565,21 @@
             "in": "query",
             "description": "Recherche sur la reference ou l objet.",
             "schema": {
+              "maxLength": 200,
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lister les devis (les siens pour un compte client).",
@@ -5420,7 +5752,14 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Accepter le devis : cree le client si besoin, et le projet.",
@@ -5513,6 +5852,7 @@
             "in": "query",
             "description": "Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5521,6 +5861,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5530,6 +5871,7 @@
             "in": "query",
             "description": "Factures nees de ce devis.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5539,13 +5881,21 @@
             "in": "query",
             "description": "Recherche sur la reference ou l objet.",
             "schema": {
+              "maxLength": 200,
               "type": "string"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lister les factures (les siennes pour un compte client).",
@@ -5569,7 +5919,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lire une facture, ses lignes et ses paiements.",
@@ -5615,7 +5972,14 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Envoyer la facture au client. C est cet etat qui la rend payable.",
@@ -5639,7 +6003,14 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Annuler une facture non encaissee.",
@@ -5673,7 +6044,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Generer la facture d un devis accepte (lignes copiees, totaux recalcules).",
@@ -5745,6 +6123,7 @@
             "in": "query",
             "description": "Paiements de cette facture.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5754,6 +6133,7 @@
             "in": "query",
             "description": "Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5778,7 +6158,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lister les encaissements (les siens pour un compte client).",
@@ -5802,7 +6189,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lire un encaissement et la facture qu il solde.",
@@ -5858,7 +6252,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Enregistrer un encaissement sur une facture (plafonne au solde).",
@@ -5936,6 +6337,7 @@
             "in": "query",
             "description": "Paiements de cette facture.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5945,6 +6347,7 @@
             "in": "query",
             "description": "Filtre interne. IGNORE pour un porteur client, dont le perimetre vient du compte.",
             "schema": {
+              "maxLength": 40,
               "type": "string"
             }
           },
@@ -5969,7 +6372,14 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "summary": "Lister les encaissements d une facture.",
@@ -6006,11 +6416,13 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "admin@comexa.example",
-            "maxLength": 320
+            "maxLength": 320,
+            "format": "email",
+            "example": "admin@comexa.example"
           },
           "password": {
             "type": "string",
+            "maxLength": 200,
             "example": "un-mot-de-passe-quelconque"
           }
         },
@@ -6024,7 +6436,8 @@
         "properties": {
           "refreshToken": {
             "type": "string",
-            "description": "Omis si le cookie refresh_token est present."
+            "description": "Omis si le cookie refresh_token est present.",
+            "maxLength": 500
           }
         }
       },
@@ -6033,6 +6446,8 @@
         "properties": {
           "email": {
             "type": "string",
+            "maxLength": 320,
+            "format": "email",
             "example": "client@exemple.example"
           }
         },
@@ -6045,13 +6460,16 @@
         "properties": {
           "token": {
             "type": "string",
+            "minLength": 16,
+            "maxLength": 500,
             "description": "Jeton recu par e-mail."
           },
           "password": {
             "type": "string"
           },
           "confirmPassword": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           }
         },
         "required": [
@@ -6064,13 +6482,15 @@
         "type": "object",
         "properties": {
           "currentPassword": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
           "newPassword": {
             "type": "string"
           },
           "confirmPassword": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           }
         },
         "required": [
@@ -6084,32 +6504,38 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "sofia.benali@comexa.example",
-            "maxLength": 320
+            "maxLength": 320,
+            "format": "email",
+            "example": "sofia.benali@comexa.example"
           },
           "firstName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
             "example": "Sofia"
           },
           "lastName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
             "example": "Benali"
           },
           "phone": {
             "type": "string",
+            "maxLength": 32,
             "example": "+33 6 12 34 56 78"
           },
           "clientId": {
             "type": "string",
-            "example": "clx0a1b2c3d4e5f6g7h8i9j0k",
+            "description": "Dossier client a rattacher (comptes CLIENT uniquement).",
+            "minLength": 1,
             "maxLength": 64,
-            "description": "Dossier client a rattacher (comptes CLIENT uniquement)."
+            "example": "clx0a1b2c3d4e5f6g7h8i9j0k"
           },
           "roleCodes": {
             "type": "array",
-            "example": [
-              "DEVELOPER"
-            ],
+            "description": "ROLES OBLIGATOIRES, ET AU MOINS UN.\n\nUn compte sans role n'a AUCUNE permission : il peut se connecter et\nn'ouvrir que son propre profil. Le creer ainsi ne rendrait service a\npersonne et declencherait un ticket de support a la premiere connexion. Si\nl'on veut vraiment couper les droits d'un compte, on le suspend ou on lui\nretire ses roles explicitement — pas en le creant vide.\n\nLe mot de passe n'est PAS une entree : il est genere par le serveur. Un\nadministrateur qui choisirait le mot de passe d'un tiers le connaitrait, et\nle transmettrait par un canal qu'on ne maitrise pas.",
+            "minItems": 1,
             "items": {
               "type": "string",
               "enum": [
@@ -6121,7 +6547,10 @@
                 "SALES",
                 "CLIENT"
               ]
-            }
+            },
+            "example": [
+              "DEVELOPER"
+            ]
           }
         },
         "required": [
@@ -6136,27 +6565,35 @@
         "properties": {
           "email": {
             "type": "string",
-            "example": "sofia.benali@comexa.example",
-            "maxLength": 320
+            "maxLength": 320,
+            "format": "email",
+            "example": "sofia.benali@comexa.example"
           },
           "firstName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
             "example": "Sofia"
           },
           "lastName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
             "example": "Benali"
           },
           "phone": {
             "type": "string",
+            "description": "Une chaine vide efface le numero (le service la traduit en `null`).",
+            "maxLength": 32,
             "example": "+33 6 12 34 56 78",
             "nullable": true
           },
           "clientId": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
-            "maxLength": 64,
-            "description": "Dossier client a rattacher. `null` pour detacher le compte."
+            "description": "Dossier client a rattacher. `null` pour detacher le compte.",
+            "minLength": 1,
+            "maxLength": 64
           }
         }
       },
@@ -6165,10 +6602,6 @@
         "properties": {
           "roleCodes": {
             "type": "array",
-            "example": [
-              "PROJECT_MANAGER",
-              "DEVELOPER"
-            ],
             "items": {
               "type": "string",
               "enum": [
@@ -6180,7 +6613,11 @@
                 "SALES",
                 "CLIENT"
               ]
-            }
+            },
+            "example": [
+              "PROJECT_MANAGER",
+              "DEVELOPER"
+            ]
           }
         },
         "required": [
@@ -6198,7 +6635,8 @@
             "description": "Codes du catalogue, tels qu'ils existent dans la table des permissions.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 120
             }
           }
         },
@@ -6211,61 +6649,77 @@
         "properties": {
           "companyName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
             "example": "Maison Vasseur"
           },
           "legalName": {
             "type": "string",
+            "maxLength": 200,
             "example": "Maison Vasseur SARL"
           },
           "registrationNumber": {
             "type": "string",
+            "maxLength": 64,
             "description": "Identifiant legal, facultatif."
           },
           "vatNumber": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "sector": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
           "website": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "employeeRange": {
             "type": "string",
+            "maxLength": 40,
             "example": "10-49"
           },
           "addressLine1": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "addressLine2": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "postalCode": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20
           },
           "city": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "region": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "country": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "status": {
-            "type": "string",
             "enum": [
               "ACTIVE",
               "INACTIVE",
               "ARCHIVED"
-            ]
+            ],
+            "type": "string"
           },
           "accountManagerId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Responsable de compte. Omis, la fiche revient au porteur."
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -6276,72 +6730,88 @@
         "type": "object",
         "properties": {
           "companyName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
           },
           "legalName": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
           },
           "registrationNumber": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64
           },
           "vatNumber": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64
           },
           "sector": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
           },
           "website": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
           },
           "employeeRange": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
           },
           "addressLine1": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
           },
           "addressLine2": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
           },
           "postalCode": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 20
           },
           "city": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "region": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "country": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "status": {
-            "type": "string",
             "enum": [
               "ACTIVE",
               "INACTIVE",
               "ARCHIVED"
-            ]
+            ],
+            "type": "string"
           },
           "accountManagerId": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
+            "maxLength": 64,
             "description": "Responsable de compte."
           },
           "notes": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           }
         }
       },
@@ -6349,26 +6819,35 @@
         "type": "object",
         "properties": {
           "firstName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "lastName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 320,
+            "format": "email"
           },
           "phone": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "jobTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "isPrimary": {
             "type": "boolean",
             "description": "Interlocuteur principal. Un client n'a qu'un seul principal : le definir retire le drapeau aux autres."
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -6380,30 +6859,39 @@
         "type": "object",
         "properties": {
           "firstName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "lastName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "email": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 320,
+            "format": "email"
           },
           "phone": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
           },
           "jobTitle": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "isPrimary": {
             "type": "boolean",
             "description": "Voir la regle du contact principal."
           },
           "notes": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           }
         }
       },
@@ -6412,39 +6900,48 @@
         "properties": {
           "companyName": {
             "type": "string",
-            "example": "Boulangerie Lefranc",
-            "maxLength": 200
+            "maxLength": 200,
+            "example": "Boulangerie Lefranc"
           },
           "contactFirstName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
             "example": "Nadia"
           },
           "contactLastName": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
             "example": "Lefranc"
           },
           "email": {
             "type": "string",
+            "maxLength": 320,
+            "format": "email",
             "example": "nadia.lefranc@boulangerie-lefranc.example"
           },
           "phone": {
             "type": "string",
+            "maxLength": 40,
             "example": "+33 5 56 00 00 02"
           },
           "jobTitle": {
             "type": "string",
+            "maxLength": 120,
             "example": "Gerante"
           },
           "website": {
             "type": "string",
+            "maxLength": 300,
             "example": "https://boulangerie-lefranc.example"
           },
           "sector": {
             "type": "string",
+            "maxLength": 120,
             "example": "Commerce de proximite"
           },
           "source": {
-            "type": "string",
             "enum": [
               "WEBSITE",
               "CONTACT_FORM",
@@ -6454,10 +6951,10 @@
               "EVENT",
               "PARTNER",
               "OTHER"
-            ]
+            ],
+            "type": "string"
           },
           "budgetRange": {
-            "type": "string",
             "enum": [
               "UNKNOWN",
               "UNDER_5K",
@@ -6465,18 +6962,22 @@
               "FROM_15K_TO_30K",
               "FROM_30K_TO_60K",
               "OVER_60K"
-            ]
+            ],
+            "type": "string"
           },
           "estimatedBudget": {
             "type": "number",
-            "example": 12000.5,
-            "maximum": 99999999999.99
+            "minimum": 0,
+            "maximum": 99999999999.99,
+            "example": 12000.5
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "ownerId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Responsable du prospect. Omis, la fiche revient au porteur. Un porteur du scope `own` ne peut designer que lui-meme."
           }
         },
@@ -6490,37 +6991,46 @@
         "type": "object",
         "properties": {
           "companyName": {
-            "type": "object",
-            "maxLength": 200,
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
           },
           "contactFirstName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "contactLastName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 320,
+            "format": "email"
           },
           "phone": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 40
           },
           "jobTitle": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "website": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
           },
           "sector": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
           },
           "source": {
-            "type": "string",
             "enum": [
               "WEBSITE",
               "CONTACT_FORM",
@@ -6530,10 +7040,10 @@
               "EVENT",
               "PARTNER",
               "OTHER"
-            ]
+            ],
+            "type": "string"
           },
           "budgetRange": {
-            "type": "string",
             "enum": [
               "UNKNOWN",
               "UNDER_5K",
@@ -6541,18 +7051,23 @@
               "FROM_15K_TO_30K",
               "FROM_30K_TO_60K",
               "OVER_60K"
-            ]
+            ],
+            "type": "string"
           },
           "estimatedBudget": {
-            "type": "object",
-            "nullable": true
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 99999999999.99
           },
           "notes": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           },
           "ownerId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Responsable. Voir la regle de portee sur la creation."
           }
         }
@@ -6561,7 +7076,6 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "NEW",
               "CONTACTED",
@@ -6570,14 +7084,17 @@
               "NEGOTIATION",
               "WON",
               "LOST"
-            ]
+            ],
+            "type": "string"
           },
           "note": {
             "type": "string",
+            "maxLength": 1000,
             "description": "Note jointe a l'etape, conservee dans l'historique."
           },
           "lostReason": {
             "type": "string",
+            "maxLength": 1000,
             "description": "Raison de la perte. Retenue uniquement vers LOST."
           }
         },
@@ -6590,13 +7107,14 @@
         "properties": {
           "name": {
             "type": "string",
-            "example": "Refonte du site vitrine",
-            "maxLength": 200
+            "minLength": 2,
+            "maxLength": 200,
+            "example": "Refonte du site vitrine"
           },
           "code": {
             "type": "string",
-            "example": "REFONTE-2026",
-            "maxLength": 40
+            "maxLength": 40,
+            "example": "REFONTE-2026"
           },
           "description": {
             "type": "string",
@@ -6604,28 +7122,33 @@
           },
           "clientId": {
             "type": "string",
-            "description": "Identifiant du client (existant et non supprime)."
+            "description": "Identifiant du client (existant et non supprime).",
+            "minLength": 1,
+            "maxLength": 64
           },
           "managerId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Responsable du projet."
           },
           "priority": {
-            "type": "string",
             "enum": [
               "LOW",
               "NORMAL",
               "HIGH",
               "URGENT"
             ],
+            "type": "string",
             "default": "NORMAL"
           },
           "startDate": {
-            "type": "object",
+            "type": "string",
+            "nullable": true,
             "example": "2026-10-01T00:00:00.000Z"
           },
           "dueDate": {
-            "type": "object",
+            "type": "string",
+            "nullable": true,
             "example": "2026-12-20T00:00:00.000Z"
           },
           "budget": {
@@ -6635,9 +7158,10 @@
           },
           "currency": {
             "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
             "example": "EUR",
-            "default": "EUR",
-            "maxLength": 3
+            "default": "EUR"
           }
         },
         "required": [
@@ -6650,6 +7174,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 200
           },
           "code": {
@@ -6657,42 +7182,45 @@
             "maxLength": 40
           },
           "description": {
-            "type": "object",
-            "maxLength": 5000,
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           },
           "clientId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           },
           "managerId": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
+            "maxLength": 64,
             "description": "Retirer le responsable."
           },
           "priority": {
-            "type": "string",
             "enum": [
               "LOW",
               "NORMAL",
               "HIGH",
               "URGENT"
-            ]
+            ],
+            "type": "string"
           },
           "startDate": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "dueDate": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "budget": {
-            "type": "object",
-            "example": "12500.00",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "example": "12500.00"
           },
           "currency": {
             "type": "string",
+            "minLength": 3,
             "maxLength": 3
           }
         }
@@ -6701,7 +7229,6 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "DRAFT",
               "PLANNED",
@@ -6711,15 +7238,16 @@
               "COMPLETED",
               "CANCELLED",
               "ARCHIVED"
-            ]
+            ],
+            "type": "string"
           },
           "health": {
-            "type": "string",
             "enum": [
               "ON_TRACK",
               "AT_RISK",
               "OFF_TRACK"
-            ]
+            ],
+            "type": "string"
           },
           "progressPercent": {
             "type": "number",
@@ -6735,12 +7263,14 @@
         "type": "object",
         "properties": {
           "userId": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
           },
           "projectRole": {
             "type": "string",
-            "example": "Developpeur front",
-            "maxLength": 80
+            "maxLength": 80,
+            "example": "Developpeur front"
           },
           "allocationPercent": {
             "type": "number",
@@ -6757,8 +7287,9 @@
         "properties": {
           "title": {
             "type": "string",
-            "example": "Integrer la maquette de la page accueil",
-            "maxLength": 300
+            "minLength": 2,
+            "maxLength": 300,
+            "example": "Integrer la maquette de la page accueil"
           },
           "description": {
             "type": "string",
@@ -6766,24 +7297,27 @@
           },
           "milestoneId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Jalon auquel rattacher la tache."
           },
           "parentTaskId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Tache parente (sous-tache)."
           },
           "priority": {
-            "type": "string",
             "enum": [
               "LOW",
               "NORMAL",
               "HIGH",
               "URGENT"
             ],
+            "type": "string",
             "default": "NORMAL"
           },
           "assigneeId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Assignee des la creation."
           },
           "estimateMinutes": {
@@ -6792,17 +7326,21 @@
             "maximum": 60000
           },
           "startDate": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "dueDate": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "isClientVisible": {
             "type": "boolean",
+            "description": "Visibilite pour le client. FAUX PAR DEFAUT, et le defaut vient du schema,\npas d'ici : une tache interne le reste tant que personne ne la partage\nexplicitement. Le champ est donc optionnel et son absence signifie « interne ».",
             "default": false
           },
           "order": {
             "type": "number",
+            "minimum": 0,
             "description": "Ordre d'affichage dans la liste."
           }
         },
@@ -6815,45 +7353,48 @@
         "properties": {
           "title": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 300
           },
           "description": {
-            "type": "object",
-            "maxLength": 5000,
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           },
           "milestoneId": {
-            "type": "object",
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64
           },
           "priority": {
-            "type": "string",
             "enum": [
               "LOW",
               "NORMAL",
               "HIGH",
               "URGENT"
-            ]
+            ],
+            "type": "string"
           },
           "estimateMinutes": {
-            "type": "object",
+            "type": "number",
+            "nullable": true,
             "minimum": 1,
-            "maximum": 60000,
-            "nullable": true
+            "maximum": 60000
           },
           "startDate": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "dueDate": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "isClientVisible": {
             "type": "boolean"
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0
           }
         }
       },
@@ -6861,7 +7402,6 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "TODO",
               "IN_PROGRESS",
@@ -6869,7 +7409,8 @@
               "IN_REVIEW",
               "DONE",
               "CANCELLED"
-            ]
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -6880,8 +7421,9 @@
         "type": "object",
         "properties": {
           "assigneeId": {
-            "type": "object",
+            "type": "string",
             "nullable": true,
+            "maxLength": 64,
             "description": "Null pour desassigner."
           }
         },
@@ -6894,18 +7436,21 @@
         "properties": {
           "title": {
             "type": "string",
-            "example": "Livraison de la maquette",
-            "maxLength": 300
+            "minLength": 2,
+            "maxLength": 300,
+            "example": "Livraison de la maquette"
           },
           "description": {
             "type": "string",
             "maxLength": 5000
           },
           "dueDate": {
-            "type": "object"
+            "type": "string",
+            "nullable": true
           },
           "order": {
             "type": "number",
+            "minimum": 0,
             "description": "Ordre d'affichage dans la frise."
           }
         },
@@ -6918,30 +7463,33 @@
         "properties": {
           "title": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 300
           },
           "description": {
-            "type": "object",
-            "maxLength": 5000,
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 5000
           },
           "dueDate": {
-            "type": "object",
+            "type": "string",
             "nullable": true
           },
           "order": {
             "type": "number",
+            "minimum": 0,
             "description": "Ordre d'affichage dans la frise."
           },
           "status": {
-            "type": "string",
+            "description": "Statut, transitions controlees par `canTransitionMilestone`.\n\n`REACHED` et `MISSED` ne sont pas des etapes de travail mais des CONSTATS :\nles atteindre date `reachedAt` et publie une entree dans le fil du projet. Le\nservice refuse une transition qui n'existe pas dans la table, plutot que\nd'accepter n'importe quel statut parce qu'il est valide pour l'enum.",
             "enum": [
               "PENDING",
               "IN_PROGRESS",
               "REACHED",
               "MISSED",
               "CANCELLED"
-            ]
+            ],
+            "type": "string"
           }
         }
       },
@@ -6968,6 +7516,7 @@
           },
           "userId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Personne dont on saisit le temps. Exige time:write:any."
           }
         },
@@ -6987,9 +7536,9 @@
             "type": "string"
           },
           "description": {
-            "type": "object",
-            "maxLength": 2000,
-            "nullable": true
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
           },
           "billable": {
             "type": "boolean"
@@ -7000,32 +7549,37 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "DIRECT",
               "PROJECT",
               "CLIENT",
               "SUPPORT"
             ],
+            "type": "string",
             "default": "DIRECT"
           },
           "subject": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 200
           },
           "projectId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Projet auquel rattacher la conversation."
           },
           "clientId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Dossier client a rattacher. Ignore et force a son propre dossier pour un compte client."
           },
           "participantIds": {
+            "maxItems": 50,
             "description": "Participants a ajouter. L'auteur est toujours participant.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             }
           }
         }
@@ -7035,6 +7589,7 @@
         "properties": {
           "subject": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 200
           },
           "isArchived": {
@@ -7047,15 +7602,17 @@
         "properties": {
           "userId": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
             "description": "Identifiant de l'utilisateur a ajouter."
           },
           "role": {
-            "type": "string",
             "enum": [
               "OWNER",
               "MEMBER",
               "GUEST"
             ],
+            "type": "string",
             "default": "MEMBER"
           }
         },
@@ -7068,27 +7625,31 @@
         "properties": {
           "body": {
             "type": "string",
-            "description": "Contenu du message. Persiste en base.",
-            "maxLength": 10000
+            "minLength": 1,
+            "maxLength": 10000,
+            "description": "Contenu du message. Persiste en base."
           },
           "type": {
-            "type": "string",
             "enum": [
               "TEXT",
               "SYSTEM",
               "FILE"
             ],
+            "type": "string",
             "default": "TEXT"
           },
           "replyToId": {
             "type": "string",
+            "maxLength": 64,
             "description": "Message auquel celui-ci repond (meme conversation)."
           },
           "attachmentIds": {
+            "maxItems": 20,
             "description": "Identifiants de documents deja deposes, a joindre au message.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 64
             }
           }
         },
@@ -7100,7 +7661,6 @@
         "type": "object",
         "properties": {
           "type": {
-            "type": "string",
             "enum": [
               "PROJECT_PROGRESS",
               "TASKS",
@@ -7110,17 +7670,17 @@
               "OUTSTANDING_INVOICES",
               "ACTIVITY"
             ],
+            "type": "string",
             "description": "Nature du rapport a produire.",
             "example": "REVENUE"
           },
           "title": {
             "type": "string",
-            "description": "Titre de la piece. Un libelle compose a partir du type et de la periode est utilise si absent.",
             "minLength": 3,
-            "maxLength": 160
+            "maxLength": 160,
+            "description": "Titre de la piece. Un libelle compose a partir du type et de la periode est utilise si absent."
           },
           "preset": {
-            "type": "string",
             "enum": [
               "TODAY",
               "LAST_7_DAYS",
@@ -7131,6 +7691,7 @@
               "THIS_YEAR",
               "LAST_YEAR"
             ],
+            "type": "string",
             "description": "Periode predefinie. Exclusif avec periodStart et periodEnd."
           },
           "periodStart": {
@@ -7145,8 +7706,8 @@
           },
           "projectId": {
             "type": "string",
-            "format": "uuid",
-            "description": "Restreint le rapport a un projet precis."
+            "description": "Restreint le rapport a un projet precis.",
+            "format": "uuid"
           }
         },
         "required": [
@@ -7158,6 +7719,7 @@
         "properties": {
           "key": {
             "type": "string",
+            "maxLength": 80,
             "example": "invoice.numbering.prefix",
             "description": "Minuscules, segments separes par . - _ (maximum 80 caracteres)."
           },
@@ -7167,6 +7729,7 @@
           },
           "description": {
             "type": "string",
+            "maxLength": 300,
             "description": "A quoi sert ce parametre."
           }
         },
@@ -7179,6 +7742,7 @@
         "type": "object",
         "properties": {
           "settings": {
+            "minItems": 1,
             "description": "Parametres a creer ou a modifier, en une seule transaction (maximum 50).",
             "type": "array",
             "items": {
@@ -7195,15 +7759,18 @@
         "properties": {
           "firstName": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 80
           },
           "lastName": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 80
           },
           "email": {
             "type": "string",
-            "maxLength": 200
+            "maxLength": 200,
+            "format": "email"
           },
           "phone": {
             "type": "string",
@@ -7219,7 +7786,9 @@
           },
           "website": {
             "type": "string",
-            "maxLength": 500
+            "description": "Le site web du visiteur, pas celui de l'agence.\n\n`http/https` uniquement : ce champ finit affiche dans la fiche de la\ndemande, et un `javascript:` y serait un lien piege pose par un inconnu.",
+            "maxLength": 500,
+            "format": "uri"
           },
           "subject": {
             "type": "string",
@@ -7227,18 +7796,20 @@
           },
           "message": {
             "type": "string",
+            "minLength": 10,
             "maxLength": 5000
           },
           "serviceId": {
             "type": "string",
+            "maxLength": 40,
             "description": "Service concerne, pour savoir ce qui a declenche l'envoi."
           },
           "packageId": {
             "type": "string",
+            "maxLength": 40,
             "description": "Pack concerne, pour savoir ce qui a declenche l'envoi."
           },
           "budgetRange": {
-            "type": "string",
             "enum": [
               "UNKNOWN",
               "UNDER_5K",
@@ -7247,10 +7818,12 @@
               "FROM_30K_TO_60K",
               "OVER_60K"
             ],
+            "type": "string",
             "default": "UNKNOWN"
           },
           "source": {
             "type": "string",
+            "maxLength": 80,
             "description": "Page d origine declaree par le formulaire."
           },
           "utmSource": {
@@ -7281,40 +7854,47 @@
         "properties": {
           "slug": {
             "type": "string",
-            "description": "Slug public. Derive du titre silencieusement absent.",
-            "maxLength": 80
+            "maxLength": 80,
+            "description": "Slug public. Derive du titre silencieusement absent."
           },
           "title": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 160
           },
           "shortDescription": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 300,
             "description": "Phrase affichee dans les listes."
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "icon": {
             "type": "string",
+            "maxLength": 60,
             "description": "Nom du pictogramme cote frontend."
           },
           "coverImageKey": {
             "type": "string",
+            "maxLength": 300,
             "description": "Cle de l'image de couverture dans le stockage. Une cle, jamais une URL : le domaine du stockage peut changer sans reecrire le contenu."
           },
           "features": {
             "description": "Points forts affiches en liste.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "order": {
             "type": "number",
-            "default": 0,
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0
           },
           "isActive": {
             "type": "boolean",
@@ -7342,31 +7922,42 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "shortDescription": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "icon": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 60
           },
           "coverImageKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "features": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isActive": {
             "type": "boolean"
@@ -7375,10 +7966,12 @@
             "type": "boolean"
           },
           "seoTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "seoDescription": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           }
         }
       },
@@ -7386,10 +7979,12 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "name": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 160
           },
           "tagline": {
@@ -7397,30 +7992,35 @@
             "maxLength": 300
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "features": {
             "description": "Ce que le pack comprend.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "excludes": {
             "description": "Ce que le pack ne comprend PAS.",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "badge": {
             "type": "string",
+            "maxLength": 40,
             "description": "Pastille affichee sur la carte ( « Populaire », ...)."
           },
           "order": {
             "type": "number",
-            "default": 0,
-            "minimum": 0
+            "minimum": 0,
+            "maximum": 100000,
+            "default": 0
           },
           "isActive": {
             "type": "boolean",
@@ -7431,10 +8031,12 @@
             "default": false
           },
           "seoTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "seoDescription": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           }
         },
         "required": [
@@ -7445,34 +8047,44 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "tagline": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "features": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "excludes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 200
             }
           },
           "badge": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isActive": {
             "type": "boolean"
@@ -7481,10 +8093,12 @@
             "type": "boolean"
           },
           "seoTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "seoDescription": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           }
         }
       },
@@ -7492,14 +8106,18 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "name": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 120
           },
           "order": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
             "default": 0
           },
           "isActive": {
@@ -7515,13 +8133,18 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isActive": {
             "type": "boolean"
@@ -7532,54 +8155,70 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "title": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 160
           },
           "clientName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "excerpt": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 300
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
           },
           "coverImageKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "galleryKeys": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 300
             }
           },
           "techStack": {
+            "maxItems": 40,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 60
             }
           },
           "projectUrl": {
-            "type": "string"
+            "type": "string",
+            "description": "`require_protocol` et la liste `http/https` ne sont pas du confort.\n\nSans eux, `javascript:alert(1)` est une URL valide au sens de la\nspecification, et se retrouve dans un `href` de la page publique : un lien\nqui execute du script sur l'origine du site. Le champ est saisi par un\nmembre de l'agence, donc la faille n'est pas ouverte a l'exterieur — mais\nelle serait stockee, et servie a tous les visiteurs.",
+            "maxLength": 500,
+            "format": "uri"
           },
           "categoryId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "status": {
-            "type": "string",
             "enum": [
               "DRAFT",
               "PUBLISHED",
               "ARCHIVED"
             ],
+            "type": "string",
             "default": "DRAFT"
           },
           "order": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
             "default": 0
           },
           "isFeatured": {
@@ -7587,10 +8226,12 @@
             "default": false
           },
           "seoTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "seoDescription": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           }
         },
         "required": [
@@ -7603,60 +8244,79 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "clientName": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "excerpt": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
           },
           "content": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
           },
           "coverImageKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "galleryKeys": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 300
             }
           },
           "techStack": {
+            "maxItems": 40,
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 60
             }
           },
           "projectUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
           },
           "categoryId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "status": {
-            "type": "string",
             "enum": [
               "DRAFT",
               "PUBLISHED",
               "ARCHIVED"
-            ]
+            ],
+            "type": "string"
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isFeatured": {
             "type": "boolean"
           },
           "seoTitle": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 160
           },
           "seoDescription": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           }
         }
       },
@@ -7665,19 +8325,24 @@
         "properties": {
           "authorName": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 120
           },
           "authorRole": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "authorCompany": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "avatarKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "quote": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 1000
           },
           "rating": {
@@ -7686,13 +8351,17 @@
             "maximum": 5
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "caseStudyId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "clientId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           }
         },
         "required": [
@@ -7704,31 +8373,44 @@
         "type": "object",
         "properties": {
           "authorName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
           },
           "authorRole": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "authorCompany": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "avatarKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "quote": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
           },
           "rating": {
-            "type": "number"
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "caseStudyId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "clientId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           }
         }
       },
@@ -7749,17 +8431,23 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 2,
             "maxLength": 120
           },
           "logoKey": {
             "type": "string",
+            "maxLength": 300,
             "description": "Cle du logo dans le stockage."
           },
           "websiteUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
           },
           "order": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
             "default": 0
           },
           "isActive": {
@@ -7775,16 +8463,23 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 120
           },
           "logoKey": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 300
           },
           "websiteUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isActive": {
             "type": "boolean"
@@ -7796,17 +8491,23 @@
         "properties": {
           "question": {
             "type": "string",
+            "minLength": 3,
             "maxLength": 300
           },
           "answer": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
           },
           "category": {
             "type": "string",
+            "maxLength": 80,
             "description": "Regroupement libre affiche cote site."
           },
           "order": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100000,
             "default": 0
           },
           "isPublished": {
@@ -7823,16 +8524,23 @@
         "type": "object",
         "properties": {
           "question": {
-            "type": "string"
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 300
           },
           "answer": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 80
           },
           "order": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100000
           },
           "isPublished": {
             "type": "boolean"
@@ -7843,14 +8551,14 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "NEW",
               "IN_REVIEW",
               "CONVERTED",
               "SPAM",
               "ARCHIVED"
-            ]
+            ],
+            "type": "string"
           },
           "notes": {
             "type": "string",
@@ -7863,24 +8571,28 @@
         "properties": {
           "projectId": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
             "description": "Projet concerne. Verifie contre le client du porteur."
           },
           "title": {
             "type": "string",
+            "minLength": 3,
             "maxLength": 200
           },
           "description": {
             "type": "string",
+            "minLength": 10,
             "maxLength": 5000
           },
           "priority": {
-            "type": "string",
             "enum": [
               "LOW",
               "NORMAL",
               "HIGH",
               "URGENT"
             ],
+            "type": "string",
             "default": "NORMAL"
           }
         },
@@ -7894,11 +8606,11 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string",
             "enum": [
               "APPROVED",
               "REJECTED"
-            ]
+            ],
+            "type": "string"
           },
           "decisionNote": {
             "type": "string",
@@ -7907,16 +8619,21 @@
           },
           "estimatedMinutes": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
             "description": "Charge estimee, en minutes. Saisie par l agence."
           },
           "extraCost": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
             "description": "Supplement chiffre. Deux decimales au plus : la colonne est un Decimal(14,2), et une valeur plus precise serait arrondie par la base sans que personne ne le voie."
           },
           "extraCostCurrency": {
             "type": "string",
-            "default": "EUR",
-            "maxLength": 3
+            "minLength": 3,
+            "maxLength": 3,
+            "default": "EUR"
           }
         },
         "required": [
@@ -7928,10 +8645,10 @@
         "properties": {
           "name": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 200
           },
           "category": {
-            "type": "string",
             "enum": [
               "CONTRACT",
               "QUOTE",
@@ -7942,15 +8659,16 @@
               "LEGAL",
               "BRAND",
               "OTHER"
-            ]
+            ],
+            "type": "string"
           },
           "visibility": {
-            "type": "string",
             "enum": [
               "INTERNAL",
               "CLIENT",
               "PUBLIC"
-            ]
+            ],
+            "type": "string"
           }
         }
       },
@@ -7959,26 +8677,34 @@
         "properties": {
           "title": {
             "type": "string",
-            "example": "Refonte du site vitrine",
-            "maxLength": 300
+            "minLength": 1,
+            "maxLength": 300,
+            "example": "Refonte du site vitrine"
           },
           "description": {
             "type": "string",
+            "maxLength": 2000,
             "example": "Maquettes, integration et mise en ligne."
           },
           "quantity": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 999999999.99,
             "example": 2,
             "default": 1,
             "description": "Decimal(12,2), positif."
           },
           "unitPrice": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 999999999999.99,
             "example": 4500.5,
             "description": "Prix unitaire hors taxes."
           },
           "discountPercent": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100,
             "example": 10,
             "default": 0,
             "description": "Remise de la ligne, en pourcent."
@@ -7986,7 +8712,6 @@
         },
         "required": [
           "title",
-          "quantity",
           "unitPrice"
         ]
       },
@@ -7995,14 +8720,17 @@
         "properties": {
           "subject": {
             "type": "string",
-            "example": "Refonte du site vitrine",
-            "maxLength": 300
+            "minLength": 1,
+            "maxLength": 300,
+            "example": "Refonte du site vitrine"
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "terms": {
             "type": "string",
+            "maxLength": 5000,
             "description": "Conditions generales imprimees sur le document."
           },
           "issueDate": {
@@ -8015,24 +8743,31 @@
           },
           "currency": {
             "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
             "example": "EUR",
             "default": "EUR"
           },
           "taxRate": {
             "type": "number",
+            "minimum": 0,
+            "maximum": 100,
             "example": 20,
             "default": 0,
             "description": "Taux de TVA de la piece, en pourcent."
           },
           "prospectId": {
             "type": "string",
-            "description": "Devis emis avant conversion : vise un prospect."
+            "description": "Devis emis avant conversion : vise un prospect.",
+            "maxLength": 40
           },
           "clientId": {
             "type": "string",
+            "maxLength": 40,
             "description": "Devis complementaire : vise un client deja converti."
           },
           "items": {
+            "minItems": 1,
             "description": "Au moins une ligne. Aucun total n est accepte.",
             "type": "array",
             "items": {
@@ -8050,13 +8785,16 @@
         "properties": {
           "subject": {
             "type": "string",
+            "minLength": 1,
             "maxLength": 300
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "terms": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "issueDate": {
             "type": "string"
@@ -8065,18 +8803,25 @@
             "type": "string"
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3
           },
           "taxRate": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
           },
           "prospectId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "clientId": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
           },
           "items": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/QuoteLineDto"
@@ -8089,6 +8834,8 @@
         "properties": {
           "reason": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
             "example": "Budget reporte au prochain trimestre."
           }
         },
@@ -8101,13 +8848,17 @@
         "properties": {
           "subject": {
             "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
             "description": "Objet de la facture. Defaut : l'objet du devis facture."
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "terms": {
             "type": "string",
+            "maxLength": 5000,
             "description": "Conditions de reglement imprimees sur la piece."
           },
           "issueDate": {
@@ -8125,11 +8876,12 @@
         "properties": {
           "amount": {
             "type": "number",
-            "example": 1200.5,
-            "description": "Montant encaisse, positif, plafonne au solde."
+            "description": "Montant encaisse, positif, plafonne au solde.",
+            "minimum": 0.01,
+            "maximum": 999999999999.99,
+            "example": 1200.5
           },
           "method": {
-            "type": "string",
             "enum": [
               "BANK_TRANSFER",
               "CARD",
@@ -8138,6 +8890,7 @@
               "PAYPAL",
               "OTHER"
             ],
+            "type": "string",
             "example": "BANK_TRANSFER"
           },
           "paidAt": {
@@ -8146,14 +8899,17 @@
           },
           "externalReference": {
             "type": "string",
+            "maxLength": 200,
             "description": "Reference du virement, du cheque, de la transaction."
           },
           "proofDocumentId": {
             "type": "string",
+            "maxLength": 40,
             "description": "Justificatif deja televerse (module documents)."
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000
           }
         },
         "required": [

@@ -1,0 +1,27 @@
+# FIN DE LIGNE DU CONTRAT OpenAPI — UNE SEULE LIGNE, ET ELLE EST NECESSAIRE.
+#
+# `backend/test/docs.e2e-spec.ts` compare `shared/api/openapi.json` OCTET PAR
+# OCTET au document frais. Git for Windows pose `core.autocrlf=true` par defaut,
+# donc sans cette ligne un clone le restitue en CRLF, la comparaison echoue, et
+# elle echoue sur un arbre POURTANT PROPRE (`git status` ne dit rien,
+# `git diff` non plus). Mesure, sur le blob d'avant cette ligne : 0 octet CR dans
+# le blob, 8171 dans la copie rendue par `git checkout-index` — autant que ses
+# 8171 fins de ligne.
+#
+# Le remede n'est pas de relancer l'export : `npm run openapi:export` reecrit le
+# fichier en LF, git normalise les deux formes vers le meme blob, donc rien ne
+# change et la restitution suivante le remet en CRLF. La cause est ici.
+#
+# Ce n'est pas une preference de style : parmi les fichiers du depot, c'est le
+# seul dont les octets sont asserts par un test.
+shared/api/openapi.json text eol=lf
+
+# ET POUR CE FICHIER-CI, par coherence : il arrive alors en LF comme celui qu'il
+# protege, et `git ls-files --eol` le confirme (`attr/text eol=lf`).
+#
+# Ce n'est PAS ce qui fait tenir la ligne ci-dessus, et il ne faut pas le croire :
+# verifie sur git 2.55, un `.gitattributes` restitue en CRLF protege encore, git
+# retirant le `\r` residuel en fin de motif comme de valeur. C'est une precaution
+# gratuite, prise parce qu'un fichier de regles en LF se relit sans se demander
+# si son lecteur est tolerant.
+/.gitattributes text eol=lf

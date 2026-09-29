@@ -22,6 +22,20 @@
   // `tsconfig.e2e.json` : le `.tsbuildinfo` de la racine decrit la compilation
   // vers `dist/`, et le partager entre deux `outDir` differents produit des
   // compilations partielles silencieusement fausses.
+  //
+  // CE FICHIER EST COMPILE PAR `nest build -p`, PAS PAR `tsc -p` (voir
+  // `openapi:export` dans `package.json`). Ce n'est pas un detail de gout :
+  // `nest build` est le seul des deux a appliquer le plugin Swagger de
+  // `nest-cli.json`. Ce plugin lit les decorateurs class-validator et recopie
+  // leurs bornes dans le schema (`@MaxLength` -> `maxLength`, `@Min` ->
+  // `minimum`, `@IsEmail` -> `format: email`), en plus de resoudre le type reel
+  // des champs optionnels, la ou `tsc` ecrit `object`.
+  //
+  // Un export passe par `tsc` ecrirait donc dans `shared/api/openapi.json` un
+  // contrat PLUS PAUVRE que celui que `npm run start:dev` sert sur `/api/docs` :
+  // mesure, 463 feuilles en moins, 46 valeurs fausses — dont 45 types ecrits
+  // `object` — et 67 operations sur 165 concernees. Le detail est dans
+  // `docs/TESTING.md`.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./.export-build",

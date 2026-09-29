@@ -15,9 +15,77 @@ vide, ou un etat stable, dans un environnement qui n'est ni l'un ni l'autre.
 | `npm test` | `node --import tsx --test "src/**/*.spec.ts"` | **Aucune.** Specs unitaires, fonctions pures. |
 | `npm run test:e2e` | `npm run build:e2e` puis `node --test --test-concurrency=1 ".e2e-build/test/**/*.e2e-spec.js"` | La base Neon de `.env`. |
 
-`npm run build:e2e` vaut `tsc -p tsconfig.e2e.json` : il compile `src/` **et**
-`test/` dans `.e2e-build/`, dossier distinct de `dist/` (l'artefact de
-production, que `nest build` vide a chaque build).
+`npm run build:e2e` vaut `nest build -p tsconfig.e2e.json` : il compile `src/`,
+`test/` **et** `prisma/` dans `.e2e-build/`, dossier distinct de `dist/`
+(l'artefact de production, que `nest build` vide a chaque build).
+
+### `nest build`, ET NON `tsc` — le detail qui decide de l'egalite des documents
+
+La difference ne se voit nulle part ailleurs, et elle a produit un vrai ecart :
+**`nest build` est le seul des deux qui applique le plugin Swagger** declare dans
+`nest-cli.json`. Ce plugin ne se contente pas de reprendre les commentaires en
+`description` — c'est l'option `classValidatorShim` qui compte. Il lit les
+decorateurs class-validator et recopie dans le schema les bornes qu'ils
+expriment : `@MaxLength` et `@MinLength` deviennent `maxLength` et `minLength`,
+`@Min` et `@Max` deviennent `minimum` et `maximum`, `@IsEmail` et `@IsUrl`
+deviennent `format: email` et `format: uri`. Il resout aussi, la ou un `tsc` nu
+ecrit `object`, le type reel des champs optionnels.
+
+Mesure, `tsc` contre `nest build`, sur ce projet — et elle dit pourquoi l'ecart a
+pu passer inapercu :
+
+| Ce qui change | Combien |
+|---|---|
+| `maxLength` | 252 — dont 193 sur une propriete de schema, 59 sur un parametre de requete |
+| `minLength` | 70 |
+| `type` sur un corps de reponse | 53 — 47 `object`, 6 `array` |
+| `minimum` / `maximum` | 27 / 24 |
+| `format` | 14 — 9 `email`, 5 `uri` |
+| `description` | 10 |
+| `nullable` | 5 |
+| `minItems` / `maxItems` | 4 / 4 |
+| `type` : `object` ecrit a la place du type reel (`string`) | 45 |
+| `QuoteLineDto.required`, qui perd `quantity` | 1 |
+
+Soit, en comptant les feuilles comme les compte `aplatir` dans
+`test/docs.e2e-spec.ts` — une valeur scalaire, ou la LONGUEUR d'un tableau :
+463 feuilles ajoutees, 47 modifiees, 1 retiree. Les dix lignes du tableau
+ci-dessus sont les 463 ajoutees. Les 47 modifiees sont les 45 types, la longueur
+de `QuoteLineDto.required` (3 -> 2) et l'element qui s'y deplace ; la retiree est
+le dernier element de cette meme liste.
+
+**Le chiffre n'a de sens qu'avec la convention qui le produit.** Compter une
+entree par cle ajoutee, a n'importe quelle profondeur, en trouve **610** : les
+memes documents, au meme instant, un total superieur du tiers. C'est celle du
+test qui est retenue ici, parce que c'est celle que le test appliquera le jour ou
+il devra nommer un ecart.
+
+Le total des operations (165), des schemas (61) et des proprietes (379) est **le
+meme des deux cotes** : l'ecart ne se lisait donc dans aucun de ces trois
+compteurs, et il fallait descendre au detail des feuilles pour le voir. 67
+operations sur 165 sont concernees, et le document passe de 201 723 a 225 821
+octets.
+
+La ligne `QuoteLineDto` merite d'etre citee seule, parce qu'elle n'ajoute pas un
+mot-cle : elle **corrige une obligation**. Le champ y est ecrit
+`quantity?: number` et porte `@IsOptional()`, donc le serveur accepte qu'on
+l'omette. Mais le decorateur au-dessus est `@ApiProperty` — et non
+`@ApiPropertyOptional` — et un `tsc` nu s'en tient a lui : le contrat appauvri
+exigeait un champ facultatif. C'est l'indice que ce plugin ne decore pas le
+document, il lit ce que le serveur applique reellement.
+
+Et `test/docs.e2e-spec.ts` ne pouvait pas le voir, parce que ses **deux** cotes
+venaient de `tsc` : `configureApp` compile par `tsconfig.e2e.json` d'un cote, le
+fichier committe produit par `tsconfig.export.json` de l'autre. Le test comparait
+donc deux documents egalement appauvris, et restait vert pendant que `/api/docs`
+en servait un troisieme. Un test ne peut comparer que ce qu'on lui donne — d'ou
+la regle : les deux cotes passent par le **meme compilateur**.
+
+L'export du contrat (`npm run openapi:export`, `tsconfig.export.json`) passe par
+`nest build` pour la meme raison. Les trois — document committe, document servi
+en developpement, document verifie par la suite — sont desormais **le meme
+document**. Remplacer `nest build -p` par `tsc -p` dans l'un de ces deux scripts
+rompt cette egalite sans qu'aucun autre test ne s'en apercoive.
 
 ### Pourquoi la suite unitaire tourne sous `tsx`, et pas l'e2e
 
@@ -111,7 +179,8 @@ aussi pour ces lignes-la.
 ```ts
 // FAUX — « la boite de ce commercial est vide » : une AUTRE suite y a
 // legitimement depose une notification de demande de contact, puisque
-// `notifyAgency` notifie tous les porteurs ADMIN et SALES actifs.
+// `notifyAgency` notifie les porteurs ADMIN et SALES actifs (au plus 20 : la
+// requete porte `take: 20`, la file restant consultable au-dela).
 const notification = await prisma.notification.findFirst({ where: { userId } });
 assert.equal(notification, null);
 ```
@@ -170,7 +239,7 @@ notifie pas l'auteur de sa propre action »), sans dependre d'un voisin.
   inutilisee dans une spec bloque l'e2e entiere.
 - **`.e2e-build` est partage** : ne lancez pas deux `build:e2e` en concurrence.
   Pour executer un seul fichier :
-  `npx tsc -p tsconfig.e2e.json && node --test ".e2e-build/test/<fichier>.e2e-spec.js"`.
+  `npm run build:e2e && node --test ".e2e-build/test/<fichier>.e2e-spec.js"`.
 - **Les tests demarrent l'application par `configureApp()`**, la meme fonction
   que `main.ts`. Ce qui est teste est donc ce qui est deploye — pipe de
   validation (`forbidNonWhitelisted`), filtre d'exceptions et enveloppe de
@@ -195,9 +264,13 @@ notifie pas l'auteur de sa propre action »), sans dependre d'un voisin.
 | `full-chain.e2e-spec.ts` | La chaine complete, visiteur -> projet termine |
 
 Le dernier est l'audit exige par le client : il deroule les quinze etapes de la
-chaine metier par l'API HTTP reelle, et confronte chaque reference relue a
-`^(PRO|CLI|PRJ|DEV|FAC|PAY)-\d{4}-\d{4}$` — la seule preuve que la table
-`Counter` est reellement traversee.
+chaine metier par l'API HTTP reelle, et confronte chaque reference relue au motif
+de son compteur — `^<PREFIXE>-\d{4}-\d{4}$`, avec un prefixe par etape, et non
+une alternation unique : `CTR` pour la demande de contact de l'etape 1, puis
+`PRO`, `DEV`, `CLI`, `PRJ`, `FAC` et `PAY` (voir `referencePattern` dans le
+fichier). Le `CTR` de la premiere etape est celui qu'une lecture rapide oublie :
+la demande de contact est un document numerote comme les autres. C'est la seule
+preuve que la table `Counter` est reellement traversee.
 
 ## 6. Les deux verifications hors suite
 

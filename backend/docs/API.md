@@ -595,11 +595,22 @@ de tourner si `NODE_ENV` vaut `production`, cas ou `configureApp` ne construit
 aucun document.
 
 Corriger le fichier a la main ne sert a rien : `test/docs.e2e-spec.ts` le compare
-a la sortie fraiche et echoue au premier ecart, en nommant les operations
-concernees. Un DTO modifie sans relancer l'export fait donc tomber la suite e2e.
+a la sortie fraiche et echoue au premier ecart, en nommant les operations **et
+les schemas** concernes. Un DTO modifie sans relancer l'export fait donc tomber
+la suite e2e.
 
-En local, `npm run start:dev` sert ce meme document sur `/api/docs`, avec
-l'interface Swagger pour l'explorer.
+L'egalite entre ce fichier et ce que sert le serveur de developpement tient a un
+detail de compilation : **le plugin Swagger de `nest-cli.json`**. Il n'est
+applique que par `nest build`, jamais par `tsc`. Ce plugin lit les decorateurs
+class-validator et recopie leurs bornes dans le schema (`@MaxLength` ->
+`maxLength`, `@Min` -> `minimum`, `@IsEmail` -> `format: email`), en plus de
+resoudre le type reel des champs optionnels. Les deux commandes qui produisent ou
+verifient ce document (`openapi:export` et `build:e2e`) passent donc par
+`nest build` — sinon le document committe serait plus pauvre que celui de
+`/api/docs` : c'etait le cas, 463 feuilles en moins, 46 valeurs fausses et 67
+operations sur 165 concernees. Le detail de cette mesure est dans
+`docs/TESTING.md`. En local, `npm run start:dev` sert donc **ce meme** document
+sur `/api/docs`, avec l'interface Swagger pour l'explorer.
 
 ### Authentification : une exigence globale, et des exceptions declarees
 
@@ -889,13 +900,14 @@ et la verification (A.7) sans jamais parler du compte administrateur. Or c'est
 cette voie-la qui est deployee. La lacune n'est donc pas dans le fond, elle est
 dans l'annexe, et elle suffit a bloquer. Le garde
 (`common/guards/access.guards.ts`) ferme **tout** pour un porteur dont le drapeau
-est pose, sauf les routes marquees `@AllowPasswordChangeRequired()`. Donc :
+est pose, sauf les trois routes marquees `@AllowPasswordChangeRequired()`. Donc :
 
 | Appel, avec le jeton d'un administrateur neuf | Resultat |
 |---|---|
 | `POST /api/auth/login` | **200** — le jeton est bel et bien delivre |
 | `GET /api/auth/me` | 200 — c'est ce qui permet d'afficher l'ecran de changement |
 | `POST /api/auth/change-password` | 200 |
+| `POST /api/auth/logout-all` | 200 — fermer toutes ses sessions reste possible |
 | **Toute autre route, y compris `GET /api/users`** | **403 `PASSWORD_CHANGE_REQUIRED`** |
 
 La connexion reussit, puis la premiere route metier echoue. Un deploiement neuf

@@ -27,8 +27,20 @@
  * malgre `emitDecoratorMetadata: true` (la mesure est ecrite en tete de
  * `tsconfig.e2e.json`). Or ce script demarre le VRAI `AppModule` : sous `tsx`,
  * Nest croirait chaque constructeur vide et l'application echouerait au
- * demarrage. D'ou `tsc -p tsconfig.export.json`, puis l'execution du JavaScript
- * compile — exactement la recette de `test:e2e`.
+ * demarrage. D'ou `nest build -p tsconfig.export.json`, puis l'execution du
+ * JavaScript compile — exactement la recette de `test:e2e`.
+ *
+ * `nest build` ET NON `tsc` : c'est le seul qui applique le plugin Swagger de
+ * `nest-cli.json`, donc le seul dont la sortie donne le document que
+ * `npm run start:dev` sert sur `/api/docs`. Ce plugin lit les decorateurs
+ * class-validator et recopie leurs bornes dans le schema (`@MaxLength` ->
+ * `maxLength`, `@Min` -> `minimum`, `@IsEmail` -> `format: email`), en plus de
+ * resoudre le type reel des champs optionnels, la ou `tsc` ecrit `object`.
+ *
+ * Compile par `tsc`, ce script ecrirait donc un contrat PLUS PAUVRE que celui
+ * que le serveur de developpement affiche : mesure, 463 feuilles en moins, 46
+ * valeurs fausses — dont 45 types ecrits `object` — et 67 operations sur 165
+ * concernees. Le detail est dans `docs/TESTING.md`.
  *
  * -----------------------------------------------------------------------------
  * CE QU'IL FAUT POUR LE LANCER, ET CE QU'IL FAUT SAVOIR
@@ -52,7 +64,7 @@
  * USAGE
  * -----------------------------------------------------------------------------
  *     npm run openapi:export
- *     npm run openapi:export -- ../../shared/api/openapi.json
+ *     npm run openapi:export -- ../shared/api/openapi.json
  *
  * Le second argument est le chemin de sortie, resolu depuis `backend/`. Changer
  * de destination ne change RIEN pour `test/docs.e2e-spec.ts`, qui lit toujours
@@ -61,7 +73,7 @@
  */
 import 'dotenv/config';
 import 'reflect-metadata';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module.js';
@@ -77,8 +89,18 @@ const METHODES_HTTP = ['get', 'post', 'put', 'patch', 'delete'] as const;
 /** Nom attendu du paquet : sert a verifier que l'on tourne bien depuis `backend/`. */
 const NOM_DU_PAQUET = '@comexa/backend';
 
+/**
+ * Ecrit le message d'echec et termine — EN ECRITURE SYNCHRONE.
+ *
+ * `writeSync(2, ...)` plutot que `process.stderr.write` : sur un tuyau, cette
+ * derniere est asynchrone, et `process.exit(1)` juste apres peut la perdre. Le
+ * diagnostic serait alors remplace par un silence, precisement dans le cas ou il
+ * compte — une execution sous `node ... 2>&1 | tee`. Sur Windows l'ecriture de
+ * tuyau est synchrone, donc le defaut ne s'y voit pas ; il apparait sur un
+ * runner d'integration continue.
+ */
 function fail(message: string): never {
-  process.stderr.write(`ECHEC — ${message}\n`);
+  writeSync(2, `ECHEC — ${message}\n`);
   process.exit(1);
 }
 

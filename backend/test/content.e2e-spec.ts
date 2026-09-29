@@ -45,7 +45,7 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
  * echecs a 429, intermittents et penibles a lire.
  *
  * CE FICHIER EST COMPILE AVANT D'ETRE EXECUTE (`npm run test:e2e` lance
- * `tsc -p tsconfig.e2e.json`, puis `node --test` sur la sortie) : `tsx` s'appuie
+ * `nest build -p tsconfig.e2e.json`, puis `node --test` sur la sortie) : `tsx` s'appuie
  * sur esbuild, qui n'emet pas la metadonnee `design:paramtypes` dont Nest a
  * besoin pour l'injection par constructeur.
  *

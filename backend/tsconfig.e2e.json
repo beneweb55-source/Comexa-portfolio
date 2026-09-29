@@ -25,6 +25,22 @@
   // Effet secondaire utile : chaque execution de la suite e2e valide du meme
   // coup que le projet compile. Un test vert qui n'aurait jamais tourne sur le
   // vrai build ne prouverait pas grand-chose.
+  // CE FICHIER EST COMPILE PAR `nest build -p`, ET NON PAR `tsc -p` (voir
+  // `build:e2e` dans `package.json`). Ce n'est pas un detail de gout :
+  // `nest build` est le seul des deux a appliquer le plugin Swagger de
+  // `nest-cli.json`. Ce plugin lit les decorateurs class-validator et recopie
+  // leurs bornes dans le schema (`@MaxLength` -> `maxLength`, `@Min` ->
+  // `minimum`, `@IsEmail` -> `format: email`), en plus de resoudre le type reel
+  // des champs optionnels, la ou `tsc` ecrit `object`.
+  //
+  // Mesure, `tsc` contre `nest build` : 463 feuilles en moins dans le document
+  // appauvri, 46 valeurs fausses — dont 45 types ecrits `object` — et 67
+  // operations sur 165 concernees, alors que le total des operations, des
+  // schemas et des proprietes ne bouge pas. Le detail est dans `docs/TESTING.md`.
+  //
+  // `test/docs.e2e-spec.ts` comparait deux documents egalement appauvris, et ne
+  // voyait donc pas cet ecart ; il les compare desormais a travers `nest build
+  // -p`, des deux cotes.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     // Dossier dedie, distinct de `dist/` : `dist/` est la sortie de

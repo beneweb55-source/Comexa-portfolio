@@ -50,12 +50,20 @@ npm run openapi:export
 > une decision de securite — un plan detaille de l'API, publie, aide surtout a la
 > cartographier. Le document vit donc dans le depot, ou il est versionne et
 > lisible par quiconque clone. En local, `npm run start:dev` sert le meme document
-> sur `/api/docs`, avec Swagger UI pour l'explorer.
+> sur `/api/docs`, avec Swagger UI pour l'explorer — le meme au sens strict : les
+> deux passent par la CLI Nest, seule a appliquer le plugin Swagger de
+> `nest-cli.json`. Ce plugin lit les decorateurs class-validator et recopie leurs
+> bornes dans le schema (`@MaxLength` -> `maxLength`, `@Min` -> `minimum`,
+> `@IsEmail` -> `format: email`), en plus de resoudre le type reel des champs
+> optionnels. Un `tsc` nu produit donc un document plus pauvre : mesure, 463
+> feuilles en moins, 46 valeurs fausses — dont 45 types ecrits `object` — et 67
+> operations sur 165 concernees. Le detail est dans `backend/docs/TESTING.md`.
 
 Le tenir a jour ne repose pas sur la discipline, contrairement aux deux autres :
 `backend/test/docs.e2e-spec.ts` compare ce fichier a la sortie fraiche de
-`configureApp` et **echoue** s'il a pris du retard, en nommant les operations
-concernees. Un DTO modifie sans relancer l'export fait donc tomber la suite e2e —
+`configureApp` et **echoue** s'il a pris du retard, en nommant les operations et
+les schemas concernes. Un DTO modifie sans relancer l'export fait donc tomber la
+suite e2e —
 ce qui est exactement le moment ou l'on veut l'apprendre, et non celui ou
 quelqu'un integre un contrat perime.
 
