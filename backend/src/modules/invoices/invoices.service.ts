@@ -521,9 +521,31 @@ export class InvoicesService {
    *
    * Des qu'un paiement est encaisse, l'annulation n'est plus une correction mais
    * une disparition : l'argent est entre, et faire disparaitre la piece qui
-   * l'explique laisserait un encaissement orphelin dans la comptabilite. La
-   * correction passe alors par un avoir (`InvoiceType.CREDIT_NOTE`), et ce
-   * n'est pas encore implemente — c'est signale au coordinateur.
+   * l'explique laisserait un encaissement orphelin dans la comptabilite.
+   *
+   * LA CORRECTION COMPTABLE APPROPRIEE N'EXISTE PAS DANS CETTE API, ET LE MESSAGE
+   * LE DIT. Un avoir (`InvoiceType.CREDIT_NOTE`) est bien declare dans le schema
+   * Prisma, mais AUCUN chemin de code n'en ecrit : le type n'apparait que dans
+   * deux commentaires. Annoncer « corrigez par un avoir » revenait donc a indiquer
+   * a l'appelant un geste que l'API refuse — un remede imaginaire est pire qu'une
+   * absence de remede, parce qu'il fait perdre du temps a qui le suit.
+   *
+   * Le message nomme donc ce qui est reellement faisable : annuler d'abord les
+   * encaissements (`DELETE /payments/{id}`, suppression logique, solde et statut
+   * recalcules par `recomputePaymentState`), puis annuler la facture — `DRAFT`,
+   * `SENT` et `OVERDUE` sont annulables, voir `canCancelInvoice`.
+   *
+   * ET IL FAUT LES RETIRER TOUS. C'est le piege de ce message : retirer un seul
+   * encaissement sur deux laisse la facture en `PARTIALLY_PAID`
+   * (`statusAfterPayment`), un etat que `canCancelInvoice` REFUSE — l'appelant qui
+   * suivrait la consigne a moitie retomberait sur la meme erreur, en croyant avoir
+   * applique le remede. Le texte dit donc explicitement qu'un encaissement restant
+   * suffit a tout bloquer.
+   *
+   * Quant a l'avoir, il est nomme comme la LIMITE, plus comme un remede : une
+   * facture deja remise au client dont le montant doit changer n'a aucune
+   * correction disponible ici, ce qui est consigne dans `docs/API.md`, section
+   * « Ecarts connus et limites assumees ».
    */
   async cancel(
     invoiceId: string,
@@ -548,9 +570,29 @@ export class InvoicesService {
       }
 
       if (!canCancelInvoice(invoice.status)) {
+        // DEUX SITUATIONS DIFFERENTES ARRIVENT ICI, et elles n'appellent pas la
+        // meme reponse : une facture deja annulee (le geste est simplement repete)
+        // et une facture qui a depasse le stade de l'annulation parce que de
+        // l'argent a bouge (`PAID`, `PARTIALLY_PAID`) ou a ete rendu (`REFUNDED`,
+        // un statut qu'aucun chemin de code n'ecrit aujourd'hui — il est couvert
+        // ici au cas ou l'ecriture arriverait un jour). Les confondre dans un
+        // seul texte oblige a en ecrire un qui ne dit rien de vrai ni a l'une ni
+        // a l'autre : dire « elle porte un encaissement » d'une piece remboursee
+        // serait faux.
         throw AppException.conflict(
           'INVOICE_NOT_CANCELLABLE',
-          'Cette facture ne peut plus etre annulee. Une facture encaissee se corrige par un avoir.',
+          invoice.status === InvoiceStatus.CANCELLED
+            ? 'Cette facture est deja annulee.'
+            : "Cette facture a depasse le stade ou l'annulation est ouverte : seules " +
+              "les factures DRAFT, SENT et OVERDUE s'annulent. Si son statut vient " +
+              "d'un encaissement saisi par erreur, supprimez TOUS les paiements " +
+              "rattaches (DELETE /payments/{id}) : l'annulation est une suppression " +
+              "logique, et le solde comme le statut de la facture se recalculent. " +
+              'La facture revient alors en SENT et redevient annulable. Il suffit ' +
+              "qu'un seul encaissement reste pour qu'elle soit PARTIALLY_PAID, et " +
+              "l'annulation echouera de nouveau. Une facture deja remise au client " +
+              'dont le montant doit changer se corrige par un avoir, que cette API ' +
+              'ne sait pas encore emettre.',
         );
       }
 

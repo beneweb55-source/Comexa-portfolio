@@ -50,7 +50,19 @@ export class MailService implements OnModuleDestroy {
   private readonly logger = new Logger(MailService.name);
   private readonly transport: MailTransport | null;
 
+  /**
+   * Production, lue UNE fois et retenue.
+   *
+   * `send()` s'en sert pour decider s'il peut recopier le corps d'un courriel
+   * dans les journaux, et cette decision ne doit pas dependre d'une relecture de
+   * `NODE_ENV` a chaque envoi : une variable relue est une variable qui peut
+   * changer entre deux appels, et le prix de l'ecart serait ici la divulgation
+   * d'un jeton de reinitialisation.
+   */
+  private readonly production: boolean;
+
   constructor(private readonly config: ConfigService) {
+    this.production = config.get<string>('NODE_ENV') === 'production';
     this.transport = this.resolveTransport();
   }
 
@@ -119,10 +131,10 @@ export class MailService implements OnModuleDestroy {
     // donc dire ce qui NE MARCHERA PAS, et pas seulement ce qui manque : un
     // deploiement dans cet etat accepte sciemment de perdre les courriels, et
     // c'est la seule ligne qui le lui rappellera au demarrage.
-    const production = this.config.get<string>('NODE_ENV') === 'production';
-
+    // La valeur vient du champ fixe a la construction : voir sa declaration, et
+    // `send()`, qui lit le meme champ pour decider de journaliser le corps.
     this.logger.warn(
-      production
+      this.production
         ? 'Courriel : aucun transport configure (ni MAILJET_API_KEY + MAILJET_SECRET_KEY ' +
             'ni SMTP_HOST), ET CE SERVEUR TOURNE EN PRODUCTION. Le parcours « mot de passe ' +
             "oublie » repondra 200 sans qu'aucun courriel ne parte. Cet etat n'est possible " +
@@ -139,16 +151,48 @@ export class MailService implements OnModuleDestroy {
     return this.transport !== null;
   }
 
+  /**
+   * Envoie, ou recopie dans les journaux quand aucun transport n'existe.
+   *
+   * CE QUI EST JOURNALISE DEPEND DE L'ENVIRONNEMENT, ET C'EST UNE DECISION DE
+   * SECURITE, PAS DE CONFORT.
+   *
+   * Les gabarits de ce service transportent des JETONS VIVANTS :
+   * `sendPasswordReset` construit un lien `/reset-password?token=...` valable une
+   * heure et a usage unique. Or les journaux d'un hebergeur ne sont pas un
+   * coffre — ils sont consultables par l'equipe, exportes, indexes, et parfois
+   * transmis a un support externe. Recopier ce lien revient a publier un jeton de
+   * reinitialisation pour quiconque peut lire les journaux, et ce jeton ouvre le
+   * compte.
+   *
+   * En developpement, l'inverse est vrai, et c'est tout l'interet du repli : sans
+   * relais configure, le corps recopie EST le service rendu — c'est ce qui permet
+   * de suivre « mot de passe oublie » de bout en bout sans fournisseur de
+   * courriel. L'avertissement de demarrage de `resolveTransport()` l'annonce dans
+   * ces termes, et ne l'annonce PAS en production : il y dit au contraire que le
+   * parcours repondra 200 sans qu'aucun courriel ne parte.
+   *
+   * La banniere et le destinataire, eux, restent dans les deux cas. C'est la
+   * seule trace qu'un courriel a ete perdu, et une trace sans destinataire ne
+   * dirait pas lequel.
+   */
   async send(mail: OutgoingMail): Promise<void> {
     if (!this.transport) {
+      const corps = this.production
+        ? [
+            '  Corps   : NON JOURNALISE (production). Ces messages peuvent porter un',
+            "            lien ou un jeton a usage unique, et un journal d'hebergeur n'est",
+            '            pas un coffre.',
+          ]
+        : ['  --- Corps ---', mail.text];
+
       this.logger.warn(
         [
           '',
           '=========== COURRIEL NON ENVOYE (aucun transport configure) ============',
           `  A       : ${mail.to}`,
           `  Objet   : ${mail.subject}`,
-          '  --- Corps ---',
-          mail.text,
+          ...corps,
           '========================================================================',
           'Configurez MAILJET_API_KEY et MAILJET_SECRET_KEY (recommande : le port 443',
           'sort partout) ou SMTP_HOST pour un envoi reel. En production, le serveur',

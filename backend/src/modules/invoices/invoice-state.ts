@@ -34,9 +34,23 @@ export function canSendInvoice(status: InvoiceStatus): boolean {
 
 /**
  * L'annulation n'est ouverte QUE tant qu'aucun mouvement d'argent n'existe.
- * Des qu'un paiement est encaisse, la correction passe par un avoir
- * (`InvoiceType.CREDIT_NOTE`), pas par une annulation : les deux documents
+ * Des qu'un paiement est encaisse, la correction comptable appropriee est un
+ * avoir (`InvoiceType.CREDIT_NOTE`), pas une annulation : les deux documents
  * doivent apparaitre dans la comptabilite, pas s'annuler en silence.
+ *
+ * ATTENTION : CE GESTE N'EST PAS IMPLEMENTE. Le type est declare dans le schema
+ * Prisma, mais aucun chemin de code n'en ecrit — voir `docs/API.md`, section
+ * « Ecarts connus et limites assumees ». La regle ci-dessus explique POURQUOI
+ * l'annulation est fermee ; elle ne decrit pas un remede disponible, et le
+ * message d'erreur de `InvoicesService.cancel` est ecrit pour ne pas le
+ * promettre.
+ *
+ * ET LE PREDICAT EST PLUS ETROIT QU'IL N'Y PARAIT, ce qui se paie a l'usage :
+ * `PAID`, `PARTIALLY_PAID` et `REFUNDED` sont refuses. Retirer TOUS les
+ * encaissements ramene la facture a `SENT` (`statusAfterPayment`) et l'annulation
+ * redevient possible ; n'en retirer QU'UN SEUL la laisse en `PARTIALLY_PAID`,
+ * donc toujours refusee. C'est la raison pour laquelle le message d'erreur insiste
+ * sur « tous ».
  *
  * `OVERDUE` EST DANS LA LISTE, et ce n'est pas une exception ajoutee par
  * commodite. `OVERDUE` est un `SENT` dont la date d'echeance est passee : aucun

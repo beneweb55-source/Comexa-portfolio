@@ -962,6 +962,40 @@ Mesure faite en suivant reellement le lien signe jusqu'a
 a celui qui a ete depose. Le stockage objet repond donc bien depuis le reseau de
 Render.
 
+### Une facture encaissee ne peut PAS etre corrigee par un avoir
+
+`InvoiceType.CREDIT_NOTE` **est declare** dans le schema Prisma, et **aucun chemin
+de code n'en ecrit** : le type n'apparait que dans deux commentaires
+(`invoices/invoice-state.ts` et `invoices/invoices.service.ts`). L'API ne sait donc
+pas emettre d'avoir.
+
+Ce n'est pas un detail theorique, c'est une limite a connaitre avant de la
+decouvrir en clientele. Une facture **deja remise au client** dont le montant doit
+changer n'a aujourd'hui **aucune correction disponible par l'API**.
+
+Ce qu'elle sait faire, en revanche — et c'est ce que le message d'erreur nomme
+desormais :
+
+| Situation | Ce qui est possible |
+|---|---|
+| Facture `PAID` ou `PARTIALLY_PAID`, encaissement saisi par erreur | `DELETE /api/payments/:id` sur **tous** les encaissements, **puis** `POST /api/invoices/:id/cancel`. `remove()` fait une suppression logique et appelle `recomputePaymentState()` : solde retombe a zero, la facture revient en `SENT`, le seul etat annulable parmi ceux-la — `canCancelInvoice` n'accepte que `DRAFT`, `SENT` et `OVERDUE`. **Il faut donc les retirer tous** : tant qu'un encaissement reste, la facture est `PARTIALLY_PAID` et l'annulation echoue de nouveau, avec le meme code. |
+| Facture deja remise au client, montant a corriger | **Rien.** C'est le trou decrit ci-dessus. |
+| Facture `CANCELLED` | Rien a faire, elle l'est deja. Le message le dit maintenant, au lieu de parler d'encaissement sur une piece annulee. |
+
+L'annulation d'un encaissement exige `payment:write:any`, que detiennent ADMIN
+(par `'ALL'`) **et le role SALES**, par declaration explicite dans le catalogue
+(`permissions.catalogue.ts`, `[RoleCode.SALES]`). La seconde etape, elle, exige
+`invoice:write:any` : **aucun role nomme** ne le porte (meme constat que pour
+`invoice:cancel:any` ci-dessus), donc un SALES peut defaire un paiement mais pas
+annuler la facture qui suit — la sequence complete reste ADMIN. Un porteur de
+l'espace client, lui, ne detient que `payment:read:own` : il ne peut pas defaire un
+paiement, pas meme le sien.
+
+Ce document disait l'inverse jusqu'ici : le message d'erreur promettait « une
+facture encaissee se corrige par un avoir ». C'etait un remede imaginaire, et un
+remede imaginaire est pire qu'une absence de remede — il fait perdre du temps a
+qui le suit.
+
 ---
 
 ## 10. Inventaire des routes

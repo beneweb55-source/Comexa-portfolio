@@ -411,6 +411,8 @@ describe('MailService — envoi', () => {
 
   it("ecrit le courriel dans les journaux quand aucun transport n'est configure", async () => {
     const logs = captureLogs();
+    // `NODE_ENV` absent vaut « hors production » : c'est le poste de
+    // developpement, et le seul cas ou le corps du courriel est recopie.
     const service = new MailService(configOf({}));
 
     // Ne doit PAS lever : en developpement, l'absence de transport est normale,
@@ -421,6 +423,56 @@ describe('MailService — envoi', () => {
     assert.match(output, /COURRIEL NON ENVOYE/);
     assert.match(output, /client@exemple\.tld/);
     assert.match(output, /Bonjour, votre facture est disponible\./);
+  });
+
+  it('ne recopie PAS le corps du courriel dans les journaux de production', async () => {
+    const logs = captureLogs();
+    const service = new MailService(configOf({ NODE_ENV: 'production' }));
+
+    await service.send(MAIL);
+
+    const output = logs.lines.join('\n');
+
+    // La banniere et le destinataire RESTENT : c'est la seule trace qu'un
+    // courriel a ete perdu, et une trace sans destinataire ne dit pas lequel.
+    assert.match(output, /COURRIEL NON ENVOYE/);
+    assert.match(output, /client@exemple\.tld/);
+    assert.match(output, /NON JOURNALISE/);
+
+    // Le corps, lui, ne doit pas y etre. Le controle porte sur la chaine EXACTE
+    // du message : il vaut donc pour tout gabarit present ou futur, et pas
+    // seulement pour celui de ce test.
+    assert.equal(
+      output.includes(MAIL.text),
+      false,
+      'le corps du courriel ne doit pas etre journalise en production',
+    );
+  });
+
+  it('ne divulgue pas le jeton de reinitialisation dans les journaux de production', async () => {
+    // LE CAS QUI MOTIVE LE PRECEDENT, et il est plus fort que lui : ce n'est pas
+    // le texte du courriel qui est dangereux, c'est le lien qu'il contient. Un
+    // jeton recopie dans un journal vaut un compte ouvert pour qui lit ce
+    // journal, et il reste valable une heure.
+    const logs = captureLogs();
+    const service = new MailService(configOf({ NODE_ENV: 'production' }));
+    const token = 'jeton-a-usage-unique-8f3c1d';
+
+    await service.sendPasswordReset({
+      to: 'client@exemple.tld',
+      firstName: 'Samir',
+      token,
+      expiresInLabel: '1 heure',
+    });
+
+    const output = logs.lines.join('\n');
+    assert.match(output, /COURRIEL NON ENVOYE/);
+    assert.equal(output.includes(token), false, 'le jeton ne doit pas apparaitre dans les journaux');
+    assert.equal(
+      output.includes('/reset-password'),
+      false,
+      'le lien de reinitialisation ne doit pas apparaitre dans les journaux',
+    );
   });
 });
 

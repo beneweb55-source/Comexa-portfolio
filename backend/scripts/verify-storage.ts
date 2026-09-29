@@ -50,11 +50,19 @@
  * le secret dans un terminal, un journal de CI ou une conversation.
  */
 
+// En PREMIER, et pour la meme raison que dans `env.validation.spec.ts` : ce
+// script importe `env.validation.ts`, dont les decorateurs appellent
+// `Reflect.defineMetadata`. Le polyfill arrive aujourd'hui par le graphe
+// d'imports de `class-validator`, donc par effet de bord d'un autre paquet ; ce
+// script ne veut pas en dependre.
+import 'reflect-metadata';
+
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { forcesPathStyle } from '../src/config/env.validation.js';
 import { S3StorageDriver } from '../src/common/storage/s3.driver.js';
 import { buildStorageKey, isSafeStorageKey } from '../src/common/storage/storage.key.js';
 import { SIGNED_URL_TTL_SECONDS, type S3Config } from '../src/common/storage/storage.types.js';
@@ -145,7 +153,12 @@ function main(): void {
     bucket: raw.S3_BUCKET ?? '',
     accessKeyId: raw.S3_ACCESS_KEY_ID ?? '',
     secretAccessKey: raw.S3_SECRET_ACCESS_KEY ?? '',
-    forcePathStyle: readBoolean(raw.S3_FORCE_PATH_STYLE, true),
+    // LE MEME PARSEUR QUE LE RUNTIME, importe de `env.validation.ts` plutot que
+    // recopie. C'est tout l'interet de ce script : il doit lire la variable comme
+    // le processus qu'il verifie. Une copie locale lit un `oui` comme le defaut
+    // (repli silencieux) et declare « le stockage est bon » pendant que le serveur
+    // refuse de demarrer — le pire des deux resultats, puisqu'il rassure.
+    forcePathStyle: forcesPathStyle(raw.S3_FORCE_PATH_STYLE),
   };
 
   const missing = (['region', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).filter(
@@ -302,15 +315,6 @@ function unquote(value: string): string {
     }
   }
   return trimmed;
-}
-
-/** Reprend la lecture de `storage.module.ts`, pour ne pas diverger du runtime. */
-function readBoolean(raw: string | undefined, fallback: boolean): boolean {
-  if (raw === undefined) return fallback;
-  const value = raw.trim().toLowerCase();
-  if (['true', '1', 'yes', 'on'].includes(value)) return true;
-  if (['false', '0', 'no', 'off'].includes(value)) return false;
-  return fallback;
 }
 
 /** L'URL signee porte sa signature dans ses parametres : on n'en montre que la forme. */

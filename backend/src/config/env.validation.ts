@@ -257,6 +257,31 @@ export class EnvironmentVariables {
   S3_SECRET_ACCESS_KEY?: string;
 
   /**
+   * Adressage par CHEMIN plutot que par sous-domaine (`https://hote/bucket/cle`
+   * au lieu de `https://bucket.hote/cle`).
+   *
+   * DECLAREE ICI, ET C'EST CE QUI LA REND VERIFIABLE : la variable etait
+   * auparavant lue directement par `storage.module.ts`, hors de tout contrat — et
+   * cette lecture retombait en silence sur son defaut. Or ce reglage decide de la
+   * FORME des URL signees : un repli silencieux sur la mauvaise forme produit des
+   * liens qui ne s'ouvrent pas, et l'exploitant cherche alors la panne du cote des
+   * identifiants, qui sont, eux, corrects.
+   *
+   * Declaree comme CHAINE et non comme booleen, pour la meme raison que
+   * `ALLOW_BOOT_WITHOUT_MAIL` : `enableImplicitConversion` lit `'false'` comme
+   * vrai — l'inverse exact de la demande. La chaine est traduite par
+   * `forcesPathStyle()` plus bas, qui LEVE sur une valeur inconnue.
+   *
+   * Le defaut est `true` : c'est le reglage qui fonctionne sur MinIO, Scaleway,
+   * OVH, Backblaze B2 et Garage, et AWS l'accepte aussi. Un defaut a `false`
+   * marcherait en apparence chez AWS et echouerait partout ailleurs, ce qui est le
+   * pire des deux cas pour un projet qui vise un stockage compatible.
+   */
+  @IsOptional()
+  @IsString()
+  S3_FORCE_PATH_STYLE = 'true';
+
+  /**
    * Nombre et non chaine : `MAX_UPLOAD_BYTES` est compare a une taille en
    * octets, et une comparaison entre une chaine et un nombre en JavaScript est
    * une source classique de bug silencieux (`'26214400' > 1000000` est vrai par
@@ -320,9 +345,9 @@ function assertSecretsDiffer(env: EnvironmentVariables): void {
  * Traduit `ALLOW_BOOT_WITHOUT_MAIL` en booleen.
  *
  * Meme contrat que `parseTrustProxy` — chaine en entree, memes orthographes
- * acceptees — avec une difference deliberee : une valeur NON RECONNUE LEVE, au
- * lieu de retomber sur le defaut comme le fait `readBoolean` cote stockage. Un
- * repli silencieux serait ici trompeur : quelqu'un qui ecrit `oui` a bien
+ * acceptees — et meme contrat que `forcesPathStyle` plus bas : une valeur NON
+ * RECONNUE LEVE, au lieu de retomber sur un defaut silencieux. Un repli
+ * silencieux serait ici trompeur : quelqu'un qui ecrit `oui` a bien
  * l'intention d'ouvrir la derogation, et s'il obtenait `false` sans un mot, il
  * verrait le serveur refuser de demarrer et chercherait la panne partout sauf
  * dans la variable qu'il vient de poser.
@@ -342,6 +367,46 @@ export function allowsBootWithoutMail(raw: string | undefined): boolean {
   throw new Error(
     `ALLOW_BOOT_WITHOUT_MAIL : « ${value} » n'est pas une valeur booleenne reconnue. ` +
       'Attendu : false (le defaut), ou true. Sont aussi acceptes 1, 0, yes, no, on, off.',
+  );
+}
+
+/**
+ * Traduit `S3_FORCE_PATH_STYLE` en booleen.
+ *
+ * MEME CONTRAT QUE `allowsBootWithoutMail` CI-DESSUS, ET POUR LA MEME RAISON :
+ * une valeur NON RECONNUE LEVE. Ce reglage decide de la forme des URL signees ;
+ * un repli silencieux sur le defaut produirait des liens qui ne s'ouvrent pas, et
+ * le diagnostic partirait du cote des identifiants — qui, eux, sont corrects.
+ *
+ * Une variable ABSENTE ou VIDE vaut `true`, le defaut de la declaration
+ * ci-dessus : c'est la forme d'adressage qui fonctionne sur la quasi-totalite des
+ * stockages compatibles, et l'ecrire explicitement dans un `.env` n'apporte donc
+ * rien.
+ *
+ * ELLE N'EST PAS APPELEE PAR `validateEnv`, contrairement a
+ * `allowsBootWithoutMail`, et c'est delibere : le seul consommateur de cette
+ * valeur est `resolveStorageConfig()` dans `storage.module.ts`, qui s'execute
+ * pendant la construction des providers — donc au demarrage, avant que le
+ * serveur n'accepte la moindre requete. Y ajouter un appel ici pour jeter le
+ * resultat ne ferait que dupliquer la meme regle a un second endroit.
+ */
+export function forcesPathStyle(raw: string | undefined): boolean {
+  const value = (raw ?? '').trim();
+  const lowered = value.toLowerCase();
+
+  if (value.length === 0 || ['true', '1', 'yes', 'on'].includes(lowered)) {
+    return true;
+  }
+
+  if (['false', '0', 'no', 'off'].includes(lowered)) {
+    return false;
+  }
+
+  throw new Error(
+    `S3_FORCE_PATH_STYLE : « ${value} » n'est pas une valeur booleenne reconnue. ` +
+      'Attendu : true (le defaut, et le seul reglage qui fonctionne sur MinIO, Scaleway, ' +
+      'OVH, Backblaze B2 et Garage), ou false (AWS par sous-domaine). Sont aussi acceptes ' +
+      '1, 0, yes, no, on, off.',
   );
 }
 

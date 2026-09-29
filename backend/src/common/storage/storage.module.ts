@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { forcesPathStyle } from '../../config/env.validation.js';
 import { LocalStorageDriver } from './local.driver.js';
 import { S3StorageDriver } from './s3.driver.js';
 import {
@@ -63,7 +64,11 @@ export function resolveStorageConfig(config: ConfigService): StorageConfig {
       bucket: config.get<string>('S3_BUCKET') ?? '',
       accessKeyId: config.get<string>('S3_ACCESS_KEY_ID') ?? '',
       secretAccessKey: config.get<string>('S3_SECRET_ACCESS_KEY') ?? '',
-      forcePathStyle: readBoolean(config.get<string>('S3_FORCE_PATH_STYLE'), true),
+      // Traduite par `env.validation.ts`, qui LEVE sur une valeur inconnue : une
+      // faute de frappe dans `S3_FORCE_PATH_STYLE` arrete donc le demarrage, au
+      // lieu de produire des URL signees dans la mauvaise forme sans le dire. Le
+      // defaut (`true`) est documente sur la declaration de la variable.
+      forcePathStyle: forcesPathStyle(config.get<string>('S3_FORCE_PATH_STYLE')),
     },
   };
 }
@@ -137,29 +142,6 @@ function assertS3Configured(s3: S3Config): void {
         'Voir backend/.env.example, section « Stockage des fichiers ».',
     );
   }
-}
-
-/**
- * Lit un booleen d'environnement.
- *
- * `S3_FORCE_PATH_STYLE` n'est pas encore declaree dans `env.validation.ts` :
- * elle arrive ici sous forme de chaine, eventuellement absente ou vide — ce
- * qu'un `=== 'true'` interprete comme faux, c'est-a-dire l'inverse du defaut
- * voulu. D'ou cette lecture explicite.
- *
- * Le defaut est `true` : c'est le reglage qui fonctionne sur MinIO, Scaleway,
- * OVH et Garage, et AWS l'accepte aussi. Un defaut a `false` marcherait en
- * apparence chez AWS et echouerait partout ailleurs, ce qui est le pire des
- * deux cas pour un projet qui vise un stockage compatible.
- */
-function readBoolean(raw: string | undefined, fallback: boolean): boolean {
-  if (raw === undefined || raw.trim() === '') return fallback;
-
-  const value = raw.trim().toLowerCase();
-  if (['true', '1', 'yes', 'on'].includes(value)) return true;
-  if (['false', '0', 'no', 'off'].includes(value)) return false;
-
-  return fallback;
 }
 
 function emptyToUndefined(value: string | undefined): string | undefined {

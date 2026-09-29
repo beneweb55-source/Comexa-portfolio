@@ -6,7 +6,7 @@ import 'reflect-metadata';
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { allowsBootWithoutMail, validateEnv } from './env.validation.js';
+import { allowsBootWithoutMail, forcesPathStyle, validateEnv } from './env.validation.js';
 
 /**
  * CE QUE CES TESTS PROTEGENT.
@@ -29,6 +29,13 @@ import { allowsBootWithoutMail, validateEnv } from './env.validation.js';
  * `common/http/client-ip.ts`). Un champ booleen ici ouvrirait la derogation sur
  * un deploiement qui a pourtant ecrit « false » : le test « la chaine false ne
  * doit jamais devenir vraie » est donc la piece centrale de ce fichier.
+ *
+ * UN TROISIEME REGLAGE EST ARRIVE ICI SANS DECIDER DU DEMARRAGE, et c'est
+ * volontaire : `S3_FORCE_PATH_STYLE` (voir `forcesPathStyle`) n'est pas lu par
+ * `validateEnv` mais par `resolveStorageConfig()` dans `storage.module.ts`. Il
+ * figure dans ce fichier parce qu'il partage le meme piege que les deux autres —
+ * la chaine `'false'` — et le meme contrat de lecture : une valeur NON RECONNUE
+ * LEVE, au lieu de retomber sur un defaut.
  *
  * Aucun appel reseau, aucun acces a la base : `validateEnv` ne lit que l'objet
  * qu'on lui donne.
@@ -94,6 +101,66 @@ describe('allowsBootWithoutMail — lecture de la derogation', () => {
         (error: unknown) => {
           assert.ok(error instanceof Error, `Error attendue pour « ${raw} »`);
           assert.match(error.message, /ALLOW_BOOT_WITHOUT_MAIL/);
+          assert.ok(
+            error.message.includes(raw),
+            `le message doit citer la valeur fautive : ${error.message}`,
+          );
+          return true;
+        },
+        `« ${raw} » aurait du etre refuse`,
+      );
+    }
+  });
+});
+
+describe("forcesPathStyle — lecture de l'adressage S3", () => {
+  it('vaut VRAI quand la variable est absente ou vide, comme le defaut declare', () => {
+    // Une variable absente vaut `true` : c'est le defaut de la declaration dans
+    // `env.validation.ts`, et la forme d'adressage qui fonctionne sur la
+    // quasi-totalite des stockages compatibles. Un `.env` qui ecrit
+    // `S3_FORCE_PATH_STYLE=false`, lui, reste faux — c'est le cas AWS, teste plus
+    // bas.
+    for (const raw of [undefined, '', '   ']) {
+      assert.equal(forcesPathStyle(raw), true, `« ${String(raw)} » devrait valoir true`);
+    }
+  });
+
+  it('vaut VRAI pour les orthographes positives', () => {
+    for (const raw of ['true', 'TRUE', ' true ', '1', 'yes', 'on', 'Yes', 'ON']) {
+      assert.equal(forcesPathStyle(raw), true, `« ${raw} » devrait valoir true`);
+    }
+  });
+
+  it('vaut FAUX pour les orthographes negatives', () => {
+    // Le cas qui compte reellement en production : un stockage adresse par
+    // sous-domaine (AWS). Un repli silencieux sur le defaut `true` y produirait
+    // des URL signees que le service refuse, et l'echec apparaitrait cote
+    // navigateur, tres loin de la variable fautive.
+    for (const raw of ['false', 'FALSE', ' false ', '0', 'no', 'off', 'No', 'OFF']) {
+      assert.equal(forcesPathStyle(raw), false, `« ${raw} » devrait valoir false`);
+    }
+  });
+
+  it('LE PIEGE : la chaine « false » ne doit jamais devenir vraie', () => {
+    // Meme mecanisme que pour `ALLOW_BOOT_WITHOUT_MAIL`, et meme raison d'etre :
+    // le champ est declare comme CHAINE, donc il traverse
+    // `enableImplicitConversion` sans devenir un booleen. Declare booleen, il
+    // aurait ete lu `true` sur un `.env` qui ecrit pourtant `false`.
+    assert.equal(forcesPathStyle('false'), false);
+    assert.equal(Boolean('false'), true, 'une chaine non vide est vraie en JavaScript');
+  });
+
+  it('REFUSE une valeur non booleenne, en la nommant', () => {
+    // Le repli silencieux est precisement ce que ce parseur remplace : avant, un
+    // « oui » ou un « vrai » etait lu comme le defaut, sans un mot, et les liens
+    // signes sortaient dans la mauvaise forme. Le message doit donc citer la
+    // valeur fautive, sinon l'exploitant ne sait pas laquelle corriger.
+    for (const raw of ['oui', 'vrai', 'TRUE!', '2', 'enabled', '-1', 'chemin']) {
+      assert.throws(
+        () => forcesPathStyle(raw),
+        (error: unknown) => {
+          assert.ok(error instanceof Error, `Error attendue pour « ${raw} »`);
+          assert.match(error.message, /S3_FORCE_PATH_STYLE/);
           assert.ok(
             error.message.includes(raw),
             `le message doit citer la valeur fautive : ${error.message}`,
