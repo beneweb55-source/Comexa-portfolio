@@ -45,11 +45,15 @@ cd backend
 npm run openapi:export
 ```
 
-> **CE FICHIER N'EST PAS SERVI EN LIGNE, ET C'EST VOULU.** `/api/docs` ne sert le
-> document que hors production : sur le service deploye, il repond **404**. C'est
-> une decision de securite — un plan detaille de l'API, publie, aide surtout a la
-> cartographier. Le document vit donc dans le depot, ou il est versionne et
-> lisible par quiconque clone. En local, `npm run start:dev` sert le meme document
+> **CE FICHIER N'EST PAS SERVI EN LIGNE PAR DEFAUT, ET C'EST VOULU.** `/api/docs`
+> ne sert le document que hors production : sur le service deploye, il repond
+> **404** — sauf si `DOCS_ENABLED=true`, auquel cas la documentation est servie,
+> mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`). C'est une
+> decision de securite : un plan detaille de l'API, publie, aide surtout a la
+> cartographier, et ce depot refuse qu'on puisse le publier par accident — le
+> serveur ne demarre pas si le drapeau est ouvert sans identifiants. Le document
+> vit donc d'abord dans le depot, ou il est versionne et lisible par quiconque
+> clone. En local, `npm run start:dev` sert le meme document
 > sur `/api/docs`, avec Swagger UI pour l'explorer — le meme au sens strict : les
 > deux passent par la CLI Nest, seule a appliquer le plugin Swagger de
 > `nest-cli.json`. Ce plugin lit les decorateurs class-validator et recopie leurs

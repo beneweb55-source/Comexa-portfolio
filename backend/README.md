@@ -59,7 +59,7 @@ quand on les rate :
 | | |
 |---|---|
 | API | `http://localhost:3001/api` |
-| Swagger | `http://localhost:3001/api/docs` — **monte uniquement hors production** |
+| Swagger | `http://localhost:3001/api/docs` — **hors production** ; en production seulement si `DOCS_ENABLED=true`, et alors **protege par mot de passe** |
 | Sante | `GET /api/health` — `src/health/health.controller.ts` |
 | Temps reel | meme port, `socket.io`, poignee de main authentifiee |
 
@@ -110,7 +110,7 @@ Les tests demarrent l'application par `configureApp()` — la meme fonction que
 | `docs/TESTING.md` | Les deux suites, la base partagee, les regles que chaque spec doit suivre. |
 | `docs/security-audit.md` | Revue de securite : RBAC, IDOR, mot de passe, en-tetes. |
 | `docs/DEPLOYMENT.md` | Le runbook de mise en production : VM, TLS, stockage objet, courriel. |
-| `/api/docs` | OpenAPI genere depuis le code (hors production). |
+| `/api/docs` | OpenAPI genere depuis le code. **Hors production** ; en production, seulement si `DOCS_ENABLED=true`, et alors derriere un mot de passe (`DOCS_USER` / `DOCS_PASSWORD`). |
 
 ---
 

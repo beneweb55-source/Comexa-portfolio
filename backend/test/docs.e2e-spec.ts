@@ -326,9 +326,18 @@ function decrireEcart(committe: OpenAPIObject, frais: OpenAPIObject): string {
       'operations presentes dans le fichier seulement (a retirer)',
       operations.retirees,
     ),
-    ...listerAvecPlafond('operations presentes des deux cotes, mais differentes', operations.modifiees),
-    ...listerAvecPlafond('schemas presents dans le code seulement (a documenter)', schemas.ajoutees),
-    ...listerAvecPlafond('schemas presents dans le fichier seulement (a retirer)', schemas.retirees),
+    ...listerAvecPlafond(
+      'operations presentes des deux cotes, mais differentes',
+      operations.modifiees,
+    ),
+    ...listerAvecPlafond(
+      'schemas presents dans le code seulement (a documenter)',
+      schemas.ajoutees,
+    ),
+    ...listerAvecPlafond(
+      'schemas presents dans le fichier seulement (a retirer)',
+      schemas.retirees,
+    ),
     ...listerAvecPlafond('schemas presents des deux cotes, mais differents', schemas.modifiees),
     ...(rienDansLesIndex(operations, schemas)
       ? [

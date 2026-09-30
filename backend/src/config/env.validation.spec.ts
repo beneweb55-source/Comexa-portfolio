@@ -6,7 +6,13 @@ import 'reflect-metadata';
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { allowsBootWithoutMail, forcesPathStyle, validateEnv } from './env.validation.js';
+import {
+  DOCS_PASSWORD_MIN_LENGTH,
+  allowsBootWithoutMail,
+  docsEnabled,
+  forcesPathStyle,
+  validateEnv,
+} from './env.validation.js';
 
 /**
  * CE QUE CES TESTS PROTEGENT.
@@ -36,6 +42,14 @@ import { allowsBootWithoutMail, forcesPathStyle, validateEnv } from './env.valid
  * figure dans ce fichier parce qu'il partage le meme piege que les deux autres —
  * la chaine `'false'` — et le meme contrat de lecture : une valeur NON RECONNUE
  * LEVE, au lieu de retomber sur un defaut.
+ *
+ * UN QUATRIEME, `DOCS_ENABLED`, DECIDE DU DEMARRAGE ET C'EST NOUVEAU : il ouvre
+ * en production la documentation OpenAPI, qui n'y etait jamais servie. Comme il
+ * rend PUBLIC un plan complet de l'API, `assertDocsConfigured` refuse de demarrer
+ * si le drapeau est ouvert sans identifiants, ou avec un mot de passe trop court.
+ * Les deux regles opposees sont verifiees ici — ouvert sans identifiants =
+ * arret, et ferme (le defaut) = aucune consequence, y compris quand aucun
+ * identifiant n'est renseigne.
  *
  * Aucun appel reseau, aucun acces a la base : `validateEnv` ne lit que l'objet
  * qu'on lui donne.
@@ -257,6 +271,191 @@ describe("validateEnv — refus de demarrer sans moyen d'envoi", () => {
           baseEnv({
             NODE_ENV: 'production',
             ALLOW_BOOT_WITHOUT_MAIL: 'true',
+            JWT_REFRESH_SECRET: 'a'.repeat(32),
+          }),
+        ),
+      /DIFFERENTS/,
+    );
+  });
+});
+
+describe('docsEnabled — lecture du drapeau de documentation', () => {
+  it('vaut FAUX quand la variable est absente ou vide', () => {
+    // LE DEFAUT QUI COMPTE : la production ne sert aucune documentation. Un
+    // `.env` qui porte `DOCS_ENABLED=` sans valeur ne doit pas l'ouvrir, et
+    // l'absence totale de la variable non plus — c'est le cas des deploiements
+    // d'avant cette fonctionnalite, qui ne doivent rien voir changer.
+    for (const raw of [undefined, '', '   ']) {
+      assert.equal(docsEnabled(raw), false, `« ${String(raw)} » devrait valoir false`);
+    }
+  });
+
+  it('vaut FAUX pour les orthographes negatives', () => {
+    for (const raw of ['false', 'FALSE', 'False', 'off', 'no', '0']) {
+      assert.equal(docsEnabled(raw), false, `« ${raw} » devrait valoir false`);
+    }
+  });
+
+  it('vaut VRAI pour les orthographes affirmatives', () => {
+    for (const raw of ['true', 'TRUE', 'True', 'on', 'yes', '1']) {
+      assert.equal(docsEnabled(raw), true, `« ${raw} » devrait valoir true`);
+    }
+  });
+
+  it('REFUSE une valeur non booleenne, en la nommant', () => {
+    // Meme contrat que `allowsBootWithoutMail` : une faute de frappe LEVE au lieu
+    // de retomber sur un defaut. Ici, retomber sur « faux » en silence serait le
+    // pire des choix — l'exploitant croirait la documentation ouverte.
+    for (const raw of ['oui', 'vrai', 'TRUE!', '2', 'enabled', '-1', 'peut-etre']) {
+      assert.throws(
+        () => docsEnabled(raw),
+        (error: unknown) => {
+          assert.ok(error instanceof Error, `Error attendue pour « ${raw} »`);
+          assert.match(error.message, /DOCS_ENABLED/);
+          assert.ok(
+            error.message.includes(raw),
+            `le message doit citer la valeur fautive : ${error.message}`,
+          );
+          return true;
+        },
+        `« ${raw} » aurait du etre refuse`,
+      );
+    }
+  });
+});
+
+describe('validateEnv — la documentation ouverte en production', () => {
+  // On isole le controle de la documentation en donnant a la production un
+  // relais SMTP : sans cela, `assertMailConfigured` arreterait le demarrage
+  // avant que le controle etudie ici soit atteint, et le test passerait pour
+  // une raison sans rapport avec ce qu'il verifie.
+  const productionAvecRelais = (overrides: Record<string, unknown> = {}): Record<string, unknown> =>
+    baseEnv({ NODE_ENV: 'production', SMTP_HOST: 'smtp.exemple.tld', ...overrides });
+
+  const MOT_DE_PASSE_VALIDE = 'x'.repeat(DOCS_PASSWORD_MIN_LENGTH);
+
+  it('reste FERMEE quand DOCS_ENABLED est absent, identifiants ou non', () => {
+    const env = validateEnv(productionAvecRelais());
+
+    // La valeur reste une CHAINE apres `plainToInstance` : c'est la preuve que la
+    // conversion implicite ne l'a pas transformee en booleen — le meme piege que
+    // `TRUST_PROXY` et `ALLOW_BOOT_WITHOUT_MAIL`.
+    assert.equal(env.DOCS_ENABLED, 'false');
+    assert.equal(docsEnabled(env.DOCS_ENABLED), false);
+  });
+
+  it('reste FERMEE quand DOCS_ENABLED=false, meme sans identifiants', () => {
+    // Le cas symetrique du suivant, et il compte autant : exiger les identifiants
+    // sur un deploiement qui n'ouvre rien empecherait de deployer.
+    assert.doesNotThrow(() => validateEnv(productionAvecRelais({ DOCS_ENABLED: 'false' })));
+  });
+
+  it('REFUSE une production qui ouvre la documentation sans AUCUN identifiant', () => {
+    assert.throws(
+      () => validateEnv(productionAvecRelais({ DOCS_ENABLED: 'true' })),
+      (error: unknown) => {
+        assert.ok(error instanceof Error, 'Error attendue');
+        assert.match(error.message, /DOCS_USER/);
+        assert.match(error.message, /DOCS_PASSWORD/);
+        assert.match(error.message, /sans protection/i);
+        return true;
+      },
+      'ouvrir la documentation sans identifiants devrait arreter le demarrage',
+    );
+  });
+
+  it('REFUSE une ouverture a laquelle il manque UNE des deux moities, en la nommant', () => {
+    // Le message doit nommer celle qui manque : sinon l'exploitant relit le
+    // message « sans protection » alors qu'il vient d'en remplir une, et cherche
+    // la panne partout sauf dans la variable vide.
+    assert.throws(
+      () =>
+        validateEnv(
+          productionAvecRelais({
+            DOCS_ENABLED: 'true',
+            DOCS_USER: 'comexa',
+          }),
+        ),
+      /DOCS_PASSWORD/,
+    );
+
+    assert.throws(
+      () =>
+        validateEnv(
+          productionAvecRelais({
+            DOCS_ENABLED: 'true',
+            DOCS_PASSWORD: MOT_DE_PASSE_VALIDE,
+          }),
+        ),
+      /DOCS_USER/,
+    );
+  });
+
+  it('REFUSE un mot de passe plus court que le minimum, et ACCEPTE le minimum', () => {
+    // LA BORNE EXACTE. Les routes de Swagger ne passent pas par le limiteur de
+    // debit : rien ne borne le nombre d'essais, et seule la longueur du secret
+    // protege encore. La longueur minimale est donc une propriete de securite, et
+    // une borne non testee est une borne qui derivera.
+    const tropCourt = 'x'.repeat(DOCS_PASSWORD_MIN_LENGTH - 1);
+
+    assert.throws(
+      () =>
+        validateEnv(
+          productionAvecRelais({
+            DOCS_ENABLED: 'true',
+            DOCS_USER: 'comexa',
+            DOCS_PASSWORD: tropCourt,
+          }),
+        ),
+      (error: unknown) => {
+        assert.ok(error instanceof Error, 'Error attendue');
+        assert.match(error.message, /DOCS_PASSWORD/);
+        assert.ok(
+          error.message.includes(String(DOCS_PASSWORD_MIN_LENGTH)),
+          `le message doit citer la longueur exigee : ${error.message}`,
+        );
+        return true;
+      },
+      'un mot de passe trop court devrait arreter le demarrage',
+    );
+
+    assert.doesNotThrow(() =>
+      validateEnv(
+        productionAvecRelais({
+          DOCS_ENABLED: 'true',
+          DOCS_USER: 'comexa',
+          DOCS_PASSWORD: MOT_DE_PASSE_VALIDE,
+        }),
+      ),
+    );
+  });
+
+  it('ACCEPTE une ouverture en DEVELOPPEMENT sans identifiants', () => {
+    // Le controle ne vise que la production. En developpement, `/api/docs` est
+    // deja servi sans protection — c'est le comportement historique, et exiger un
+    // mot de passe la casserait pour tout le monde.
+    assert.doesNotThrow(() =>
+      validateEnv(baseEnv({ NODE_ENV: 'development', DOCS_ENABLED: 'true' })),
+    );
+  });
+
+  it('REFUSE une orthographe non reconnue plutot que de fermer en silence', () => {
+    // Le controle doit remonter jusqu'a `validateEnv`, et pas seulement exister
+    // dans `docsEnabled` : c'est ce chemin-la qui decide du demarrage.
+    assert.throws(() => validateEnv(productionAvecRelais({ DOCS_ENABLED: 'oui' })), /DOCS_ENABLED/);
+  });
+
+  it("n'ouvre PAS les autres controles en s'ouvrant elle-meme", () => {
+    // Meme exigence que pour la derogation du courriel : la documentation ouverte
+    // ne dispense de rien. Deux secrets JWT identiques restent une raison
+    // d'arreter le processus.
+    assert.throws(
+      () =>
+        validateEnv(
+          productionAvecRelais({
+            DOCS_ENABLED: 'true',
+            DOCS_USER: 'comexa',
+            DOCS_PASSWORD: MOT_DE_PASSE_VALIDE,
             JWT_REFRESH_SECRET: 'a'.repeat(32),
           }),
         ),

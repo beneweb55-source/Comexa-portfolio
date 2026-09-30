@@ -292,6 +292,48 @@ export class EnvironmentVariables {
   @IsInt()
   @Min(1024)
   MAX_UPLOAD_BYTES = 26_214_400;
+
+  // --- Documentation OpenAPI ---------------------------------------------------
+  //
+  // PAR DEFAUT, LA PRODUCTION NE SERT TOUJOURS AUCUNE DOCUMENTATION. C'est le
+  // comportement historique du depot, et il ne change pas : `false` est le
+  // defaut, et il faut l'activer volontairement.
+  //
+  // POURQUOI CETTE VARIABLE EXISTE. Le refus de servir le document en production
+  // protege une vraie chose — un plan detaille de l'API aide surtout a la
+  // cartographier — mais il avait un cout qu'on ne mesurait pas : l'associe qui
+  // integre le frontend n'avait aucun moyen de lire le contrat en ligne, alors
+  // que c'est exactement ce dont il a besoin. Cette variable rend ce choix
+  // EXPLICITE plutot que subi.
+  //
+  // CHAINE, ET NON BOOLEEN, POUR LE MEME PIEGE QUE `TRUST_PROXY` :
+  // `validateEnv` s'execute avec `enableImplicitConversion`, ou la chaine
+  // `'false'` devient `true` — l'inverse exact de la demande. Un champ booleen
+  // ici ouvrirait donc la documentation sur un deploiement qui a pourtant ecrit
+  // « false ». La traduction est faite par `docsEnabled`, qui REFUSE une valeur
+  // qui n'en est pas une.
+  @IsOptional()
+  @IsString()
+  DOCS_ENABLED = 'false';
+
+  /**
+   * Identifiant et mot de passe de la protection de la documentation.
+   *
+   * EXIGES DES QUE `DOCS_ENABLED=true` EN PRODUCTION — voir `assertDocsConfigured`.
+   * Sans ce refus, une faute de frappe sur `DOCS_ENABLED` publierait le plan
+   * complet de l'API, sans protection ET sans un mot : c'est precisement le cas
+   * que ce projet refuse ailleurs (voir `assertMailConfigured`).
+   *
+   * Ces valeurs sont lues par le serveur, jamais ecrites nulle part, et jamais
+   * journalisees. Elles ne figurent pas dans le document OpenAPI.
+   */
+  @IsOptional()
+  @IsString()
+  DOCS_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  DOCS_PASSWORD?: string;
 }
 
 /**
@@ -410,6 +452,119 @@ export function forcesPathStyle(raw: string | undefined): boolean {
   );
 }
 
+/**
+ * Traduit `DOCS_ENABLED` en booleen.
+ *
+ * MEME CONTRAT QUE `allowsBootWithoutMail` ET `forcesPathStyle` CI-DESSUS, ET
+ * POUR LA MEME RAISON : une valeur NON RECONNUE LEVE. Le repli silencieux serait
+ * ici particulierement couteux — quelqu'un qui ecrit `oui` a l'intention
+ * d'OUVRIR la documentation, et s'il obtenait `false` sans un mot, il chercherait
+ * la panne du cote du reseau ou du cache, tres loin de la variable qu'il vient de
+ * poser.
+ *
+ * Une variable ABSENTE ou VIDE vaut `false`, le defaut de la declaration
+ * ci-dessus : la production reste donc fermee tant que personne ne l'ouvre
+ * explicitement.
+ */
+export function docsEnabled(raw: string | undefined): boolean {
+  const value = (raw ?? '').trim();
+  const lowered = value.toLowerCase();
+
+  if (value.length === 0 || ['false', '0', 'no', 'off'].includes(lowered)) {
+    return false;
+  }
+
+  if (['true', '1', 'yes', 'on'].includes(lowered)) {
+    return true;
+  }
+
+  throw new Error(
+    `DOCS_ENABLED : « ${value} » n'est pas une valeur booleenne reconnue. Attendu : ` +
+      'false (le defaut — la documentation reste fermee en production), ou true. Sont ' +
+      'aussi acceptes 1, 0, yes, no, on, off.',
+  );
+}
+
+/**
+ * Longueur minimale du mot de passe protégeant la documentation.
+ *
+ * CE N'EST PAS UNE COQUETTERIE. La documentation est servie derriere une
+ * authentification HTTP Basic, et les routes de Swagger ne passent PAS par le
+ * limiteur de debit global : celui-ci est un garde de Nest, et Swagger monte ses
+ * routes directement sur l'adaptateur HTTP, hors du routeur de Nest. Rien ne
+ * borne donc le nombre d'essais. La seule defense qui reste est la longueur du
+ * secret, et elle doit etre exigeE ici plutot qu'esperee.
+ *
+ * 16 caracteres n'est pas un objectif de robustesse absolu : c'est le seuil a
+ * partir duquel un mot de passe engendre aleatoirement n'est plus devinable. Un
+ * mot de passe choisi a la main y arrivera aussi, a condition de ne pas etre un
+ * mot du dictionnaire.
+ */
+export const DOCS_PASSWORD_MIN_LENGTH = 16;
+
+/**
+ * En production, ouvrir la documentation exige de la proteger.
+ *
+ * LE CAS QUE CE CONTROLE EMPECHE, ET IL EST LE SEUL QUI COMPTE : un deploiement
+ * qui ecrit `DOCS_ENABLED=true` en oubliant `DOCS_PASSWORD`. Sans ce refus, le
+ * serveur demarre, sert le plan complet de l'API — les 165 operations, les
+ * modeles, les codes de permission — a quiconque connait l'URL, et RIEN ne le
+ * signale. C'est exactement le raisonnement de `assertMailConfigured` : une
+ * configuration incomplete doit arreter le processus, pas se decouvrir plus tard.
+ *
+ * POURQUOI REFUSER PLUTOT QUE SERVIR SANS PROTECTION. Une documentation ouverte
+ * n'est pas un etat degrade, c'est un etat DIFFERENT, que personne n'a demande.
+ * Le repli silencieux serait ici l'inverse d'un repli prudent : il elargirait un
+ * droit au lieu de le restreindre.
+ *
+ * HORS PRODUCTION, CE CONTROLE NE DIT RIEN : le developpement sert la
+ * documentation sans authentification, c'est voulu et c'est le comportement
+ * historique. La fonction sort donc immediatement — un `.env` de developpement
+ * n'a aucune raison de porter un mot de passe.
+ */
+function assertDocsConfigured(env: EnvironmentVariables): void {
+  if (env.NODE_ENV !== NodeEnv.Production) {
+    return;
+  }
+
+  if (!docsEnabled(env.DOCS_ENABLED)) {
+    return;
+  }
+
+  const user = (env.DOCS_USER ?? '').trim();
+  const password = (env.DOCS_PASSWORD ?? '').trim();
+
+  // LES DEUX SONT NOMMEES ENSEMBLE quand aucune ne l'est : l'exploitant qui vient
+  // d'ouvrir la documentation doit pouvoir corriger les deux d'un coup, sans
+  // relancer un demarrage pour decouvrir la seconde.
+  if (user.length === 0 || password.length === 0) {
+    const manquantes =
+      user.length === 0 && password.length === 0
+        ? 'DOCS_USER et DOCS_PASSWORD sont toutes les deux manquantes'
+        : user.length === 0
+          ? 'DOCS_USER est manquante'
+          : 'DOCS_PASSWORD est manquante';
+
+    throw new Error(
+      `DOCS_ENABLED=true en production, mais ${manquantes} : la documentation ` +
+        "serait alors servie SANS protection, et le plan complet de l'API serait " +
+        "lisible par quiconque connait l'URL. Renseigner DOCS_USER et DOCS_PASSWORD, " +
+        `ou retirer DOCS_ENABLED. Generer un mot de passe avec : ` +
+        `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`,
+    );
+  }
+
+  if (password.length < DOCS_PASSWORD_MIN_LENGTH) {
+    throw new Error(
+      `DOCS_PASSWORD fait ${password.length} caracteres, or ${DOCS_PASSWORD_MIN_LENGTH} ` +
+        'est le minimum quand DOCS_ENABLED=true en production. Les routes de Swagger ' +
+        "ne passent pas par le limiteur de debit : rien ne borne le nombre d'essais, " +
+        'et seule la longueur du secret protege encore. Generer une valeur avec : ' +
+        `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`,
+    );
+  }
+}
+
 function assertMailConfigured(env: EnvironmentVariables): void {
   if (env.NODE_ENV !== NodeEnv.Production) {
     return;
@@ -468,6 +623,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
 
   assertSecretsDiffer(validated);
   assertMailConfigured(validated);
+  assertDocsConfigured(validated);
 
   return validated;
 }

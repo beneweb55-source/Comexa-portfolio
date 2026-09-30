@@ -6,7 +6,9 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { configureClientIp, parseTrustProxy } from './common/http/client-ip.js';
+import { docsBasicAuth } from './common/http/docs-access.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
+import { docsEnabled } from './config/env.validation.js';
 
 /**
  * CONFIGURATION DE L'APPLICATION, PARTAGEE ENTRE LE DEMARRAGE ET LES TESTS.
@@ -31,8 +33,8 @@ export interface AppSetupResult {
   readonly apiPrefix: string;
   readonly isProduction: boolean;
   /**
-   * Le document OpenAPI genere, ou `undefined` en production — ou il n'est pas
-   * construit du tout.
+   * Le document OpenAPI genere, ou `undefined` quand il n'est pas construit du
+   * tout — c'est-a-dire en production quand `DOCS_ENABLED` n'est pas ouvert.
    *
    * Expose ICI parce qu'un document OpenAPI est une affirmation sur l'API, et
    * qu'une affirmation se verifie. Sans ce retour, `public.decorator.spec.ts`
@@ -106,13 +108,50 @@ export function configureApp(app: INestApplication): AppSetupResult {
   /**
    * Documentation OpenAPI.
    *
-   * Exposee uniquement hors production : c'est un plan detaille de l'API, et en
-   * production elle aiderait surtout quelqu'un a la cartographier. Le frontend
-   * de developpement y accede, la production non.
+   * HORS PRODUCTION, ELLE EST SERVIE SANS PROTECTION, comme avant : elle sert au
+   * frontend de developpement, et exiger un mot de passe pour lire une API qui
+   * tourne sur `localhost` ne protegerait rien tout en genant tout le monde.
+   *
+   * EN PRODUCTION, ELLE RESTE FERMEE PAR DEFAUT. `DOCS_ENABLED=true` l'ouvre,
+   * parce qu'un integrateur qui n'a pas le depot sous la main a besoin de lire le
+   * contrat en ligne. Mais un document OpenAPI est le plan complet de l'API — ses
+   * 165 operations, ses modeles, ses codes de permission — donc cette ouverture
+   * est CONDITIONNELLE : `assertDocsConfigured` (voir `config/env.validation.ts`)
+   * refuse le demarrage si `DOCS_ENABLED` est ouvert sans identifiants, ou avec
+   * un mot de passe trop court. Autrement dit, on ne peut pas deployer une
+   * documentation publique par accident.
+   *
+   * LA PROTECTION N'EST ENREGISTREE QUE DANS CE CAS, jamais en developpement :
+   * la-bas les identifiants peuvent etre absents, et un middleware qui exigerait
+   * un couple vide repondrait 401 a tout le monde.
    */
   let document: OpenAPIObject | undefined;
 
-  if (!isProduction) {
+  const docsOpen = !isProduction || docsEnabled(config.get<string>('DOCS_ENABLED'));
+
+  if (docsOpen) {
+    /**
+     * L'ORDRE COMPTE : ce middleware est enregistre AVANT `SwaggerModule.setup`,
+     * et Express execute les intergiciels dans leur ordre d'inscription. Place
+     * apres, il ne verrait jamais passer une seule requete de documentation.
+     *
+     * Il est monte GLOBALEMENT, sans chemin, parce qu'il porte lui-meme le
+     * controle de chemin — voir l'en-tete de `common/http/docs-access.ts` pour
+     * les deux pieges que cela evite (les routes `-json`/`-yaml` sont des freres
+     * de `/api/docs`, et Express ignore la casse).
+     */
+    if (isProduction) {
+      app.use(
+        docsBasicAuth(
+          {
+            user: (config.get<string>('DOCS_USER') ?? '').trim(),
+            password: (config.get<string>('DOCS_PASSWORD') ?? '').trim(),
+          },
+          apiPrefix,
+        ),
+      );
+    }
+
     const swaggerConfig = new DocumentBuilder()
       .setTitle('API Comexa')
       .setDescription(
