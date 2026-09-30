@@ -1,5 +1,6 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import logo from "../../public/comexa-logo-horizontal-clair-transparent.png"
 
 export default function Footer() {
@@ -12,7 +13,7 @@ export default function Footer() {
 
 
                     <div className="md:col-span-1">
-                        <a href="/" className="mb-5 flex items-center gap-2">
+                        <Link href="/" className="mb-5 flex items-center gap-2">
                             <Image
                                 src={logo}
                                 alt="Comexa"
@@ -20,7 +21,7 @@ export default function Footer() {
                                 height={50}
                                 priority
                             />
-                        </a>
+                        </Link>
 
                         <h2 className="text-xl font-medium ">
                             Naviguer le digital ensemble.
@@ -41,7 +42,7 @@ export default function Footer() {
                         <ul className="space-y-3 text-14 text-white">
                             <li>
                                 <a href="#agence" className="transition hover:text-[#1E86E0]">
-                                    L'agence
+                                    L&apos;agence
                                 </a>
                             </li>
 
