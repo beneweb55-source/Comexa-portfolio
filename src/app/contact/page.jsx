@@ -1,6 +1,25 @@
 'use client';
-import { useState } from "react";
+import { useEffect, useState } from "react";
 export default function Contact() {
+  useEffect(() => {
+    const sections = document.querySelectorAll(".scroll-reveal");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8%" },
+    );
+
+    sections.forEach((section) => observer.observe(section));
+
+    return () => observer.disconnect();
+  }, []);
+
      const [projectType, setProjectType] = useState("Site vitrine");
 
   const projectTypes = [
@@ -52,7 +71,7 @@ export default function Contact() {
   return (
     <main className="min-h-screen bg-[#f5f7fa] text-[#10294a]">
 
-      <section>
+      <section className="scroll-reveal">
         <div className="mx-auto max-w-[1300px] px-5 pb-10 pt-10 md:px-10">
 
        
@@ -64,7 +83,7 @@ export default function Contact() {
 
           <div className="mt-8 flex items-center justify-between gap-10">
 
-            <div className="max-w-[650px]">
+            <div className="scroll-slide-left max-w-[650px]">
               <span className="inline-flex rounded-lg bg-[#168fe5] px-3 py-1.5 text-[11px] font-medium text-[#08203e]">
                 NAVIGUER LE DIGITAL ENSEMBLE
               </span>
@@ -84,7 +103,7 @@ export default function Contact() {
             </div>
 
             {/* Illustration */}
-            <div className="relative hidden h-[190px] w-[320px] md:block">
+            <div className="scroll-slide-right relative hidden h-[190px] w-[320px] md:block">
 
               <div className="absolute left-[35px] top-[0px] h-[188px] w-[188px] rounded-full border border-[#2490e8]" />
 
@@ -111,10 +130,10 @@ export default function Contact() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1200px] px-5 py-2 md:px-10">
+      <section className="scroll-reveal section-reveal-delay-1 mx-auto max-w-[1200px] px-5 py-2 md:px-10">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_310px]">
 
-          <div className="rounded-[20px] border border-[#10294a] bg-white p-6 shadow-[5px_7px_0_#10294a] md:p-7">
+          <div className="reveal-card reveal-card-delay-1 rounded-[20px] border border-[#10294a] bg-white p-6 shadow-[5px_7px_0_#10294a] md:p-7">
 
             <div className="flex items-start justify-between">
               <div>
@@ -267,7 +286,7 @@ export default function Contact() {
           </div>
 
         
-          <aside className="space-y-6">
+          <aside className="reveal-card reveal-card-delay-2 space-y-6">
 
             <div className="rounded-[19px] border border-[#10294a] bg-white p-5 shadow-[5px_7px_0_#10294a]">
 
@@ -382,7 +401,7 @@ export default function Contact() {
           </aside>
         </div>
       </section>
-       <section className="w-full bg-[#e8f1fb] px-10 py-12 text-[#10294a] mt-10 md:px-10 lg:px-14">
+       <section className="scroll-reveal section-reveal-delay-2 mt-10 w-full bg-[#e8f1fb] px-10 py-12 text-[#10294a] md:px-10 lg:px-14">
       <div className="mx-auto max-w-[1180px]">
 
         {/* HEADER */}
@@ -414,7 +433,7 @@ export default function Contact() {
             return (
               <div
                 key={item.number}
-                className={`overflow-hidden rounded-[15px] border border-[#10294a] shadow-[4px_5px_0_#10294a] transition-colors ${
+                className={`reveal-card reveal-card-delay-${(index % 3) + 1} overflow-hidden rounded-[15px] border border-[#10294a] shadow-[4px_5px_0_#10294a] transition-colors ${
                   isOpen
                     ? "bg-[#238dde] text-[#08203e]"
                     : "bg-white"
