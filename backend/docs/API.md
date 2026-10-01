@@ -562,11 +562,22 @@ ce soit. Aucune decision d'acces ne la lit.
 |---|---|
 | `/api/docs` | Interface Swagger. |
 | `/api/docs-json` | Document OpenAPI brut (JSON). |
+| `/api/docs-yaml` | Document OpenAPI brut (YAML). |
 
-**Ces deux routes n'existent qu'hors production.** En production elles sont
-absentes et repondent 404 : un plan detaille de l'API aiderait surtout quelqu'un a
-la cartographier. Le frontend de developpement y accede, la production non — ne
-construisez donc rien qui en depende a l'execution.
+**Hors production, ces routes sont servies sans protection.** En production, elles
+sont ABSENTES et repondent 404 : un plan detaille de l'API aiderait surtout
+quelqu'un a la cartographier.
+
+**Une exception, sur decision explicite : `DOCS_ENABLED=true`.** Les routes
+existent alors, mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`,
+HTTP Basic), et `assertDocsConfigured` refuse le demarrage si le drapeau est
+ouvert sans identifiants ou avec un mot de passe de moins de 16 caracteres. La
+raison de cette longueur : ces routes ne passent pas par le limiteur de debit
+global — `SwaggerModule` les monte sur l'adaptateur HTTP, en dehors du routeur de
+Nest — donc rien ne borne le nombre d'essais.
+
+Ne construisez rien qui depende de ces routes a l'execution : elles peuvent etre
+fermees d'un redemarrage a l'autre, selon une variable d'environnement.
 
 ### Le document est aussi committe, et c'est celui que lit le frontend
 

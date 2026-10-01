@@ -4,10 +4,11 @@
  * -----------------------------------------------------------------------------
  * POURQUOI CE SCRIPT EXISTE
  * -----------------------------------------------------------------------------
- * `configureApp` ne construit le document que HORS PRODUCTION (voir
- * `src/app.setup.ts`) : `/api/docs` repond donc 404 sur le service deploye.
- * C'est une decision de securite assumee, et elle ne bouge pas — un plan
- * detaille de l'API, publie, aide surtout a la cartographier.
+ * `configureApp` ne construit le document QU'HORS PRODUCTION, ou en production
+ * quand `DOCS_ENABLED=true` (voir `src/app.setup.ts`) : par defaut, `/api/docs`
+ * repond donc 404 sur le service deploye. C'est une decision de securite
+ * assumee — un plan detaille de l'API, publie, aide surtout a la cartographier —
+ * et l'ouverture reste une exception explicite, protegee par un mot de passe.
  *
  * Mais le frontend a besoin du contrat pour integrer l'API, et `shared/README.md`
  * promettait ce document « genere depuis le code et servi sur `/api/docs` ». Cette
@@ -164,11 +165,13 @@ async function main(): Promise<void> {
   try {
     const setup = configureApp(app);
 
-    if (setup.isProduction) {
+    if (setup.isProduction && !setup.document) {
       fail(
-        "NODE_ENV vaut 'production' dans l'environnement de ce script, et `configureApp` " +
-          'ne construit alors AUCUN document : /api/docs est ferme en production, par ' +
-          'decision. Retirez NODE_ENV=production de backend/.env, ou lancez : ' +
+        "NODE_ENV vaut 'production' dans l'environnement de ce script et " +
+          "`DOCS_ENABLED` n'est pas ouvert : `configureApp` ne construit alors AUCUN " +
+          'document, et /api/docs reste ferme en production, par decision. Ce script ' +
+          'exporte le contrat committe, qui doit etre celui du developpement. Retirez ' +
+          'NODE_ENV=production de backend/.env, ou lancez : ' +
           'NODE_ENV=development npm run openapi:export',
       );
     }
@@ -183,9 +186,10 @@ async function main(): Promise<void> {
 
   if (!document) {
     fail(
-      'configureApp a retourne une application hors production SANS document. ' +
-        "C'est une incoherence de `app.setup.ts` : le document doit etre construit dans " +
-        'exactement ce cas la.',
+      'configureApp a retourne une application SANS document. ' +
+        "C'est une incoherence de `app.setup.ts` : le document est construit hors " +
+        'production, ou en production quand `DOCS_ENABLED=true` — il devrait donc ' +
+        'exister ici.',
     );
   }
 

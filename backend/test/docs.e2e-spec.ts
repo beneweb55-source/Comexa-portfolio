@@ -70,7 +70,9 @@ import { serializeOpenApi } from '../src/common/openapi/serialize-openapi.js';
  *
  *  5. LE DOCUMENT COMMITTE EST CELUI QUE LE CODE PRODUIT. Le contrat du frontend
  *     vit dans `shared/api/openapi.json`, parce que `/api/docs` est ferme en
- *     production. Ce fichier est donc la seule description des DTO accessible a
+ *     production par defaut — il ne s'ouvre que sur `DOCS_ENABLED=true`, et
+ *     derriere un mot de passe. Ce fichier est donc la seule description des DTO
+ *     accessible a
  *     l'associe : s'il prend du retard, il ne devient pas seulement imprecis, il
  *     decrit une API qui n'existe plus — et rien dans le depot ne le signalerait.
  *     Le test compare le fichier a la sortie fraiche de `configureApp`,
@@ -103,8 +105,9 @@ const RACINE_TEST = resolve(process.cwd(), 'test');
  *
  * `process.cwd()` vaut `backend/` (meme convention que les deux constantes
  * ci-dessus) : le depot est donc son parent. Ce fichier est le contrat que lit le
- * frontend, puisque `configureApp` ne sert le document que hors production et que
- * `/api/docs` repond 404 sur le service deploye.
+ * frontend, puisque `configureApp` ne sert le document que hors production — ou
+ * en production sur `DOCS_ENABLED=true`, protege par un mot de passe — et que
+ * `/api/docs` repond donc 404 sur le service deploye par defaut.
  */
 const CHEMIN_DOCUMENT_COMMITTE = resolve(process.cwd(), '..', 'shared', 'api', 'openapi.json');
 
@@ -368,14 +371,18 @@ describe('Documentation OpenAPI servie', () => {
     await app?.close();
   });
 
-  it('est generee hors production, et absente en production', () => {
-    // Ce test echouerait si la suite tournait avec NODE_ENV=production : c'est
-    // voulu. Un document expose en production est un plan detaille de l'API, et
-    // ce depot a choisi de ne pas le publier (voir app.setup.ts).
+  it('est generee hors production, ou en production si DOCS_ENABLED=true', () => {
+    // Ce test echouerait si la suite tournait avec NODE_ENV=production SANS
+    // `DOCS_ENABLED` : c'est voulu. Un document expose en production est un plan
+    // detaille de l'API, et ce depot a choisi de ne pas le publier par defaut
+    // (voir app.setup.ts). La protection elle-meme — chemin couvert, mot de
+    // passe exige — est verifiee par `src/common/http/docs-access.spec.ts`, hors
+    // e2e : cette suite tourne en developpement, ou le middleware n'est pas monte.
     assert.ok(
       document,
-      "`configureApp` n'a pas retourne de document. Si NODE_ENV vaut 'production', " +
-        "c'est le comportement attendu et cette suite ne doit pas tourner ainsi.",
+      "`configureApp` n'a pas retourne de document. Si NODE_ENV vaut 'production' " +
+        "sans DOCS_ENABLED, c'est le comportement attendu et cette suite ne doit pas " +
+        'tourner ainsi.',
     );
   });
 

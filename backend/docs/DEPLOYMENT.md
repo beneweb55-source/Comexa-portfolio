@@ -569,7 +569,7 @@ Les variables a changer :
 
 | Variable | Valeur en production | Pourquoi |
 |---|---|---|
-| `NODE_ENV` | `production` | Active `secure: true` sur le cookie, coupe Swagger |
+| `NODE_ENV` | `production` | Active `secure: true` sur le cookie, et ferme Swagger **sauf si `DOCS_ENABLED=true`** (voir A.4.1) |
 | `API_DOMAIN` | `api.exemple.tld` | Le nom pour lequel Caddy obtient un certificat |
 | `ACME_EMAIL` | votre adresse | Let's Encrypt y signale une expiration imminente |
 | `CORS_ORIGIN` | `https://www.exemple.tld` | Le domaine reel du frontend — **jamais `*`** |
@@ -1032,7 +1032,7 @@ sont obligatoires.
 
 | Variable | Valeur | Note |
 |---|---|---|
-| `NODE_ENV` | `production` | Active les controles de demarrage (`assertMailConfigured`, refus du stockage local) et supprime les traces de pile des reponses |
+| `NODE_ENV` | `production` | Active les controles de demarrage (`assertMailConfigured`, refus du stockage local) et supprime les traces de pile des reponses. Ferme aussi la documentation OpenAPI, **sauf si `DOCS_ENABLED=true`** — voir A.4.1 |
 | `DATABASE_URL` | URL Neon **pooli** (hote `-pooler`) | Celle que l'application utilise |
 | `DIRECT_URL` | URL Neon **directe** | Lue en premier par la CLI Prisma ; necessaire si vous lancez une migration depuis l'onglet *Shell* de Render |
 | `JWT_ACCESS_SECRET` | chaine aleatoire longue | **Doit differer** de `JWT_REFRESH_SECRET`, sinon le demarrage est refuse (`assertSecretsDiffer`) |
@@ -1046,6 +1046,47 @@ Pour engendrer les deux secrets, plutot que de les inventer a la main :
 ```bash
 node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 ```
+
+### A.4.1 Servir la documentation OpenAPI en ligne (optionnel)
+
+**Par defaut, non : `/api/docs` repond 404 sur le service deploye.** C'est une
+decision de securite — un plan detaille de l'API, publie, aide surtout a la
+cartographier. L'ouvrir sert a un integrateur qui n'a pas le depot sous la main
+et doit lire le contrat en ligne.
+
+Trois variables, a ajouter aux « Obligatoires » ci-dessus :
+
+| Variable | Valeur | Note |
+|---|---|---|
+| `DOCS_ENABLED` | `true` | Ferme par defaut (absent ou `false`). Ecrire `true` ou `false`, pas `0`/`1` : une valeur non reconnue fait **echouer le demarrage**, avec un message qui nomme la variable |
+| `DOCS_USER` | un identifiant au choix | **Exige** des que `DOCS_ENABLED=true` en production |
+| `DOCS_PASSWORD` | un secret de **16 caracteres minimum** | **Exige** aussi. En dessous, le demarrage est refuse |
+
+Pour engendrer le mot de passe :
+
+```bash
+node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+```
+
+**POURQUOI CES CONTROLES.** La documentation est servie derriere une
+authentification HTTP Basic, et le navigateur affiche lui-meme l'invite. Deux
+points ne se devinent pas :
+
+- le serveur REFUSE de demarrer si `DOCS_ENABLED=true` sans identifiants. Sans ce
+  refus, une variable oubliee publierait le document complet a l'adresse du
+  service — c'est-a-dire le plan des 165 operations de l'API ;
+- les routes de Swagger ne passent pas par le limiteur de debit global
+  (`SwaggerModule` les monte sur l'adaptateur HTTP, hors du routeur de Nest) :
+  rien ne borne le nombre d'essais, et seule la longueur du mot de passe protege
+  encore. D'ou le minimum de 16 caracteres.
+
+Les routes brutes `/api/docs-json` et `/api/docs-yaml` sont protegees par la meme
+regle que l'interface : le document complet n'est jamais lisible sans le mot de
+passe.
+
+Pour refermer la documentation, supprimer `DOCS_ENABLED` (ou le mettre a `false`)
+et redeployer. `DOCS_USER` et `DOCS_PASSWORD` peuvent rester : sans le drapeau,
+ils ne servent a rien.
 
 **Stockage — Backblaze B2** (meme compte qu'au §3)
 
