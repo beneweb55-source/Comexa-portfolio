@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { configureClientIp, parseTrustProxy } from './common/http/client-ip.js';
-import { docsBasicAuth } from './common/http/docs-access.js';
+import { docsSessionSecret, protectDocs } from './common/http/docs-access.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { docsEnabled } from './config/env.validation.js';
 
@@ -139,16 +139,31 @@ export function configureApp(app: INestApplication): AppSetupResult {
      * controle de chemin — voir l'en-tete de `common/http/docs-access.ts` pour
      * les deux pieges que cela evite (les routes `-json`/`-yaml` sont des freres
      * de `/api/docs`, et Express ignore la casse).
+     *
+     * IL SERT AUSSI LA PAGE DE CONNEXION. L'invite native du navigateur, celle
+     * que declenche `WWW-Authenticate`, ne revient pas apres un refus memorise :
+     * l'associe restait alors devant une page blanche. Une page rendue par le
+     * serveur ne depend d'aucun comportement du navigateur, ni d'une fenetre
+     * privee, ni d'un vidage de cache. L'authentification Basic continue d'etre
+     * acceptee, pour les clients qui n'affichent pas de HTML.
      */
     if (isProduction) {
+      // Le mot de passe est lu une seule fois : il sert d'identifiant attendu ET
+      // de matiere pour le secret qui signe les sessions. Changer
+      // `DOCS_PASSWORD` invalide donc toutes les sessions ouvertes. Lire les deux
+      // fois separement suffirait a ce que la signature derive d'autre chose que
+      // ce qui est reellement verifie — voir `docsSessionSecret`.
+      const password = (config.get<string>('DOCS_PASSWORD') ?? '').trim();
+
       app.use(
-        docsBasicAuth(
-          {
+        protectDocs({
+          credentials: {
             user: (config.get<string>('DOCS_USER') ?? '').trim(),
-            password: (config.get<string>('DOCS_PASSWORD') ?? '').trim(),
+            password,
           },
           apiPrefix,
-        ),
+          sessionSecret: docsSessionSecret(password),
+        }),
       );
     }
 

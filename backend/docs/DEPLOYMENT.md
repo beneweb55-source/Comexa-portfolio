@@ -1068,9 +1068,8 @@ Pour engendrer le mot de passe :
 node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 ```
 
-**POURQUOI CES CONTROLES.** La documentation est servie derriere une
-authentification HTTP Basic, et le navigateur affiche lui-meme l'invite. Deux
-points ne se devinent pas :
+**POURQUOI CES CONTROLES.** La documentation est servie derriere un mot de passe.
+Deux points ne se devinent pas :
 
 - le serveur REFUSE de demarrer si `DOCS_ENABLED=true` sans identifiants. Sans ce
   refus, une variable oubliee publierait le document complet a l'adresse du
@@ -1080,9 +1079,38 @@ points ne se devinent pas :
   rien ne borne le nombre d'essais, et seule la longueur du mot de passe protege
   encore. D'ou le minimum de 16 caracteres.
 
+#### Comment l'integrateur s'identifie
+
+Il ouvre `https://<votre-service>/api/docs` dans **n'importe quel navigateur** et
+remplit la page de connexion servie par le serveur. Rien a installer, aucune
+fenetre privee, aucun reglage a changer : c'est exactement ce que cette page
+remplace. L'invite native du navigateur, elle, ne revient pas apres un refus
+memorise — l'associe restait alors devant une page blanche, sans comprendre ce
+qu'on lui demandait.
+
+Ce qu'il faut lui transmettre :
+
+- l'adresse de la documentation : `https://<votre-service>/api/docs` ;
+- l'identifiant (`DOCS_USER`) et le mot de passe (`DOCS_PASSWORD`) **dans deux
+  messages separes**. Un seul message portant les deux revient a publier l'acces
+  dans un fil de discussion, ou il reste indefiniment ;
+- la precision que **« Try it out » ne fonctionnera pas** sur les routes metier :
+  celles-ci exigent un jeton d'acces, et la documentation ne sert qu'a lire le
+  contrat. Si l'associe doit aussi appeler l'API, il lui faut un compte et une
+  base distincts — jamais les identifiants de production.
+
+Une connexion reussie pose un cookie signe de 7 jours : il n'a pas a se
+reconnecter a chaque consultation. **Changer `DOCS_PASSWORD` invalide toutes les
+sessions ouvertes** — c'est aussi la maniere de retirer un acces deja accorde,
+sans avoir a se souvenir de qui l'a recu.
+
 Les routes brutes `/api/docs-json` et `/api/docs-yaml` sont protegees par la meme
 regle que l'interface : le document complet n'est jamais lisible sans le mot de
-passe.
+passe. `curl` et Postman y accedent par HTTP Basic, qui reste accepte :
+
+```bash
+curl -u "$DOCS_USER:$DOCS_PASSWORD" https://api.exemple.tld/api/docs-yaml
+```
 
 Pour refermer la documentation, supprimer `DOCS_ENABLED` (ou le mettre a `false`)
 et redeployer. `DOCS_USER` et `DOCS_PASSWORD` peuvent rester : sans le drapeau,

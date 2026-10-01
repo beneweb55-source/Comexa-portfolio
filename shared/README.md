@@ -48,7 +48,9 @@ npm run openapi:export
 > **CE FICHIER N'EST PAS SERVI EN LIGNE PAR DEFAUT, ET C'EST VOULU.** `/api/docs`
 > ne sert le document que hors production : sur le service deploye, il repond
 > **404** — sauf si `DOCS_ENABLED=true`, auquel cas la documentation est servie,
-> mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`). C'est une
+> mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`), saisi dans une
+> page de connexion servie par le serveur : aucun reglage du navigateur, aucune
+> fenetre privee. C'est une
 > decision de securite : un plan detaille de l'API, publie, aide surtout a la
 > cartographier, et ce depot refuse qu'on puisse le publier par accident — le
 > serveur ne demarre pas si le drapeau est ouvert sans identifiants. Le document

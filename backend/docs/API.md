@@ -569,12 +569,40 @@ sont ABSENTES et repondent 404 : un plan detaille de l'API aiderait surtout
 quelqu'un a la cartographier.
 
 **Une exception, sur decision explicite : `DOCS_ENABLED=true`.** Les routes
-existent alors, mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`,
-HTTP Basic), et `assertDocsConfigured` refuse le demarrage si le drapeau est
-ouvert sans identifiants ou avec un mot de passe de moins de 16 caracteres. La
-raison de cette longueur : ces routes ne passent pas par le limiteur de debit
-global — `SwaggerModule` les monte sur l'adaptateur HTTP, en dehors du routeur de
-Nest — donc rien ne borne le nombre d'essais.
+existent alors, mais **derriere un mot de passe** (`DOCS_USER` / `DOCS_PASSWORD`),
+et `assertDocsConfigured` refuse le demarrage si le drapeau est ouvert sans
+identifiants ou avec un mot de passe de moins de 16 caracteres. La raison de cette
+longueur : ces routes ne passent pas par le limiteur de debit global —
+`SwaggerModule` les monte sur l'adaptateur HTTP, en dehors du routeur de Nest —
+donc rien ne borne le nombre d'essais.
+
+**Comment ce mot de passe se saisit, dans un navigateur.** `/api/docs` sert une
+page de connexion HTML rendue par le serveur, sans JavaScript, dont le formulaire
+poste sur `/api/docs-login` (le prefixe suit `API_PREFIX`). Rien a regler cote
+navigateur : ni fenetre privee, ni vidage de cache, ni invite native a faire
+revenir. La connexion pose un cookie de session signe de 7 jours, qui couvre les
+trois routes ci-dessus.
+
+Deux details surprennent a la lecture des journaux :
+
+- une connexion refusee repond **200**, avec le message dans la page, et non 401.
+  C'est voulu : un 401 accompagne de `WWW-Authenticate` ferait apparaitre l'invite
+  native par-dessus le message d'erreur — soit exactement le probleme que cette
+  page resout ;
+- le cookie est pose sur `/api/docs`, `/api/docs-json` et `/api/docs-yaml`
+  separement. Ces chemins sont des freres et non des enfants : un cookie pose sur
+  `/api/docs` seul ne couvrirait pas les deux autres.
+
+**Pour les clients qui ne sont pas des navigateurs**, l'authentification HTTP
+Basic reste acceptee sur les trois routes, et le refus y repond bien 401 avec
+`WWW-Authenticate` :
+
+```sh
+curl -u "$DOCS_USER:$DOCS_PASSWORD" https://api.exemple.tld/api/docs-yaml
+```
+
+Changer `DOCS_PASSWORD` invalide les sessions en cours : la cle qui signe les
+cookies derive du mot de passe.
 
 Ne construisez rien qui depende de ces routes a l'execution : elles peuvent etre
 fermees d'un redemarrage a l'autre, selon une variable d'environnement.
