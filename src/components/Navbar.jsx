@@ -44,15 +44,15 @@ export default function Navbar() {
                     </a>
 
                     <a
-                        href="#avis"
+                        href="partenaires"
                         className="text-15 font-medium text-[#111827] transition hover:text-[#1E86E0]"
                     >
-                        Avis
+                        partenaires
                     </a>
 
 
                     <a
-                        href="#contact"
+                        href="contact"
                         className="ml-2 flex h-10 items-center gap-3 rounded-lg border border-[#0B2545] px-5 text-15 font-medium text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white"
                     >
                         <span>Parlons de votre projet</span>
