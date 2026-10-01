@@ -18,7 +18,8 @@ export default function Footer() {
                                 src={logo}
                                 alt="Comexa"
                                 width={200}
-                                height={50}
+                                height={46}
+                                className="h-[46px] w-[200px]"
                                 priority
                             />
                         </Link>

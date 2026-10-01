@@ -15,7 +15,10 @@ export default function RootLayout({ children }) {
       lang="en"
       className="h-full bg-white antialiased"
     >
-      <body className="min-h-full flex flex-col bg-white text-gray-900 max-w-8xl">
+      <body
+        suppressHydrationWarning
+        className="min-h-full flex flex-col bg-white text-gray-900 max-w-8xl"
+      >
         <Navbar />
         {children}
         <Footer />
