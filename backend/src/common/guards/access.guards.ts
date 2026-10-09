@@ -13,6 +13,7 @@ import {
   PERMISSIONS_ALL_KEY,
   PERMISSIONS_ANY_KEY,
   REQUEST_USER_KEY,
+  SCOPED_BY_SERVICE_KEY,
   userFromRequest,
 } from '../decorators/auth.decorators.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
@@ -186,6 +187,15 @@ export class PermissionsGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     if (context.getType() !== 'http') {
+      return true;
+    }
+
+    // Liste dont le service restreint les lignes (voir `ScopedByService`).
+    const scopedByService = this.reflector.getAllAndOverride<boolean>(SCOPED_BY_SERVICE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (scopedByService) {
       return true;
     }
 

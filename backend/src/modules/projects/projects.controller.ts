@@ -5,6 +5,7 @@ import {
   CurrentUser,
   RequireAnyPermission,
   RequirePermissions,
+  ScopedByService,
 } from '../../common/decorators/auth.decorators.js';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import {
@@ -40,7 +41,7 @@ export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   @Get()
-  @RequireAnyPermission('project:read:any', 'project:read:assigned', 'project:read:own')
+  @ScopedByService()
   @ApiOperation({ summary: 'Lister les projets visibles par le porteur.' })
   async list(@Query() query: ProjectQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.projects.list(query, new AccessPolicy(user));

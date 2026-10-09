@@ -1,6 +1,7 @@
 // DOIT rester la premiere ligne : les decorateurs de Nest sont evalues au
 // chargement des modules, et ils ont besoin de `Reflect.metadata` deja installe.
 import 'reflect-metadata';
+import './support/e2e-payment-env.js';
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import type { INestApplication } from '@nestjs/common';
@@ -15,9 +16,8 @@ import { PrismaService } from '../src/prisma/prisma.service.js';
 /**
  * PARCOURS INSCRIPTION -> VERIFICATION -> COMMANDE -> VALIDATION (base reelle).
  *
- * Hypotheses de configuration du test (voir backend/.env) :
- *  - PAYMENT_METHODS_DZD est VIDE : un compte algerien ne peut pas commander ;
- *  - PAYMENT_METHODS_EUR = BANK_TRANSFER : un compte etranger peut commander en EUR.
+ * Configuration de paiement fixee par `./support/e2e-payment-env.ts` (DZD vide,
+ * EUR = BANK_TRANSFER), independamment du `.env` local.
  */
 
 const PASSWORD = 'Cascade-Lumiere-Forge-72-Quartz';
@@ -280,10 +280,12 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
     assert.equal(errorOf(reused).code, 'TOKEN_INVALID');
   });
 
-  it("n'offre pas d'espace client avant commande : la liste des commandes est refusee", async () => {
+  it("n'offre pas d'espace client avant commande : la liste des commandes est vide, pas refusee", async () => {
     const token = await login(EMAIL_FR);
     const res = await http().get('/api/orders').set('Authorization', `Bearer ${token}`);
-    assert.equal(res.status, 403);
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.data, []);
+    assert.equal(res.body.meta.total, 0);
   });
 
   it('un compte algerien ne peut pas commander tant que PAYMENT_METHODS_DZD est vide : demande de projet proposee', async () => {

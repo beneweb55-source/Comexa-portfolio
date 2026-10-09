@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service.js';
-import type { AccessPolicy } from '../../common/auth/principal.js';
+import { type AccessPolicy, SCOPE_ANY, SCOPE_OWN } from '../../common/auth/principal.js';
 import { paginated, resolvePagination } from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import { MailService } from '../../common/mail/mail.service.js';
@@ -295,6 +295,10 @@ export class InvoicesService {
    * obtiendrait la liste de ses propres factures, jamais celles de l'autre.
    */
   async list(query: ListInvoicesQueryDto, policy: AccessPolicy) {
+    // Aucun droit de lecture (ex. visiteur sans commande) : page vide, pas 403.
+    if (!policy.widestScope('invoice', 'read', [SCOPE_ANY, SCOPE_OWN])) {
+      return paginated([], 0, resolvePagination(query));
+    }
     const ownClientId = clientPerimeter(policy, 'invoice', 'read');
     const search = query.search?.trim();
 

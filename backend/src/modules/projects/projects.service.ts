@@ -94,8 +94,11 @@ export class ProjectsService {
   // ---------------------------------------------------------------------------
 
   async list(query: ProjectQueryDto, policy: AccessPolicy) {
-    const scope = policy.requireScope('project', 'read', PROJECT_READ_ORDER);
     const p = resolvePagination(query);
+    // Aucun droit de lecture (ex. visiteur sans commande) : page vide, pas 403.
+    // La route est ouverte a tout compte authentifie (`@ScopedByService`).
+    const scope = policy.widestScope('project', 'read', PROJECT_READ_ORDER);
+    if (!scope) return paginated([], 0, p);
 
     const where: Prisma.ProjectWhereInput = {
       deletedAt: null,

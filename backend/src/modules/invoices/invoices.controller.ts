@@ -5,6 +5,7 @@ import {
   CurrentUser,
   RequireAnyPermission,
   RequirePermissions,
+  ScopedByService,
 } from '../../common/decorators/auth.decorators.js';
 import type { RequestMetadata } from './request-meta.js';
 import { RequestContext } from './request-meta.js';
@@ -56,7 +57,7 @@ export class InvoicesController {
   constructor(private readonly invoices: InvoicesService) {}
 
   @Get()
-  @RequireAnyPermission('invoice:read:any', 'invoice:read:own')
+  @ScopedByService()
   @ApiOperation({ summary: 'Lister les factures (les siennes pour un compte client).' })
   async list(
     @CurrentUser() user: AuthenticatedUser,

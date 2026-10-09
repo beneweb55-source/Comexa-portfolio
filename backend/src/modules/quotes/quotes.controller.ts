@@ -5,6 +5,7 @@ import {
   CurrentUser,
   RequireAnyPermission,
   RequirePermissions,
+  ScopedByService,
 } from '../../common/decorators/auth.decorators.js';
 import type { Quote } from '../../generated/prisma/client.js';
 import type { RequestMetadata } from '../invoices/request-meta.js';
@@ -47,7 +48,7 @@ export class QuotesController {
   constructor(private readonly quotes: QuotesService) {}
 
   @Get()
-  @RequireAnyPermission('quote:read:any', 'quote:read:own')
+  @ScopedByService()
   @ApiOperation({ summary: 'Lister les devis (les siens pour un compte client).' })
   async list(
     @CurrentUser() user: AuthenticatedUser,

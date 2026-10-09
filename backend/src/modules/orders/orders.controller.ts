@@ -15,6 +15,7 @@ import {
   CurrentUser,
   RequireAnyPermission,
   RequirePermissions,
+  ScopedByService,
 } from '../../common/decorators/auth.decorators.js';
 import { RequestContext, type RequestMetadata } from '../invoices/request-meta.js';
 import { CreateOrderDto, ListOrdersQueryDto, RecordPaymentDto } from './dto/order.dto.js';
@@ -57,7 +58,7 @@ export class OrdersController {
   }
 
   @Get()
-  @RequireAnyPermission('order:read:any', 'order:read:own')
+  @ScopedByService()
   @ApiOperation({ summary: 'Lister les commandes (les siennes pour un client).' })
   list(@CurrentUser() user: AuthenticatedUser, @Query() query: ListOrdersQueryDto) {
     return this.orders.list(query, new AccessPolicy(user));

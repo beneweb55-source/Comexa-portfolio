@@ -63,6 +63,8 @@ export const CurrentUserOptional = createParamDecorator(
 export const PERMISSIONS_ALL_KEY = 'requiredPermissionsAll';
 export const PERMISSIONS_ANY_KEY = 'requiredPermissionsAny';
 export const ALLOW_PASSWORD_CHANGE_REQUIRED_KEY = 'allowPasswordChangeRequired';
+/** Route de LISTE dont le service restreint les lignes : tout compte authentifie y accede. */
+export const SCOPED_BY_SERVICE_KEY = 'scopedByService';
 
 /**
  * Autorise cette route meme si un changement de mot de passe est du.
@@ -123,3 +125,14 @@ export const RequirePermissions = (...codes: string[]): CustomDecorator<string> 
  */
 export const RequireAnyPermission = (...codes: string[]): CustomDecorator<string> =>
   SetMetadata(PERMISSIONS_ANY_KEY, codes);
+
+/**
+ * Liste « mes … » : tout compte authentifie peut appeler la route. Le garde ne
+ * decide rien ; le SERVICE renvoie la page vide si le compte n'a aucun droit sur
+ * ce type de donnees (ex. un visiteur inscrit qui n'a pas encore commande). Un
+ * 403 ici casserait l'espace client avant la premiere commande.
+ *
+ * A reserver aux listes dont le service applique deja un perimetre explicite.
+ */
+export const ScopedByService = (): CustomDecorator<string> =>
+  SetMetadata(SCOPED_BY_SERVICE_KEY, true);
