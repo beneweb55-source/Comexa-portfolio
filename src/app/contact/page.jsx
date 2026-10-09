@@ -2,6 +2,10 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { apiFetch, messageOf } from "@/lib/api";
+
+const EMPTY_FORM = { firstName: "", lastName: "", email: "", companyName: "", message: "" };
+
 export default function Contact() {
   useEffect(() => {
     const sections = document.querySelectorAll(".scroll-reveal");
@@ -47,6 +51,68 @@ export default function Contact() {
     }, [pathname]);
 
      const [projectType, setProjectType] = useState("Site vitrine");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [consent, setConsent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  const updateField = (field) => (event) =>
+    setForm((current) => ({ ...current, [field]: event.target.value }));
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (sending) return;
+
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+    const email = form.email.trim();
+    const message = form.message.trim();
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      setFeedback({ tone: "error", text: "Indiquez votre prénom et votre nom (2 caractères minimum)." });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFeedback({ tone: "error", text: "Indiquez une adresse e-mail valide." });
+      return;
+    }
+    if (message.length < 10) {
+      setFeedback({ tone: "error", text: "Décrivez votre projet en quelques phrases (10 caractères minimum)." });
+      return;
+    }
+    if (!consent) {
+      setFeedback({ tone: "error", text: "Merci d'accepter que Comexa utilise vos informations pour répondre à votre demande." });
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setSending(true);
+    setFeedback(null);
+    try {
+      await apiFetch("/public/contact-requests", {
+        method: "POST",
+        body: {
+          firstName,
+          lastName,
+          email,
+          companyName: form.companyName.trim() || undefined,
+          subject: projectType,
+          message,
+          source: pathname,
+          utmSource: params.get("utm_source") || undefined,
+          utmMedium: params.get("utm_medium") || undefined,
+          utmCampaign: params.get("utm_campaign") || undefined,
+        },
+      });
+      setForm(EMPTY_FORM);
+      setConsent(false);
+      setFeedback({ tone: "success", text: "Merci ! Votre demande est bien enregistrée. Nous revenons vers vous rapidement." });
+    } catch (error) {
+      setFeedback({ tone: "error", text: messageOf(error) });
+    } finally {
+      setSending(false);
+    }
+  }
 
   const projectTypes = [
     "Site vitrine",
@@ -182,30 +248,57 @@ export default function Contact() {
               <span className="text-[20px]">↗</span>
             </div>
 
-            <form className="mt-5 space-y-4">
+            <form className="mt-5 space-y-4" onSubmit={handleSubmit} noValidate>
 
-              {/* Nom + Email */}
+              {/* Prénom + Nom + Email */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 
                 <div>
-                  <label className="mb-1.5 block text-[17px] font-medium">
-                    Nom complet *
+                  <label htmlFor="contact-first-name" className="mb-1.5 block text-[17px] font-medium">
+                    Prénom *
                   </label>
 
                   <input
+                    id="contact-first-name"
+                    name="firstName"
                     type="text"
-                    placeholder="Votre prénom et votre nom"
+                    autoComplete="given-name"
+                    value={form.firstName}
+                    onChange={updateField("firstName")}
+                    placeholder="Votre prénom"
                     className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:px-4 sm:text-[18px]"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-[17px] font-medium">
+                  <label htmlFor="contact-last-name" className="mb-1.5 block text-[17px] font-medium">
+                    Nom *
+                  </label>
+
+                  <input
+                    id="contact-last-name"
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    value={form.lastName}
+                    onChange={updateField("lastName")}
+                    placeholder="Votre nom"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:px-4 sm:text-[18px]"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label htmlFor="contact-email" className="mb-1.5 block text-[17px] font-medium">
                     E-mail *
                   </label>
 
                   <input
+                    id="contact-email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={updateField("email")}
                     placeholder="vous@entreprise.fr"
                     className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
                   />
@@ -223,7 +316,11 @@ export default function Contact() {
                 </label>
 
                 <input
+                  name="companyName"
                   type="text"
+                  autoComplete="organization"
+                  value={form.companyName}
+                  onChange={updateField("companyName")}
                   placeholder="Le nom de votre organisation"
                   className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
                 />
@@ -271,6 +368,9 @@ export default function Contact() {
                 </label>
 
                 <textarea
+                  name="message"
+                  value={form.message}
+                  onChange={updateField("message")}
                   rows={5}
                   placeholder="Votre contexte, vos objectifs, les fonctionnalités souhaitées... Si vous avez un budget ou un calendrier en tête, dites-le-nous aussi."
                   className="w-full resize-none rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 py-3 text-[13px] leading-[1.5] outline-none transition focus:border-[#168fe5]"
@@ -280,6 +380,9 @@ export default function Contact() {
               <label className="flex cursor-pointer items-start gap-2 text-[10px] text-[#69758a]">
                 <input
                   type="checkbox"
+                  name="consent"
+                  checked={consent}
+                  onChange={(event) => setConsent(event.target.checked)}
                   className="mt-[1px] h-4 w-4 accent-[#168fe5]"
                 />
 
@@ -307,11 +410,24 @@ export default function Contact() {
 
                 <button
                   type="submit"
-                  className="flex h-10 items-center justify-center gap-3 rounded-[11px] bg-[#168fe5] px-4 text-[15px] font-medium text-[#08203e] transition hover:bg-[#0b7dcc] sm:px-5 sm:text-[17px]"
+                  disabled={sending}
+                  aria-busy={sending}
+                  className="flex h-10 items-center justify-center gap-3 rounded-[11px] bg-[#168fe5] px-4 text-[15px] font-medium text-[#08203e] transition hover:bg-[#0b7dcc] disabled:cursor-wait disabled:opacity-70 sm:px-5 sm:text-[17px]"
                 >
-                  Envoyer ma demande
+                  {sending ? "Envoi en cours…" : "Envoyer ma demande"}
                   <span>↗</span>
                 </button>
+
+                {feedback ? (
+                  <p
+                    role={feedback.tone === "error" ? "alert" : "status"}
+                    className={`text-[14px] leading-[1.5] sm:max-w-[320px] ${
+                      feedback.tone === "error" ? "text-[#b42318]" : "text-[#0f7b3a]"
+                    }`}
+                  >
+                    {feedback.text}
+                  </p>
+                ) : null}
 
               </div>
             </form>
