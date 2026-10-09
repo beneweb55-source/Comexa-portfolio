@@ -1,5 +1,8 @@
 
 import "./globals.css";
+import "@fontsource/space-grotesk/400.css";
+import "@fontsource/space-grotesk/500.css";
+import "@fontsource/space-grotesk/600.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import RouteHistory from "@/components/RouteHistory";
@@ -13,7 +16,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html
-      lang="en"
+      lang="fr"
       className="h-full bg-white antialiased"
     >
       <body

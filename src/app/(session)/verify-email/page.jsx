@@ -55,7 +55,7 @@ export default function VerifyEmailPage() {
   if (phase === "verifying") {
     return (
       <AuthCard title="Vérification en cours…">
-        <p className="text-[15px] text-[#4B5563]" role="status">
+        <p className="text-[15px] text-[var(--comexa-ink-soft)]" role="status">
           Nous vérifions votre adresse e-mail.
         </p>
       </AuthCard>
@@ -100,7 +100,7 @@ export default function VerifyEmailPage() {
           </form>
         )}
         <p className="text-center text-[14px]">
-          <Link href="/connexion" className="text-[#1683E5] hover:underline">
+          <Link href="/connexion" className="text-[var(--comexa-accent-strong)] hover:underline">
             Retour à la connexion
           </Link>
         </p>

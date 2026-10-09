@@ -88,7 +88,7 @@ export default function InscriptionPage() {
         footer={
           <>
             Déjà vérifié ?{" "}
-            <Link href="/connexion" className="font-medium text-[#1683E5] hover:underline">
+            <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
               Se connecter
             </Link>
           </>
@@ -118,7 +118,7 @@ export default function InscriptionPage() {
       footer={
         <>
           Vous avez déjà un compte ?{" "}
-          <Link href="/connexion" className="font-medium text-[#1683E5] hover:underline">
+          <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
             Se connecter
           </Link>
         </>

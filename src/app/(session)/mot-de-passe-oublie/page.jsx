@@ -31,7 +31,7 @@ export default function MotDePasseOubliePage() {
       title="Mot de passe oublié"
       intro="Indiquez votre adresse e-mail : si un compte existe, nous vous envoyons un lien pour choisir un nouveau mot de passe."
       footer={
-        <Link href="/connexion" className="font-medium text-[#1683E5] hover:underline">
+        <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
           Retour à la connexion
         </Link>
       }

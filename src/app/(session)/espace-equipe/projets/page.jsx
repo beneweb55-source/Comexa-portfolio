@@ -14,19 +14,19 @@ export default function ProjetsEquipePage() {
     <div className="flex flex-col gap-6">
       {projects.error ? <Notice>{projects.error}</Notice> : null}
       <Card title="Projets">
-        {projects.items === null && !projects.error ? <p className="text-[14px] text-[#4B5563]">Chargement…</p> : null}
+        {projects.items === null && !projects.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
         {projects.items !== null && items.length === 0 ? (
           <Empty>Aucun projet. Un projet est créé lorsqu’une commande ou une demande est validée par l’équipe.</Empty>
         ) : null}
         <ul className="flex flex-col gap-3">
           {items.map((project) => (
-            <li key={project.id} className="grid gap-3 rounded-lg border border-[#E5ECF5] p-4 md:grid-cols-[1fr_200px_auto] md:items-center">
+            <li key={project.id} className="grid gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4 md:grid-cols-[1fr_200px_auto] md:items-center">
               <div>
-                <p className="text-[12px] uppercase tracking-wide text-[#6B7280]">{project.reference}</p>
-                <Link href={`/espace-equipe/projets/${project.id}`} className="text-[16px] font-semibold text-[#0B2545] hover:text-[#1683E5]">
+                <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">{project.reference}</p>
+                <Link href={`/espace-equipe/projets/${project.id}`} className="text-[16px] font-semibold text-[var(--comexa-ink)] hover:text-[var(--comexa-accent-strong)]">
                   {project.name}
                 </Link>
-                <p className="text-[13px] text-[#4B5563]">
+                <p className="text-[13px] text-[var(--comexa-ink-soft)]">
                   {project.client?.companyName ?? "Client non renseigné"} · échéance {formatDate(project.dueDate)}
                 </p>
               </div>

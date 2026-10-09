@@ -52,7 +52,7 @@ export default function ConnexionPage() {
       footer={
         <>
           Pas encore de compte ?{" "}
-          <Link href="/inscription" className="font-medium text-[#1683E5] hover:underline">
+          <Link href="/inscription" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
             Créer un compte
           </Link>
         </>
@@ -103,7 +103,7 @@ export default function ConnexionPage() {
         </button>
 
         <p className="text-center text-[14px]">
-          <Link href="/mot-de-passe-oublie" className="text-[#1683E5] hover:underline">
+          <Link href="/mot-de-passe-oublie" className="text-[var(--comexa-accent-strong)] hover:underline">
             Mot de passe oublié ?
           </Link>
         </p>

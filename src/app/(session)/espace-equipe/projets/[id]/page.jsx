@@ -104,7 +104,7 @@ export default function ProjetEquipePage({ params }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/espace-equipe/projets" className="text-[14px] text-[#1683E5] hover:underline">
+      <Link href="/espace-equipe/projets" className="text-[14px] text-[var(--comexa-accent-strong)] hover:underline">
         ← Retour aux projets
       </Link>
 
@@ -115,14 +115,14 @@ export default function ProjetEquipePage({ params }) {
       {current ? (
         <Card title={current.name}>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-3 text-[14px] text-[#4B5563]">
+            <div className="flex flex-wrap items-center gap-3 text-[14px] text-[var(--comexa-ink-soft)]">
               <span>{current.reference}</span>
               <Badge tone="info">{PROJECT_STATUS[current.status] ?? current.status}</Badge>
               <span>Client : {current.client?.companyName ?? "—"}</span>
               <span>Échéance : {formatDate(current.dueDate)}</span>
             </div>
             <form onSubmit={changeProjectStatus} className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-[13px] text-[#374151]">
+              <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
                 Changer le statut
                 <select value={projectStatus || current.status} onChange={(event) => setProjectStatus(event.target.value)} className={`${inputClass} h-10 w-auto min-w-[200px] text-[14px]`}>
                   {PROJECT_STATUSES.map((status) => (
@@ -144,21 +144,21 @@ export default function ProjetEquipePage({ params }) {
         {milestones.items?.length === 0 ? <Empty>Aucun jalon.</Empty> : null}
         <ol className="flex flex-col gap-2">
           {(milestones.items ?? []).map((milestone) => (
-            <li key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5ECF5] px-4 py-3">
-              <span className="text-[15px] text-[#111827]">{milestone.title}</span>
-              <span className="flex items-center gap-3 text-[13px] text-[#4B5563]">
+            <li key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
+              <span className="text-[15px] text-[var(--comexa-ink)]">{milestone.title}</span>
+              <span className="flex items-center gap-3 text-[13px] text-[var(--comexa-ink-soft)]">
                 échéance {formatDate(milestone.dueDate)}
                 <Badge>{MILESTONE_STATUS[milestone.status] ?? milestone.status}</Badge>
               </span>
             </li>
           ))}
         </ol>
-        <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[#E5ECF5] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
-          <label className="flex flex-col gap-1 text-[13px] text-[#374151]">
+        <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
             Nouveau jalon
             <input value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[#374151]">
+          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
             Échéance
             <input type="date" value={milestoneDue} onChange={(event) => setMilestoneDue(event.target.value)} className={inputClass} />
           </label>
@@ -172,15 +172,15 @@ export default function ProjetEquipePage({ params }) {
         {tasks.items?.length === 0 ? <Empty>Aucune tâche.</Empty> : null}
         <ul className="flex flex-col gap-2">
           {(tasks.items ?? []).map((task) => (
-            <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5ECF5] px-4 py-3">
+            <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
               <div>
-                <p className="text-[15px] text-[#111827]">{task.title}</p>
-                <p className="text-[12.5px] text-[#6B7280]">
+                <p className="text-[15px] text-[var(--comexa-ink)]">{task.title}</p>
+                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
                   échéance {formatDate(task.dueDate)}
                   {task.isClientVisible ? " · visible par le client" : ""}
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+              <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
                 <span className="sr-only">Statut de la tâche {task.title}</span>
                 <select
                   value={task.status}
@@ -199,17 +199,17 @@ export default function ProjetEquipePage({ params }) {
             </li>
           ))}
         </ul>
-        <form onSubmit={createTask} className="mt-5 grid gap-3 border-t border-[#E5ECF5] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
-          <label className="flex flex-col gap-1 text-[13px] text-[#374151]">
+        <form onSubmit={createTask} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
             Nouvelle tâche
             <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[#374151]">
+          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
             Échéance
             <input type="date" value={taskDue} onChange={(event) => setTaskDue(event.target.value)} className={inputClass} />
           </label>
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-[13px] text-[#374151]">
+            <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
               <input type="checkbox" checked={taskVisible} onChange={(event) => setTaskVisible(event.target.checked)} />
               Visible par le client
             </label>
@@ -227,10 +227,10 @@ export default function ProjetEquipePage({ params }) {
         {documents.items?.length === 0 ? <Empty>Aucun document rattaché à ce projet.</Empty> : null}
         <ul className="flex flex-col gap-2">
           {(documents.items ?? []).map((document) => (
-            <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5ECF5] px-4 py-3">
+            <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
               <div>
-                <p className="text-[15px] text-[#111827]">{document.name}</p>
-                <p className="text-[12.5px] text-[#6B7280]">
+                <p className="text-[15px] text-[var(--comexa-ink)]">{document.name}</p>
+                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
                   {document.category} · {document.visibility} · version {document.version}
                 </p>
               </div>

@@ -50,12 +50,12 @@ export default function ProjetClientPage({ params }) {
   }
 
   if (!current) {
-    return <p className="text-[14px] text-[#4B5563]" role="status">Chargement du projet…</p>;
+    return <p className="text-[14px] text-[var(--comexa-ink-soft)]" role="status">Chargement du projet…</p>;
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/espace-client" className="text-[14px] text-[#1683E5] hover:underline">
+      <Link href="/espace-client" className="text-[14px] text-[var(--comexa-accent-strong)] hover:underline">
         ← Retour à mon espace
       </Link>
 
@@ -63,11 +63,11 @@ export default function ProjetClientPage({ params }) {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="info">{PROJECT_STATUS[current.status] ?? current.status}</Badge>
-            <span className="text-[13px] text-[#6B7280]">Référence {current.reference}</span>
+            <span className="text-[13px] text-[var(--comexa-ink-muted)]">Référence {current.reference}</span>
           </div>
           <ProgressBar value={current.progressPercent} />
-          <p className="text-[14px] text-[#4B5563]">
-            Échéance prévue : <strong className="text-[#111827]">{formatDate(current.dueDate)}</strong>
+          <p className="text-[14px] text-[var(--comexa-ink-soft)]">
+            Échéance prévue : <strong className="text-[var(--comexa-ink)]">{formatDate(current.dueDate)}</strong>
             {current.manager ? (
               <>
                 {" "}· Chef de projet : {current.manager.firstName} {current.manager.lastName}
@@ -81,11 +81,11 @@ export default function ProjetClientPage({ params }) {
         {milestoneList.length === 0 ? <Empty>Les jalons du projet seront publiés ici.</Empty> : null}
         <ol className="flex flex-col gap-3">
           {milestoneList.map((milestone) => (
-            <li key={milestone.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[#E5ECF5] p-4">
+            <li key={milestone.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
               <div>
-                <h3 className="text-[15px] font-semibold text-[#0B2545]">{milestone.title}</h3>
-                {milestone.description ? <p className="text-[13.5px] text-[#4B5563]">{milestone.description}</p> : null}
-                <p className="text-[13px] text-[#6B7280]">
+                <h3 className="text-[15px] font-semibold text-[var(--comexa-ink)]">{milestone.title}</h3>
+                {milestone.description ? <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">{milestone.description}</p> : null}
+                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
                   Échéance {formatDate(milestone.dueDate)}
                   {milestone.reachedAt ? ` · atteint le ${formatDate(milestone.reachedAt)}` : ""}
                 </p>
@@ -101,9 +101,9 @@ export default function ProjetClientPage({ params }) {
           {tasks.items.length === 0 ? <Empty>Aucune tâche visible pour le moment.</Empty> : null}
           <ul className="flex flex-col gap-2">
             {tasks.items.map((task) => (
-              <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5ECF5] px-4 py-3">
-                <span className="text-[15px] text-[#111827]">{task.title}</span>
-                <span className="flex items-center gap-3 text-[13px] text-[#4B5563]">
+              <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
+                <span className="text-[15px] text-[var(--comexa-ink)]">{task.title}</span>
+                <span className="flex items-center gap-3 text-[13px] text-[var(--comexa-ink-soft)]">
                   échéance {formatDate(task.dueDate)}
                   <Badge tone={task.status === "DONE" ? "success" : "neutral"}>{TASK_STATUS[task.status] ?? task.status}</Badge>
                 </span>
@@ -118,10 +118,10 @@ export default function ProjetClientPage({ params }) {
         {documentsList.length === 0 ? <Empty>Aucun document partagé pour le moment.</Empty> : null}
         <ul className="flex flex-col gap-2">
           {documentsList.map((document) => (
-            <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E5ECF5] px-4 py-3">
+            <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
               <div>
-                <p className="text-[15px] text-[#111827]">{document.name}</p>
-                <p className="text-[12.5px] text-[#6B7280]">
+                <p className="text-[15px] text-[var(--comexa-ink)]">{document.name}</p>
+                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
                   {formatDate(document.createdAt)} · version {document.version}
                 </p>
               </div>

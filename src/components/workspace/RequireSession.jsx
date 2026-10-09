@@ -26,7 +26,7 @@ export default function RequireSession({ children }) {
 
   if (!allowed) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center text-[15px] text-[#4B5563]" role="status">
+      <div className="flex min-h-[60vh] items-center justify-center text-[15px] text-[var(--comexa-ink-soft)]" role="status">
         Chargement de votre espace…
       </div>
     );

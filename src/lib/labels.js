@@ -80,3 +80,24 @@ export function nextStepFor(order) {
   }
   return "Projet en cours. Suivez son avancement ci-dessous.";
 }
+
+/**
+ * Étapes affichées au client. Une étape n'est « faite » que si le serveur l'a
+ * atteinte : « Projet démarré » n'apparaît qu'après le démarrage par l'équipe.
+ */
+export const ORDER_FLOW = [
+  { key: "ORDERED", label: "Commande reçue", state: "Enregistrée" },
+  { key: "IN_REVIEW", label: "Validation", state: "Par l'équipe" },
+  { key: "IN_PREPARATION", label: "Préparation", state: "Projet créé" },
+  { key: "IN_PROGRESS", label: "Projet démarré", state: "En cours" },
+  { key: "COMPLETED", label: "Livraison", state: "Terminé" },
+];
+
+export function orderFlowStates(status) {
+  if (status === "CANCELLED") return null;
+  const index = ORDER_FLOW.findIndex((step) => step.key === status);
+  return ORDER_FLOW.map((step, position) => ({
+    ...step,
+    state: position < index ? "done" : position === index ? "current" : "todo",
+  }));
+}

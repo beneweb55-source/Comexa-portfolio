@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/session";
 import { ApiError, apiFetch, formatMoney, messageOf } from "@/lib/api";
 import { OFFER_REASON } from "@/lib/labels";
-import { Card, Empty, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Card, Empty, Notice, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
 
 /**
  * Parcours de commande :
@@ -105,22 +105,17 @@ export default function CommanderPage() {
 
       <Card title="Choisissez un pack">
         {packError ? <Notice>{packError}</Notice> : null}
-        {packs === null && !packError ? <p className="text-[14px] text-[#4B5563]">Chargement des packs…</p> : null}
+        {packs === null && !packError ? <p className="cx-small">Chargement des packs…</p> : null}
         {packs?.length === 0 ? <Empty>Aucun pack n’est proposé pour le moment.</Empty> : null}
         <ul className="grid gap-4 md:grid-cols-2">
           {(packs ?? []).map((pack) => (
-            <li
-              key={pack.id}
-              className={`flex flex-col gap-3 rounded-xl border p-5 ${
-                selected?.id === pack.id ? "border-[#1683E5] bg-[#F4F9FE]" : "border-[#E5ECF5]"
-              }`}
-            >
+            <li key={pack.id} className={`cx-option ${selected?.id === pack.id ? "cx-option--selected" : ""}`}>
               <div>
-                <h3 className="text-[18px] font-semibold text-[#0B2545]">{pack.name}</h3>
-                <p className="text-[14px] text-[#4B5563]">{pack.tagline}</p>
+                <h4>{pack.name}</h4>
+                <p className="cx-small mt-2">{pack.tagline}</p>
               </div>
               {pack.features?.length ? (
-                <ul className="list-disc space-y-1 pl-5 text-[13.5px] text-[#374151]">
+                <ul className="cx-small list-disc space-y-1 pl-5">
                   {pack.features.slice(0, 5).map((feature) => (
                     <li key={feature}>{feature}</li>
                   ))}
@@ -136,16 +131,16 @@ export default function CommanderPage() {
 
       {selected ? (
         <Card title={`Votre offre : ${selected.name}`}>
-          {loadingOffer ? <p className="text-[14px] text-[#4B5563]" role="status">Calcul de votre offre…</p> : null}
+          {loadingOffer ? <p className="cx-small" role="status">Calcul de votre offre…</p> : null}
           {offerError ? <Notice>{offerError}</Notice> : null}
 
           {offer?.kind === "ORDER" ? (
             <div className="flex flex-col gap-4">
-              <p className="text-[15px] text-[#111827]">
+              <p className="text-[15px] text-[var(--comexa-ink)]">
                 Prix : <strong>{formatMoney(offer.amount, offer.currency)}</strong>
                 {offer.paymentMethod ? <> · paiement par {offer.paymentMethod}</> : null}
               </p>
-              <p className="text-[13.5px] text-[#4B5563]">
+              <p className="cx-small">
                 Commander active votre espace client. Le paiement se règle selon les modalités indiquées après commande ;
                 votre projet démarre après validation de notre équipe.
               </p>
@@ -159,10 +154,10 @@ export default function CommanderPage() {
           {offer?.kind === "PROJECT_REQUEST" ? (
             <div className="flex flex-col gap-4">
               <Notice tone="info">{OFFER_REASON[offer.reason] ?? OFFER_REASON.NO_CURRENT_RATE}</Notice>
-              <label htmlFor="pack-message" className="text-[14px] font-medium text-[#111827]">
+              <label htmlFor="pack-message" className="cx-label">
                 Précisez votre besoin (facultatif)
               </label>
-              <textarea id="pack-message" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} className={`${inputClass} h-auto py-2`} />
+              <textarea id="pack-message" rows={4} value={message} onChange={(event) => setMessage(event.target.value)} className={textareaClass} />
               {actionError ? <Notice>{messageOf(actionError)}</Notice> : null}
               <button type="button" onClick={() => sendRequest(selected.id, message)} disabled={busy || Boolean(confirmation)} className={`${primaryButton} self-start`}>
                 {busy ? "Envoi…" : "Demander un projet pour ce pack"}
@@ -174,11 +169,11 @@ export default function CommanderPage() {
 
       <Card title="Votre projet ne correspond à aucun pack ?">
         <div className="flex flex-col gap-4">
-          <p className="text-[14px] text-[#4B5563]">Décrivez votre besoin : notre équipe étudie chaque demande.</p>
+          <p className="cx-small">Décrivez votre besoin : notre équipe étudie chaque demande.</p>
           <label htmlFor="free-message" className="sr-only">
             Description de votre projet
           </label>
-          <textarea id="free-message" rows={4} value={freeMessage} onChange={(event) => setFreeMessage(event.target.value)} className={`${inputClass} h-auto py-2`} />
+          <textarea id="free-message" rows={4} value={freeMessage} onChange={(event) => setFreeMessage(event.target.value)} className={textareaClass} />
           {freeError ? <Notice>{messageOf(freeError)}</Notice> : null}
           <button
             type="button"

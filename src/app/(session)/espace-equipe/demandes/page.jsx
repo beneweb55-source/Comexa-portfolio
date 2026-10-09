@@ -55,7 +55,7 @@ export default function DemandesPage() {
       <Card
         title="Demandes de projet"
         action={
-          <label className="flex items-center gap-2 text-[14px] text-[#374151]">
+          <label className="flex items-center gap-2 text-[14px] text-[var(--comexa-ink-soft)]">
             Statut
             <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`}>
               <option value="">Toutes</option>
@@ -68,7 +68,7 @@ export default function DemandesPage() {
           </label>
         }
       >
-        {requests.items === null && !requests.error ? <p className="text-[14px] text-[#4B5563]">Chargement…</p> : null}
+        {requests.items === null && !requests.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
         {requests.items !== null && items.length === 0 ? <Empty>Aucune demande pour ce filtre.</Empty> : null}
 
         <ul className="flex flex-col gap-4">
@@ -76,27 +76,27 @@ export default function DemandesPage() {
             const draft = draftOf(item);
             const busy = action.busy === `save:${item.id}`;
             return (
-              <li key={item.id} className="rounded-lg border border-[#E5ECF5] p-4">
+              <li key={item.id} className="rounded-lg border border-[var(--comexa-border-soft)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[12px] uppercase tracking-wide text-[#6B7280]">{item.reference} · {formatDate(item.createdAt)}</p>
-                    <h3 className="text-[16px] font-semibold text-[#0B2545]">
+                    <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">{item.reference} · {formatDate(item.createdAt)}</p>
+                    <h3 className="text-[16px] font-semibold text-[var(--comexa-ink)]">
                       {item.customer.firstName} {item.customer.lastName}
                     </h3>
-                    <p className="text-[13.5px] text-[#4B5563]">
+                    <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">
                       {item.customer.email}
                       {item.country ? ` · pays ${item.country}` : ""}
                     </p>
-                    <p className="mt-1 text-[14px] text-[#111827]">Pack : {item.packageName ?? "sur mesure"}</p>
+                    <p className="mt-1 text-[14px] text-[var(--comexa-ink)]">Pack : {item.packageName ?? "sur mesure"}</p>
                     {item.reason ? (
-                      <p className="text-[13px] text-[#6B7280]">Motif : {SHORT_REASON[item.reason] ?? item.reason}</p>
+                      <p className="text-[13px] text-[var(--comexa-ink-muted)]">Motif : {SHORT_REASON[item.reason] ?? item.reason}</p>
                     ) : null}
                   </div>
                   <Badge tone="neutral">{PROJECT_REQUEST_STATUS[item.status] ?? item.status}</Badge>
                 </div>
 
                 {item.message ? (
-                  <blockquote className="mt-3 rounded-md bg-[#F8F9FC] px-3 py-2 text-[14px] text-[#374151]">{item.message}</blockquote>
+                  <blockquote className="mt-3 rounded-md bg-[var(--comexa-neutral-50)] px-3 py-2 text-[14px] text-[var(--comexa-ink-soft)]">{item.message}</blockquote>
                 ) : null}
 
                 <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-start">
