@@ -66,6 +66,7 @@ export const REFERENCE_SCOPES = {
   CONTACT_REQUEST: 'CONTACT_REQUEST',
   MODIFICATION_REQUEST: 'MODIFICATION_REQUEST',
   ORDER: 'ORDER',
+  PROJECT_REQUEST: 'PROJECT_REQUEST',
 } as const;
 
 export type ReferenceScope = (typeof REFERENCE_SCOPES)[keyof typeof REFERENCE_SCOPES];
@@ -92,6 +93,7 @@ export const REFERENCE_PREFIXES: Record<ReferenceScope, string> = {
   CONTACT_REQUEST: 'CTR',
   MODIFICATION_REQUEST: 'MOD',
   ORDER: 'CMD',
+  PROJECT_REQUEST: 'DEM',
 };
 
 /**

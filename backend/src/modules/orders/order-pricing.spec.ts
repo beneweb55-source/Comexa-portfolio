@@ -173,11 +173,32 @@ describe('offre de commande', () => {
     });
   });
 
-  it('pays absent → demande de projet, sans devise', () => {
+  it('pays absent : EUR seulement si tarif EUR ET moyen EUR existent', () => {
     const offer = resolveOrderOffer({
       country: null,
       rates: [rate('eur', 'EUR', PAST)],
       paymentMethods: { EUR: [PaymentMethod.CARD] },
+      now: NOW,
+    });
+    assert.equal(offer.kind, 'ORDER');
+    assert.equal(offer.kind === 'ORDER' && offer.currency, 'EUR');
+  });
+
+  it('pays absent sans moyen EUR : demande de projet, sans devise affichee', () => {
+    const offer = resolveOrderOffer({
+      country: null,
+      rates: [rate('eur', 'EUR', PAST)],
+      paymentMethods: {},
+      now: NOW,
+    });
+    assert.deepEqual(offer, { kind: 'PROJECT_REQUEST', currency: null, reason: 'COUNTRY_UNKNOWN' });
+  });
+
+  it('pays absent sans tarif EUR : demande de projet, jamais de DZD', () => {
+    const offer = resolveOrderOffer({
+      country: null,
+      rates: [rate('dzd', 'DZD', PAST)],
+      paymentMethods: { DZD: [PaymentMethod.BANK_TRANSFER], EUR: [PaymentMethod.CARD] },
       now: NOW,
     });
     assert.deepEqual(offer, { kind: 'PROJECT_REQUEST', currency: null, reason: 'COUNTRY_UNKNOWN' });

@@ -19,7 +19,7 @@ import { REFERENCE_PREFIXES, REFERENCE_SCOPES } from './reference.scopes.js';
  */
 
 describe('REFERENCE_SCOPES', () => {
-  it('declare les neuf portees numerotees du domaine', () => {
+  it('declare les dix portees numerotees du domaine', () => {
     assert.deepEqual(Object.keys(REFERENCE_SCOPES).sort(), [
       'CLIENT',
       'CONTACT_REQUEST',
@@ -28,6 +28,7 @@ describe('REFERENCE_SCOPES', () => {
       'ORDER',
       'PAYMENT',
       'PROJECT',
+      'PROJECT_REQUEST',
       'PROSPECT',
       'QUOTE',
     ]);

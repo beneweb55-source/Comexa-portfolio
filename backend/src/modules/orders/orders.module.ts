@@ -5,6 +5,8 @@ import { OrdersController } from './orders.controller.js';
 import { OrdersService } from './orders.service.js';
 import { PackageRatesController } from './package-rates.controller.js';
 import { PackageRatesService } from './package-rates.service.js';
+import { ProjectRequestsController } from './project-requests.controller.js';
+import { ProjectRequestsService } from './project-requests.service.js';
 
 /**
  * Module des COMMANDES et des TARIFS PAR PACK.
@@ -15,8 +17,8 @@ import { PackageRatesService } from './package-rates.service.js';
  */
 @Module({
   imports: [ActivityModule, CountersModule],
-  controllers: [OrdersController, PackageRatesController],
-  providers: [OrdersService, PackageRatesService],
+  controllers: [OrdersController, PackageRatesController, ProjectRequestsController],
+  providers: [OrdersService, PackageRatesService, ProjectRequestsService],
   exports: [OrdersService],
 })
 export class OrdersModule {}

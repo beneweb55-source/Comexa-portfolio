@@ -113,20 +113,26 @@ export function resolveOrderOffer<T extends RateLike>(input: {
   readonly paymentMethods: PaymentMethodsByCurrency;
   readonly now: Date;
 }): OrderOffer<T> {
-  const currency = currencyForCountry(input.country);
-  if (currency === null) {
-    return { kind: 'PROJECT_REQUEST', currency: null, reason: 'COUNTRY_UNKNOWN' };
-  }
+  // Pays absent ou invalide : on NE devine PAS la devise. EUR est seulement
+  // ESSAYE, et la commande n'a lieu que si un tarif EUR ET un moyen de paiement
+  // EUR existent. Sinon, la demande de projet est proposee, sans devise affichee.
+  const countryCurrency = currencyForCountry(input.country);
+  const unknownCountry = countryCurrency === null;
+  const currency: SupportedCurrency = countryCurrency ?? 'EUR';
 
   const rate = selectCurrentRate(input.rates, currency, input.now);
   if (rate === null) {
-    return { kind: 'PROJECT_REQUEST', currency, reason: 'NO_CURRENT_RATE' };
+    return unknownCountry
+      ? { kind: 'PROJECT_REQUEST', currency: null, reason: 'COUNTRY_UNKNOWN' }
+      : { kind: 'PROJECT_REQUEST', currency, reason: 'NO_CURRENT_RATE' };
   }
 
   const methods = input.paymentMethods[currency] ?? [];
   const paymentMethod = methods[0];
   if (paymentMethod === undefined) {
-    return { kind: 'PROJECT_REQUEST', currency, reason: 'NO_COMPATIBLE_PAYMENT_METHOD' };
+    return unknownCountry
+      ? { kind: 'PROJECT_REQUEST', currency: null, reason: 'COUNTRY_UNKNOWN' }
+      : { kind: 'PROJECT_REQUEST', currency, reason: 'NO_COMPATIBLE_PAYMENT_METHOD' };
   }
 
   return { kind: 'ORDER', currency, rate, paymentMethod };

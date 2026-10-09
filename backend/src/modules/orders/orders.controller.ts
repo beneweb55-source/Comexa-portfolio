@@ -18,6 +18,7 @@ import {
 } from '../../common/decorators/auth.decorators.js';
 import { RequestContext, type RequestMetadata } from '../invoices/request-meta.js';
 import { CreateOrderDto, ListOrdersQueryDto, RecordPaymentDto } from './dto/order.dto.js';
+import { OfferQueryDto } from './dto/project-request.dto.js';
 import { OrdersService } from './orders.service.js';
 
 /**
@@ -44,6 +45,15 @@ export class OrdersController {
     @RequestContext() meta: RequestMetadata,
   ) {
     return this.orders.createOrder(user, dto, meta);
+  }
+
+  /** Apercu du prix et du moyen de paiement pour ce compte, sans rien creer. Declare avant `:id`. */
+  @Get('offer')
+  @ApiOperation({
+    summary: "Prix et moyen de paiement pour un pack, ou la raison d'une demande de projet.",
+  })
+  offer(@CurrentUser() user: AuthenticatedUser, @Query() query: OfferQueryDto) {
+    return this.orders.offer(query.packageId, user);
   }
 
   @Get()

@@ -11,6 +11,7 @@ import {
   ClientStatus,
   OrderPaymentStatus,
   OrderStatus,
+  PaymentMethod,
   ProjectStatus,
   RoleCode,
   UserStatus,
@@ -20,7 +21,20 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { CounterService } from '../counters/counter.service.js';
 import type { CreateOrderDto, ListOrdersQueryDto, RecordPaymentDto } from './dto/order.dto.js';
-import { parsePaymentMethodList, resolveOrderOffer, type OrderOffer } from './order-pricing.js';
+import {
+  ORDER_INCLUDE,
+  presentClientOrder,
+  presentTeamOrder,
+  type ClientOrderView,
+  type OrderRecord,
+  type TeamOrderView,
+} from './order.presenter.js';
+import {
+  parsePaymentMethodList,
+  resolveOrderOffer,
+  type OrderOffer,
+  type PaymentMethodsByCurrency,
+} from './order-pricing.js';
 
 /** Statuts pendant lesquels une commande est encore ouverte. */
 const OPEN_ORDER_STATUSES: OrderStatus[] = [
@@ -30,11 +44,16 @@ const OPEN_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.IN_PROGRESS,
 ];
 
-const ORDER_INCLUDE = {
-  project: { select: { id: true, reference: true, status: true, progressPercent: true } },
-} satisfies Prisma.OrderInclude;
-
-export type OrderWithProject = Prisma.OrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
+/** Aperçu d'une offre pour un pack, sans rien creer. */
+export type OrderOfferView =
+  | {
+      kind: 'ORDER';
+      currency: string;
+      amount: string;
+      paymentMethod: PaymentMethod;
+      packageId: string;
+    }
+  | { kind: 'PROJECT_REQUEST'; currency: string | null; reason: string; packageId: string };
 
 /**
  * COMMANDES DE PACKS.
@@ -43,12 +62,10 @@ export type OrderWithProject = Prisma.OrderGetPayload<{ include: typeof ORDER_IN
  *  - le compte (`User.status`) : INVITED tant que le courriel n'est pas verifie ;
  *  - la commande (`Order.status`) : ORDERED -> IN_PREPARATION -> IN_PROGRESS ;
  *  - le paiement (`Order.paymentStatus`) : UNPAID tant que l'equipe n'a pas
- *    enregistre un encaissement. Une commande peut etre active alors que son
- *    paiement est encore en attente.
+ *    enregistre un encaissement.
  *
- * Commander ACTIVE l'espace client tout de suite : pas de validation de l'equipe,
- * pas de paiement complet avant. L'equipe valide ensuite la commande, et c'est
- * alors seulement que le projet est cree.
+ * Commander ACTIVE l'espace client tout de suite. L'equipe valide ensuite la
+ * commande, et c'est alors seulement que le projet est cree.
  */
 @Injectable()
 export class OrdersService {
@@ -60,29 +77,9 @@ export class OrdersService {
     private readonly config: ConfigService,
   ) {}
 
-  /**
-   * Passe une commande pour un pack.
-   *
-   * Devise, montant et moyen de paiement viennent EXCLUSIVEMENT du serveur (voir
-   * `resolveOrderOffer`). Si le pays ou le tarif ne permettent pas de commander,
-   * la reponse est une 422 `ORDER_UNAVAILABLE` qui propose une demande de projet :
-   * on ne choisit jamais une devise au hasard, et on ne promet pas un paiement
-   * sans solution configuree.
-   */
-  async createOrder(
-    actor: AuthenticatedUser,
-    dto: CreateOrderDto,
-    meta: { ipAddress: string | null; userAgent: string | null },
-  ): Promise<OrderWithProject> {
-    const policy = new AccessPolicy(actor);
-
-    // Un collaborateur de l'agence ne commande pas : son compte n'est pas un
-    // compte client. Un visiteur sans role, ou un client, peut commander.
-    if (policy.roles.length > 0 && !policy.roles.includes(RoleCode.CLIENT)) {
-      throw AppException.forbidden('Seuls les comptes client peuvent passer une commande.');
-    }
-
-    const paymentMethods = {
+  /** Moyens de paiement configures (variables d'environnement, vides par defaut). */
+  private paymentMethods(): PaymentMethodsByCurrency {
+    return {
       DZD: parsePaymentMethodList(
         this.config.get<string>('PAYMENT_METHODS_DZD'),
         'PAYMENT_METHODS_DZD',
@@ -92,7 +89,101 @@ export class OrdersService {
         'PAYMENT_METHODS_EUR',
       ),
     };
+  }
 
+  /** Verifie qu'un compte peut commander : verifie, actif, et client (ou sans role). */
+  static assertCanOrder(actor: AuthenticatedUser, status: UserStatus): void {
+    if (status === UserStatus.INVITED) {
+      throw new AppException(
+        ErrorCode.ACCOUNT_INVITED,
+        'Verifiez votre adresse e-mail avant de passer commande.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (status !== UserStatus.ACTIVE) {
+      throw new AppException(
+        ErrorCode.ACCOUNT_SUSPENDED,
+        'Ce compte ne peut pas passer commande. Contactez un administrateur.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    // Un collaborateur de l'agence ne commande pas : son compte n'est pas un compte client.
+    const roles = actor.roles;
+    if (roles.length > 0 && !roles.includes(RoleCode.CLIENT)) {
+      throw AppException.forbidden('Seuls les comptes client peuvent passer une commande.');
+    }
+  }
+
+  /**
+   * Offre pour un pack, calculee pour l'utilisateur. Sert a l'aperçu (prix avant
+   * commande) ET a la commande elle-meme : une seule regle, deux usages.
+   */
+  async offerFor(
+    db: PrismaService | Prisma.TransactionClient,
+    userId: string,
+    packageId: string,
+  ): Promise<{
+    pack: { id: string; name: string };
+    offer: OrderOffer<{
+      id: string;
+      currency: string;
+      amount: Prisma.Decimal;
+      effectiveFrom: Date;
+      isActive: boolean;
+    }>;
+  }> {
+    const user = await db.user.findUnique({ where: { id: userId }, select: { country: true } });
+    const pack = await db.package.findFirst({
+      where: { id: packageId, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!pack) {
+      throw AppException.notFound('PACKAGE_NOT_FOUND', "Ce pack n'existe pas.");
+    }
+    const rates = await db.packageRate.findMany({
+      where: { packageId: pack.id, isActive: true },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const offer = resolveOrderOffer({
+      country: user?.country ?? null,
+      rates,
+      paymentMethods: this.paymentMethods(),
+      now: new Date(),
+    });
+    return { pack, offer };
+  }
+
+  /** Aperçu : prix et moyen de paiement, ou la raison pour laquelle la commande est impossible. */
+  async offer(packageId: string, actor: AuthenticatedUser): Promise<OrderOfferView> {
+    const { pack, offer } = await this.offerFor(this.prisma, actor.id, packageId);
+    if (offer.kind === 'ORDER') {
+      return {
+        kind: 'ORDER',
+        packageId: pack.id,
+        currency: offer.currency,
+        amount: offer.rate.amount.toFixed(2),
+        paymentMethod: offer.paymentMethod,
+      };
+    }
+    return {
+      kind: 'PROJECT_REQUEST',
+      packageId: pack.id,
+      currency: offer.currency,
+      reason: offer.reason,
+    };
+  }
+
+  /**
+   * Passe une commande pour un pack. Devise, montant et moyen de paiement viennent
+   * EXCLUSIVEMENT du serveur. Si la commande n'est pas possible, la reponse est une
+   * 422 `ORDER_UNAVAILABLE` avec `alternative: PROJECT_REQUEST` : le client peut
+   * alors enregistrer une demande de projet (POST /project-requests).
+   */
+  async createOrder(
+    actor: AuthenticatedUser,
+    dto: CreateOrderDto,
+    meta: { ipAddress: string | null; userAgent: string | null },
+  ): Promise<ClientOrderView> {
     const created = await this.prisma.$transaction(async (tx) => {
       // Verrou transactionnel par utilisateur : deux clics simultanes ne creent
       // pas deux commandes pour le meme pack.
@@ -109,32 +200,14 @@ export class OrdersService {
           clientId: true,
         },
       });
-      if (!user || user.status === UserStatus.INVITED) {
-        throw new AppException(
-          ErrorCode.ACCOUNT_INVITED,
-          'Verifiez votre adresse e-mail avant de passer commande.',
-          HttpStatus.FORBIDDEN,
-        );
+      if (!user) {
+        throw AppException.unauthenticated();
       }
-      if (user.status !== UserStatus.ACTIVE) {
-        throw new AppException(
-          ErrorCode.ACCOUNT_SUSPENDED,
-          'Ce compte ne peut pas passer commande. Contactez un administrateur.',
-          HttpStatus.FORBIDDEN,
-        );
-      }
-
-      const pack = await tx.package.findFirst({
-        where: { id: dto.packageId, deletedAt: null },
-        select: { id: true, name: true },
-      });
-      if (!pack) {
-        throw AppException.notFound('PACKAGE_NOT_FOUND', "Ce pack n'existe pas.");
-      }
+      OrdersService.assertCanOrder(actor, user.status);
 
       const open = await tx.order.findFirst({
-        where: { userId: user.id, packageId: pack.id, status: { in: OPEN_ORDER_STATUSES } },
-        select: { id: true, reference: true },
+        where: { userId: user.id, packageId: dto.packageId, status: { in: OPEN_ORDER_STATUSES } },
+        select: { reference: true },
       });
       if (open) {
         throw AppException.conflict(
@@ -143,33 +216,20 @@ export class OrdersService {
         );
       }
 
-      const rates = await tx.packageRate.findMany({
-        where: { packageId: pack.id, isActive: true },
-        orderBy: { effectiveFrom: 'desc' },
-      });
-
-      const offer: OrderOffer<(typeof rates)[number]> = resolveOrderOffer({
-        country: user.country,
-        rates,
-        paymentMethods,
-        now: new Date(),
-      });
-
+      const { pack, offer } = await this.offerFor(tx, user.id, dto.packageId);
       if (offer.kind === 'PROJECT_REQUEST') {
         throw AppException.unprocessable(
           'ORDER_UNAVAILABLE',
-          'Cette commande ne peut pas etre passee en ligne. Vous pouvez demander un projet, notre equipe revient vers vous.',
+          'Cette commande ne peut pas etre passee en ligne. Vous pouvez demander un projet : notre equipe revient vers vous.',
           { alternative: 'PROJECT_REQUEST', reason: offer.reason, currency: offer.currency },
         );
       }
 
       const clientId = await this.ensureClientAccount(tx, user, actor.id);
-
       const reference = await this.counters.reference({ scope: REFERENCE_SCOPES.ORDER }, tx);
 
-      // Le nom et le montant sont FIGES sur la commande : une modification
-      // ulterieure du pack ou du tarif ne doit pas reecrire ce que le client a
-      // accepte.
+      // Nom, montant et devise sont FIGES sur la commande : une modification
+      // ulterieure du pack ou du tarif ne reecrit pas ce que le client a accepte.
       return tx.order.create({
         data: {
           reference,
@@ -205,13 +265,12 @@ export class OrdersService {
       userAgent: meta.userAgent,
     });
 
-    return created;
+    return presentClientOrder(created);
   }
 
   /**
-   * Cree le dossier client au premier achat, puis lie le compte a ce dossier et
-   * lui donne le role CLIENT. Appele DANS la transaction de commande : un echec
-   * plus loin ne laisse ni dossier orphelin ni role sans commande.
+   * Cree le dossier client au premier achat, lie le compte et lui donne le role
+   * CLIENT. Appele DANS la transaction de commande.
    */
   private async ensureClientAccount(
     tx: Prisma.TransactionClient,
@@ -257,13 +316,14 @@ export class OrdersService {
     return client.id;
   }
 
-  /** Liste : l'equipe voit tout, un client voit ses commandes seulement. */
-  async list(query: ListOrdersQueryDto, policy: AccessPolicy) {
+  /** Liste : l'equipe voit tout (vue equipe), un client ses commandes (vue client). */
+  async list(query: ListOrdersQueryDto, policy: AccessPolicy): Promise<unknown> {
     const pagination = resolvePagination(query);
     const where: Prisma.OrderWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...this.perimeter(policy),
     };
+    const team = policy.has('order:read:any');
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
@@ -276,11 +336,12 @@ export class OrdersService {
       this.prisma.order.count({ where }),
     ]);
 
-    return paginated(items, total, pagination);
+    const views = items.map((o) => (team ? presentTeamOrder(o) : presentClientOrder(o)));
+    return paginated(views, total, pagination);
   }
 
   /** Une commande, ou 404 : une ligne hors perimetre n'existe pas pour le demandeur. */
-  async getOne(orderId: string, policy: AccessPolicy): Promise<OrderWithProject> {
+  async getOne(orderId: string, policy: AccessPolicy): Promise<ClientOrderView | TeamOrderView> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, ...this.perimeter(policy) },
       include: ORDER_INCLUDE,
@@ -288,14 +349,14 @@ export class OrdersService {
     if (!order) {
       throw AppException.notFound('ORDER_NOT_FOUND', "Cette commande n'existe pas.");
     }
-    return order;
+    return policy.has('order:read:any') ? presentTeamOrder(order) : presentClientOrder(order);
   }
 
   /**
    * Validation par l'equipe : la commande passe en preparation et le projet est
    * cree. C'EST ICI, ET NULLE PART AILLEURS, QUE LE PROJET NAIT.
    */
-  async validate(orderId: string, actor: AuthenticatedUser): Promise<OrderWithProject> {
+  async validate(orderId: string, actor: AuthenticatedUser): Promise<TeamOrderView> {
     const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -361,7 +422,7 @@ export class OrdersService {
         tx,
       );
 
-      return { orderId: order.id, reference: order.reference, projectId: project.id };
+      return { orderId: order.id, projectId: project.id };
     });
 
     await this.audit.record({
@@ -372,11 +433,11 @@ export class OrdersService {
       after: { status: OrderStatus.IN_PREPARATION, projectId: result.projectId },
     });
 
-    return this.getOneUnscoped(result.orderId);
+    return this.teamView(result.orderId);
   }
 
   /** Demarrage : le projet passe en cours. Possible seulement apres validation. */
-  async start(orderId: string, actor: AuthenticatedUser): Promise<OrderWithProject> {
+  async start(orderId: string, actor: AuthenticatedUser): Promise<TeamOrderView> {
     await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -388,7 +449,7 @@ export class OrdersService {
       if (order.status !== OrderStatus.IN_PREPARATION || !order.projectId) {
         throw AppException.conflict(
           'ORDER_INVALID_STATE',
-          'Une commande ne demarre qu une fois validee par l equipe.',
+          "Une commande ne demarre qu'une fois validee par l'equipe.",
         );
       }
 
@@ -407,19 +468,15 @@ export class OrdersService {
       after: { status: OrderStatus.IN_PROGRESS },
     });
 
-    return this.getOneUnscoped(orderId);
+    return this.teamView(orderId);
   }
 
-  /**
-   * Enregistre l'etat d'un paiement. Le client ne le declare pas : une commande
-   * reste « paiement en attente » tant que l'equipe n'a pas enregistre
-   * l'encaissement.
-   */
+  /** Enregistre l'etat d'un paiement. Le client ne le declare jamais. */
   async recordPayment(
     orderId: string,
     dto: RecordPaymentDto,
     actor: AuthenticatedUser,
-  ): Promise<OrderWithProject> {
+  ): Promise<TeamOrderView> {
     const before = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: { id: true, paymentStatus: true },
@@ -442,7 +499,7 @@ export class OrdersService {
       after: { paymentStatus: dto.paymentStatus, note: dto.note ?? null },
     });
 
-    return this.getOneUnscoped(orderId);
+    return this.teamView(orderId);
   }
 
   /** Perimetre : l'equipe (`order:read:any`) voit tout ; un client, sa seule entite. */
@@ -453,11 +510,10 @@ export class OrdersService {
     if (policy.has('order:read:own') && policy.clientId) {
       return { clientId: policy.clientId };
     }
-    // Aucune cle de perimetre : aucune ligne ne correspond.
     return { id: { in: [] } };
   }
 
-  private async getOneUnscoped(orderId: string): Promise<OrderWithProject> {
+  private async teamView(orderId: string): Promise<TeamOrderView> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: ORDER_INCLUDE,
@@ -465,6 +521,6 @@ export class OrdersService {
     if (!order) {
       throw AppException.notFound('ORDER_NOT_FOUND', "Cette commande n'existe pas.");
     }
-    return order;
+    return presentTeamOrder(order as OrderRecord);
   }
 }

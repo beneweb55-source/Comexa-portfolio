@@ -123,6 +123,7 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
       where: { OR: [{ actorId: { in: staleIds } }, { entityId: { in: staleIds } }] },
     });
     await prisma.order.deleteMany({ where: { userId: { in: staleIds } } });
+    await prisma.projectRequest.deleteMany({ where: { userId: { in: staleIds } } });
     await prisma.user.deleteMany({ where: { id: { in: staleIds } } });
 
     const pack = await prisma.package.findFirst({
@@ -222,6 +223,7 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
       await prisma.auditLog.deleteMany({
         where: { OR: [{ actorId: { in: ids } }, { entityId: { in: ids } }] },
       });
+      await prisma.projectRequest.deleteMany({ where: { userId: { in: ids } } });
       await prisma.user.deleteMany({ where: { id: { in: ids } } });
       await prisma.client.deleteMany({ where: { id: { in: clientIds } } });
       await prisma.packageRate.deleteMany({ where: { id: { in: created.rateIds } } });
@@ -343,7 +345,6 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
       include: { roles: { include: { role: true } } },
     });
     assert.ok(fr.clientId, 'le dossier client est cree a la commande');
-    assert.equal(fr.clientId, order.clientId);
     assert.ok(
       fr.roles.some((r) => r.role.code === 'CLIENT'),
       'le role CLIENT est attribue',
@@ -407,9 +408,9 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
     assert.ok(orderId);
     const res = await http().get(`/api/orders/${orderId}`).set('Authorization', `Bearer ${token}`);
     assert.equal(res.status, 200);
-    const order = dataOf<{ status: string; projectId: string | null }>(res);
+    const order = dataOf<{ status: string; project: unknown }>(res);
     assert.equal(order.status, 'ORDERED');
-    assert.equal(order.projectId, null);
+    assert.equal(order.project, null, 'aucun projet avant validation');
   });
 
   it('un developpeur est refuse sur la validation et sur la gestion des tarifs', async () => {
@@ -484,5 +485,112 @@ describe('Commandes et verification e-mail (bout en bout, base reelle)', () => {
       dataOf<{ project: unknown }>(mine).project,
       'le client voit le projet issu de sa commande',
     );
+  });
+
+  it("l'aperçu d'offre donne le prix serveur pour un compte etranger, et le motif pour un compte algerien", async () => {
+    const fr = await http()
+      .get(`/api/orders/offer?packageId=${packageId}`)
+      .set('Authorization', `Bearer ${await login(EMAIL_FR)}`);
+    assert.equal(fr.status, 200);
+    const frOffer = dataOf<{ kind: string; currency: string; amount: string }>(fr);
+    assert.equal(frOffer.kind, 'ORDER');
+    assert.equal(frOffer.currency, 'EUR');
+    assert.equal(frOffer.amount, '1500.00');
+
+    const dz = await http()
+      .get(`/api/orders/offer?packageId=${packageId}`)
+      .set('Authorization', `Bearer ${await login(EMAIL_DZ)}`);
+    assert.equal(dz.status, 200);
+    const dzOffer = dataOf<{ kind: string; reason: string }>(dz);
+    assert.equal(dzOffer.kind, 'PROJECT_REQUEST');
+    assert.equal(dzOffer.reason, 'NO_COMPATIBLE_PAYMENT_METHOD');
+  });
+
+  it('la reponse client ne contient ni identifiant interne ni tarif, la reponse equipe garde le client', async () => {
+    const token = await login(EMAIL_FR);
+    const orderId = created.orderIds[0];
+    assert.ok(orderId);
+    const mine = await http().get(`/api/orders/${orderId}`).set('Authorization', `Bearer ${token}`);
+    const view = dataOf<Record<string, unknown>>(mine);
+    for (const forbidden of ['userId', 'rateId', 'clientId', 'packageId', 'country', 'customer']) {
+      assert.equal(forbidden in view, false, `la vue client ne doit pas exposer ${forbidden}`);
+    }
+    const team = await http()
+      .get(`/api/orders/${orderId}`)
+      .set('Authorization', `Bearer ${await login(EMAIL_SALES)}`);
+    const teamView = dataOf<{ customer: { email: string }; clientId: string }>(team);
+    assert.equal(teamView.customer.email, EMAIL_FR);
+    assert.ok(teamView.clientId);
+  });
+
+  it('un compte algerien enregistre une demande de projet ; la demande en double est refusee', async () => {
+    const token = await login(EMAIL_DZ);
+    const first = await http()
+      .post('/api/project-requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ packageId, message: 'Je souhaite un site vitrine pour mon atelier.' });
+    assert.equal(first.status, 201, JSON.stringify(first.body));
+    const request = dataOf<{ reference: string; reason: string; status: string }>(first);
+    assert.match(request.reference, /^DEM-/);
+    assert.equal(request.reason, 'NO_COMPATIBLE_PAYMENT_METHOD');
+    assert.equal(request.status, 'NEW');
+
+    const again = await http()
+      .post('/api/project-requests')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ packageId });
+    assert.equal(again.status, 409);
+    assert.equal(errorOf(again).code, 'PROJECT_REQUEST_ALREADY_OPEN');
+
+    const mine = await http()
+      .get('/api/project-requests/mine')
+      .set('Authorization', `Bearer ${token}`);
+    assert.equal(mine.status, 200);
+    assert.ok(
+      (mine.body as { data: Array<{ reference: string }> }).data.some(
+        (r) => r.reference === request.reference,
+      ),
+      'la demande apparait dans la liste de son auteur',
+    );
+  });
+
+  it("l'equipe voit la demande avec le client, la traite, et une demande close ne se rouvre pas", async () => {
+    const team = await login(EMAIL_SALES);
+    const list = await http().get('/api/project-requests').set('Authorization', `Bearer ${team}`);
+    assert.equal(list.status, 200);
+    const items = (list.body as { data: Array<{ id: string; customer: { email: string } }> }).data;
+    const mine = items.find((r) => r.customer.email === EMAIL_DZ);
+    assert.ok(mine, "la demande d'un client apparait dans la liste equipe");
+
+    const updated = await http()
+      .patch(`/api/project-requests/${mine.id}`)
+      .set('Authorization', `Bearer ${team}`)
+      .send({ status: 'IN_REVIEW', teamNote: 'Rappeler le client mardi.' });
+    assert.equal(updated.status, 200);
+    assert.equal(dataOf<{ status: string }>(updated).status, 'IN_REVIEW');
+
+    const closed = await http()
+      .patch(`/api/project-requests/${mine.id}`)
+      .set('Authorization', `Bearer ${team}`)
+      .send({ status: 'CLOSED' });
+    assert.equal(closed.status, 200);
+    const reopened = await http()
+      .patch(`/api/project-requests/${mine.id}`)
+      .set('Authorization', `Bearer ${team}`)
+      .send({ status: 'IN_REVIEW' });
+    assert.equal(reopened.status, 409);
+
+    // La note interne n'apparait jamais dans la vue du client.
+    const clientView = await http()
+      .get('/api/project-requests/mine')
+      .set('Authorization', `Bearer ${await login(EMAIL_DZ)}`);
+    assert.equal(JSON.stringify(clientView.body).includes('Rappeler le client'), false);
+  });
+
+  it("un developpeur ne voit pas les demandes de projet de l'equipe", async () => {
+    const res = await http()
+      .get('/api/project-requests')
+      .set('Authorization', `Bearer ${await login(EMAIL_DEV)}`);
+    assert.equal(res.status, 403);
   });
 });

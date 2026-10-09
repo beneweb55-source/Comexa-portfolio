@@ -311,6 +311,13 @@ enum ReportType {
 
 /// Etapes de traitement d'une commande de pack. Une commande ne porte PAS le
 /// statut de paiement : les deux evoluent separement (voir `OrderPaymentStatus`).
+enum ProjectRequestStatus {
+  NEW
+  IN_REVIEW
+  CONVERTED
+  CLOSED
+}
+
 enum OrderStatus {
   ORDERED
   IN_REVIEW
@@ -384,6 +391,8 @@ model User {
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   orders                  Order[]
+  projectRequests         ProjectRequest[]          @relation("ProjectRequestAuthor")
+  handledProjectRequests  ProjectRequest[]          @relation("ProjectRequestHandler")
   createdPackageRates     PackageRate[]             @relation("PackageRateCreator")
   ownedProspects          Prospect[]                @relation("ProspectOwner")
   managedClients          Client[]                  @relation("ClientAccountManager")
@@ -562,6 +571,42 @@ model PackageRate {
 /// active l'acces client (voir `OrdersService`). Le montant, la devise et le
 /// nom du pack sont figes ici : un changement de tarif ou de pack ne modifie
 /// jamais une commande existante. Une commande annulee n'est jamais supprimee.
+/// Demande de projet : ce que l'equipe recoit quand une commande en ligne n'est
+/// pas possible (pays, tarif ou moyen de paiement manquant), ou quand le client
+/// prefere un echange. Enregistree, jamais « proposee » dans le vide.
+model ProjectRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  userId String
+  user   User   @relation("ProjectRequestAuthor", fields: [userId], references: [id], onDelete: Restrict)
+
+  packageId String?
+  package   Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  /// Pays au moment de la demande (copie, pas de lien).
+  country String? @db.VarChar(2)
+  /// Motif relevé par le serveur : COUNTRY_UNKNOWN, NO_CURRENT_RATE,
+  /// NO_COMPATIBLE_PAYMENT_METHOD, ou CLIENT_CHOICE.
+  reason  String  @db.VarChar(40)
+  message String? @db.VarChar(2000)
+
+  status      ProjectRequestStatus @default(NEW)
+  /// Note interne a l'equipe : jamais renvoyee au client.
+  teamNote    String?              @db.VarChar(2000)
+  handledById String?
+  handledBy   User?                @relation("ProjectRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([status])
+  @@index([handledById])
+  @@map("project_requests")
+}
+
 model Order {
   id        String @id @default(cuid())
   reference String @unique
@@ -575,8 +620,8 @@ model Order {
   rateId    String
   rate      PackageRate @relation(fields: [rateId], references: [id], onDelete: Restrict)
   /// Projet cree par l'equipe a la validation. Null tant que la commande n'est pas validee.
-  projectId String?  @unique
-  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId String?     @unique
+  project   Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   /// Instantane au moment de la commande.
   packageName   String
@@ -1547,6 +1592,7 @@ model Package {
   contactRequests ContactRequest[]
   rates           PackageRate[]
   orders          Order[]
+  projectRequests ProjectRequest[]
 
   @@index([isActive, order])
   @@index([deletedAt])
