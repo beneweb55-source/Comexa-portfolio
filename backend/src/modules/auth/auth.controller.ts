@@ -104,10 +104,14 @@ export class AuthController {
   }
 
   private setRefreshCookie(res: Response, token: string, expiresAt: Date): void {
+    const sameSite = this.config.get<'lax' | 'strict' | 'none'>('COOKIE_SAMESITE') ?? 'lax';
     res.cookie(REFRESH_COOKIE, token, {
       httpOnly: true,
-      secure: this.config.get<string>('NODE_ENV') === 'production',
-      sameSite: this.config.get<'lax' | 'strict' | 'none'>('COOKIE_SAMESITE') ?? 'lax',
+      // `SameSite=None` est refusé par les navigateurs sans `Secure`. Il est
+      // requis quand l'application est affichée dans un cadre d'un autre site
+      // (aperçu) : sans lui, le rafraîchissement échoue au rechargement.
+      secure: this.config.get<string>('NODE_ENV') === 'production' || sameSite === 'none',
+      sameSite,
       path: this.cookiePath,
       expires: expiresAt,
     });
