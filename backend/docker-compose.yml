@@ -1,0 +1,222 @@
+# =============================================================================
+# Comexa — environnement complet du backend, en local ou auto-heberge
+# =============================================================================
+#
+#     cd backend
+#     docker compose up --build          # base + stockage + migrations + API
+#     docker compose --profile seed run --rm seed
+#
+# Ce fichier monte QUATRE services et deux executions ponctuelles :
+#
+#     db         PostgreSQL 17             la base
+#     minio      stockage S3-compatible    les fichiers (jamais en base)
+#     minio-init cree le bucket            s'execute une fois, puis s'arrete
+#     migrate    `prisma migrate deploy`   s'execute une fois, puis s'arrete
+#     api        l'API NestJS              http://localhost:3001/api
+#     seed       (profil `seed`)           jeu de donnees de demonstration
+#
+# -----------------------------------------------------------------------------
+# POURQUOI CE FICHIER IGNORE `backend/.env`
+# -----------------------------------------------------------------------------
+# Docker Compose lit automatiquement le `.env` situe a cote de ce fichier pour
+# interpoler les `${VARIABLES}`. Or ce `.env` contient la vraie chaine de
+# connexion de l'utilisateur, qui pointe sur une base Neon DISTANTE.
+#
+# Ecrire `${DATABASE_URL:-postgresql://...@db:5432/...}` ferait donc exactement
+# le contraire de ce que la ligne laisse croire : la valeur par defaut ne
+# servirait jamais, et `docker compose up` lancerait une base locale que
+# personne n'interroge pendant que l'API ecrirait dans la base distante. Le
+# premier symptome serait des migrations appliquees au mauvais endroit.
+#
+# D'ou des noms de variables PROPRES A CE FICHIER (`COMEXA_*`). Ils ne peuvent
+# pas etre renseignes par accident, et pour viser une base distante il faut le
+# dire explicitement :
+#
+#     COMEXA_DATABASE_URL='postgresql://...neon.tech/neondb?sslmode=require' \
+#     COMEXA_DIRECT_URL='postgresql://...neon.tech/neondb?sslmode=require' \
+#       docker compose up --build api
+#
+# Dans ce cas, les services `db`, `minio` et `minio-init` ne servent plus a
+# rien : ne pas les demarrer est la bonne facon de faire.
+#
+# -----------------------------------------------------------------------------
+# POURQUOI POSTGRESQL LOCAL ET PAS DIRECTEMENT LA BASE NEON
+# -----------------------------------------------------------------------------
+# La production vise Neon. Mais developper contre une base distante partagee
+# signifie que le premier `prisma migrate reset` de bonne foi efface les donnees
+# de quelqu'un d'autre. Une base locale jetable est la seule facon de pouvoir
+# casser, recommencer et seeder sans consequence.
+# =============================================================================
+
+name: comexa-backend
+
+services:
+  # --- Base de donnees --------------------------------------------------------
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: comexa
+      POSTGRES_PASSWORD: comexa
+      POSTGRES_DB: comexa
+      # Les tris et comparaisons de `pg_dump`/`pg_restore` en dependent : sans
+      # locale figee, une sauvegarde restauree sur une autre machine ne retrie
+      # pas les accents de la meme facon.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      # Expose uniquement pour `psql` et `prisma studio` depuis l'hote.
+      - '5432:5432'
+    volumes:
+      - comexa_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` ne dit pas seulement que le port repond : il dit que le
+      # serveur accepte des connexions. C'est la difference entre « le conteneur
+      # a demarre » et « la base est prete », et c'est ce qui evite que `migrate`
+      # parte trop tot et echoue au premier lancement.
+      test: ['CMD-SHELL', 'pg_isready -U comexa -d comexa']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # --- Stockage des fichiers --------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: comexa
+      MINIO_ROOT_PASSWORD: comexa-dev-secret
+    ports:
+      - '9000:9000' # API S3
+      - '9001:9001' # console web
+    volumes:
+      - comexa_minio:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # Cree le bucket puis s'arrete. Separe du serveur parce que MinIO ne sait pas
+  # provisionner un bucket au demarrage : sans cette etape, le premier envoi de
+  # fichier echoue sur un bucket inexistant, ce qui ressemble a une erreur de
+  # configuration du backend alors que ce n'en est pas une.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set comexa http://minio:9000 comexa comexa-dev-secret &&
+      mc mb --ignore-existing comexa/${COMEXA_S3_BUCKET:-comexa-documents} &&
+      mc anonymous set none comexa/${COMEXA_S3_BUCKET:-comexa-documents} &&
+      echo 'Bucket ${COMEXA_S3_BUCKET:-comexa-documents} pret.'
+      "
+    restart: 'no'
+
+  # --- Migrations -------------------------------------------------------------
+  # Construit depuis l'etape `build` : il lui faut la CLI Prisma ET le client
+  # genere, absents de l'image d'execution. C'est ce qui permet de garder cette
+  # derniere legere et sans chaine d'outils de compilation.
+  migrate:
+    build:
+      context: .
+      target: build
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${COMEXA_DATABASE_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+      DIRECT_URL: ${COMEXA_DIRECT_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+
+  # --- API --------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: '3001'
+      API_PREFIX: api
+      # Le frontend Next tourne sur l'hote (`npm run dev`) : depuis le
+      # conteneur, `localhost` designe le conteneur lui-meme, pas la machine.
+      CORS_ORIGIN: ${COMEXA_CORS_ORIGIN:-http://localhost:3000}
+      FRONTEND_URL: ${COMEXA_FRONTEND_URL:-http://localhost:3000}
+
+      DATABASE_URL: ${COMEXA_DATABASE_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+      DIRECT_URL: ${COMEXA_DIRECT_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+
+      # Les fichiers vont dans le stockage objet, JAMAIS dans PostgreSQL :
+      # `Document` ne conserve qu'une cle et des metadonnees.
+      STORAGE_DRIVER: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${COMEXA_S3_BUCKET:-comexa-documents}
+      S3_ACCESS_KEY_ID: comexa
+      S3_SECRET_ACCESS_KEY: comexa-dev-secret
+      # Indispensable face a MinIO : sans adressage par chemin, le client
+      # cherche un sous-domaine `<bucket>.minio` qui ne resout pas.
+      S3_FORCE_PATH_STYLE: 'true'
+      MAX_UPLOAD_BYTES: '26214400'
+
+      # Secrets de demonstration, valables UNIQUEMENT pour cette pile locale. Le
+      # serveur refuse de demarrer en production avec ces valeurs : voir
+      # env.validation.ts.
+      JWT_ACCESS_SECRET: ${COMEXA_JWT_ACCESS_SECRET:-dev-access-secret-a-remplacer-en-production-48-octets-minimum}
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_SECRET: ${COMEXA_JWT_REFRESH_SECRET:-dev-refresh-secret-a-remplacer-en-production-48-octets-minimum}
+      JWT_REFRESH_TTL: 30d
+      PASSWORD_RESET_TTL: 1h
+
+      # En local, le lien de reinitialisation est ecrit dans les journaux plutot
+      # qu'envoye : il n'y a pas de serveur SMTP. Le serveur refuse de demarrer
+      # en production si ni le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` ni
+      # `SMTP_HOST` n'est renseigne, mais cette pile-ci n'est pas la production.
+      SMTP_HOST: ''
+    ports:
+      - '3001:3001'
+    extra_hosts:
+      # Necessaire sous Linux, ou `host.docker.internal` n'existe pas d'office.
+      # Inutile sous Docker Desktop, ou ce n'est qu'une entree de plus.
+      - 'host.docker.internal:host-gateway'
+
+  # --- Jeu de donnees de demonstration ----------------------------------------
+  # Sous profil : `docker compose --profile seed run --rm seed`. Le rendre
+  # automatique serait une erreur — le seed ecrit des comptes de demonstration
+  # avec des mots de passe connus, et rien ne doit pouvoir le declencher par
+  # surprise sur un environnement ou quelqu'un a commence a travailler.
+  seed:
+    profiles: ['seed']
+    build:
+      context: .
+      target: build
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${COMEXA_DATABASE_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+      DIRECT_URL: ${COMEXA_DIRECT_URL:-postgresql://comexa:comexa@db:5432/comexa?schema=public}
+    command: ['npm', 'run', 'db:seed']
+    restart: 'no'
+
+volumes:
+  comexa_pgdata:
+    name: comexa_pgdata
+  comexa_minio:
+    name: comexa_minio

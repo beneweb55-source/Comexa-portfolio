@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+storage/
+prisma/migrations/
+package-lock.json
+
+# Client Prisma genere (49 fichiers, aucun suivi par git — voir .gitignore:83).
+# Le script `format` balaie `{src,test,prisma}/**/*.ts`, donc `src/generated/`
+# etait dedans : le reformater ne produisait qu'un diff efface au prochain
+# `npm run prisma:generate`. Un artefact derive ne se met pas en forme.
+src/generated/

@@ -1,0 +1,110 @@
+# Dependances et artefacts de build — le backend a les siens, a cote du
+# node_modules du frontend qui vit a la racine du depot.
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Sortie de compilation des tests e2e (voir tsconfig.e2e.json).
+# Dossier distinct de `dist/` : celui-ci est l'artefact de production, et
+# `nest build` le vide a chaque build.
+.e2e-build/
+
+# Sortie de compilation de l'export OpenAPI (voir tsconfig.export.json).
+# Meme raison que `.e2e-build/` : c'est un artefact derive, distinct de `dist/`.
+# Le document lui-meme, lui, EST committe — dans `shared/api/openapi.json`.
+.export-build/
+
+# Sondes de diagnostic jetables. Ce sont des scripts d'enquete ponctuels
+# (mesurer la metadonnee `design:type` d'un DTO, par exemple), pas du code
+# livre : ils n'ont rien a faire dans l'histoire du depot. Un diagnostic qui
+# merite de rester devient une spec dans `src/**/*.spec.ts` — c'est d'ailleurs
+# ce qui a ete fait pour l'inversion des filtres booleens.
+.probe/
+
+# Sondes jetables a la racine, sous un autre nom. Meme raison que `.probe/`
+# ci-dessus, ET MEME PANNE : deux fichiers d'enquete ont ete committes parce que
+# le motif `.probe/` ne couvrait qu'un dossier, et sous un seul nom.
+#
+#   - `tmp-cron-check.mts` : onze lignes verifiant qu'une tache planifiee etait
+#     bien enregistree. Le fichier importait depuis `.e2e-build/`, un dossier
+#     compile et ignore : dans un clone neuf, il n'aurait meme pas pu tourner.
+#     Sa verification n'est pas perdue pour autant — `invoice-overdue.spec.ts`
+#     porte l'assertion equivalente, et celle-la tourne sous `npm test`.
+#   - `cron.out` : une capture de sortie, vide de surcroit. Un fichier vide ne
+#     pese rien, ne casse rien, et se fait donc remarquer par personne.
+#
+# Ni l'un ni l'autre n'est reference ailleurs dans le depot. `tmp-*` couvre les
+# sondes quelle que soit leur extension, `*.out` les captures de sortie.
+tmp-*
+*.out
+
+# Secrets : jamais committes. Le modele, lui, l'est — d'ou la negation.
+#
+# LE MOTIF EST VOLONTAIREMENT LARGE, ET C'EST UNE CORRECTION. Les trois lignes
+# precedentes (`/.env`, `/.env.local`, `/.env.*.local`) formaient une liste
+# d'exceptions, et une liste d'exceptions ne protege que ce qu'on a pense a y
+# mettre. Un simple `cp .env .env.bak` pendant un diagnostic creait un fichier
+# contenant la chaine de connexion Neon — mot de passe compris — que git
+# proposait de committer, puisque aucun des trois motifs ne le couvrait.
+#
+# `.env.*` couvre donc TOUTES les variantes (`.env.bak`, `.env.local`,
+# `.env.production`, `.env.old`), et `!.env.example` retablit le seul fichier de
+# cette famille qui doit etre versionne : le modele, qui ne contient que des
+# noms de variables et des valeurs d'exemple.
+.env
+.env.*
+!.env.example
+
+# Ceinture et bretelles : un fichier de secrets qui ne commence pas par `.env`
+# (`production.env`, `secrets.env`) reste ignore.
+*.env
+
+# Sauvegardes de base, exports SQL et jarres de cookies.
+#
+# Ceinture et bretelles, et pas seulement de la prudence : ce depot est PUBLIC,
+# et deux commandes du runbook de deploiement (`docs/DEPLOYMENT.md`) ecrivent des
+# fichiers porteurs de secrets DANS L'ARBRE DE TRAVAIL.
+#
+#   `pg_dump ... --file="comexa-<date>.dump"` -> une sauvegarde LOGIQUE COMPLETE
+#     de la base de production : empreintes argon2 des mots de passe, clients,
+#     devis, factures, paiements. Un `git add -A` l'aurait publiee sur GitHub. Un
+#     dump au format `custom` ne se lit pas comme un secret dans un diff, et
+#     `pg_restore -l` suffit a le parcourir.
+#   `curl -c cookies.txt` -> le cookie de rafraichissement, donc un jeton
+#     utilisable jusqu'a 30 jours sur le compte ADMIN.
+#
+# Le runbook ecrit desormais HORS du depot, et ces regles sont la seconde
+# barriere : pour le jour ou quelqu'un suivra une version plus ancienne du
+# document, ou improvisera une commande d'export.
+*.dump
+*.sql
+cookies.txt
+*.cookies
+
+# Fichiers envoyes en developpement quand STORAGE_DRIVER=local.
+# En production ils partent dans un stockage S3-compatible, pas sur le disque.
+#
+# L'ANCRE INITIALE EST UNE CORRECTION, PAS UNE COQUETTERIE. Ecrit `storage/` sans
+# ancre, le motif s'applique a TOUTE profondeur : il avalait donc aussi
+# `src/common/storage/`, le code du module de stockage lui-meme. Six fichiers
+# source — `storage.key.ts`, `storage.types.ts`, `storage.module.ts`, les deux
+# pilotes et leur spec — etaient ignores par git et n'auraient JAMAIS ete
+# committes : le module disparaissait pour quiconque clone le depot, alors que la
+# compilation et la suite de tests passaient, puisque l'une comme l'autre lisent
+# le disque et non l'index git. C'est exactement la panne qui ne se voit pas.
+#
+# `/storage/` n'ancre que le dossier de l'application, la ou STORAGE_DRIVER=local
+# depose les fichiers envoyes.
+/storage/
+
+# Journalisation
+*.log
+logs/
+
+# Couverture de tests
+coverage/
+
+# Client Prisma genere dans l'arborescence source (`output` de schema.prisma).
+# C'est un artefact derive : il se recree avec `npm run prisma:generate`, et
+# le committer ferait diverger le depot du schema a la premiere migration.
+src/generated/
