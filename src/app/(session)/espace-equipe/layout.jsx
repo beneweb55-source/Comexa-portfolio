@@ -4,6 +4,10 @@ import RequireSession from "@/components/workspace/RequireSession";
 import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 
 const NAV = [
+  { href: "/espace-equipe/contacts", label: "Contacts" },
+  { href: "/espace-equipe/prospects", label: "Prospects", nested: true },
+  { href: "/espace-equipe/devis", label: "Devis", nested: true },
+  { href: "/espace-equipe/factures", label: "Factures", nested: true },
   { href: "/espace-equipe/commandes", label: "Commandes" },
   { href: "/espace-equipe/demandes", label: "Demandes de projet" },
   { href: "/espace-equipe/projets", label: "Projets", nested: true },
