@@ -3,138 +3,113 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import logo from "../../public/comexa-logo-horizontal-transparent.png";
 
 const navigationLinks = [
-    { href: "/", label: "L’agence" },
-    { href: "/services", label: "Services" },
-    { href: "/realisations", label: "Réalisations" },
-    { href: "/partenaires", label: "Partenaires" },
+  { href: "/", label: "L’agence" },
+  { href: "/services", label: "Services" },
+  { href: "/realisations", label: "Réalisations" },
+  { href: "/partenaires", label: "Partenaires" },
 ];
 
+const accountLinks = [
+  { href: "/connexion", label: "Connexion" },
+  { href: "/inscription", label: "Créer un compte" },
+];
+
+function isCurrent(pathname, href) {
+  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/**
+ * Navigation publique : barre flottante translucide au-dessus du contenu,
+ * tiroir mobile avec voile flouté. Le flou n'est utilisé que sur ces éléments
+ * flottants, jamais sur les cartes.
+ */
 export default function Navbar() {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname() ?? "/";
 
-    useEffect(() => {
-        const closeMenuOnEscape = (event) => {
-            if (event.key === "Escape") {
-                setIsMenuOpen(false);
-            }
-        };
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setIsMenuOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isMenuOpen]);
 
-        document.addEventListener("keydown", closeMenuOnEscape);
-        return () => document.removeEventListener("keydown", closeMenuOnEscape);
-    }, []);
+  return (
+    <header className="cx-pub-nav">
+      <div className="cx-pub-nav__bar">
+        <Link href="/" aria-label="Comexa, accueil" onClick={() => setIsMenuOpen(false)} style={{ display: "flex", alignItems: "center", minHeight: 44 }}>
+          <Image src={logo} alt="Comexa" width={130} height={30} className="h-auto w-[min(130px,45vw)]" priority />
+        </Link>
 
-    return (
-        <nav className="relative w-full border-b border-dotted border-[#1683E5] bg-[#F8F9FC]">
-            <div className="mx-auto flex min-h-20 max-w-[1440px] items-center justify-between px-4 py-4 sm:px-8 md:px-10 md:py-0 lg:px-14">
-                <Link href="/" className="flex items-center" onClick={() => setIsMenuOpen(false)}>
-                    <Image
-                        src={logo}
-                        alt="Comexa"
-                        width={130}
-                        height={30}
-                        className="h-auto w-[min(130px,45vw)]"
-                        priority
-                    />
-                </Link>
-
-                <div className="hidden items-center justify-end gap-7 lg:flex">
-                    {navigationLinks.map((link) => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            className="text-[15px] font-medium text-[#111827] transition hover:text-[#1E86E0]"
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
-
-                    <Link
-                        href="/connexion"
-                        className="text-[15px] font-medium text-[#111827] transition hover:text-[#1E86E0]"
-                    >
-                        Connexion
-                    </Link>
-
-                    <Link
-                        href="/inscription"
-                        className="text-[15px] font-medium text-[#111827] transition hover:text-[#1E86E0]"
-                    >
-                        Créer un compte
-                    </Link>
-
-                    <Link
-                        href="/contact"
-                        className="flex h-10 items-center gap-2 rounded-lg border border-[#0B2545] px-5 text-[15px] font-medium text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white"
-                    >
-                        <span>Parlons de votre projet</span>
-                        <span className="text-[20px] leading-none">↗</span>
-                    </Link>
-                </div>
-
-                <button
-                    type="button"
-                    aria-label={isMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-                    aria-expanded={isMenuOpen}
-                    aria-controls="mobile-navigation"
-                    onClick={() => setIsMenuOpen((open) => !open)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#0B2545] text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white lg:hidden"
-                >
-                    <span className="sr-only">
-                        {isMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-                    </span>
-                    <span className="flex w-5 flex-col gap-1" aria-hidden="true">
-                        <span className={`h-0.5 w-full bg-current transition-transform ${isMenuOpen ? "translate-y-1.5 rotate-45" : ""}`} />
-                        <span className={`h-0.5 w-full bg-current transition-opacity ${isMenuOpen ? "opacity-0" : ""}`} />
-                        <span className={`h-0.5 w-full bg-current transition-transform ${isMenuOpen ? "-translate-y-1.5 -rotate-45" : ""}`} />
-                    </span>
-                </button>
-            </div>
-
-            <div
-                id="mobile-navigation"
-                className={`${isMenuOpen ? "block" : "hidden"} border-t border-[#1683E5]/30 bg-[#F8F9FC] px-4 pb-5 pt-3 sm:px-8 md:px-10 lg:hidden`}
+        <nav aria-label="Navigation principale" className="cx-pub-nav__links" style={{ marginInlineStart: "auto" }}>
+          {navigationLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="cx-pub-nav__link"
+              aria-current={isCurrent(pathname, link.href) ? "page" : undefined}
             >
-                <div className="mx-auto flex max-w-[1440px] flex-col gap-1">
-                    {navigationLinks.map((link) => (
-                        <Link
-                            key={link.href}
-                            href={link.href}
-                            onClick={() => setIsMenuOpen(false)}
-                            className="rounded-lg px-3 py-3 text-[15px] font-medium text-[#111827] transition hover:bg-[#e8f1fa] hover:text-[#1E86E0]"
-                        >
-                            {link.label}
-                        </Link>
-                    ))}
-
-                    <Link
-                        href="/connexion"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="rounded-lg px-3 py-3 text-[15px] font-medium text-[#111827] transition hover:bg-[#e8f1fa] hover:text-[#1E86E0]"
-                    >
-                        Connexion
-                    </Link>
-
-                    <Link
-                        href="/inscription"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="rounded-lg px-3 py-3 text-[15px] font-medium text-[#111827] transition hover:bg-[#e8f1fa] hover:text-[#1E86E0]"
-                    >
-                        Créer un compte
-                    </Link>
-
-                    <Link
-                        href="/contact"
-                        onClick={() => setIsMenuOpen(false)}
-                        className="mt-2 flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0B2545] px-4 text-[14px] font-medium text-white transition hover:bg-[#1683E5]"
-                    >
-                        <span>Parlons de votre projet</span>
-                        <span className="text-[18px] leading-none">↗</span>
-                    </Link>
-                </div>
-            </div>
+              {link.label}
+            </Link>
+          ))}
         </nav>
-    );
+
+        <div className="cx-pub-nav__actions">
+          <div className="cx-pub-nav__links" style={{ marginInlineEnd: "var(--comexa-space-2)" }}>
+            {accountLinks.map((link) => (
+              <Link key={link.href} href={link.href} className="cx-pub-nav__link">
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          <Link href="/contact" className="cx-btn cx-btn--primary cx-btn--sm cx-pub-nav__cta">
+            Parlons de votre projet
+          </Link>
+          <button
+            type="button"
+            className="cx-pub-nav__burger"
+            aria-label={isMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-navigation"
+            onClick={() => setIsMenuOpen((open) => !open)}
+          >
+            <span className="cx-pub-nav__burger-bars" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {isMenuOpen ? (
+        <div id="mobile-navigation" className="cx-pub-drawer" onClick={(event) => event.target === event.currentTarget && setIsMenuOpen(false)}>
+          <div className="cx-pub-drawer__panel">
+            <nav aria-label="Navigation mobile" style={{ display: "flex", flexDirection: "column", gap: "var(--comexa-space-1)" }}>
+              {[...navigationLinks, ...accountLinks].map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="cx-pub-drawer__link"
+                  aria-current={isCurrent(pathname, link.href) ? "page" : undefined}
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+            <Link href="/contact" className="cx-btn cx-btn--accent cx-btn--lg cx-btn--block" onClick={() => setIsMenuOpen(false)} style={{ marginTop: "var(--comexa-space-3)" }}>
+              Parlons de votre projet
+            </Link>
+          </div>
+        </div>
+      ) : null}
+    </header>
+  );
 }
