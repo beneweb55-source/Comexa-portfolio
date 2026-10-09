@@ -180,7 +180,7 @@ export default function Home() {
             </div>
 
 
-            <h1 className=" max-w-110 text-8xl font-semibold leading-[0.98] tracking-[-2.5px] sm:text-6xl lg:text-[58px]">
+            <h1 className="max-w-[680px] text-[42px] font-semibold leading-[1] tracking-[-1.8px] sm:text-[52px] lg:text-[58px]">
               Le web qui
 
               avance avec
@@ -246,7 +246,7 @@ export default function Home() {
         </div>
       </section>
       <section className="scroll-reveal section-reveal-delay-1 w-full border-y border-dotted border-[#1E86E0] bg-[#0D172B]">
-        <div className="mx-auto flex min-h-[62px] max-w-[1200px] items-center justify-between gap-8 px-6 lg:px-0">
+        <div className="mx-auto flex min-h-[62px] max-w-[1200px] flex-col items-start justify-center gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-0">
 
 
           <div className="w-50 shrink-0">
@@ -275,7 +275,7 @@ export default function Home() {
         id="agence"
         className="scroll-reveal section-reveal-delay-2 w-full bg-white"
       >
-        <div className="mx-auto flex max-w-[1200px] items-center gap-16 px-6 py-20 lg:px-0">
+        <div className="mx-auto flex max-w-[1200px] flex-col items-start gap-10 px-5 py-14 sm:px-8 md:gap-14 md:py-20 lg:flex-row lg:items-center lg:px-0">
           <Image
             src={quisommesnous1}
             alt="Comexa"

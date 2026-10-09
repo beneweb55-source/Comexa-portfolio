@@ -7,7 +7,7 @@ export default function Navbar() {
     
     return (
         <nav className="w-full bg-[#F8F9FC] border-b border-dotted border-[#1683E5]">
-            <div className="mx-20 flex h-20  items-center justify-between px-6">
+            <div className="mx-auto flex min-h-20 max-w-[1440px] flex-col gap-4 px-5 py-4 sm:px-8 md:flex-row md:items-center md:justify-between md:px-10 md:py-0 lg:px-14">
 
 
                 <Link href="/" className="flex items-center">
@@ -23,7 +23,7 @@ export default function Navbar() {
 
 
 
-                <div className="flex items-center gap-7">
+                <div className="flex w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 md:w-auto md:justify-end md:gap-7">
                     <a
                         href="/"
                         className="text-15 font-medium text-[#111827] transition hover:text-[#1E86E0]"
@@ -55,7 +55,7 @@ export default function Navbar() {
 
                     <a
                         href="/contact"
-                        className="ml-2 flex h-10 items-center gap-3 rounded-lg border border-[#0B2545] px-5 text-15 font-medium text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white"
+                        className="flex h-10 items-center gap-2 rounded-lg border border-[#0B2545] px-3 text-[13px] font-medium text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white sm:px-5 sm:text-[15px]"
                     >
                         <span>Parlons de votre projet</span>
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 export default function Partenaires() {
   useEffect(() => {
     const sections = document.querySelectorAll(".scroll-reveal");
@@ -21,7 +22,30 @@ export default function Partenaires() {
 
     return () => observer.disconnect();
   }, []);
+ const pathname = usePathname();
+  const pageLabels = {
+    "/": "Accueil",
+    "/services": "Nos services",
+    "/realisations": "Réalisations",
+    "/partenaires": "Partenaires",
+    "/contact": "Contact",
+  };
+  const currentPageLabel = pageLabels[pathname] ?? "Partenaires";
+  const [previousPage, setPreviousPage] = useState({
+    path: "/",
+    label: "Accueil",
+  });
 
+  useEffect(() => {
+    const previousPath = sessionStorage.getItem("comexa-previous-path");
+
+    if (previousPath && previousPath !== pathname) {
+      setPreviousPage({
+        path: previousPath,
+        label: pageLabels[previousPath] ?? "Page précédente",
+      });
+    }
+  }, [pathname]);
     const technologies = [
     {
       name: "Vercel",
@@ -100,17 +124,21 @@ export default function Partenaires() {
           <section className="scroll-reveal w-full bg-[#f5f7fa] px-[18px] py-10 md:px-8 lg:px-[45px]">
       <div className="mx-auto max-w-[1240px]">
 
-        {/* Breadcrumb */}
         <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
-          <span>Accueil</span>
-          <span className="text-[18px] text-[#10294a]">›</span>
-          <span className="font-medium text-[#10294a]">
-            Partenaires
-          </span>
-        </div>
+            <Link
+              href={previousPage.path}
+              className="transition hover:text-[#10294a]"
+            >
+              {previousPage.label}
+            </Link>
+            <span className="text-[18px] text-[#10294a]">›</span>
+            <span className="font-medium text-[#10294a]">
+              {currentPageLabel}
+            </span>
+          </div>
 
         {/* Hero */}
-        <div className="relative mt-5 min-h-[330px] lg:min-h-[350px]">
+        <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
 
           {/* LEFT CONTENT */}
           <div className="relative z-10 max-w-[720px]">

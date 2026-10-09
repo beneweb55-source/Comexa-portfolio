@@ -6,10 +6,10 @@ import logo from "../../public/comexa-logo-horizontal-clair-transparent.png"
 export default function Footer() {
     return (
         <footer className="w-full bg-[#0D172B] text-white">
-            <div className="mx-10  px-6 py-9 lg:px-0 text-left my-2">
+            <div className="mx-auto max-w-[1440px] px-5 py-9 text-left sm:px-8 md:px-10 lg:px-14">
 
 
-                <div className="grid grid-cols-1 gap-25 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 md:grid-cols-4 md:gap-8 lg:gap-12">
 
 
                     <div className="md:col-span-1">
@@ -19,7 +19,7 @@ export default function Footer() {
                                 alt="Comexa"
                                 width={200}
                                 height={46}
-                                className="h-[46px] w-[200px]"
+                                className="h-auto w-[min(200px,100%)]"
                                 priority
                             />
                         </Link>
