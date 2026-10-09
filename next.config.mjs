@@ -7,6 +7,10 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
 
 const nextConfig = {
   reactCompiler: true,
+  // Preview Arena : le navigateur charge l'app depuis https://3000-<id>.e2b.app.
+  // Sans cette autorisation, Next bloque /_next/hmr et le JavaScript ne s'hydrate
+  // pas : le bouton du menu ne répond plus. Ne concerne que le mode développement.
+  allowedDevOrigins: ["**.e2b.app"],
   async rewrites() {
     return [
       {
