@@ -52,6 +52,20 @@ export default function Navbar() {
                     ))}
 
                     <Link
+                        href="/connexion"
+                        className="text-[15px] font-medium text-[#111827] transition hover:text-[#1E86E0]"
+                    >
+                        Connexion
+                    </Link>
+
+                    <Link
+                        href="/inscription"
+                        className="text-[15px] font-medium text-[#111827] transition hover:text-[#1E86E0]"
+                    >
+                        Créer un compte
+                    </Link>
+
+                    <Link
                         href="/contact"
                         className="flex h-10 items-center gap-2 rounded-lg border border-[#0B2545] px-5 text-[15px] font-medium text-[#0B2545] transition hover:bg-[#0B2545] hover:text-white"
                     >
@@ -94,6 +108,22 @@ export default function Navbar() {
                             {link.label}
                         </Link>
                     ))}
+
+                    <Link
+                        href="/connexion"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="rounded-lg px-3 py-3 text-[15px] font-medium text-[#111827] transition hover:bg-[#e8f1fa] hover:text-[#1E86E0]"
+                    >
+                        Connexion
+                    </Link>
+
+                    <Link
+                        href="/inscription"
+                        onClick={() => setIsMenuOpen(false)}
+                        className="rounded-lg px-3 py-3 text-[15px] font-medium text-[#111827] transition hover:bg-[#e8f1fa] hover:text-[#1E86E0]"
+                    >
+                        Créer un compte
+                    </Link>
 
                     <Link
                         href="/contact"
