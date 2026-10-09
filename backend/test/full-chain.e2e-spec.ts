@@ -1527,13 +1527,29 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
     assert.equal(crossPayments.status, 404);
     assert.equal(errorOf(crossPayments).code, 'INVOICE_NOT_FOUND');
 
+    // Une facture encore en brouillon n'a pas ete emise : meme le porteur qui en
+    // est le client ne la voit pas (404, pas 200 ni 403).
+    const draftForOwnerB = await request(app.getHttpServer())
+      .get(`${baseUrl}/invoices/${invoiceBId}`)
+      .set(auth(portalBToken));
+
+    assert.equal(draftForOwnerB.status, 404, 'un brouillon ne doit pas etre visible du client');
+    assert.equal(errorOf(draftForOwnerB).code, 'INVOICE_NOT_FOUND');
+
+    // Une fois envoyee par l'equipe, la facture devient lisible par son client.
+    const sentB = await request(app.getHttpServer())
+      .post(`${baseUrl}/invoices/${invoiceBId}/send`)
+      .set(auth(adminToken))
+      .send({});
+    assert.equal(sentB.status, 201, `envoi de la facture B : ${sentB.status}`);
+
     // Le porteur B, lui, atteint bien SES donnees : sans ce controle, les 404
     // ci-dessus seraient aussi vrais d'une base vide.
     const ownInvoiceB = await request(app.getHttpServer())
       .get(`${baseUrl}/invoices/${invoiceBId}`)
       .set(auth(portalBToken));
 
-    assert.equal(ownInvoiceB.status, 200, 'le porteur B doit lire sa propre facture');
+    assert.equal(ownInvoiceB.status, 200, 'le porteur B doit lire sa propre facture une fois envoyee');
     assert.equal(dataOf<InvoicePayload>(ownInvoiceB).clientId, clientBId);
 
     // --- Ce que A NE PEUT PAS obtenir en le DEMANDANT : le filtre dans l'URL --

@@ -304,7 +304,8 @@ export class InvoicesService {
 
     const where: Prisma.InvoiceWhereInput = {
       deletedAt: null,
-      ...(ownClientId ? { clientId: ownClientId } : {}),
+      // Un client ne voit jamais un brouillon : il n'a pas encore été émis.
+      ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
       ...(!ownClientId && query.clientId ? { clientId: query.clientId } : {}),
       ...(query.projectId ? { projectId: query.projectId } : {}),
       ...(query.quoteId ? { quoteId: query.quoteId } : {}),
@@ -343,7 +344,11 @@ export class InvoicesService {
     const ownClientId = clientPerimeter(policy, 'invoice', 'read');
 
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id: invoiceId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
+      where: {
+        id: invoiceId,
+        deletedAt: null,
+        ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+      },
       include: INVOICE_INCLUDE,
     });
 

@@ -175,7 +175,8 @@ export class QuotesService {
 
     const where: Prisma.QuoteWhereInput = {
       deletedAt: null,
-      ...(ownClientId ? { clientId: ownClientId } : {}),
+      // Un client ne voit jamais un brouillon : le devis ne lui a pas été envoyé.
+      ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
       ...(!ownClientId && query.clientId ? { clientId: query.clientId } : {}),
       ...(query.prospectId ? { prospectId: query.prospectId } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -213,7 +214,11 @@ export class QuotesService {
     const ownClientId = clientPerimeter(policy, 'quote', 'read');
 
     const quote = await this.prisma.quote.findFirst({
-      where: { id: quoteId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
+      where: {
+        id: quoteId,
+        deletedAt: null,
+        ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+      },
       include: QUOTE_INCLUDE,
     });
 
@@ -646,7 +651,11 @@ export class QuotesService {
     const ownClientId = clientPerimeter(policy, 'quote', 'read');
 
     const quote = await this.prisma.quote.findFirst({
-      where: { id: quoteId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
+      where: {
+        id: quoteId,
+        deletedAt: null,
+        ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+      },
       include: QUOTE_INCLUDE,
     });
 
