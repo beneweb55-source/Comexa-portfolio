@@ -113,7 +113,7 @@ export default function Réalisations() {
   
   return (
     <main className="w-full overflow-hidden">
-      <section className="scroll-reveal w-full bg-[#f5f7fa] px-[18px] py-10 md:px-8 lg:px-[45px]">
+      <section className="scroll-reveal w-full bg-[#f5f7fa] px-5 py-10 sm:px-6 md:px-8 lg:px-[45px]">
         <div className="mx-auto max-w-[1240px]">
 
         {/* BREADCRUMB */}
@@ -134,7 +134,7 @@ export default function Réalisations() {
         <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
 
           {/* CONTENU GAUCHE */}
-          <div className="scroll-slide-left relative z-10 max-w-[720px]">
+          <div className="scroll-slide-left relative z-10 w-full max-w-[720px]">
 
             {/* LABEL */}
             <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[6px] text-[11px] font-medium uppercase text-[#08203e]">
@@ -142,7 +142,7 @@ export default function Réalisations() {
             </span>
 
             {/* TITRE */}
-            <h1 className="mt-6 text-[43px] font-medium leading-[1.03] tracking-[-2px] text-[#10294a] sm:text-[52px] lg:text-[60px]">
+            <h1 className="mt-6 text-[clamp(2.35rem,8vw,3.75rem)] font-medium leading-[1.03] tracking-[-2px] text-[#10294a]">
               Des projets concrets.
               <br />
               Un cap qui vous
@@ -151,17 +151,17 @@ export default function Réalisations() {
             </h1>
 
             {/* DESCRIPTION */}
-            <p className="mt-5 max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
+            <p className="mt-5 w-full max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
               Sites vitrines, e-commerce et applications web : découvrez nos
               réalisations et les choix qui donnent forme à chaque besoin.
             </p>
 
             {/* ACTIONS */}
-            <div className="mt-5 flex flex-wrap items-center gap-4">
+            <div className="mt-5 flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center">
 
               <a
                 href="#projets"
-                className="flex items-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition hover:bg-[#0d82d0]"
+                className="flex min-h-[46px] items-center justify-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition hover:bg-[#0d82d0] sm:w-fit"
               >
                 <span>Explorer nos réalisations</span>
                 <span className="text-[18px]">↗</span>
@@ -237,7 +237,7 @@ export default function Réalisations() {
     
  <section
       id="projets"
-      className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 md:px-10 lg:px-12">
+      className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 sm:px-6 md:px-10 lg:px-12">
     
       <div className="mx-auto max-w-[1180px]">
 
@@ -248,7 +248,7 @@ export default function Réalisations() {
               NOS RÉALISATIONS
             </span>
 
-            <h2 className="mt-4 max-w-[570px] text-[30px] font-medium leading-[1.08] tracking-[-1px] text-[#10294a] md:text-[38px]">
+            <h2 className="mt-4 max-w-[570px] text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px] text-[#10294a]">
               Trois besoins différents.
               <br />
               La même exigence web.
@@ -279,7 +279,7 @@ export default function Réalisations() {
             Applications web
           </button>
 
-          <span className="ml-auto text-[12px] text-[#69758a]">
+          <span className="text-[12px] text-[#69758a] sm:ml-auto">
             3 réalisations
           </span>
         </div>
@@ -363,7 +363,7 @@ export default function Réalisations() {
               ÉTUDES DE CAS
             </span>
 
-            <h2 className="mt-4 text-[30px] font-medium leading-[1.08] tracking-[-1px] text-[#10294a] md:text-[38px]">
+            <h2 className="mt-4 text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px] text-[#10294a]">
               Derrière l’interface,
               <br />
               un besoin bien compris.
@@ -484,7 +484,7 @@ export default function Réalisations() {
               UN PROJET EN TÊTE ?
             </span>
 
-            <h2 className="mt-5 max-w-[550px] text-[38px] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a] md:text-[43px]">
+            <h2 className="mt-5 max-w-[550px] text-[clamp(1.9rem,5vw,2.6875rem)] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a]">
               Donnons forme à
               <br />
               votre prochain projet.

@@ -157,13 +157,12 @@ export default function Home() {
     },
   ];
   return (
-    <main className=" bg-[#F7F8FA] text-[#10182B]">
-      <section className="scroll-reveal mx-auto flex max-w-300 items-center px-6 py-16 lg:px-0">
+    <main className="w-full overflow-hidden bg-[#F7F8FA] text-[#10182B]">
+      <section className="scroll-reveal mx-auto flex max-w-[1200px] items-center px-5 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
+        <div className="grid w-full items-center gap-10 lg:grid-cols-2 lg:gap-14">
 
-        <div className="grid w-full items-center gap-14 lg:grid-cols-2">
 
-
-          <div className="scroll-slide-left max-w-142.5">
+          <div className="scroll-slide-left w-full max-w-[570px]">
 
             <div className="mb-7 flex items-center gap-3">
               <div className="flex gap-1.75">
@@ -180,7 +179,7 @@ export default function Home() {
             </div>
 
 
-            <h1 className="max-w-[680px] text-[42px] font-semibold leading-[1] tracking-[-1.8px] sm:text-[52px] lg:text-[58px]">
+            <h1 className="max-w-[680px] text-[clamp(2.35rem,8vw,3.625rem)] font-semibold leading-[1] tracking-[-1.8px]">
               Le web qui
 
               avance avec
@@ -189,18 +188,18 @@ export default function Home() {
             </h1>
 
 
-            <p className="mt-7 max-w-127.5 text-[15px] leading-[1.55] text-[#667085]">
+            <p className="mt-7 max-w-[510px] text-[15px] leading-[1.55] text-[#667085]">
               Comexa conçoit et développe des sites et applications web
               clairs, performants et faciles à faire évoluer. De l’idée à la
               mise en ligne, vous gardez le cap.
             </p>
 
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
 
               <a
                 href="#contact"
-                className="flex h-11.25 items-center gap-4 rounded-lg bg-[#2864E8] px-5 text-sm font-semibold text-white transition hover:bg-[#1E54CE]"
+                className="flex min-h-[45px] w-full items-center justify-center gap-4 rounded-lg bg-[#2864E8] px-5 text-sm font-semibold text-white transition hover:bg-[#1E54CE] sm:w-auto"
               >
                 <span>Demander un devis</span>
                 <span className="text-base">↗</span>
@@ -208,7 +207,7 @@ export default function Home() {
 
               <a
                 href="#realisations"
-                className="flex h-11.25 items-center gap-4 rounded-lg bg-white px-5 text-sm font-semibold text-[#172033] shadow-[0_1px_3px_rgba(16,24,40,0.04)] transition hover:bg-[#EEF2F7]"
+                className="flex min-h-[45px] w-full items-center justify-center gap-4 rounded-lg bg-white px-5 text-sm font-semibold text-[#172033] shadow-[0_1px_3px_rgba(16,24,40,0.04)] transition hover:bg-[#EEF2F7] sm:w-auto"
               >
                 <span>Voir nos réalisations</span>
                 <span className="text-base">↗</span>
@@ -234,13 +233,15 @@ export default function Home() {
           </div>
 
 
-          <div className="scroll-slide-right relative flex min-h-97.5 items-center justify-center">
+          <div className="scroll-slide-right relative flex min-h-[280px] w-full items-center justify-center sm:min-h-[360px]">
             <Image
               src={quisommesnous}
               alt="Comexa"
               width={600}
               height={600}
               priority
+              sizes="(min-width: 1024px) 50vw, 100vw"
+              className="h-auto w-full max-w-[600px]"
             />
           </div>
         </div>
@@ -249,7 +250,7 @@ export default function Home() {
         <div className="mx-auto flex min-h-[62px] max-w-[1200px] flex-col items-start justify-center gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-0 lg:px-0">
 
 
-          <div className="w-50 shrink-0">
+          <div className="w-full shrink-0 sm:w-[200px]">
             <p className="text-[10px] font-medium leading-4 text-[#D9E2F2]">
               Une expertise 100 % développement
               <br />
@@ -258,13 +259,13 @@ export default function Home() {
           </div>
 
 
-          <ul className="flex flex-1 items-center justify-between">
-            <li className="text-8 font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]"
+          <ul className="grid w-full grid-cols-2 gap-x-4 gap-y-2 sm:flex sm:flex-1 sm:items-center sm:justify-start sm:gap-8 lg:gap-40">
+            <li className="text-[14px] font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]"
             >Stratégie</li>
-            <li className="text-8 font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">UX / UI</li>
-            <li className="text-8 font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">Front-end</li>
-            <li className="text-8 font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">Back-end</li>
-            <li className="text-8 font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]"> Optimisation</li>
+            <li className="text-[14px] font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">UX / UI</li>
+            <li className="text-[14px] font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">Front-end</li>
+            <li className="text-[14px] font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">Back-end</li>
+            <li className="text-[14px] font-medium text-white transition-colors duration-200 hover:text-[#4FB0F0]">Optimisation</li>
 
           </ul>
 
@@ -282,6 +283,8 @@ export default function Home() {
             width={500}
             height={500}
             priority
+            sizes="(min-width: 1024px) 42vw, 100vw"
+            className="h-auto w-full max-w-[500px] self-center"
           />
 
 
@@ -294,7 +297,7 @@ export default function Home() {
             </span>
 
 
-            <h2 className="mt-5 text-26 font-semibold leading-[1.02] tracking-[-1.5px] text-[#10182B] sm:text-[40px]">
+            <h2 className="mt-5 text-[clamp(1.75rem,5vw,2.5rem)] font-semibold leading-[1.02] tracking-[-1.5px] text-[#10182B]">
               Un partenaire technique qui
               <br />
               parle votre langage.
@@ -336,7 +339,7 @@ export default function Home() {
 
             <a
               href="#contact"
-              className="mt-5 inline-flex h-[40px] items-center gap-4 rounded-xl border-[1.5px] border-[#10182B] bg-white px-4 text-[14px] font-semibold text-[#10182B] transition hover:bg-[#10182B] hover:text-white"
+              className="mt-5 inline-flex min-h-[40px] max-w-full items-center gap-4 rounded-xl border-[1.5px] border-[#10182B] bg-white px-4 text-[14px] font-semibold text-[#10182B] transition hover:bg-[#10182B] hover:text-white"
             >
               Découvrir notre approche
               <span className="text-[14px]">↗</span>
@@ -345,7 +348,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="scroll-reveal section-reveal-delay-3 w-full bg-[#f5f6f8] px-5 py-16 md:px-10 lg:px-14">
+      <section id="services" className="scroll-reveal section-reveal-delay-3 w-full bg-[#f5f6f8] px-5 py-16 md:px-10 lg:px-14">
       <div className="mx-auto max-w-[1180px]">
         <div className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
@@ -353,7 +356,7 @@ export default function Home() {
               NOS SERVICES
             </span>
 
-            <h2 className="mt-4 max-w-[650px] text-[30px] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30] md:text-[38px]">
+            <h2 className="mt-4 max-w-[650px] text-[clamp(1.8rem,5vw,2.375rem)] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30]">
               Tout ce qu’il faut pour
               <br />
               construire et faire vivre votre
@@ -384,7 +387,7 @@ export default function Home() {
             >
               <div className="flex items-start justify-between">
                 <div
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-10 ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-[10px] ${
                     service.style === "blue" || service.style === "dark"
                       ? "bg-white text-[#2864f6]"
                       : "bg-white text-[#101a30]"
@@ -443,7 +446,7 @@ export default function Home() {
         </div>
       </div>
     </section>
-  <section className="scroll-reveal section-reveal-delay-4 w-full bg-[#e8efff] px-5 py-14 md:px-10 lg:px-14">
+  <section id="realisations" className="scroll-reveal section-reveal-delay-4 w-full bg-[#e8efff] px-5 py-14 md:px-10 lg:px-14">
       <div className="mx-auto max-w-[1180px]">
 
         {/* HEADER */}
@@ -453,7 +456,7 @@ export default function Home() {
               PROJETS RÉCENTS
             </span>
 
-            <h2 className="mt-4 max-w-[620px] text-[30px] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30] md:text-[38px]">
+            <h2 className="mt-4 max-w-[620px] text-[clamp(1.8rem,5vw,2.375rem)] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30]">
               Des réalisations pensées pour
               <br />
               les usages, pas pour la
@@ -612,7 +615,7 @@ export default function Home() {
                 NOTRE MÉTHODE
               </span>
 
-              <h2 className="mt-9 max-w-[600px] text-[30px] font-bold leading-[1.02] tracking-[-1.5px] md:text-[38px]">
+              <h2 className="mt-9 max-w-[600px] text-[clamp(1.8rem,5vw,2.375rem)] font-bold leading-[1.02] tracking-[-1.5px]">
                 Un projet lisible, du premier
                 <br />
                 atelier à la mise en ligne.
@@ -665,7 +668,7 @@ export default function Home() {
                 ILS EN PARLENT
               </span>
 
-              <h2 className="mt-4 max-w-[600px] text-[30px] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30] md:text-[38px]">
+              <h2 className="mt-4 max-w-[600px] text-[clamp(1.8rem,5vw,2.375rem)] font-bold leading-[1.02] tracking-[-1.5px] text-[#101a30]">
                 Des collaborations qui restent
                 <br />
                 simples et humaines.
@@ -761,7 +764,7 @@ export default function Home() {
       </div>
     </section>
 
-    <section className="scroll-reveal section-reveal-delay-5 w-full bg-[#2864f6] px-5 py-12 md:px-10 lg:px-14">
+    <section id="contact" className="scroll-reveal section-reveal-delay-5 w-full bg-[#2864f6] px-5 py-12 md:px-10 lg:px-14">
       <div className="mx-auto flex max-w-[1180px] flex-col gap-10 lg:flex-row lg:items-center lg:justify-between">
 
         {/* LEFT */}
@@ -790,7 +793,7 @@ export default function Home() {
                 ✉
               </div>
 
-              <span className="text-[13px] font-medium text-white">
+              <span className="break-all text-[13px] font-medium text-white sm:break-normal">
                 bonjour@comexa.dz
               </span>
             </div>
@@ -800,7 +803,7 @@ export default function Home() {
                 ◉
               </div>
 
-              <span className="text-[13px] font-medium text-white">
+              <span className="text-[13px] font-medium leading-5 text-white">
                 Algérie · Projets partout en Algérie et à l’international
               </span>
             </div>
@@ -818,7 +821,7 @@ export default function Home() {
         {/* FORM CARD */}
         <div className="w-full max-w-[630px] rounded-[18px] border border-[#101a30] bg-white p-5 text-[#101a30] shadow-[6px_6px_0_#101a30] md:p-6">
 
-          <h3 className="text-[24px] font-bold">
+          <h3 className="text-[clamp(1.35rem,4vw,1.5rem)] font-bold">
             Parlons de votre projet
           </h3>
 

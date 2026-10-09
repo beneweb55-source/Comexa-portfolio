@@ -121,7 +121,7 @@ export default function Partenaires() {
        
           
       
-          <section className="scroll-reveal w-full bg-[#f5f7fa] px-[18px] py-10 md:px-8 lg:px-[45px]">
+          <section className="scroll-reveal w-full bg-[#f5f7fa] px-5 py-10 sm:px-6 md:px-8 lg:px-[45px]">
       <div className="mx-auto max-w-[1240px]">
 
         <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
@@ -141,7 +141,7 @@ export default function Partenaires() {
         <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
 
           {/* LEFT CONTENT */}
-          <div className="relative z-10 max-w-[720px]">
+          <div className="relative z-10 w-full max-w-[720px]">
 
             {/* Label */}
             <span className="inline-flex rounded-[8px] bg-[#168fe5] px-3 py-[7px] text-[10px] font-medium text-[#08203e]">
@@ -149,21 +149,21 @@ export default function Partenaires() {
             </span>
 
             {/* Title */}
-            <h1 className="mt-6 text-[43px] font-medium leading-[1.03] tracking-[-2px] text-[#10294a] sm:text-[52px] lg:text-[60px]">
+            <h1 className="mt-6 text-[clamp(2.35rem,8vw,3.75rem)] font-medium leading-[1.03] tracking-[-2px] text-[#10294a]">
               Le bon cap se construit
               <br />
               ensemble.
             </h1>
 
             {/* Description */}
-            <p className="mt-5 max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
+            <p className="mt-5 w-full max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
               Partenaires, technologies et collaborations : découvrez
               l’écosystème qui accompagne notre expertise en développement
               web.
             </p>
 
             {/* Button */}
-            <button className="mt-5 flex items-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition duration-200 hover:bg-[#0c82d2]">
+            <button className="mt-5 flex min-h-[46px] w-full items-center justify-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition duration-200 hover:bg-[#0c82d2] sm:w-fit">
               <span>Découvrir notre écosystème</span>
               <span className="text-[18px]">↗</span>
             </button>
@@ -211,7 +211,7 @@ export default function Partenaires() {
 
 
    
-      <section className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 md:px-10 lg:px-12">
+      <section className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 sm:px-6 md:px-10 lg:px-12">
       <div className="mx-auto max-w-[1180px]">
 
       
@@ -327,7 +327,7 @@ export default function Partenaires() {
               ILS EN PARLENT
             </span>
 
-            <h2 className="mt-5 max-w-[650px] text-[31px] font-medium leading-[1.08] tracking-[-1px] md:text-[38px]">
+            <h2 className="mt-5 max-w-[650px] text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px]">
               Des collaborations qui restent
               <br />
               simples et humaines.
@@ -414,7 +414,7 @@ export default function Partenaires() {
               DEVENIR PARTENAIRE
             </span>
 
-            <h2 className="mt-5 max-w-[550px] text-[38px] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a] md:text-[43px]">
+            <h2 className="mt-5 max-w-[550px] text-[clamp(1.9rem,5vw,2.6875rem)] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a]">
               Et si nous prenions
               <br />
               le même cap ?

@@ -28,7 +28,7 @@ export default function Footer() {
                             Naviguer le digital ensemble.
                         </h2>
 
-                        <p className="mt-4 max-w-67.5 text-13 leading-7 text-[#9BA9C1]">
+                        <p className="mt-4 max-w-[270px] text-[13px] leading-7 text-[#9BA9C1]">
                             Agence spécialisée exclusivement en conception
                             et développement web.
                         </p>
@@ -36,11 +36,11 @@ export default function Footer() {
 
 
                     <div>
-                        <h3 className="mb-4 text-16 font-semibold uppercase text-[#1E86E0]">
+                        <h3 className="mb-4 text-[16px] font-semibold uppercase text-[#1E86E0]">
                             Explorer
                         </h3>
 
-                        <ul className="space-y-3 text-14 text-white">
+                        <ul className="space-y-3 text-[14px] text-white">
                             <li>
                                 <a href="#agence" className="transition hover:text-[#1E86E0]">
                                     L&apos;agence
@@ -72,11 +72,11 @@ export default function Footer() {
 
 
                     <div>
-                        <h3 className="mb-4 text-16 font-semibold uppercase text-[#1E86E0]">
+                        <h3 className="mb-4 text-[16px] font-semibold uppercase text-[#1E86E0]">
                             Expertises
                         </h3>
 
-                        <ul className="space-y-3 text-14 text-white">
+                        <ul className="space-y-3 text-[14px] text-white">
                             <li>
                                 <a href="#" className="transition hover:text-[#1E86E0]">
                                     Sites vitrines
@@ -105,11 +105,11 @@ export default function Footer() {
 
 
                     <div>
-                        <h3 className="mb-4 text-16 font-semibold uppercase text-[#1E86E0]">
+                        <h3 className="mb-4 text-[16px] font-semibold uppercase text-[#1E86E0]">
                             Nous suivre
                         </h3>
 
-                        <ul className="space-y-3 text-14 text-white">
+                        <ul className="space-y-3 text-[14px] text-white">
                             <li>
                                 <a href="#" className="transition hover:text-[#1E86E0]">
                                     LinkedIn
@@ -145,7 +145,7 @@ export default function Footer() {
                         © 2026 Comexa. Tous droits réservés.
                     </p>
 
-                    <div className="flex gap-8">
+                    <div className="flex flex-wrap gap-x-6 gap-y-2">
                         <a
                             href="#"
                             className="transition hover:text-white"

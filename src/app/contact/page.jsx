@@ -98,36 +98,35 @@ export default function Contact() {
     <main className="min-h-screen bg-[#f5f7fa] text-[#10294a]">
 
       <section className="scroll-reveal">
-        <div className="mx-auto max-w-[1300px] px-5 pb-10 pt-10 md:px-10">
+        <div className="mx-auto max-w-[1300px] px-5 pb-10 pt-8 sm:px-6 md:px-10 md:pt-10">
 
        
-          <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
-            <Link
-              href={previousPage.path}
-              className="transition hover:text-[#10294a]"
-            >
-              {previousPage.label}
-            </Link>
-            <span className="text-[18px] text-[#10294a]">›</span>
-            <span className="font-medium text-[#10294a]">
-              {currentPageLabel}
-            </span>
-          </div>
-
+           <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
+                   <Link
+                     href={previousPage.path}
+                     className="transition hover:text-[#10294a]"
+                   >
+                     {previousPage.label}
+                   </Link>
+                   <span className="text-[18px] text-[#10294a]">›</span>
+                   <span className="font-medium text-[#10294a]">
+                     {currentPageLabel}
+                   </span>
+                 </div>
           <div className="mt-8 flex flex-col items-start justify-between gap-8 md:flex-row md:items-center md:gap-10">
 
-            <div className="scroll-slide-left max-w-[650px]">
+            <div className="scroll-slide-left w-full max-w-[650px]">
               <span className="inline-flex rounded-lg bg-[#168fe5] px-3 py-1.5 text-[11px] font-medium text-[#08203e]">
                 NAVIGUER LE DIGITAL ENSEMBLE
               </span>
 
-              <h1 className="mt-5 text-[40px] font-medium leading-[1.08] tracking-[-1.5px] sm:text-[46px] md:text-[52px]">
+              <h1 className="mt-5 text-[clamp(2.25rem,8vw,3.25rem)] font-medium leading-[1.08] tracking-[-1.5px]">
                 Votre prochain cap web
                 <br />
                 commence ici.
               </h1>
 
-              <p className="mt-4 max-w-[620px] text-[15px] leading-[1.65] text-[#69758a]">
+              <p className="mt-4 w-full max-w-[620px] text-[15px] leading-[1.65] text-[#69758a]">
                 Une idée, une refonte, un besoin technique ? Parlez-nous de
                 votre projet.
                 <br className="hidden md:block" />
@@ -166,11 +165,11 @@ export default function Contact() {
       <section className="scroll-reveal section-reveal-delay-1 mx-auto max-w-[1200px] px-5 py-2 md:px-10">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_310px]">
 
-          <div className="reveal-card reveal-card-delay-1 rounded-[20px] border border-[#10294a] bg-white p-6 shadow-[5px_7px_0_#10294a] md:p-7">
+          <div className="reveal-card reveal-card-delay-1 min-w-0 rounded-[20px] border border-[#10294a] bg-white p-5 shadow-[5px_7px_0_#10294a] sm:p-6 md:p-7">
 
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-[30px] font-medium">
+                <h2 className="text-[clamp(1.65rem,5vw,1.875rem)] font-medium">
                   Parlons de votre projet
                 </h2>
 
@@ -196,7 +195,7 @@ export default function Contact() {
                   <input
                     type="text"
                     placeholder="Votre prénom et votre nom"
-                    className="h-11 w-full rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-4 text-[18px] outline-none transition focus:border-[#168fe5]"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:px-4 sm:text-[18px]"
                   />
                 </div>
 
@@ -208,7 +207,7 @@ export default function Contact() {
                   <input
                     type="email"
                     placeholder="vous@entreprise.fr"
-                    className="h-11 w-full rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[18px] outline-none transition focus:border-[#168fe5]"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
                   />
                 </div>
 
@@ -226,7 +225,7 @@ export default function Contact() {
                 <input
                   type="text"
                   placeholder="Le nom de votre organisation"
-                  className="h-11 w-full rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[18px] outline-none transition focus:border-[#168fe5]"
+                  className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
                 />
               </div>
 
