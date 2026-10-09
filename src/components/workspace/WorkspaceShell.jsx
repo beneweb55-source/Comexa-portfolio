@@ -11,7 +11,7 @@ import logo from "../../../public/comexa-logo-horizontal-transparent.png";
  * Le logo est celui du projet, sans modification. L'état actif est signalé par la
  * couleur et le fond, jamais par un soulignement décoratif (charte, section 11).
  */
-export default function WorkspaceShell({ title, subtitle, items, children }) {
+export default function WorkspaceShell({ space, title, subtitle, items, children }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -57,7 +57,7 @@ export default function WorkspaceShell({ title, subtitle, items, children }) {
       </header>
       <main className="cx-container w-full flex-1 py-10 sm:py-12">
         <div className="mb-10 max-w-[760px]">
-          <p className="cx-eyebrow mb-3">{user?.roles?.includes("CLIENT") ? "Espace client" : "Espace équipe"}</p>
+          <p className="cx-eyebrow mb-3">{space}</p>
           <h1>{title}</h1>
           {subtitle ? <p className="cx-lead mt-3">{subtitle}</p> : null}
         </div>

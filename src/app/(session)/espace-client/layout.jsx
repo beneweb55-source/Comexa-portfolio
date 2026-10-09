@@ -11,7 +11,7 @@ const NAV = [
 export default function EspaceClientLayout({ children }) {
   return (
     <RequireSession>
-      <WorkspaceShell title="Mon espace client" subtitle="Commandes, paiements et suivi de vos projets." items={NAV}>
+      <WorkspaceShell space="Espace client" title="Mon espace client" subtitle="Commandes, paiements et suivi de vos projets." items={NAV}>
         {children}
       </WorkspaceShell>
     </RequireSession>

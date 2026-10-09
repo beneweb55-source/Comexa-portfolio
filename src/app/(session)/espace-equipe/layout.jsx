@@ -14,7 +14,7 @@ const NAV = [
 export default function EspaceEquipeLayout({ children }) {
   return (
     <RequireSession>
-      <WorkspaceShell title="Espace équipe" subtitle="Administration des commandes, clients et projets." items={NAV}>
+      <WorkspaceShell space="Espace équipe" title="Espace équipe" subtitle="Administration des commandes, clients et projets." items={NAV}>
         {children}
       </WorkspaceShell>
     </RequireSession>
