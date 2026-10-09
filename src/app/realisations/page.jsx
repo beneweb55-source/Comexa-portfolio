@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 
 export default function Réalisations() {
   useEffect(() => {
@@ -21,6 +23,30 @@ export default function Réalisations() {
 
     return () => observer.disconnect();
   }, []);
+   const pathname = usePathname();
+    const pageLabels = {
+      "/": "Accueil",
+      "/services": "Nos services",
+      "/realisations": "Réalisations",
+      "/partenaires": "Partenaires",
+      "/contact": "Contact",
+    };
+    const currentPageLabel = pageLabels[pathname] ?? "Réalisations";
+    const [previousPage, setPreviousPage] = useState({
+      path: "/",
+      label: "Accueil",
+    });
+  
+    useEffect(() => {
+      const previousPath = sessionStorage.getItem("comexa-previous-path");
+  
+      if (previousPath && previousPath !== pathname) {
+        setPreviousPage({
+          path: previousPath,
+          label: pageLabels[previousPath] ?? "Page précédente",
+        });
+      }
+    }, [pathname]);
 
   const projects = [
     {
@@ -86,24 +112,29 @@ export default function Réalisations() {
   ];
   
   return (
-    <main>
-      <section className="scroll-reveal w-full bg-[#f5f7fa] px-[18px] py-10 md:px-8 lg:px-[45px]">
+    <main className="w-full overflow-hidden">
+      <section className="scroll-reveal w-full bg-[#f5f7fa] px-5 py-10 sm:px-6 md:px-8 lg:px-[45px]">
         <div className="mx-auto max-w-[1240px]">
 
         {/* BREADCRUMB */}
         <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
-          <span>Accueil</span>
-          <span className="text-[18px] text-[#10294a]">›</span>
-          <span className="font-medium text-[#10294a]">
-            Réalisations
-          </span>
-        </div>
+            <Link
+              href={previousPage.path}
+              className="transition hover:text-[#10294a]"
+            >
+              {previousPage.label}
+            </Link>
+            <span className="text-[18px] text-[#10294a]">›</span>
+            <span className="font-medium text-[#10294a]">
+              {currentPageLabel}
+            </span>
+          </div>
 
         {/* HERO */}
-        <div className="relative mt-5 min-h-[330px] lg:min-h-[350px]">
+        <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
 
           {/* CONTENU GAUCHE */}
-          <div className="scroll-slide-left relative z-10 max-w-[720px]">
+          <div className="scroll-slide-left relative z-10 w-full max-w-[720px]">
 
             {/* LABEL */}
             <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[6px] text-[11px] font-medium uppercase text-[#08203e]">
@@ -111,7 +142,7 @@ export default function Réalisations() {
             </span>
 
             {/* TITRE */}
-            <h1 className="mt-6 text-[43px] font-medium leading-[1.03] tracking-[-2px] text-[#10294a] sm:text-[52px] lg:text-[60px]">
+            <h1 className="mt-6 text-[clamp(2.35rem,8vw,3.75rem)] font-medium leading-[1.03] tracking-[-2px] text-[#10294a]">
               Des projets concrets.
               <br />
               Un cap qui vous
@@ -120,17 +151,17 @@ export default function Réalisations() {
             </h1>
 
             {/* DESCRIPTION */}
-            <p className="mt-5 max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
+            <p className="mt-5 w-full max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
               Sites vitrines, e-commerce et applications web : découvrez nos
               réalisations et les choix qui donnent forme à chaque besoin.
             </p>
 
             {/* ACTIONS */}
-            <div className="mt-5 flex flex-wrap items-center gap-4">
+            <div className="mt-5 flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-center">
 
               <a
                 href="#projets"
-                className="flex items-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition hover:bg-[#0d82d0]"
+                className="flex min-h-[46px] items-center justify-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition hover:bg-[#0d82d0] sm:w-fit"
               >
                 <span>Explorer nos réalisations</span>
                 <span className="text-[18px]">↗</span>
@@ -206,7 +237,7 @@ export default function Réalisations() {
     
  <section
       id="projets"
-      className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 md:px-10 lg:px-12">
+      className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 sm:px-6 md:px-10 lg:px-12">
     
       <div className="mx-auto max-w-[1180px]">
 
@@ -217,7 +248,7 @@ export default function Réalisations() {
               NOS RÉALISATIONS
             </span>
 
-            <h2 className="mt-4 max-w-[570px] text-[30px] font-medium leading-[1.08] tracking-[-1px] text-[#10294a] md:text-[38px]">
+            <h2 className="mt-4 max-w-[570px] text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px] text-[#10294a]">
               Trois besoins différents.
               <br />
               La même exigence web.
@@ -248,7 +279,7 @@ export default function Réalisations() {
             Applications web
           </button>
 
-          <span className="ml-auto text-[12px] text-[#69758a]">
+          <span className="text-[12px] text-[#69758a] sm:ml-auto">
             3 réalisations
           </span>
         </div>
@@ -332,7 +363,7 @@ export default function Réalisations() {
               ÉTUDES DE CAS
             </span>
 
-            <h2 className="mt-4 text-[30px] font-medium leading-[1.08] tracking-[-1px] text-[#10294a] md:text-[38px]">
+            <h2 className="mt-4 text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px] text-[#10294a]">
               Derrière l’interface,
               <br />
               un besoin bien compris.
@@ -447,31 +478,31 @@ export default function Réalisations() {
         <div className="grid items-center gap-10 lg:grid-cols-[1fr_395px]">
 
           {/* LEFT */}
-          <div>
+          <div className="scroll-slide-left">
 
             <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[7px] text-[10px] font-medium uppercase text-[#08203e]">
-              DEVENIR PARTENAIRE
+              UN PROJET EN TÊTE ?
             </span>
 
-            <h2 className="mt-5 max-w-[550px] text-[38px] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a] md:text-[43px]">
-              Et si nous prenions
+            <h2 className="mt-5 max-w-[550px] text-[clamp(1.9rem,5vw,2.6875rem)] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a]">
+              Donnons forme à
               <br />
-              le même cap ?
+              votre prochain projet.
             </h2>
 
             <p className="mt-5 max-w-[540px] text-[15px] leading-[1.7] text-[#69758a]">
-              Vous souhaitez associer votre expertise à notre savoir-faire web ?
-              Présentez-nous votre activité et ce que nous pourrions construire
-              ensemble.
+              Vous avez un besoin, une idée ou un site à faire évoluer ?
+              Parlons de vos objectifs et construisons une expérience web
+              claire, utile et durable.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-5">
 
               <a
-                href="#contact"
+                href="/contact"
                 className="flex items-center gap-4 rounded-[14px] bg-[#10294a] px-5 py-3.5 text-[16px] font-medium text-white transition hover:bg-[#173b64]"
               >
-                <span>Proposer une collaboration</span>
+                <span>Parler de votre projet</span>
                 <span className="text-[17px]">↗</span>
               </a>
 
@@ -485,7 +516,7 @@ export default function Réalisations() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[22px] border-[1.5px] border-[#10294a] bg-[#238dde] p-6 shadow-[0_8px_0_#10294a] md:p-7">
+          <div className="scroll-slide-right relative overflow-hidden rounded-[22px] border-[1.5px] border-[#10294a] bg-[#238dde] p-6 shadow-[0_8px_0_#10294a] md:p-7">
 
             <div className="absolute left-6 top-6 flex">
               <div className="h-[43px] w-[43px] rounded-full border-[1.5px] border-[#10294a]" />
@@ -498,7 +529,7 @@ export default function Réalisations() {
             <div className="relative z-10 mt-[65px]">
 
               <h3 className="text-[23px] font-medium text-[#08203e]">
-                Pour commencer, simplement.
+                Pour bien commencer.
               </h3>
 
               <div className="mt-5 space-y-4">
@@ -510,7 +541,7 @@ export default function Réalisations() {
 
 
                   <p className="text-[15px] text-[#08203e]">
-                    Votre activité et votre expertise.
+                    Vos objectifs et vos priorités.
                   </p>
                 </div>
 
@@ -520,7 +551,7 @@ export default function Réalisations() {
                   </span>
 
                   <p className="text-[15px] text-[#08203e]">
-                    Votre idée de collaboration.
+                    Les besoins de vos utilisateurs.
                   </p>
                 </div>
 
@@ -530,7 +561,7 @@ export default function Réalisations() {
                   </span>
 
                   <p className="text-[15px] text-[#08203e]">
-                    Vos attentes et vos disponibilités.
+                    Le bon niveau de solution.
                   </p>
                 </div>
 

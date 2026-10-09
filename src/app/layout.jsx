@@ -2,6 +2,7 @@
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import RouteHistory from "@/components/RouteHistory";
 
 
 export const metadata = {
@@ -17,8 +18,9 @@ export default function RootLayout({ children }) {
     >
       <body
         suppressHydrationWarning
-        className="min-h-full flex flex-col bg-white text-gray-900 max-w-8xl"
+        className="flex min-h-full flex-col overflow-x-hidden bg-white text-gray-900"
       >
+        <RouteHistory />
         <Navbar />
         {children}
         <Footer />
