@@ -20,6 +20,27 @@ You can start editing the page by modifying `app/page.js`. The page auto-updates
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Espaces client et équipe
+
+Le site public est complété par deux espaces, protégés par session :
+
+- `/inscription` puis `/verify-email` : création de compte avec vérification de l'adresse ; la connexion reste bloquée tant que l'adresse n'est pas vérifiée.
+- `/connexion` : connexion. Chaque utilisateur arrive dans l'espace correspondant à ses droits.
+- `/espace-client` : commandes, paiements, demandes de projet, suivi des projets.
+- `/espace-equipe` : commandes, demandes de projet, projets, clients, membres et droits.
+
+Le front appelle l'API via `/api/*`, relayé par Next vers le backend. Configurez l'adresse du backend avec la variable `BACKEND_URL` (par défaut `http://localhost:3001`).
+
+```bash
+# Backend (port 3001)
+cd backend && npm run start:dev
+
+# Front (port 3000)
+BACKEND_URL=http://localhost:3001 npm run dev
+```
+
+Les vérifications : `npm run lint` et `npm run build` à la racine, `npm test` et `npm run test:e2e` dans `backend/`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

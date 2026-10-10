@@ -1,0 +1,1824 @@
+// =============================================================================
+// Comexa — schema Prisma
+// =============================================================================
+// Ce fichier est la SOURCE DE VERITE du modele de donnees. Toute evolution
+// passe par une migration Prisma : jamais par une modification manuelle de la
+// base.
+//
+// Conventions retenues
+// --------------------
+//  * Tables en snake_case pluriel (`@@map("projects")`), colonnes en camelCase
+//    (defaut Prisma). Le SQL brut et Prisma Studio restent lisibles sans payer
+//    trois cents `@map` de colonnes.
+//  * Argent : `Decimal @db.Decimal(14, 2)`. JAMAIS de Float pour un montant —
+//    0.1 + 0.2 != 0.3 en binaire, et une facture ne se rattrape pas.
+//  * Dates : `DateTime` (timestamp with time zone cote PostgreSQL). Toutes les
+//    durees sont stockees en minutes (Int), jamais en heures flottantes.
+//  * Suppression douce : `deletedAt DateTime?` la ou l'historique compte
+//    (prospects, clients, projets, devis, factures, documents, contenus).
+//    Les tables de liaison et les jetons sont supprimes physiquement.
+//  * Chaque cle etrangere est indexee explicitement : PostgreSQL n'indexe pas
+//    les FK automatiquement, et c'est la requete la plus frequente.
+//  * Pas de prix dans `packages` : voir le commentaire sur ce modele.
+//
+// Relations nommees
+// -----------------
+// Plusieurs modeles pointent DEUX FOIS vers `users` (l'auteur et le
+// responsable d'une tache, par exemple). Prisma exige alors un nom de relation
+// explicite des deux cotes : `@relation("TaskAssignee")`. Les noms sont
+// volontairement descriptifs pour que l'erreur de compilation soit lisible.
+// =============================================================================
+
+// Prisma 7 a change deux choses par rapport a la version 6 :
+//  1. le generateur s'appelle `prisma-client` (et non plus `prisma-client-js`)
+//     et `output` est desormais OBLIGATOIRE ;
+//  2. l'URL de connexion ne s'ecrit plus ici — elle vit dans
+//     `prisma.config.ts`, avec `url` ET `directUrl` qui ont ete retires du
+//     schema. Ce bloc ne declare donc plus que le moteur.
+//
+// Le client genere est importe depuis `../src/generated/prisma/client`.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+
+  // Le backend est un module ES (voir `"type": "module"` dans package.json) :
+  // NestJS 12 ne publie PLUS de build CommonJS. Le generateur saurait deduire
+  // ces valeurs de `compilerOptions.module` du tsconfig, mais on les ecrit ici
+  // pour que le resultat ne depende pas d'un fichier voisin.
+  //
+  // `importFileExtension = "js"` est le point critique : en ESM, TypeScript ne
+  // reecrit JAMAIS les specifieurs d'import. C'est donc au client genere
+  // d'ecrire `./enums.js` lui-meme, sinon Node ne resout rien apres
+  // compilation.
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================================================
+// ENUMERATIONS
+// =============================================================================
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+/// Les sept roles du cahier des charges. Le code est stable et reference par
+/// les guards (jamais le libelle, qui peut etre traduit).
+enum RoleCode {
+  ADMIN
+  COMMUNICATION_MANAGER
+  PROJECT_MANAGER
+  DEVELOPER
+  DESIGNER
+  SALES
+  CLIENT
+}
+
+enum LeadSource {
+  WEBSITE
+  CONTACT_FORM
+  REFERRAL
+  LINKEDIN
+  COLD_CALL
+  EVENT
+  PARTNER
+  OTHER
+}
+
+/// Etapes du suivi commercial. WON ne signifie pas encore CLIENT : c'est la
+/// conversion (acceptation du devis) qui cree le client.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ProjectStatus {
+  DRAFT
+  PLANNED
+  IN_PROGRESS
+  ON_HOLD
+  IN_REVIEW
+  COMPLETED
+  CANCELLED
+  ARCHIVED
+}
+
+enum ProjectHealth {
+  ON_TRACK
+  AT_RISK
+  OFF_TRACK
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  REACHED
+  MISSED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum ActivityType {
+  COMMENT
+  STATUS_CHANGE
+  TASK_CREATED
+  TASK_COMPLETED
+  MILESTONE_REACHED
+  FILE_UPLOADED
+  TIME_LOGGED
+  NOTE
+  SYSTEM
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceType {
+  STANDARD
+  DEPOSIT
+  CREDIT_NOTE
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CARD
+  CASH
+  CHECK
+  PAYPAL
+  /// Compte Courant Postal (Algérie).
+  CCP
+  /// BaridiMob, paiement mobile Algérie Poste.
+  BARIDIMOB
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum ConversationType {
+  DIRECT
+  PROJECT
+  CLIENT
+  SUPPORT
+}
+
+enum ParticipantRole {
+  OWNER
+  MEMBER
+  GUEST
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  FILE
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_COMPLETED
+  MILESTONE_REACHED
+  PROJECT_STATUS_CHANGED
+  QUOTE_SENT
+  QUOTE_ACCEPTED
+  QUOTE_REJECTED
+  INVOICE_ISSUED
+  INVOICE_OVERDUE
+  PAYMENT_RECEIVED
+  MESSAGE_RECEIVED
+  DOCUMENT_SHARED
+  MODIFICATION_REQUESTED
+  CONTACT_REQUEST_RECEIVED
+  SYSTEM
+}
+
+enum DocumentCategory {
+  CONTRACT
+  QUOTE
+  INVOICE
+  SPECIFICATION
+  DESIGN
+  REPORT
+  LEGAL
+  BRAND
+  OTHER
+}
+
+/// `INTERNAL` : jamais servi a un client. C'est la contrepartie en base du
+/// "un client ne voit jamais les documents internes" du cahier des charges.
+enum DocumentVisibility {
+  INTERNAL
+  CLIENT
+  PUBLIC
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContactRequestStatus {
+  NEW
+  IN_REVIEW
+  CONVERTED
+  SPAM
+  ARCHIVED
+}
+
+enum ModificationStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  IN_PROGRESS
+  DONE
+}
+
+/// Fourchette budgetaire d'un formulaire de contact.
+///
+/// C'est une TRANCHE, pas un prix : elle sert a qualifier une demande entrante.
+/// Aucun tarif de l'agence n'est stocke dans ce schema (voir `packages`).
+enum BudgetRange {
+  UNKNOWN
+  UNDER_5K
+  FROM_5K_TO_15K
+  FROM_15K_TO_30K
+  FROM_30K_TO_60K
+  OVER_60K
+}
+
+enum ReportType {
+  PROJECT_PROGRESS
+  TASKS
+  TIME_SPENT
+  COMMERCIAL_PIPELINE
+  REVENUE
+  OUTSTANDING_INVOICES
+  ACTIVITY
+}
+
+/// Etapes de traitement d'une commande de pack. Une commande ne porte PAS le
+/// statut de paiement : les deux evoluent separement (voir `OrderPaymentStatus`).
+enum ProjectRequestStatus {
+  NEW
+  IN_REVIEW
+  CONVERTED
+  CLOSED
+}
+
+enum OrderStatus {
+  ORDERED
+  IN_REVIEW
+  IN_PREPARATION
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// Etat des encaissements d'une commande. Independant de `OrderStatus` : une
+/// commande peut etre active et son paiement encore en attente.
+enum OrderPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ReportStatus {
+  PENDING
+  GENERATED
+  FAILED
+}
+
+// =============================================================================
+// IDENTITE, ROLES ET PERMISSIONS
+// =============================================================================
+
+/// Compte d'authentification, pour TOUT le monde : collaborateur, client,
+/// administrateur. Un client n'a pas un modele separe — il a le role CLIENT et
+/// un lien vers son `Client` (champ `clientId`). Un seul chemin d'authentif.
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  dailyReports DailyReport[]
+  firstName    String
+  lastName     String
+  phone        String?
+  /// Pays de residence (ISO 3166-1 alpha-2, ex. `DZ`). Declare a l'inscription
+  /// puis modifiable par l'equipe. Il determine la devise des commandes.
+  country      String?    @db.VarChar(2)
+  /// Cle de stockage de l'avatar (jamais le binaire, voir `Document`).
+  avatarKey    String?
+  status       UserStatus @default(ACTIVE)
+
+  isEmailVerified Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+
+  /// Verrouillage apres N echecs : la reponse reste generique, mais on
+  /// n'offre pas un oracle de force brute sur les mots de passe.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  mustChangePassword  Boolean   @default(false)
+
+  /// Renseigne uniquement pour un compte de l'espace client.
+  ///
+  /// Relation nommee : `User` et `Client` sont deja relies par le responsable
+  /// de compte (`ClientAccountManager`). Sans nom, Prisma ne saurait pas
+  /// laquelle des deux un `client Client?` designe.
+  clientId String?
+  client   Client? @relation("ClientPortalAccount", fields: [clientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  roles                   UserRole[]
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  orders                  Order[]
+  projectRequests         ProjectRequest[]          @relation("ProjectRequestAuthor")
+  handledProjectRequests  ProjectRequest[]          @relation("ProjectRequestHandler")
+  createdPackageRates     PackageRate[]             @relation("PackageRateCreator")
+  ownedProspects          Prospect[]                @relation("ProspectOwner")
+  managedClients          Client[]                  @relation("ClientAccountManager")
+  managedProjects         Project[]                 @relation("ProjectManager")
+  createdProjects         Project[]                 @relation("ProjectCreator")
+  projectMemberships      ProjectMember[]
+  assignedTasks           Task[]                    @relation("TaskAssignee")
+  reportedTasks           Task[]                    @relation("TaskReporter")
+  timeEntries             TimeEntry[]
+  activities              Activity[]                @relation("ActivityActor")
+  leadStatusChanges       LeadStatusHistory[]
+  createdQuotes           Quote[]                   @relation("QuoteCreator")
+  acceptedQuotes          Quote[]                   @relation("QuoteAcceptor")
+  createdInvoices         Invoice[]                 @relation("InvoiceCreator")
+  receivedPayments        Payment[]                 @relation("PaymentReceiver")
+  createdConversations    Conversation[]            @relation("ConversationCreator")
+  conversationMembers     ConversationParticipant[]
+  messages                Message[]
+  notifications           Notification[]
+  documents               Document[]
+  handledContactReqs      ContactRequest[]
+  requestedModifs         ModificationRequest[]     @relation("ModificationRequester")
+  decidedModifs           ModificationRequest[]     @relation("ModificationDecider")
+  assignedUserRoles       UserRole[]                @relation("UserRoleAssigner")
+  auditLogs               AuditLog[]
+  generatedReports        Report[]
+  updatedSettings         Setting[]
+
+  @@index([clientId])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// Role = un CODE stable. Les permissions y sont attachees, et le code est ce
+/// que lisent les guards. `isSystem` protege les sept roles du cahier des
+/// charges contre une suppression accidentelle depuis l'administration.
+model Role {
+  id          String   @id @default(cuid())
+  code        RoleCode @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+/// Permission elementaire : `resource:action:scope`.
+///
+/// Le SCOPE est ce qui empeche de se contenter de cacher des boutons. Deux
+/// collaborateurs peuvent avoir `project:read` ; seul le second a
+/// `project:read:any` (le premier n'a que `project:read:own`). La verification
+/// se fait donc en base, pas dans l'interface.
+///
+/// Exemples de codes reellement semes :
+///   project:read:any      project:read:own      project:write:any
+///   task:write:any        task:write:own        invoice:write:any
+///   user:manage:any       client:read:own       quote:accept:own
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  resource    String
+  action      String
+  scope       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles RolePermission[]
+
+  @@index([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId       String
+  roleId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime @default(now())
+  assignedById String?
+  assignedBy   User?    @relation("UserRoleAssigner", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@index([assignedById])
+  @@map("user_roles")
+}
+
+/// Session longue duree. On ne stocke que l'EMPREINTE du jeton.
+///
+/// `family` porte la rotation : quand un refresh token est utilise, il est
+/// revoque et remplace. Si un jeton deja revoque resurgit, c'est un vol : on
+/// revoque toute la famille d'un coup.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  family    String
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([family])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Jeton de reinitialisation : meme principe, on ne stocke que l'empreinte.
+/// JETON DE VERIFICATION D'ADRESSE E-MAIL. Meme principe que le jeton de
+/// reinitialisation : seul le hash est stocke, usage unique, duree courte.
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
+}
+
+/// TARIF D'UN PACK DANS UNE DEVISE, AVEC DATE D'EFFET.
+///
+/// Un pack a un tarif PAR DEVISE (DZD, EUR...), defini independamment : aucune
+/// conversion automatique. Un tarif n'est jamais modifie : une correction est
+/// un nouveau tarif avec une nouvelle date d'effet. Les commandes gardent la
+/// reference du tarif utilise et leur montant, pour rester lisibles.
+model PackageRate {
+  id            String   @id @default(cuid())
+  packageId     String
+  package       Package  @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  currency      String   @db.VarChar(3)
+  amount        Decimal  @db.Decimal(14, 2)
+  effectiveFrom DateTime
+  isActive      Boolean  @default(true)
+
+  createdById String?
+  createdBy   User?    @relation("PackageRateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+
+  orders Order[]
+
+  @@index([packageId, currency, effectiveFrom])
+  @@index([createdById])
+  @@map("package_rates")
+}
+
+/// COMMANDE DE PACK.
+///
+/// Creee par le compte lui-meme, sans validation prealable de l'equipe. Elle
+/// active l'acces client (voir `OrdersService`). Le montant, la devise et le
+/// nom du pack sont figes ici : un changement de tarif ou de pack ne modifie
+/// jamais une commande existante. Une commande annulee n'est jamais supprimee.
+/// Demande de projet : ce que l'equipe recoit quand une commande en ligne n'est
+/// pas possible (pays, tarif ou moyen de paiement manquant), ou quand le client
+/// prefere un echange. Enregistree, jamais « proposee » dans le vide.
+model ProjectRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  userId String
+  user   User   @relation("ProjectRequestAuthor", fields: [userId], references: [id], onDelete: Restrict)
+
+  packageId String?
+  package   Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  /// Pays au moment de la demande (copie, pas de lien).
+  country String? @db.VarChar(2)
+  /// Motif relevé par le serveur : COUNTRY_UNKNOWN, NO_CURRENT_RATE,
+  /// NO_COMPATIBLE_PAYMENT_METHOD, ou CLIENT_CHOICE.
+  reason  String  @db.VarChar(40)
+  message String? @db.VarChar(2000)
+
+  status      ProjectRequestStatus @default(NEW)
+  /// Note interne a l'equipe : jamais renvoyee au client.
+  teamNote    String?              @db.VarChar(2000)
+  handledById String?
+  handledBy   User?                @relation("ProjectRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([status])
+  @@index([handledById])
+  @@map("project_requests")
+}
+
+model Order {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  clientId  String
+  client    Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  packageId String
+  package   Package     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  rateId    String
+  rate      PackageRate @relation(fields: [rateId], references: [id], onDelete: Restrict)
+  /// Projet cree par l'equipe a la validation. Null tant que la commande n'est pas validee.
+  projectId String?     @unique
+  project   Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  /// Instantane au moment de la commande.
+  packageName   String
+  currency      String        @db.VarChar(3)
+  amount        Decimal       @db.Decimal(14, 2)
+  country       String?       @db.VarChar(2)
+  paymentMethod PaymentMethod
+
+  status        OrderStatus        @default(ORDERED)
+  paymentStatus OrderPaymentStatus @default(UNPAID)
+
+  orderedAt   DateTime  @default(now())
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([packageId])
+  @@index([rateId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@map("orders")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ipAddress String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
+// =============================================================================
+// CRM : PROSPECTS, CLIENTS, CONTACTS
+// =============================================================================
+
+/// Prospect : une demande entrante ou une piste, AVANT tout devis accepte.
+model Prospect {
+  id               String  @id @default(cuid())
+  reference        String  @unique
+  companyName      String?
+  contactFirstName String
+  contactLastName  String
+  email            String
+  phone            String?
+  jobTitle         String?
+  website          String?
+  sector           String?
+
+  source LeadSource @default(WEBSITE)
+  status LeadStatus @default(NEW)
+
+  /// Estimation interne du commercial. Ce n'est PAS un tarif de l'agence :
+  /// rien de tel n'est publie ni stocke ailleurs dans ce schema.
+  estimatedBudget Decimal?    @db.Decimal(14, 2)
+  budgetRange     BudgetRange @default(UNKNOWN)
+
+  notes      String?
+  lostReason String?
+
+  ownerId String?
+  owner   User?   @relation("ProspectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  /// Renseigne au moment de la conversion : c'est le lien qui relie la chaine
+  /// prospect -> devis accepte -> client.
+  convertedClientId String?   @unique
+  convertedClient   Client?   @relation("ProspectConversion", fields: [convertedClientId], references: [id], onDelete: SetNull)
+  convertedAt       DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  statusHistory LeadStatusHistory[]
+  quotes        Quote[]
+  contactReqs   ContactRequest[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("prospects")
+}
+
+/// Journal du pipeline commercial. Un prospect change d'etape : on garde qui,
+/// quand, et pourquoi. C'est ce qui rend le tableau de bord commercial credible.
+model LeadStatusHistory {
+  id          String      @id @default(cuid())
+  prospectId  String
+  prospect    Prospect    @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+  fromStatus  LeadStatus?
+  toStatus    LeadStatus
+  note        String?
+  changedById String?
+  changedBy   User?       @relation(fields: [changedById], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+
+  @@index([prospectId, createdAt])
+  @@index([changedById])
+  @@map("lead_status_history")
+}
+
+/// Client : une entreprise avec laquelle on travaille. Cree a l'acceptation
+/// d'un devis, jamais avant.
+model Client {
+  id                 String  @id @default(cuid())
+  reference          String  @unique
+  companyName        String
+  legalName          String?
+  /// Identifiants legaux : facultatifs, ils n'existent pas pour un client
+  /// particulier ni hors du pays de l'agence.
+  registrationNumber String?
+  vatNumber          String?
+
+  sector        String?
+  website       String?
+  employeeRange String?
+
+  addressLine1 String?
+  addressLine2 String?
+  postalCode   String?
+  city         String?
+  region       String?
+  country      String?
+
+  status ClientStatus @default(ACTIVE)
+
+  accountManagerId String?
+  accountManager   User?   @relation("ClientAccountManager", fields: [accountManagerId], references: [id], onDelete: SetNull)
+
+  notes String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  convertedFromProspect Prospect?             @relation("ProspectConversion")
+  contacts              Contact[]
+  /// Comptes de l'espace client rattaches a ce client. L'autre relation
+  /// User<->Client est le responsable de compte (voir `accountManager`).
+  users                 User[]                @relation("ClientPortalAccount")
+  projects              Project[]
+  quotes                Quote[]
+  invoices              Invoice[]
+  documents             Document[]
+  conversations         Conversation[]
+  modificationRequests  ModificationRequest[]
+  activities            Activity[]
+  testimonials          Testimonial[]
+  orders                Order[]
+
+  @@index([accountManagerId])
+  @@index([status])
+  @@index([companyName])
+  @@index([deletedAt])
+  @@map("clients")
+}
+
+/// Interlocuteur chez un client. Plusieurs par client, un seul principal.
+model Contact {
+  id        String  @id @default(cuid())
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  jobTitle  String?
+  isPrimary Boolean @default(false)
+  notes     String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId])
+  @@index([email])
+  @@index([deletedAt])
+  @@map("contacts")
+}
+
+// =============================================================================
+// PROJETS, EQUIPE, JALONS, TACHES, TEMPS, JOURNAL
+// =============================================================================
+
+model Project {
+  id          String  @id @default(cuid())
+  reference   String  @unique
+  name        String
+  code        String? @unique
+  description String?
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  status   ProjectStatus @default(DRAFT)
+  health   ProjectHealth @default(ON_TRACK)
+  priority Priority      @default(NORMAL)
+
+  startDate   DateTime?
+  dueDate     DateTime?
+  completedAt DateTime?
+
+  /// Budget contractuel du projet. C'est une donnee METIER, issue du devis
+  /// accepte — pas un tarif de catalogue.
+  budget   Decimal? @db.Decimal(14, 2)
+  currency String   @default("EUR")
+
+  /// Avancement declare, 0 a 100. Sert au tableau de bord ; la valeur exacte
+  /// se recalcule depuis les taches quand on veut la verite.
+  progressPercent Int @default(0)
+
+  managerId   String?
+  manager     User?   @relation("ProjectManager", fields: [managerId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  /// Le devis dont ce projet est ne. La cle est portee ICI, du cote du projet :
+  /// c'est le projet qui nait du devis, pas l'inverse. `@unique` en fait une
+  /// relation un-a-un — un devis accepte donne au plus un projet.
+  quoteId              String?               @unique
+  quote                Quote?                @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  order                Order?
+  members              ProjectMember[]
+  milestones           Milestone[]
+  tasks                Task[]
+  timeEntries          TimeEntry[]
+  activities           Activity[]
+  invoices             Invoice[]
+  documents            Document[]
+  conversations        Conversation[]
+  modificationRequests ModificationRequest[]
+  reports              Report[]
+
+  @@index([clientId])
+  @@index([managerId])
+  @@index([createdById])
+  @@index([status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id                String    @id @default(cuid())
+  projectId         String
+  project           Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Role sur CE projet ("Chef de projet", "Développeur front") : un libelle
+  /// par projet, qui ne se confond pas avec le role global de l'utilisateur.
+  projectRole       String?
+  allocationPercent Int?
+  joinedAt          DateTime  @default(now())
+  leftAt            DateTime?
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(PENDING)
+  reachedAt   DateTime?
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tasks Task[]
+
+  @@index([projectId, order])
+  @@index([dueDate])
+  @@map("milestones")
+}
+
+/// Tache. `isClientVisible` est faux par defaut : une tache interne le reste
+/// tant que personne ne la partage explicitement. Le client ne peut donc pas
+/// voir l'organisation interne de l'agence par accident.
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestoneId String?
+  milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+
+  parentTaskId String?
+  parentTask   Task?   @relation("SubTasks", fields: [parentTaskId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subTasks     Task[]  @relation("SubTasks")
+
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(NORMAL)
+
+  assigneeId String?
+  assignee   User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  reporterId String?
+  reporter   User?   @relation("TaskReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  estimateMinutes Int?
+  startDate       DateTime?
+  dueDate         DateTime?
+  completedAt     DateTime?
+
+  isClientVisible Boolean @default(false)
+  order           Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  timeEntries TimeEntry[]
+  activities  Activity[]
+  documents   Document[]
+
+  @@index([projectId, status])
+  @@index([milestoneId])
+  @@index([parentTaskId])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("tasks")
+}
+
+/// Temps passe. En minutes (entier) : pas d'arrondi flottant sur une duree qui
+/// finit en facturation.
+model TimeEntry {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  spentOn     DateTime
+  minutes     Int
+  description String?
+  billable    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, spentOn])
+  @@index([taskId])
+  @@index([userId, spentOn])
+  @@map("time_entries")
+}
+
+/// Journal d'un projet : ce qui s'est passe, dans l'ordre. Alimente la
+/// timeline du projet et, si `isClientVisible`, celle du client.
+model Activity {
+  id        String   @id @default(cuid())
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?    @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  type     ActivityType
+  message  String
+  /// Charge utile libre (ancien/nouveau statut, nom de fichier...). Jamais de
+  /// secret ici : ce champ peut etre expose au client.
+  metadata Json?
+
+  isClientVisible Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([taskId])
+  @@index([clientId])
+  @@index([actorId])
+  @@map("activities")
+}
+
+// =============================================================================
+// DEVIS, FACTURATION, PAIEMENTS
+// =============================================================================
+
+/// Devis. Il peut viser un PROSPECT (avant acceptation) ou un CLIENT (devis
+/// complementaire).
+///
+/// LA REGLE EST « EXACTEMENT L'UN DES DEUX », ET ELLE N'EST PAS POSEE EN BASE.
+/// Ce commentaire a affirme le contraire — « la contrainte est posee en base par
+/// la migration » — et c'etait faux. La migration ne contient aucun CHECK : le
+/// seul mot « CHECK » qu'on y trouve est la valeur `CHECK` de l'enum
+/// `PaymentMethod`, c'est-a-dire un cheque papier. Un devis ACCEPTE porte
+/// d'ailleurs legitimement les DEUX champs : `prospectId` garde l'origine,
+/// `clientId` est pose par l'acceptation.
+///
+/// La regle est donc tenue par `QuotesService.resolveTarget`, et par lui seul ;
+/// `quotes.service.ts` le dit deja la ou il l'applique. Consequence a connaitre
+/// pour toute ecriture directe en base — seed, import, reprise de donnees : rien
+/// n'empeche un devis vise par les deux, ni par aucun.
+model Quote {
+  id        String @id @default(cuid())
+  reference String @unique
+  /// Numerotation legale : sequence continue par annee. La contrainte
+  /// d'unicite est portee par le couple, pas par le numero seul.
+  sequence  Int    @default(0)
+  year      Int
+
+  prospectId String?
+  prospect   Prospect? @relation(fields: [prospectId], references: [id], onDelete: Restrict)
+  clientId   String?
+  client     Client?   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  subject String
+  notes   String?
+  terms   String?
+
+  status QuoteStatus @default(DRAFT)
+
+  issueDate  DateTime
+  validUntil DateTime?
+
+  currency       String  @default("EUR")
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  taxRate        Decimal @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
+  total          Decimal @default(0) @db.Decimal(14, 2)
+
+  sentAt          DateTime?
+  viewedAt        DateTime?
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  /// Qui a accepte, cote client. Le nom est conserve tel qu'il a ete signe :
+  /// il ne doit pas changer si la fiche contact est renommee plus tard.
+  acceptedByName String?
+  acceptedByIp   String?
+  acceptedById   String?
+  acceptedBy     User?   @relation("QuoteAcceptor", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  createdById String?
+  createdBy   User?   @relation("QuoteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items     QuoteItem[]
+  invoices  Invoice[]
+  project   Project?
+  documents Document[]
+
+  @@unique([year, sequence])
+  @@index([prospectId])
+  @@index([clientId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([createdById])
+  @@index([deletedAt])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String
+  quote       Quote   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  position    Int
+  title       String
+  description String?
+
+  quantity        Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice       Decimal @db.Decimal(14, 2)
+  discountPercent Decimal @default(0) @db.Decimal(5, 2)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  /// Total de la ligne, hors taxes, remise deduite. Stocke plutot que recalcule
+  /// a chaque lecture : un devis accepte est un document fige.
+  lineTotal       Decimal @db.Decimal(14, 2)
+
+  @@index([quoteId, position])
+  @@map("quote_items")
+}
+
+/// Facture. Contrairement au devis, elle exige TOUJOURS un client : on ne
+/// facture pas un prospect.
+model Invoice {
+  id        String @id @default(cuid())
+  reference String @unique
+  sequence  Int    @default(0)
+  year      Int
+
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  quoteId   String?
+  quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  type   InvoiceType   @default(STANDARD)
+  status InvoiceStatus @default(DRAFT)
+
+  subject String?
+  notes   String?
+  terms   String?
+
+  issueDate DateTime
+  dueDate   DateTime
+  paidAt    DateTime?
+
+  currency       String  @default("EUR")
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  taxRate        Decimal @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
+  total          Decimal @default(0) @db.Decimal(14, 2)
+  /// Cumul des paiements reussis. Le solde se deduit (`total - amountPaid`) ;
+  /// il n'est pas stocke, pour ne pas pouvoir diverger du total des paiements.
+  amountPaid     Decimal @default(0) @db.Decimal(14, 2)
+
+  sentAt      DateTime?
+  cancelledAt DateTime?
+
+  createdById String?
+  createdBy   User?   @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  items     InvoiceItem[]
+  payments  Payment[]
+  documents Document[]
+
+  @@unique([year, sequence])
+  @@index([clientId])
+  @@index([projectId])
+  @@index([quoteId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([createdById])
+  @@index([deletedAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  position    Int
+  title       String
+  description String?
+
+  quantity        Decimal @default(1) @db.Decimal(12, 2)
+  unitPrice       Decimal @db.Decimal(14, 2)
+  discountPercent Decimal @default(0) @db.Decimal(5, 2)
+  taxRate         Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal       Decimal @db.Decimal(14, 2)
+
+  @@index([invoiceId, position])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id        String  @id @default(cuid())
+  reference String  @unique
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  amount   Decimal       @db.Decimal(14, 2)
+  currency String        @default("EUR")
+  method   PaymentMethod
+  status   PaymentStatus @default(PENDING)
+
+  paidAt            DateTime
+  /// Reference externe (virement, transaction) et justificatif eventuel.
+  externalReference String?
+  proofDocumentId   String?
+  proofDocument     Document? @relation("PaymentProof", fields: [proofDocumentId], references: [id], onDelete: SetNull)
+
+  receivedById String?
+  receivedBy   User?   @relation("PaymentReceiver", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([paidAt])
+  @@index([receivedById])
+  @@map("payments")
+}
+
+// =============================================================================
+// MESSAGERIE
+// =============================================================================
+
+model Conversation {
+  id      String           @id @default(cuid())
+  type    ConversationType @default(DIRECT)
+  subject String?
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?   @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  isArchived         Boolean   @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([projectId])
+  @@index([clientId])
+  @@index([lastMessageAt])
+  @@index([deletedAt])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String          @id @default(cuid())
+  conversationId String
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           ParticipantRole @default(MEMBER)
+
+  joinedAt   DateTime  @default(now())
+  leftAt     DateTime?
+  isMuted    Boolean   @default(false)
+  /// Lu jusqu'a ce message. Le compteur de non-lus se calcule a partir d'ici
+  /// plutot que d'etre stocke, pour ne pas deriver.
+  lastReadAt DateTime?
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_participants")
+}
+
+/// Message persiste en base ; le temps reel est un canal WebSocket qui diffuse
+/// ce qui vient d'etre ecrit ici. La base reste la source de verite : une
+/// deconnexion ne perd aucun message.
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String?
+  sender         User?        @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  type MessageType @default(TEXT)
+  body String
+
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  editedAt  DateTime?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  attachments MessageAttachment[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+/// Les pieces jointes REUTILISENT `Document` : un seul chemin d'acces au
+/// stockage, un seul jeu de regles de visibilite, une seule purge a ecrire.
+model MessageAttachment {
+  messageId  String
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([messageId, documentId])
+  @@index([documentId])
+  @@map("message_attachments")
+}
+
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
+
+model Notification {
+  id     String           @id @default(cuid())
+  userId String
+  user   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type   NotificationType
+  title  String
+  body   String?
+
+  /// Lien profond vers l'element concerne, resolu cote frontend.
+  /// `entityType` + `entityId` suffisent a le recalculer si la route change.
+  link       String?
+  entityType String?
+  entityId   String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([entityType, entityId])
+  @@map("notifications")
+}
+
+// =============================================================================
+// DOCUMENTS ET STOCKAGE
+// =============================================================================
+
+/// Metadonnees d'un fichier. LE BINAIRE N'EST PAS ICI.
+///
+/// Le contenu vit dans un stockage objet compatible S3 (ou sur disque en
+/// developpement) ; cette table ne garde que `storageKey`, la taille, le type
+/// MIME et l'empreinte. Mettre des fichiers dans PostgreSQL gonflerait chaque
+/// sauvegarde et chaque reponse de l'API.
+///
+/// `visibility` est la garantie cote base qu'un client ne recoit pas un
+/// document interne : le filtre est applique dans la requete, pas seulement
+/// dans l'interface.
+model Document {
+  id            String             @id @default(cuid())
+  name          String
+  originalName  String
+  mimeType      String
+  sizeBytes     Int
+  storageDriver String             @default("local")
+  storageKey    String             @unique
+  checksum      String?
+  category      DocumentCategory   @default(OTHER)
+  visibility    DocumentVisibility @default(INTERNAL)
+
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  quoteId   String?
+  quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  /// Versionnage : une nouvelle version pointe la precedente. L'historique
+  /// reste consultable sans ecraser quoi que ce soit.
+  version           Int       @default(1)
+  previousVersionId String?   @unique
+  previousVersion   Document? @relation("DocumentVersions", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersion       Document? @relation("DocumentVersions")
+
+  expiresAt DateTime?
+  signedAt  DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  messageAttachments MessageAttachment[]
+  paymentProofs      Payment[]           @relation("PaymentProof")
+  reports            Report[]
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([taskId])
+  @@index([quoteId])
+  @@index([invoiceId])
+  @@index([uploadedById])
+  @@index([category])
+  @@index([visibility])
+  @@index([deletedAt])
+  @@map("documents")
+}
+
+// =============================================================================
+// DEMANDES ENTRANTES DU SITE PUBLIC
+// =============================================================================
+
+/// Formulaire de contact du site. C'est le POINT D'ENTREE de la chaine
+/// commerciale : une demande qualifiee devient un prospect.
+model ContactRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  companyName String?
+  jobTitle    String?
+  website     String?
+
+  subject String?
+  message String
+
+  /// Rattachements facultatifs a l'offre publique, pour savoir ce qui a
+  /// declenche la demande.
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  packageId String?
+  package   Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  budgetRange BudgetRange          @default(UNKNOWN)
+  status      ContactRequestStatus @default(NEW)
+
+  /// Traces techniques : utile contre le spam et pour l'audit.
+  source    String?
+  utm       Json?
+  ipAddress String?
+  userAgent String?
+
+  handledById String?
+  handledBy   User?     @relation(fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt   DateTime?
+  notes       String?
+
+  /// Prospect issu de cette demande. Unique : une demande donne au plus un
+  /// prospect, sinon le pipeline double ses chiffres.
+  convertedProspectId String?   @unique
+  convertedProspect   Prospect? @relation(fields: [convertedProspectId], references: [id], onDelete: SetNull)
+  convertedAt         DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([status])
+  @@index([email])
+  @@index([handledById])
+  @@index([createdAt])
+  @@index([deletedAt])
+  @@map("contact_requests")
+}
+
+/// Demande de modification formulee par un client sur un projet en cours.
+model ModificationRequest {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+  status      ModificationStatus @default(SUBMITTED)
+  priority    Priority           @default(NORMAL)
+
+  /// Impact estime par l'agence avant decision. En heures, pas en argent :
+  /// le chiffrage eventuel repasse par un devis.
+  estimatedMinutes  Int?
+  extraCost         Decimal? @db.Decimal(14, 2)
+  extraCostCurrency String   @default("EUR")
+
+  requestedById String?
+  requestedBy   User?     @relation("ModificationRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  decidedById   String?
+  decidedBy     User?     @relation("ModificationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt     DateTime?
+  decisionNote  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([projectId, status])
+  @@index([clientId])
+  @@index([requestedById])
+  @@index([decidedById])
+  @@index([deletedAt])
+  @@map("modification_requests")
+}
+
+// =============================================================================
+// CONTENU DU SITE PUBLIC
+// =============================================================================
+
+model Service {
+  id               String  @id @default(cuid())
+  slug             String  @unique
+  title            String
+  shortDescription String
+  description      String?
+  icon             String?
+  coverImageKey    String?
+  /// Liste de points forts (tableau de chaines). Un Json evite une table de
+  /// plus pour trois lignes de texte.
+  features         Json?
+  /// Prix de depart FACULTATIF, saisi a la main dans l'admin. Jamais seede : sans
+  /// saisie, rien ne s'affiche sur le site. La devise est obligatoire si un prix est saisi.
+  startingPrice         Decimal? @db.Decimal(12, 2)
+  startingPriceCurrency String?  @db.VarChar(3)
+  order            Int     @default(0)
+  isActive         Boolean @default(true)
+  isFeatured       Boolean @default(false)
+  seoTitle         String?
+  seoDescription   String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  contactRequests ContactRequest[]
+
+  @@index([isActive, order])
+  @@index([deletedAt])
+  @@map("services")
+}
+
+/// PACKS DE L'OFFRE PUBLIQUE — AUCUN PRIX.
+///
+/// Decision explicite : le cahier des charges interdit de figer des tarifs
+/// dans cette partie du backend. Ce modele decrit donc l'offre (nom,
+/// description, fonctionnalites, ordre d'affichage, actif/inactif) et rien
+/// d'autre. Aucun champ de montant, aucun `priceId`, aucun exemple chiffre.
+///
+/// Quand les tarifs seront arretes, ils auront leur propre modele
+/// (`PackageRate`) avec date d'effet et historique — un prix qui change ne doit
+/// pas reecrire les devis deja emis. Ce modele-ci n'aura pas a bouger.
+model Package {
+  id             String  @id @default(cuid())
+  slug           String  @unique
+  name           String
+  tagline        String?
+  description    String?
+  /// Fonctionnalites incluses, et celles qui ne le sont pas (pour un tableau
+  /// comparatif honnete).
+  features       Json?
+  excludes       Json?
+  badge          String?
+  order          Int     @default(0)
+  isActive       Boolean @default(true)
+  isFeatured     Boolean @default(false)
+  seoTitle       String?
+  seoDescription String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  contactRequests ContactRequest[]
+  rates           PackageRate[]
+  orders          Order[]
+  projectRequests ProjectRequest[]
+
+  @@index([isActive, order])
+  @@index([deletedAt])
+  @@map("packages")
+}
+
+model CaseStudyCategory {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  caseStudies CaseStudy[]
+
+  @@index([isActive, order])
+  @@map("case_study_categories")
+}
+
+model CaseStudy {
+  id            String  @id @default(cuid())
+  slug          String  @unique
+  title         String
+  clientName    String?
+  excerpt       String
+  content       String
+  coverImageKey String?
+  galleryKeys   Json?
+  techStack     Json?
+  projectUrl    String?
+
+  categoryId String?
+  category   CaseStudyCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  status         ContentStatus @default(DRAFT)
+  publishedAt    DateTime?
+  order          Int           @default(0)
+  isFeatured     Boolean       @default(false)
+  seoTitle       String?
+  seoDescription String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  testimonials Testimonial[]
+
+  @@index([categoryId])
+  @@index([status, publishedAt])
+  @@index([deletedAt])
+  @@map("case_studies")
+}
+
+/// Temoignage. `isPublished` par defaut a faux : rien ne part en ligne sans
+/// une validation explicite du client cite.
+model Testimonial {
+  id            String  @id @default(cuid())
+  authorName    String
+  authorRole    String?
+  authorCompany String?
+  avatarKey     String?
+  quote         String
+  rating        Int?
+  isPublished   Boolean @default(false)
+  order         Int     @default(0)
+
+  caseStudyId String?
+  caseStudy   CaseStudy? @relation(fields: [caseStudyId], references: [id], onDelete: SetNull)
+  clientId    String?
+  client      Client?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([isPublished, order])
+  @@index([caseStudyId])
+  @@index([clientId])
+  @@map("testimonials")
+}
+
+model Partner {
+  id         String    @id @default(cuid())
+  name       String
+  /// URL https de l'image du logo, hébergée ailleurs (MVP : pas de stockage de fichiers).
+  logoUrl    String?   @db.VarChar(500)
+  websiteUrl String?
+  order      Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
+
+  @@index([isActive, order])
+  @@map("partners")
+}
+
+model Faq {
+  id          String    @id @default(cuid())
+  question    String
+  answer      String
+  category    String?
+  order       Int       @default(0)
+  isPublished Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@index([isPublished, order])
+  @@map("faqs")
+}
+
+// =============================================================================
+// SYSTEME
+// =============================================================================
+
+/// Numerotation des references (`DEV-2026-0001`, `FAC-2026-0007`...).
+///
+/// Une ligne par (portee, annee), incrementee DANS la transaction qui cree le
+/// document. Deux devis simultanes ne peuvent donc pas recevoir le meme numero.
+model Counter {
+  scope String
+  year  Int
+  value Int    @default(0)
+
+  @@id([scope, year])
+  @@map("counters")
+}
+
+/// Parametres applicatifs modifies depuis l'administration.
+///
+/// ATTENTION : ce n'est pas un fourre-tout a tarifs. Un montant n'a pas sa
+/// place ici (voir le commentaire sur `Package`) : il lui faut une date
+/// d'effet et un historique.
+model Setting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([updatedById])
+  @@map("settings")
+}
+
+/// Trace des actions sensibles : qui a change quoi, quand, depuis ou.
+/// C'est la reponse a "ne te limite pas a cacher des boutons" : meme si une
+/// route est mal appelee, l'action reste imputable.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+/// Rapport genere (avancement, temps passe, pipeline, revenus...).
+/// Le fichier produit est un `Document` ; cette table porte la demande et son
+/// etat, pour que l'interface puisse suivre une generation longue.
+model Report {
+  id     String       @id @default(cuid())
+  type   ReportType
+  format String       @default("PDF")
+  title  String
+  status ReportStatus @default(PENDING)
+
+  params      Json?
+  periodStart DateTime?
+  periodEnd   DateTime?
+
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  generatedById String?
+  generatedBy   User?   @relation(fields: [generatedById], references: [id], onDelete: SetNull)
+
+  error       String?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([type, createdAt])
+  @@index([status])
+  @@index([projectId])
+  @@index([generatedById])
+  @@map("reports")
+}
+
+/// Récapitulatif journalier d'un membre de l'équipe (un par personne et par jour).
+/// Le contenu est le document JSON de l'éditeur riche (Tiptap) : jamais de HTML stocké.
+model DailyReport {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportDate  DateTime @db.Date
+  contentJson Json
+  summary     String?  @db.VarChar(280)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, reportDate])
+  @@index([reportDate])
+  @@map("daily_reports")
+}

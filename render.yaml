@@ -1,0 +1,82 @@
+# Blueprint Render — API Comexa (backend NestJS, image Docker).
+# Les valeurs marquées `sync: false` ne sont JAMAIS écrites ici : elles se saisissent
+# dans le tableau de bord Render (Environment), une seule fois, et ne sont pas
+# recopiées dans le dépôt. Procédure complète : docs/DEPLOIEMENT-RENDER-VERCEL.md.
+services:
+  - type: web
+    name: comexa-api
+    runtime: docker
+    region: frankfurt
+    plan: starter            # le palier gratuit s'endort : inacceptable pour un site de production
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # --- Application
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: api
+      - key: TRUST_PROXY
+        value: "1"            # derrière le proxy de Render : une seule couche de confiance
+      - key: CORS_ORIGIN
+        sync: false           # ex. https://www.exemple.fr (le domaine Vercel/public du front)
+      - key: FRONTEND_URL
+        sync: false           # même domaine que CORS_ORIGIN (liens dans les courriels, revalidation)
+      # --- Base de données (Neon) : deux URL distinctes, voir le guide
+      - key: DATABASE_URL
+        sync: false           # hôte -pooler, runtime
+      - key: DIRECT_URL
+        sync: false           # hôte direct, migrations uniquement
+      # --- Authentification : deux secrets DIFFÉRENTS (openssl rand -base64 48)
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: COOKIE_SAMESITE
+        value: lax            # front et API passent par le MÊME domaine (relais /api de Vercel)
+      # --- Revalidation du cache public (identique côté Vercel)
+      - key: REVALIDATE_SECRET
+        sync: false           # openssl rand -hex 32
+      # --- Courriel : Mailjet par API HTTP (le port 443 n'est jamais filtré)
+      - key: MAILJET_API_KEY
+        sync: false
+      - key: MAILJET_SECRET_KEY
+        sync: false
+      - key: SMTP_FROM
+        sync: false           # expéditeur VALIDÉ chez Mailjet
+      - key: ALLOW_BOOT_WITHOUT_MAIL
+        value: "false"        # refus de démarrer sans moyen d'envoi : voulu
+      # --- Stockage : `local` est refusé en production. S3-compatible (Backblaze B2) :
+      - key: STORAGE_DRIVER
+        value: s3
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      # --- Divers
+      - key: DOCS_ENABLED
+        value: "false"        # documentation API fermée en production
+      - key: MAX_UPLOAD_BYTES
+        value: "26214400"
+      - key: PASSWORD_RESET_TTL
+        value: 1h
+      - key: EMAIL_VERIFICATION_TTL
+        value: 24h
+      - key: PAYMENT_METHODS_DZD
+        value: BANK_TRANSFER,CASH
+      - key: PAYMENT_METHODS_EUR
+        value: BANK_TRANSFER,CARD

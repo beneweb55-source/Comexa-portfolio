@@ -1,7 +1,9 @@
 
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import "@fontsource/space-grotesk/400.css";
+import "@fontsource/space-grotesk/500.css";
+import "@fontsource/space-grotesk/600.css";
+import PublicChrome from "@/components/PublicChrome";
 import RouteHistory from "@/components/RouteHistory";
 
 
@@ -13,7 +15,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html
-      lang="en"
+      lang="fr"
       className="h-full bg-white antialiased"
     >
       <body
@@ -21,9 +23,7 @@ export default function RootLayout({ children }) {
         className="flex min-h-full flex-col overflow-x-hidden bg-white text-gray-900"
       >
         <RouteHistory />
-        <Navbar />
-        {children}
-        <Footer />
+        <PublicChrome>{children}</PublicChrome>
       </body>
     </html>
   );

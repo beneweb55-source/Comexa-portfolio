@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "../styles/comexa.tokens.css";
+@import "../styles/comexa.components.css";
+@import "../styles/workspace-glass.css";
+@import "../styles/comexa.public.css";
 
 :root {
   --background: #ffffff;
@@ -15,7 +19,8 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Police officielle de la charte COMEXA : Space Grotesk. */
+  font-family: var(--comexa-font);
 }
 
 @keyframes section-reveal {
