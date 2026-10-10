@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseInterceptors } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/decorators/auth.decorators.js';
 import { ContentService } from './content.service.js';
+import { PublicCacheInterceptor } from './public-cache.interceptor.js';
 import {
   ContentListQueryDto,
   CreateCaseStudyCategoryDto,
@@ -54,6 +55,8 @@ import {
  */
 @ApiTags('Contenu')
 @Controller('content')
+// Toute écriture de contenu purge le cache du site public (voir `public-cache.ts`).
+@UseInterceptors(PublicCacheInterceptor)
 export class ContentAdminController {
   constructor(private readonly content: ContentService) {}
 

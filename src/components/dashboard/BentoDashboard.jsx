@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatMoney } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { can } from "@/lib/access";
 import { useListing } from "@/lib/use-listing";
 import { useTimer, formatElapsed } from "@/lib/timer";
 import { ACTIVITY_DEMO, KPI_DEMO, PROJECTS_DEMO, dailySeries } from "@/lib/dashboard-mock";
@@ -164,7 +165,9 @@ function KpiSquares({ className }) {
 
 function TimerWidget({ className }) {
   const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
-  const tasks = useListing("/me/tasks?perPage=50");
+  const { user: timerUser } = useAuth();
+  const canSeeTasks = can(timerUser, "task:read:any") || can(timerUser, "task:read:assigned") || can(timerUser, "task:read:own");
+  const tasks = useListing(canSeeTasks ? "/me/tasks?perPage=50" : null);
   const [picked, setPicked] = useState("");
   const [localError, setLocalError] = useState(null);
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");

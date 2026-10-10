@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
-import { PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE } from "@/lib/commercial";
+import { PROSPECT_SOURCE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import ProspectBoard from "@/components/workspace/ProspectBoard";
 
 const EMPTY_PROSPECT = {
   companyName: "",
@@ -18,16 +19,18 @@ const EMPTY_PROSPECT = {
   notes: "",
 };
 
-/** Pipeline commercial : prospects en cours, filtrables par statut, et création manuelle. */
+/**
+ * Pipeline commercial : les prospects en tableau Kanban (une colonne par étape).
+ * Glisser une fiche change son étape ; l'historique est écrit côté serveur.
+ */
 export default function ProspectsPage() {
-  const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(EMPTY_PROSPECT);
   const [formError, setFormError] = useState(null);
 
-  const params = new URLSearchParams({ perPage: "50" });
-  if (filter) params.set("status", filter);
+  // Le tableau affiche toutes les étapes : pas de filtre de statut. Recherche seule.
+  const params = new URLSearchParams({ perPage: "100" });
   if (search.trim()) params.set("search", search.trim());
   const prospects = useListing(`/prospects?${params.toString()}`);
   const action = useAction(prospects.reload);
@@ -130,46 +133,17 @@ export default function ProspectsPage() {
             Recherche
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Entreprise, contact, e-mail" className={`${inputClass} h-9 w-64 text-[13px]`} />
           </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-            Statut
-            <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`}>
-              <option value="">Tous</option>
-              {Object.entries(PROSPECT_STATUS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {prospects.meta && prospects.meta.total > items.length ? (
+            <p className="text-[13px] text-[var(--comexa-ink-soft)]">
+              {items.length} fiches affichées sur {prospects.meta.total}. Affinez la recherche pour voir les autres.
+            </p>
+          ) : null}
         </div>
 
         {prospects.items === null && !prospects.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
         {prospects.items !== null && items.length === 0 ? <Empty>Aucun prospect pour ces critères.</Empty> : null}
 
-        <ul className="flex flex-col gap-3">
-          {items.map((prospect) => (
-            <li key={prospect.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
-              <div className="min-w-0">
-                <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">
-                  {prospect.reference} · créé le {formatDate(prospect.createdAt)}
-                </p>
-                <h3 className="text-[16px] font-semibold text-[var(--comexa-ink)]">
-                  <Link href={`/espace-equipe/prospects/${prospect.id}`} className="hover:underline">
-                    {prospect.companyName || `${prospect.contactFirstName} ${prospect.contactLastName}`}
-                  </Link>
-                </h3>
-                <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">
-                  {prospect.contactFirstName} {prospect.contactLastName} · {prospect.email}
-                  {prospect.estimatedBudget ? ` · Budget estimé ${formatMoney(prospect.estimatedBudget, "EUR")}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-[13px] text-[var(--comexa-ink-soft)]">{PROSPECT_SOURCE[prospect.source] ?? prospect.source}</span>
-                <Badge tone={PROSPECT_STATUS_TONE[prospect.status] ?? "neutral"}>{PROSPECT_STATUS[prospect.status] ?? prospect.status}</Badge>
-              </div>
-            </li>
-          ))}
-        </ul>
+        {items.length > 0 ? <ProspectBoard items={items} onChanged={prospects.reload} /> : null}
       </Card>
     </div>
   );

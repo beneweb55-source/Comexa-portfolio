@@ -9,13 +9,18 @@ import { messageOf } from "@/lib/api";
  *
  * En cas d'erreur, la liste deja affichee est CONSERVEE et le message est expose
  * a part : un rechargement rate ne vide jamais l'ecran.
- * `path` peut changer (filtres) : la liste est alors rechargee.
+ * `path` peut changer (filtres) : la liste est alors rechargee. `null` = ne pas charger.
  */
 export function useListing(path) {
   const { request } = useAuth();
   const [state, setState] = useState({ items: null, meta: null, error: null, errorStatus: null, loading: true });
 
   const reload = useCallback(async () => {
+    // Chemin null : ressource non accessible à ce porteur, aucune requête (évite un 403 inutile).
+    if (path === null) {
+      setState({ items: [], meta: null, error: null, errorStatus: null, loading: false });
+      return;
+    }
     setState((current) => ({ ...current, loading: true }));
     try {
       const { data, meta } = await request(path);

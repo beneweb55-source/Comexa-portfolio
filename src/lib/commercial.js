@@ -106,3 +106,22 @@ export function daysFromToday(days) {
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * Transitions autorisées du pipeline prospects. MIROIR de
+ * `backend/src/modules/prospects/lead-pipeline.ts` : il sert seulement à griser
+ * les cartes et à proposer les bonnes étapes. Le serveur reste la seule référence
+ * et refuse toute transition absente de sa table (422).
+ */
+export const PROSPECT_TRANSITIONS = {
+  NEW: ["CONTACTED", "QUALIFIED", "LOST"],
+  CONTACTED: ["QUALIFIED", "PROPOSAL_SENT", "NEGOTIATION", "LOST"],
+  QUALIFIED: ["PROPOSAL_SENT", "NEGOTIATION", "LOST"],
+  PROPOSAL_SENT: ["NEGOTIATION", "WON", "LOST"],
+  NEGOTIATION: ["PROPOSAL_SENT", "WON", "LOST"],
+  WON: [],
+  LOST: ["NEW"],
+};
+
+/** Colonnes du tableau, dans l'ordre du pipeline. Chaque statut a sa colonne : aucune fiche ne disparaît. */
+export const PROSPECT_COLUMNS = ["NEW", "CONTACTED", "QUALIFIED", "PROPOSAL_SENT", "NEGOTIATION", "WON", "LOST"];

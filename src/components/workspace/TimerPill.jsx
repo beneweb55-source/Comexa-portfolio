@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { formatElapsed, useTimer } from "@/lib/timer";
 import { useListing } from "@/lib/use-listing";
+import { useAuth } from "@/lib/session";
+import { can } from "@/lib/access";
 import Icon from "@/components/dashboard/icons";
 
 /*
@@ -13,7 +15,9 @@ export default function TimerPill() {
   const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState("");
-  const tasks = useListing("/me/tasks?perPage=50");
+  const { user: timerUser } = useAuth();
+  const canSeeTasks = can(timerUser, "task:read:any") || can(timerUser, "task:read:assigned") || can(timerUser, "task:read:own");
+  const tasks = useListing(canSeeTasks ? "/me/tasks?perPage=50" : null);
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
   const [stopError, setStopError] = useState(null);
 

@@ -67,6 +67,16 @@ export class EnvironmentVariables {
   FRONTEND_URL = 'http://localhost:3000';
 
   /**
+   * Secret partage avec le frontend pour la purge du cache public
+   * (`POST <FRONTEND_URL>/api/revalidate`). Optionnel : sans lui, le cache du
+   * site public expire seul (1 h) et l'API le signale au demarrage.
+   */
+  @IsOptional()
+  @IsString()
+  @MinLength(32, { message: 'REVALIDATE_SECRET doit faire au moins 32 caracteres.' })
+  REVALIDATE_SECRET?: string;
+
+  /**
    * Politique SameSite du cookie de rafraichissement.
    *
    * `lax` convient quand le frontend et l'API partagent le meme domaine

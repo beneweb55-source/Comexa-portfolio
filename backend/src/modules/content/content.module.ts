@@ -7,6 +7,8 @@ import { ContactRequestService } from './contact-request.service.js';
 import { ContentAdminController } from './content-admin.controller.js';
 import { ContentPublicController } from './content-public.controller.js';
 import { ContentService } from './content.service.js';
+import { PublicCacheInterceptor } from './public-cache.interceptor.js';
+import { PublicCacheService } from './public-cache.service.js';
 import { ModificationRequestController } from './modification-request.controller.js';
 import { ModificationRequestService } from './modification-request.service.js';
 
@@ -53,6 +55,12 @@ import { ModificationRequestService } from './modification-request.service.js';
     ContactRequestController,
     ModificationRequestController,
   ],
-  providers: [ContentService, ContactRequestService, ModificationRequestService],
+  providers: [
+    ContentService,
+    ContactRequestService,
+    ModificationRequestService,
+    PublicCacheService,
+    PublicCacheInterceptor,
+  ],
 })
 export class ContentModule {}
