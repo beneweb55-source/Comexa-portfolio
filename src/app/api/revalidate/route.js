@@ -47,7 +47,9 @@ export async function POST(request) {
   const tags = cleanStrings(body?.tags, isTag);
   const paths = cleanStrings(body?.paths, isPath);
 
-  for (const tag of tags) revalidateTag(tag, "max");
+  // expire: 0 = purge immédiate : la requête suivante reçoit la donnée fraîche.
+  // (profile "max" servait l'ancienne version une fois pendant la régénération.)
+  for (const tag of tags) revalidateTag(tag, { expire: 0 });
   for (const path of paths) revalidatePath(path);
 
   return NextResponse.json({ revalidated: true, tags, paths });

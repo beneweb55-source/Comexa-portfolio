@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { initialsOf } from "@/lib/public-api";
 import { usePreviousPage } from "@/lib/previous-page";
 import { usePathname } from "next/navigation";
@@ -252,15 +252,7 @@ export default function PartenairesView({ apiTestimonials, apiPartners }) {
             <h3 className="text-[18px] font-medium text-[#10294a]">Nos partenaires</h3>
             <ul className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
               {apiPartners.items.map((partner) => (
-                <li key={partner.id} className="rounded-[13px] border border-[#10294a]/15 bg-white p-4 text-center text-[14px] font-medium text-[#10294a]">
-                  {partner.websiteUrl ? (
-                    <a href={partner.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                      {partner.name}
-                    </a>
-                  ) : (
-                    partner.name
-                  )}
-                </li>
+                <PartnerCard key={partner.id} partner={partner} />
               ))}
             </ul>
           </div>
@@ -524,5 +516,47 @@ export default function PartenairesView({ apiTestimonials, apiPartners }) {
     </section>
 
     </main>
+  );
+}
+
+/**
+ * Carte partenaire : logo (URL externe, https) puis nom. Si l'image ne charge pas,
+ * on retombe sur le nom seul : un logo cassé ne doit jamais laisser une case vide.
+ */
+function PartnerCard({ partner }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoRef = useRef(null);
+  // Le HTML est rendu côté serveur : une image cassée peut échouer avant l'hydratation,
+  // auquel cas onError ne se déclenche jamais. On contrôle donc l'état au montage.
+  useEffect(() => {
+    const img = logoRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setLogoFailed(true);
+  }, []);
+  const showLogo = Boolean(partner.logoUrl) && !logoFailed;
+  const label = partner.websiteUrl ? (
+    <a href={partner.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+      {partner.name}
+    </a>
+  ) : (
+    partner.name
+  );
+
+  return (
+    <li className="rounded-[13px] border border-[#10294a]/15 bg-white p-4 text-center text-[14px] font-medium text-[#10294a]">
+      {showLogo ? (
+        // Logo hébergé hors du site : balise <img> simple, sans optimisation Next (domaine non déclaré).
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={logoRef}
+          src={partner.logoUrl}
+          alt={`Logo ${partner.name}`}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setLogoFailed(true)}
+          className="mx-auto mb-3 h-12 max-w-full object-contain"
+        />
+      ) : null}
+      {label}
+    </li>
   );
 }

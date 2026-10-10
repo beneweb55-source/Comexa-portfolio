@@ -1689,7 +1689,8 @@ model Testimonial {
 model Partner {
   id         String    @id @default(cuid())
   name       String
-  logoKey    String?
+  /// URL https de l'image du logo, hébergée ailleurs (MVP : pas de stockage de fichiers).
+  logoUrl    String?   @db.VarChar(500)
   websiteUrl String?
   order      Int       @default(0)
   isActive   Boolean   @default(true)

@@ -58,6 +58,7 @@ const FIELDS = {
   partners: [
     { name: "name", label: "Nom", required: true },
     { name: "websiteUrl", label: "Site web (https://…)" },
+    { name: "logoUrl", label: "Logo : adresse https de l’image (facultatif)" },
     { name: "order", label: "Ordre", number: true },
     { name: "isActive", label: "Visible sur le site", bool: true },
   ],

@@ -166,7 +166,7 @@ export class ContentService {
   async listPublicPartners(): Promise<PublicPartner[]> {
     return this.prisma.partner.findMany({
       where: { deletedAt: null, isActive: true },
-      select: { id: true, name: true, logoKey: true, websiteUrl: true, order: true },
+      select: { id: true, name: true, logoUrl: true, websiteUrl: true, order: true },
       orderBy: [{ order: 'asc' }, { name: 'asc' }],
     });
   }
@@ -908,7 +908,7 @@ export type PublicTestimonial = Prisma.TestimonialGetPayload<{
 export type PublicPartner = {
   id: string;
   name: string;
-  logoKey: string | null;
+  logoUrl: string | null;
   websiteUrl: string | null;
   order: number;
 };
