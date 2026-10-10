@@ -212,6 +212,7 @@ export class ContentService {
   }
 
   async createService(dto: CreateServiceDto) {
+    assertPriceHasCurrency(dto);
     const slug = resolveSlug(dto.slug, dto.title);
     await this.assertSlugFree('service', slug);
 
@@ -219,6 +220,7 @@ export class ContentService {
   }
 
   async updateService(id: string, dto: UpdateServiceDto) {
+    assertPriceHasCurrency(dto);
     await this.requireExisting('service', id);
     const slug = this.updateSlug(dto.slug, dto.title);
 
@@ -694,13 +696,14 @@ export class ContentService {
 
   private async findById(model: SlugModel, id: string): Promise<WithSlug | null> {
     const where = { id, deletedAt: null };
-    const select = { id: true, slug: true, publishedAt: true } as const;
 
+    // Seules les etudes de cas ont une `publishedAt`. Services et packs n'en ont pas :
+    // les demander provoquait une erreur Prisma (500) sur toute modification d'un service.
     switch (model) {
       case 'service':
-        return this.prisma.service.findFirst({ where, select });
+        return { ...(await this.prisma.service.findFirst({ where, select: { id: true, slug: true } })), publishedAt: null } as WithSlug | null;
       case 'package':
-        return this.prisma.package.findFirst({ where, select });
+        return { ...(await this.prisma.package.findFirst({ where, select: { id: true, slug: true } })), publishedAt: null } as WithSlug | null;
       case 'category':
         // Une categorie n'a pas de date de publication : on rend `null` plutot
         // que d'inventer un champ, et `publishedAt` n'est lu que pour les
@@ -710,7 +713,7 @@ export class ContentService {
           select: { id: true, slug: true },
         });
       case 'caseStudy':
-        return this.prisma.caseStudy.findFirst({ where, select });
+        return this.prisma.caseStudy.findFirst({ where, select: { id: true, slug: true, publishedAt: true } });
     }
   }
 
@@ -814,6 +817,16 @@ interface WithSlug {
  * qu'un cuid est un identifiant opaque — contrairement a une reference
  * sequentielle, il ne revele ni volume ni ordre de creation.
  */
+/** Un prix de depart sans devise n'a pas de sens : refus explicite (400). */
+function assertPriceHasCurrency(dto: { startingPrice?: number | null; startingPriceCurrency?: string }) {
+  if (dto.startingPrice != null && !dto.startingPriceCurrency) {
+    throw AppException.badRequest(
+      'SERVICE_PRICE_CURRENCY_REQUIRED',
+      'Indiquez la devise du prix de départ.',
+    );
+  }
+}
+
 const PUBLIC_SERVICE_FIELDS = {
   id: true,
   slug: true,
@@ -823,6 +836,8 @@ const PUBLIC_SERVICE_FIELDS = {
   icon: true,
   coverImageKey: true,
   features: true,
+  startingPrice: true,
+  startingPriceCurrency: true,
   order: true,
   isFeatured: true,
   seoTitle: true,

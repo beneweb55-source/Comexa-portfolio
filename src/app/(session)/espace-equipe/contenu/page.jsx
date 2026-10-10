@@ -30,6 +30,8 @@ const FIELDS = {
     { name: "description", label: "Description détaillée", area: true },
     { name: "features", label: "Points forts (un par ligne)", list: true, area: true },
     { name: "icon", label: "Icône" },
+    { name: "startingPrice", label: "Prix de départ (facultatif, laisser vide si non communiqué)", number: true },
+    { name: "startingPriceCurrency", label: "Devise du prix de départ (DZD, EUR ou USD)" },
     { name: "order", label: "Ordre", number: true },
     { name: "isFeatured", label: "Mis en avant", bool: true },
     { name: "isActive", label: "Visible sur le site", bool: true },

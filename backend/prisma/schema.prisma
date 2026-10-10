@@ -1546,6 +1546,10 @@ model Service {
   /// Liste de points forts (tableau de chaines). Un Json evite une table de
   /// plus pour trois lignes de texte.
   features         Json?
+  /// Prix de depart FACULTATIF, saisi a la main dans l'admin. Jamais seede : sans
+  /// saisie, rien ne s'affiche sur le site. La devise est obligatoire si un prix est saisi.
+  startingPrice         Decimal? @db.Decimal(12, 2)
+  startingPriceCurrency String?  @db.VarChar(3)
   order            Int     @default(0)
   isActive         Boolean @default(true)
   isFeatured       Boolean @default(false)

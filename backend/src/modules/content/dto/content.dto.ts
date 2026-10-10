@@ -1,18 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  ArrayMaxSize,
-  IsArray,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUrl,
-  Max,
-  MaxLength,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { BooleanFilter } from '../../../common/dto/boolean-filter.js';
 import { ContentStatus } from '../../../generated/prisma/enums.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
@@ -37,7 +25,9 @@ import { emptyToUndefined, toStringArray } from './transforms.js';
  * `createdAt` ou d'un `deletedAt` dans un corps de requete — aucun n'a de
  * propriete ici, donc aucun n'atteint le service.
  *
- * AUCUN PRIX N'EST DECLARE, ET C'EST UNE EXIGENCE DU CLIENT, mot pour mot :
+ * AUCUN PRIX N'EST DECLARE POUR LES PACKS. Exception decidee avec le client : un prix
+ * de depart FACULTATIF sur les services (saisi a la main, jamais seede, affiche seulement
+ * s'il est renseigne). Regle d'origine, pour les packs, mot pour mot :
  * « Ne mets aucun prix dans cette partie du backend. » / « Ne cree PAS de prix
  * fictifs. » `CreatePackageDto` decrit donc l'offre — nom, accroche,
  * fonctionnalites, exclusions, ordre d'affichage, actif — et rien qui ressemble
@@ -59,6 +49,22 @@ const MAX_ITEM_LENGTH = 200;
 // -----------------------------------------------------------------------------
 
 export class CreateServiceDto {
+
+  @ApiPropertyOptional({
+    description: 'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Le prix doit etre un nombre.' })
+  @Min(0, { message: 'Le prix ne peut pas etre negatif.' })
+  @Max(9999999999, { message: 'Le prix est trop eleve.' })
+  startingPrice?: number;
+
+  @ApiPropertyOptional({ enum: ['DZD', 'EUR', 'USD'] })
+  @emptyToUndefined()
+  @IsOptional()
+  @IsIn(['DZD', 'EUR', 'USD'], { message: 'Devise non prise en charge.' })
+  startingPriceCurrency?: string;
   @ApiPropertyOptional({
     description: 'Slug public. Derive du titre silencieusement absent.',
     maxLength: 80,
@@ -149,6 +155,22 @@ export class CreateServiceDto {
 }
 
 export class UpdateServiceDto {
+
+  @ApiPropertyOptional({
+    description: 'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
+    minimum: 0,
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Le prix doit etre un nombre.' })
+  @Min(0, { message: 'Le prix ne peut pas etre negatif.' })
+  @Max(9999999999, { message: 'Le prix est trop eleve.' })
+  startingPrice?: number;
+
+  @ApiPropertyOptional({ enum: ['DZD', 'EUR', 'USD'] })
+  @emptyToUndefined()
+  @IsOptional()
+  @IsIn(['DZD', 'EUR', 'USD'], { message: 'Devise non prise en charge.' })
+  startingPriceCurrency?: string;
   @ApiPropertyOptional()
   @emptyToUndefined()
   @IsOptional()

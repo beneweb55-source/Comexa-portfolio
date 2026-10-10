@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { initialsOf } from "@/lib/public-api";
+import { formatMoney } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import quisommesnous from "../../../public/image.png";
@@ -126,6 +127,8 @@ export default function HomeView({ apiServices, apiTestimonials }) {
         title: service.title,
         description: service.shortDescription,
         tags: (service.features ?? []).slice(0, 2),
+        // Prix de départ : uniquement s'il a été saisi par l'équipe (jamais de valeur inventée).
+        startingPrice: service.startingPrice != null && service.startingPriceCurrency ? formatMoney(service.startingPrice, service.startingPriceCurrency) : null,
       }))
     : services;
   const testimonialCards = apiTestimonials.items?.length
@@ -248,6 +251,7 @@ export default function HomeView({ apiServices, apiTestimonials }) {
                 <span className="cx-pub-service__num">{service.number}</span>
                 <div>
                   <h3 className="cx-pub-service__title">{service.title}</h3>
+                  {service.startingPrice ? <p className="cx-pub-service__price">À partir de {service.startingPrice}</p> : null}
                   <div className="cx-pub-service__tags">
                     {service.tags.map((tag) => (
                       <span key={tag} className="cx-pub-tag">
