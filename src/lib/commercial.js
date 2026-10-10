@@ -62,6 +62,8 @@ export const PAYMENT_METHOD = {
   CASH: "Espèces",
   CHECK: "Chèque",
   PAYPAL: "PayPal",
+  CCP: "CCP (Algérie Poste)",
+  BARIDIMOB: "BaridiMob",
   OTHER: "Autre",
 };
 

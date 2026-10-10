@@ -10,7 +10,9 @@ const nextConfig = {
   // Preview Arena : le navigateur charge l'app depuis https://3000-<id>.e2b.app.
   // Sans cette autorisation, Next bloque /_next/hmr et le JavaScript ne s'hydrate
   // pas : le bouton du menu ne répond plus. Ne concerne que le mode développement.
-  allowedDevOrigins: ["**.e2b.app"],
+  // `127.0.0.1` : en développement, on passe indifféremment par localhost ou 127.0.0.1 ;
+  // Next bloque sinon le JavaScript (HMR) pour cette origine. Sans effet en production.
+  allowedDevOrigins: ["**.e2b.app", "127.0.0.1", "localhost"],
   async rewrites() {
     return [
       {

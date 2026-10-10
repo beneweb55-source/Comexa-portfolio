@@ -4,6 +4,8 @@ import RequireSession from "@/components/workspace/RequireSession";
 import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
+import { TimerProvider } from "@/lib/timer";
+import TimerPill from "@/components/workspace/TimerPill";
 
 // `any` : au moins une de ces permissions suffit à afficher l'entrée. Sans `any`, l'entrée est toujours visible.
 const NAV = [
@@ -17,6 +19,10 @@ const NAV = [
   { href: "/espace-equipe/demandes", label: "Demandes de projet" },
   { href: "/espace-equipe/projets", label: "Projets", nested: true },
   { href: "/espace-equipe/clients", label: "Clients" },
+  { href: "/espace-equipe/taches", label: "Tâches", any: ["task:read:any", "task:write:any", "task:write:own"] },
+  { href: "/espace-equipe/calendrier", label: "Calendrier", any: ["task:read:any"] },
+  { href: "/espace-equipe/rapports-journaliers", label: "Rapports journaliers", any: ["time:write:own", "time:read:any"] },
+  { href: "/espace-equipe/analytique", label: "Analytique", any: ["report:read:any"] },
   { href: "/espace-equipe/temps", label: "Temps", any: ["time:write:own", "time:read:own", "time:read:any"] },
   { href: "/espace-equipe/modifications", label: "Demandes de modification", any: ["modificationrequest:decide:any"] },
   { href: "/espace-equipe/rapports", label: "Rapports", any: ["report:read:any", "report:read:own"] },
@@ -37,9 +43,12 @@ export default function EspaceEquipeLayout({ children }) {
   const { user } = useAuth();
   return (
     <RequireSession>
-      <WorkspaceShell space="Espace équipe" title="Espace équipe" subtitle="Administration des commandes, clients et projets." items={visibleItems(user)}>
-        {children}
-      </WorkspaceShell>
+      <TimerProvider>
+        <WorkspaceShell space="Espace équipe" title="Espace équipe" subtitle="Administration des commandes, clients et projets." items={visibleItems(user)}>
+          {children}
+        </WorkspaceShell>
+        <TimerPill />
+      </TimerProvider>
     </RequireSession>
   );
 }

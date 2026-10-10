@@ -196,6 +196,10 @@ enum PaymentMethod {
   CASH
   CHECK
   PAYPAL
+  /// Compte Courant Postal (Algérie).
+  CCP
+  /// BaridiMob, paiement mobile Algérie Poste.
+  BARIDIMOB
   OTHER
 }
 
@@ -354,6 +358,7 @@ model User {
   id           String     @id @default(cuid())
   email        String     @unique
   passwordHash String
+  dailyReports DailyReport[]
   firstName    String
   lastName     String
   phone        String?
@@ -1794,4 +1799,21 @@ model Report {
   @@index([projectId])
   @@index([generatedById])
   @@map("reports")
+}
+
+/// Récapitulatif journalier d'un membre de l'équipe (un par personne et par jour).
+/// Le contenu est le document JSON de l'éditeur riche (Tiptap) : jamais de HTML stocké.
+model DailyReport {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reportDate  DateTime @db.Date
+  contentJson Json
+  summary     String?  @db.VarChar(280)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, reportDate])
+  @@index([reportDate])
+  @@map("daily_reports")
 }

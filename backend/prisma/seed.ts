@@ -217,6 +217,10 @@ async function upsertAccount(
         where: { id: existing.id },
         data: {
           status: UserStatus.ACTIVE,
+          // Comptes de demonstration : l'e-mail est tenu pour verifie, sinon la
+          // connexion est bloquee par la verification (voulue en production).
+          isEmailVerified: true,
+          emailVerifiedAt: new Date(),
           // Un compte precedemment supprime est reactive : le seed doit laisser
           // la base dans un etat utilisable, pas dans un etat ou l'on se demande
           // pourquoi la connexion echoue.
