@@ -7,7 +7,7 @@ services:
     name: comexa-api
     runtime: docker
     region: frankfurt
-    plan: starter            # le palier gratuit s'endort : inacceptable pour un site de production
+    plan: free            # le palier gratuit s'endort : inacceptable pour un site de production
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /api/health
