@@ -87,7 +87,7 @@ export function DistributionTile({ title, subtitle, rows = [], labels, icon = "c
       <div className="flex items-center gap-4">
         <GlowIcon tone="sky"><Icon name={icon} /></GlowIcon>
         <div>
-          <h3 className="text-[16px] font-semibold">{title}</h3>
+          <h3 className="!text-[16px] !font-bold !text-white">{title}</h3>
           <p className="text-[12.5px] text-white/55">{subtitle ?? `${total} au total`}</p>
         </div>
       </div>
@@ -120,7 +120,7 @@ export function HealthTile({ rows = [], className = "" }) {
       <div className="flex items-center gap-4">
         <GlowIcon tone="mint"><Icon name="folder" /></GlowIcon>
         <div>
-          <h3 className="text-[16px] font-semibold">Santé des projets</h3>
+          <h3 className="!text-[16px] !font-bold !text-white">Santé des projets</h3>
           <p className="text-[12.5px] text-white/55">{total} projet(s) suivis</p>
         </div>
       </div>
@@ -158,7 +158,7 @@ export function FinanceTile({ open, overdue, collected, rate, className = "" }) 
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <GlowIcon tone="amber"><Icon name="money" /></GlowIcon>
-          <h3 className="text-[16px] font-semibold">Facturation</h3>
+          <h3 className="!text-[16px] !font-bold !text-white">Facturation</h3>
         </div>
         <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[12px] tabular-nums text-white/70">{rate} % encaissé</span>
       </div>
@@ -187,7 +187,7 @@ export function DueTile({ tasks = [], invoices = null, className = "" }) {
       <div className="flex items-center gap-4">
         <GlowIcon tone="accent"><Icon name="calendar" /></GlowIcon>
         <div>
-          <h3 className="text-[16px] font-semibold">Échéances à venir</h3>
+          <h3 className="!text-[16px] !font-bold !text-white">Échéances à venir</h3>
           <p className="text-[12.5px] text-white/55">Tâches{invoices ? " et factures" : ""} avec une date limite</p>
         </div>
       </div>
@@ -238,7 +238,7 @@ export function TimerTile({ tasks, className = "" }) {
       <div className="flex items-center gap-4">
         <GlowIcon tone={timer ? "mint" : "sky"}><Icon name={timer ? "clock" : "bolt"} /></GlowIcon>
         <div>
-          <h3 className="text-[16px] font-semibold">Minuteur</h3>
+          <h3 className="!text-[16px] !font-bold !text-white">Minuteur</h3>
           <p className="text-[12.5px] text-white/55">{timer ? "Enregistrement en cours" : "Aucun minuteur actif"}</p>
         </div>
       </div>

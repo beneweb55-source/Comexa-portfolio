@@ -28,12 +28,12 @@ export default function TableauDeBordPage() {
     <div className="flex flex-col gap-8">
       <BentoDashboard me={me} agency={agency} canSeeAgency={canSeeAgency} />
 
-      <details className="group rounded-3xl border border-[var(--comexa-border-soft)] bg-white/60 p-5">
-        <summary className="cursor-pointer list-none text-[15px] font-semibold text-[var(--comexa-ink)] marker:content-none">
+      <details className="group rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+        <summary className="cursor-pointer list-none text-[15px] font-semibold text-white marker:content-none">
           <span className="flex items-center justify-between gap-3">
             Tableaux détaillés
-            <span className="text-[12.5px] font-normal text-[var(--comexa-ink-muted)] group-open:hidden">Afficher</span>
-            <span className="hidden text-[12.5px] font-normal text-[var(--comexa-ink-muted)] group-open:inline">Replier</span>
+            <span className="text-[12.5px] font-normal text-white/55 group-open:hidden">Afficher</span>
+            <span className="hidden text-[12.5px] font-normal text-white/55 group-open:inline">Replier</span>
           </span>
         </summary>
 

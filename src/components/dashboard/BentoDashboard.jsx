@@ -107,7 +107,7 @@ export default function BentoDashboard({ me, agency, canSeeAgency }) {
               <div className="flex items-center gap-4">
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-300 shadow-[0_0_24px_rgba(30,134,224,0.6)]"><Icon name="kanban" /></span>
                 <div>
-                  <h3 className="text-[16px] font-semibold">Pipeline commercial</h3>
+                  <h3 className="!text-[17px] !font-bold !text-white">Pipeline commercial</h3>
                   <p className="text-[12.5px] text-white/55">Glissez une fiche pour changer son étape</p>
                 </div>
               </div>

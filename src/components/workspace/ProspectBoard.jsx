@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -9,6 +10,97 @@ import { can } from "@/lib/access";
 import { PROSPECT_COLUMNS, PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE, PROSPECT_TRANSITIONS } from "@/lib/commercial";
 import { useAuth } from "@/lib/session";
 import { Badge, Notice, selectClass } from "@/components/workspace/ui";
+
+/**
+ * Menu « Déplacer » : le panneau est rendu dans `document.body` (portail), donc il
+ * passe au-dessus des colonnes et ne peut plus être rogné par leur `overflow`.
+ * Les événements du portail sont arrêtés pour ne pas déclencher le glisser-déposer
+ * ni la navigation de la carte parente.
+ */
+function MoveMenu({ label, targets, disabled, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = () => setOpen(false);
+    const onKey = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle(event) {
+    event.stopPropagation();
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 6, left: rect.right - 200, width: 200 });
+    }
+    setOpen(!open);
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled || targets.length === 0}
+        onPointerDown={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        onClick={toggle}
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 text-[12.5px] font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+      >
+        Déplacer
+        <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+      </button>
+      {open && pos && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
+              <ul
+                role="listbox"
+                aria-label={label}
+                style={{ top: pos.top, left: Math.max(8, pos.left), width: pos.width }}
+                className="fixed z-[999] overflow-hidden rounded-2xl border border-white/15 bg-[#0b2748]/95 p-1 shadow-[0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+              >
+                {targets.map((target) => (
+                  <li key={target} role="none">
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected="false"
+                      onClick={() => {
+                        setOpen(false);
+                        onPick(target);
+                      }}
+                      className="w-full rounded-xl px-3 py-2 text-left text-[13px] text-white transition hover:bg-white/10"
+                    >
+                      {PROSPECT_STATUS[target]}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
 
 /* Deux thèmes : « light » pour les pages de l'espace équipe, « glass » pour le tableau de bord sombre. */
 const THEMES = {
@@ -175,27 +267,15 @@ function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overla
       ) : null}
 
       {canWrite && !overlay && targets.length > 0 ? (
-        <label className={`mt-3 flex flex-col gap-1 text-[12px] ${theme.soft}`}>
-          Étape
-          <select
-            aria-label={`Changer l’étape de ${prospect.reference}`}
-            className={`${selectClass} !h-8 !w-full min-w-0 text-[12.5px]`}
-            value=""
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <span className={`text-[12px] ${theme.soft}`}>Étape</span>
+          <MoveMenu
+            label={`Déplacer ${prospect.reference} vers une autre étape`}
+            targets={targets}
             disabled={busy}
-            onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            onChange={(event) => {
-              if (event.target.value && onMove) onMove(prospect, event.target.value);
-            }}
-          >
-            <option value="">Déplacer vers…</option>
-            {targets.map((target) => (
-              <option key={target} value={target}>
-                {PROSPECT_STATUS[target]}
-              </option>
-            ))}
-          </select>
-        </label>
+            onPick={(target) => onMove && onMove(prospect, target)}
+          />
+        </div>
       ) : null}
     </article>
   );

@@ -387,6 +387,10 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:any',
+    // Espace personnel : ses propres tâches (tuile Tâches/Échéances) et son temps (minuteur).
+    'task:read:own',
+    'time:read:own',
+    'time:write:own',
   ],
 
   /**
