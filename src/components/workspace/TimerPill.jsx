@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { formatElapsed, useTimer } from "@/lib/timer";
 import { useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
-import { can } from "@/lib/access";
+import { canUseTimer } from "@/lib/timer-access";
 import Icon from "@/components/dashboard/icons";
 
 /*
@@ -16,8 +17,9 @@ export default function TimerPill() {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState("");
   const { user: timerUser } = useAuth();
-  const canSeeTasks = can(timerUser, "task:read:any") || can(timerUser, "task:read:assigned") || can(timerUser, "task:read:own");
-  const tasks = useListing(canSeeTasks ? "/me/tasks?perPage=50" : null);
+  const pathname = usePathname();
+  const allowed = canUseTimer(timerUser);
+  const tasks = useListing(allowed ? "/me/tasks?perPage=50" : null);
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
   const [stopError, setStopError] = useState(null);
 
@@ -33,6 +35,10 @@ export default function TimerPill() {
     const minutes = await stop();
     if (minutes === null) setStopError("Enregistrement impossible : le minuteur continue.");
   }
+
+  // Après tous les hooks : sans droits, le minuteur n'apparaît pas du tout.
+  // Sur le tableau de bord, le minuteur est déjà une tuile : la pastille serait en double.
+  if (!allowed || pathname === "/espace-equipe/tableau-de-bord") return null;
 
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">

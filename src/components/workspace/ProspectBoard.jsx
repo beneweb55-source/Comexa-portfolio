@@ -10,6 +10,26 @@ import { PROSPECT_COLUMNS, PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TON
 import { useAuth } from "@/lib/session";
 import { Badge, Notice, selectClass } from "@/components/workspace/ui";
 
+/* Deux thèmes : « light » pour les pages de l'espace équipe, « glass » pour le tableau de bord sombre. */
+const THEMES = {
+  light: {
+    column: (over) => (over ? "border-[var(--comexa-accent)] bg-[var(--comexa-accent-soft)]" : "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)]"),
+    title: "text-[var(--comexa-ink)]",
+    muted: "text-[var(--comexa-ink-muted)]",
+    soft: "text-[var(--comexa-ink-soft)]",
+    card: "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] shadow-sm",
+    name: "text-[var(--comexa-ink)]",
+  },
+  glass: {
+    column: (over) => (over ? "border-sky-300/60 bg-sky-400/15" : "border-white/10 bg-white/[0.04]"),
+    title: "text-white",
+    muted: "text-white/50",
+    soft: "text-white/65",
+    card: "border-white/10 bg-white/[0.07] shadow-[0_8px_24px_rgba(0,0,0,0.25),inset_0_1px_0_0_rgba(255,255,255,0.08)] backdrop-blur-xl hover:border-white/25",
+    name: "text-white",
+  },
+};
+
 /**
  * Pipeline commercial en tableau Kanban.
  *
@@ -19,7 +39,8 @@ import { Badge, Notice, selectClass } from "@/components/workspace/ui";
  * même message que le serveur ; si le serveur refuse quand même, la carte revient
  * à sa colonne d'origine.
  */
-export default function ProspectBoard({ items, onChanged }) {
+export default function ProspectBoard({ items, onChanged, tone = "light" }) {
+  const theme = THEMES[tone] ?? THEMES.light;
   const { user, request } = useAuth();
   const canWrite = can(user, "prospect:write:any") || can(user, "prospect:write:own");
   const [overrides, setOverrides] = useState({});
@@ -77,44 +98,42 @@ export default function ProspectBoard({ items, onChanged }) {
   return (
     <div className="flex flex-col gap-4">
       {error ? <Notice>{error}</Notice> : null}
-      {!canWrite ? <p className="text-[13px] text-[var(--comexa-ink-soft)]">Lecture seule : vous ne pouvez pas changer l’étape des prospects.</p> : null}
+      {!canWrite ? <p className={`text-[13px] ${theme.soft}`}>Lecture seule : vous ne pouvez pas changer l’étape des prospects.</p> : null}
 
       <DndContext sensors={sensors} onDragStart={(event) => setActiveId(event.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7" role="list" aria-label="Pipeline commercial">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7" role="list" aria-label="Pipeline commercial">
           {PROSPECT_COLUMNS.map((status) => (
-            <Column key={status} status={status} prospects={byColumn[status]} canWrite={canWrite} pendingId={pending} onMove={move} />
+            <Column key={status} status={status} prospects={byColumn[status]} canWrite={canWrite} pendingId={pending} onMove={move} theme={theme} />
           ))}
         </div>
-        <DragOverlay>{active ? <ProspectCard prospect={active} overlay /> : null}</DragOverlay>
+        <DragOverlay>{active ? <ProspectCard prospect={active} overlay theme={theme} /> : null}</DragOverlay>
       </DndContext>
     </div>
   );
 }
 
-function Column({ status, prospects, canWrite, pendingId, onMove }) {
+function Column({ status, prospects, canWrite, pendingId, onMove, theme }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: !canWrite });
   return (
     <section
       ref={setNodeRef}
       role="listitem"
       aria-label={`${PROSPECT_STATUS[status]} (${prospects.length})`}
-      className={`flex min-h-[220px] min-w-0 flex-col gap-3 rounded-2xl border p-3 transition ${
-        isOver ? "border-[var(--comexa-accent)] bg-[var(--comexa-accent-soft)]" : "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)]"
-      }`}
+      className={`flex min-h-[220px] min-w-0 flex-col gap-3 rounded-2xl border p-3 transition ${theme.column(isOver)}`}
     >
       <header className="flex items-center justify-between px-1">
-        <h3 className="text-[13px] font-semibold text-[var(--comexa-ink)]">{PROSPECT_STATUS[status]}</h3>
-        <span className="text-[12px] text-[var(--comexa-ink-muted)]">{prospects.length}</span>
+        <h3 className={`text-[13px] font-semibold ${theme.title}`}>{PROSPECT_STATUS[status]}</h3>
+        <span className={`text-[12px] ${theme.muted}`}>{prospects.length}</span>
       </header>
-      {prospects.length === 0 ? <p className="px-1 text-[12.5px] text-[var(--comexa-ink-muted)]">Aucune fiche</p> : null}
+      {prospects.length === 0 ? <p className={`px-1 text-[12.5px] ${theme.muted}`}>Aucune fiche</p> : null}
       {prospects.map((prospect) => (
-        <DraggableCard key={prospect.id} prospect={prospect} canWrite={canWrite} busy={pendingId === prospect.id} onMove={onMove} />
+        <DraggableCard key={prospect.id} prospect={prospect} canWrite={canWrite} busy={pendingId === prospect.id} onMove={onMove} theme={theme} />
       ))}
     </section>
   );
 }
 
-function DraggableCard({ prospect, canWrite, busy, onMove }) {
+function DraggableCard({ prospect, canWrite, busy, onMove, theme }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: prospect.id,
     disabled: !canWrite || busy,
@@ -122,41 +141,41 @@ function DraggableCard({ prospect, canWrite, busy, onMove }) {
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`touch-none ${isDragging ? "opacity-40" : ""}`}>
-      <ProspectCard prospect={prospect} canWrite={canWrite} busy={busy} onMove={onMove} />
+      <ProspectCard prospect={prospect} canWrite={canWrite} busy={busy} onMove={onMove} theme={theme} />
     </div>
   );
 }
 
-function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overlay = false }) {
+function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overlay = false, theme = THEMES.light }) {
   const targets = PROSPECT_TRANSITIONS[prospect.status] ?? [];
   const name = prospect.companyName || `${prospect.contactFirstName} ${prospect.contactLastName}`;
   return (
     <article
-      className={`rounded-lg border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3 text-[13px] shadow-sm ${overlay ? "shadow-lg" : ""} ${
+      className={`rounded-lg border p-3 text-[13px] ${theme.card} ${overlay ? "shadow-lg" : ""} ${
         busy ? "opacity-60" : ""
       }`}
     >
-      <p className="text-[11px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">
+      <p className={`text-[11px] uppercase tracking-wide ${theme.muted}`}>
         {prospect.reference} · {formatDate(prospect.createdAt)}
       </p>
-      <h4 className="mt-1 text-[14px] font-semibold text-[var(--comexa-ink)]">
+      <h4 className={`mt-1 text-[14px] font-semibold ${theme.name}`}>
         <Link href={`/espace-equipe/prospects/${prospect.id}`} className="hover:underline" onClick={(event) => event.stopPropagation()}>
           {name}
         </Link>
       </h4>
-      <p className="mt-1 text-[12.5px] text-[var(--comexa-ink-soft)]">
+      <p className={`mt-1 text-[12.5px] ${theme.soft}`}>
         {prospect.contactFirstName} {prospect.contactLastName}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <Badge tone={PROSPECT_STATUS_TONE[prospect.status] ?? "neutral"}>{PROSPECT_STATUS[prospect.status] ?? prospect.status}</Badge>
-        <span className="text-[12px] text-[var(--comexa-ink-muted)]">{PROSPECT_SOURCE[prospect.source] ?? prospect.source}</span>
+        <span className={`text-[12px] ${theme.muted}`}>{PROSPECT_SOURCE[prospect.source] ?? prospect.source}</span>
       </div>
       {prospect.estimatedBudget ? (
-        <p className="mt-2 text-[12.5px] text-[var(--comexa-ink-soft)]">Budget estimé {formatMoney(prospect.estimatedBudget, "EUR")}</p>
+        <p className={`mt-2 text-[12.5px] ${theme.soft}`}>Budget estimé {formatMoney(prospect.estimatedBudget, "EUR")}</p>
       ) : null}
 
       {canWrite && !overlay && targets.length > 0 ? (
-        <label className="mt-3 flex flex-col gap-1 text-[12px] text-[var(--comexa-ink-soft)]">
+        <label className={`mt-3 flex flex-col gap-1 text-[12px] ${theme.soft}`}>
           Étape
           <select
             aria-label={`Changer l’étape de ${prospect.reference}`}
