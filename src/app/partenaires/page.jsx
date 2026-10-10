@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { initialsOf, usePublicList } from "@/lib/public-api";
+import { usePreviousPage } from "@/lib/previous-page";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 export default function Partenaires() {
@@ -32,21 +33,7 @@ export default function Partenaires() {
     "/contact": "Contact",
   };
   const currentPageLabel = pageLabels[pathname] ?? "Partenaires";
-  const [previousPage, setPreviousPage] = useState({
-    path: "/",
-    label: "Accueil",
-  });
-
-  useEffect(() => {
-    const previousPath = sessionStorage.getItem("comexa-previous-path");
-
-    if (previousPath && previousPath !== pathname) {
-      setPreviousPage({
-        path: previousPath,
-        label: pageLabels[previousPath] ?? "Page précédente",
-      });
-    }
-  }, [pathname]);
+  const previousPage = usePreviousPage(pathname, pageLabels, { path: "/", label: "Accueil" });
     const technologies = [
     {
       name: "Vercel",

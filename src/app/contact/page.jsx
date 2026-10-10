@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { apiFetch, messageOf } from "@/lib/api";
+import { usePreviousPage } from "@/lib/previous-page";
 
 const EMPTY_FORM = { firstName: "", lastName: "", email: "", companyName: "", message: "" };
 
@@ -34,21 +35,7 @@ export default function Contact() {
       "/contact": "Contact",
     };
     const currentPageLabel = pageLabels[pathname] ?? "Contact";
-    const [previousPage, setPreviousPage] = useState({
-      path: "/",
-      label: "Accueil",
-    });
-  
-    useEffect(() => {
-      const previousPath = sessionStorage.getItem("comexa-previous-path");
-  
-      if (previousPath && previousPath !== pathname) {
-        setPreviousPage({
-          path: previousPath,
-          label: pageLabels[previousPath] ?? "Page précédente",
-        });
-      }
-    }, [pathname]);
+    const previousPage = usePreviousPage(pathname, pageLabels, { path: "/", label: "Accueil" });
 
      const [projectType, setProjectType] = useState("Site vitrine");
   const [form, setForm] = useState(EMPTY_FORM);
