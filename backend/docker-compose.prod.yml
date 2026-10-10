@@ -1,0 +1,298 @@
+# =============================================================================
+# Comexa — pile de PRODUCTION pour une VM unique
+# =============================================================================
+#
+#     cd backend
+#     docker compose --env-file .env.production -f docker-compose.prod.yml \
+#       --profile tools run --rm migrate
+#     docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+#
+# Le `--env-file` n'est pas une coquetterie : sans lui, Compose interpolerait
+# les `${...}` ci-dessous depuis `backend/.env`, qui est le fichier de
+# developpement et contient la vraie chaine Neon. Les deux fichiers restent
+# etanches, et aucun des deux ne va dans git.
+#
+# Ce fichier ne remplace PAS `docker-compose.yml`, qui reste la pile de
+# developpement local (PostgreSQL jetable + MinIO, variables `COMEXA_*`). Ici,
+# rien n'est local : la base est Neon, les fichiers sont dans un stockage objet,
+# et tout arrive par `.env.production`.
+#
+# -----------------------------------------------------------------------------
+# POURQUOI UNE VM TOUJOURS ALLUMEE, ET PAS UNE PLATEFORME SERVERLESS
+# -----------------------------------------------------------------------------
+# Trois fonctionnalites de ce backend exigent un processus qui VIT :
+#
+#   1. `InvoiceOverdueService` porte un `@Cron(CronExpression.EVERY_HOUR)`. Sur
+#      une plateforme qui endort les services inactifs, la relance des factures
+#      en retard ne part jamais — sans erreur, sans trace, sans que personne ne
+#      s'en apercoive avant qu'un client ne reclame.
+#   2. `@nestjs/websockets` + socket.io gardent des connexions ouvertes. Une
+#      mise en veille les coupe.
+#   3. Le limiteur de debit et le verrouillage de compte tiennent leur etat en
+#      memoire vive. Deux instances, ce sont deux compteurs — donc une limite
+#      reellement deux fois plus haute que celle qui est annoncee.
+#
+# D'ou : une seule instance, sur une seule machine, qui ne s'endort pas.
+#
+# (Mesure du 29/09/2026, pour memoire : le palier gratuit de Render endort le
+# service apres 15 min sans trafic, plafonne a 750 heures-instance par mois pour
+# un mois qui en compte 720 a 744, et bloque en sortie les ports SMTP 25/465/587.
+# Les trois contraintes ci-dessus y sont donc violees, et l'envoi de courriel
+# avec elles.)
+#
+# -----------------------------------------------------------------------------
+# POURQUOI CADDY, ET RIEN D'AUTRE
+# -----------------------------------------------------------------------------
+# L'API doit etre joignable en HTTPS, et ce n'est pas un confort : le cookie de
+# rafraichissement est pose avec `secure: true` des que `NODE_ENV=production`
+# (voir `auth.controller.ts`). Sans TLS, le navigateur refuse le cookie et la
+# session ne survit a aucun rechargement de page.
+#
+# Caddy obtient et renouvelle son certificat Let's Encrypt a partir du seul nom
+# de domaine : ni certbot, ni minuterie de renouvellement, ni chemin de
+# certificat a maintenir. C'est toute la raison de ce choix — moins de pieces
+# mobiles sur une machine que personne n'administre au quotidien.
+# =============================================================================
+
+name: comexa-prod
+
+services:
+  # --- API --------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      # Forces ici plutot que lus dans le fichier : ces trois valeurs ne sont pas
+      # des preferences, ce sont des conditions de fonctionnement. Les laisser
+      # dans `.env.production` permettrait de les contredire par inadvertance.
+      NODE_ENV: production
+      PORT: '3001'
+      # Un seul reverse proxy devant l'API, et c'est Caddy. Sans ce reglage, le
+      # limiteur de debit global compte TOUTES les requetes sous l'adresse du
+      # proxy et finit par repondre 429 a tout le monde, y compris aux visiteurs
+      # legitimes (voir la note TRUST_PROXY de .env.example).
+      TRUST_PROXY: '1'
+      # Plafond du tas Node, SOUS le `mem_limit` ci-dessous.
+      #
+      # Sans lui, Node dimensionne son tas d'apres la memoire de la MACHINE et
+      # pas d'apres la limite du conteneur. Sur une VM a 1 ou 2 Go, un pic de
+      # tas fait donc tuer le processus par le noyau — et `restart:
+      # unless-stopped` transforme cela en boucle de redemarrage, c'est-a-dire en
+      # panne qui se repare toute seule juste assez longtemps pour ne pas etre
+      # diagnostiquee.
+      NODE_OPTIONS: '--max-old-space-size=768'
+    expose:
+      # `expose` et non `ports` — mais l'isolation ne vient PAS de ce mot-cle, et
+      # le croire serait la faute la plus couteuse de ce fichier.
+      #
+      # `expose` ne restreint rien : c'est une DECLARATION, qui documente le port
+      # et alimente `docker compose ps`. Ce qui ferme reellement l'acces depuis
+      # l'exterieur, c'est de ne pas ecrire de `ports` : sans publication, Docker
+      # ne pose aucune regle de redirection sur l'hote. La precision compte, parce
+      # qu'un `expose` ajoute a cote d'un `ports` publie ne protegerait rien du
+      # tout — et la lecture inverse ferait oublier le vrai mecanisme.
+      #
+      # En clair : joignable par les autres conteneurs de la pile, pas par l'hote.
+      # Publier 3001 ouvrirait un second chemin d'acces en clair, a cote du HTTPS,
+      # sans que rien ne le signale.
+      - '3001'
+    security_opt:
+      - no-new-privileges:true
+
+    # Aucune capacite n'est necessaire — et ce n'est pas une supposition, cela se
+    # lit dans le Dockerfile. `runtime` declare `USER node` (uid 1000), donc
+    # `dumb-init` comme Node tournent en non-root ; le port ecoute (3001) est
+    # au-dessus de 1024, ce qui ne demande pas NET_BIND_SERVICE ; et le seul chemin
+    # d'ecriture est `/app/storage`, cree et appartenant a `node`.
+    #
+    # Les deux reglages sont complementaires et ne se remplacent pas :
+    # `no-new-privileges` empeche de GAGNER des privileges en cours d'execution
+    # (binaire setuid, capacite de fichier), `cap_drop` retire ceux qu'on detient
+    # deja. Un conteneur compromis qui garde par exemple NET_RAW peut forger des
+    # paquets ; c'est ce que la seconde ligne ferme.
+    cap_drop:
+      - ALL
+
+    # Plafonds de ressources. Ils ne sont pas la pour la densite — il n'y a
+    # qu'un locataire sur cette machine — mais pour que le depassement d'un
+    # service ne tue pas les autres.
+    #
+    # Le cas concret : `MAX_UPLOAD_BYTES` vaut 25 Mo. Quelques envois simultanes,
+    # ou une fuite de tas, suffisent a faire tuer le processus par le noyau d'une
+    # VM a 1 Go. `restart: unless-stopped` le relance alors en boucle, et la
+    # panne alterne avec des periodes de fonctionnement — le genre d'incident
+    # qu'on ne diagnostique jamais.
+    #
+    # Ces cles (non-swarm) sont honorees par `docker compose up`, contrairement
+    # aux `deploy.resources` de Swarm. A ajuster si la VM change de taille.
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 256
+
+    logging: &logging
+      # Sans plafond, les journaux d'un conteneur remplissent le disque de la VM
+      # et Docker finit par refuser d'ecrire. Trois fichiers de 10 Mo bornent la
+      # consommation a 30 Mo par service, quoi qu'il arrive.
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  # --- Terminaison TLS --------------------------------------------------------
+  caddy:
+    # TAG EPINGLE, VOLONTAIREMENT.
+    #
+    # `caddy:2-alpine` suivait la derniere 2.x publiee : un `docker compose pull`,
+    # ou un `up -d --build` apres changement d'image, pouvait donc changer le
+    # serveur web d'une machine que personne n'administre au quotidien, sans
+    # qu'aucune ligne de ce depot n'ait bouge. Caddy fait evoluer sa syntaxe de
+    # configuration entre versions mineures : un rechargement qui echoue laisse le
+    # site injoignable, et la cause ne se trouve pas dans le journal de l'API.
+    #
+    # Version verifiee sur le registre le 29/09/2026. Pour monter de version
+    # DELIBEREMENT, voir §14 du runbook — c'est un geste, pas un effet de bord.
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    depends_on:
+      # Simple ordre de demarrage, volontairement : `service_healthy` ferait
+      # echouer le demarrage de Caddy quand l'API est en mauvaise sante — donc
+      # plus rien n'ecouterait, et l'incident deviendrait un site injoignable au
+      # lieu d'un 502 lisible.
+      - api
+    ports:
+      - '80:80'
+      - '443:443'
+      # PAS de `443:443/udp`, ET C'EST UN CHOIX.
+      #
+      # Ce port sert HTTP/3 (QUIC). Caddy documente qu'en tirer parti demande la
+      # capacite `NET_ADMIN`, sans laquelle il tourne avec les tampons UDP par
+      # defaut du noyau et le signale en avertissement. Or le `cap_drop: ALL`
+      # ci-dessous est precisement la pour que ce conteneur n'ait QUE ce dont il a
+      # besoin — ouvrir le port reviendrait a se donner une capacite de
+      # reconfiguration reseau pour une optimisation de latence.
+      #
+      # L'arbitrage : HTTP/3 est un confort, pas une exigence. Un client qui tente
+      # QUIC se replie de lui-meme en HTTP/2 sur TLS, sans rien afficher. Ouvrir le
+      # port sans `NET_ADMIN` aurait donne un HTTP/3 degrade en plus des
+      # avertissements — moins bien que de ne pas l'ouvrir.
+      #
+      # Pour l'activer malgre tout : decommenter la ligne ci-dessous ET ajouter
+      # `NET_ADMIN` a `cap_add`.
+      # - '443:443/udp'
+    environment:
+      # Le `:?` fait ECHOUER `docker compose up` si la variable manque, au lieu
+      # de laisser Caddy partir avec un domaine vide et reclamer un certificat
+      # pour rien.
+      API_DOMAIN: ${API_DOMAIN:?Renseigner API_DOMAIN dans .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?Renseigner ACME_EMAIL dans .env.production}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Les certificats vivent ici. Sans ce volume, chaque `up --build`
+      # redemanderait un certificat neuf, et Let's Encrypt limite les emissions
+      # repetees pour un meme domaine.
+      - comexa_caddy_data:/data
+      - comexa_caddy_config:/config
+
+    security_opt:
+      - no-new-privileges:true
+
+    # UNE SEULE CAPACITE, ET ELLE EST MESUREE.
+    #
+    # L'image officielle de Caddy ne declare aucun `USER` : elle tourne en root,
+    # et son Dockerfile pose `setcap cap_net_bind_service=+ep /usr/bin/caddy`
+    # pour pouvoir lier 80 et 443. C'est precisement cette capacite que le
+    # conteneur doit conserver — la retirer empeche le demarrage.
+    #
+    # `cap_add` est donc ici le COMPLEMENT de `cap_drop`, pas une exception : le
+    # conteneur n'a que NET_BIND_SERVICE, au lieu de la quinzaine de capacites que
+    # Docker accorde par defaut a un conteneur root.
+    #
+    # Si Caddy refuse malgre tout de demarrer sur une erreur de permission, la
+    # correction tient en deux lignes : retirer `cap_drop` et `cap_add` d'ici pour
+    # revenir aux capacites par defaut de Docker. Le passage par `cap_add` n'a
+    # jamais ete execute sur une vraie machine (voir §16 du runbook), et cette
+    # sortie de secours est ecrite ici pour que personne n'ait a la chercher.
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+
+    logging: *logging
+
+  # --- Migrations -------------------------------------------------------------
+  # Sous profil : `up` ne le lance pas. Une migration doit rester un GESTE
+  # delibere, jamais un effet de bord de redemarrage — sinon un `up -d` sur une
+  # base qui n'attendait que ca applique un DDL que personne n'a relu.
+  #
+  #     docker compose --env-file .env.production -f docker-compose.prod.yml \
+  #       --profile tools run --rm migrate
+  #
+  # Construit depuis l'etape `build` : il lui faut la CLI Prisma, absente de
+  # l'image d'execution — c'est ce qui garde cette derniere legere et sans
+  # chaine d'outils de compilation.
+  migrate:
+    profiles: ['tools']
+    build:
+      context: .
+      target: build
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
+    logging: *logging
+
+  # --- Jeu de donnees initial -------------------------------------------------
+  # Egalement sous profil, et pour une raison plus forte que `migrate` : le seed
+  # ecrit des comptes de demonstration dont les mots de passe finissent affiches
+  # dans les journaux. Sur une base de production, c'est un geste a faire une
+  # fois, en le sachant, jamais par accident.
+  #
+  #     docker compose --env-file .env.production -f docker-compose.prod.yml \
+  #       --profile tools run --rm seed
+  #
+  # Inutile si la base contient deja les comptes : le seed est idempotent et ne
+  # REECRIT PAS les mots de passe des comptes existants (voir `upsertAccount`
+  # dans prisma/seed.ts).
+  seed:
+    profiles: ['tools']
+    build:
+      context: .
+      target: build
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      # `SEED_ALLOW_PRODUCTION` N'EST VOLONTAIREMENT PAS ICI.
+      #
+      # Il l'etait, et c'etait une erreur : le seed refuse de tourner en
+      # production tant que ce drapeau n'est pas pose (`prisma/seed.ts:1290`), et
+      # le laisser dans ce fichier faisait de ce refus une formalite — une seule
+      # commande, sans rien a decider, insere un client, un projet, une facture,
+      # un paiement et six comptes de demonstration dans la base VIVANTE.
+      #
+      # Un garde-fou qu'on satisfait d'avance n'est plus un garde-fou. Le drapeau
+      # se pose donc a l'appel, en le voulant :
+      #
+      #   docker compose --env-file .env.production -f docker-compose.prod.yml \
+      #     --profile tools run --rm \
+      #     -e SEED_ALLOW_PRODUCTION=yes \
+      #     -e SEED_ADMIN_PASSWORD=... -e SEED_DEMO_PASSWORD=... seed
+      #
+      # Renseigner AUSSI les deux mots de passe, et pas seulement le drapeau :
+      # sans eux, le seed en GENERe et les AFFICHE, ce qui les laisse en clair
+      # dans les journaux du conteneur, conserves sur le disque de la VM.
+    command: ['npm', 'run', 'db:seed']
+    restart: 'no'
+    logging: *logging
+
+volumes:
+  comexa_caddy_data:
+    name: comexa_caddy_data
+  comexa_caddy_config:
+    name: comexa_caddy_config

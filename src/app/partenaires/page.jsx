@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
+import { useEffect, useState } from "react";
+import { initialsOf, usePublicList } from "@/lib/public-api";
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 export default function Partenaires() {
   useEffect(() => {
     const sections = document.querySelectorAll(".scroll-reveal");
@@ -21,7 +23,30 @@ export default function Partenaires() {
 
     return () => observer.disconnect();
   }, []);
+ const pathname = usePathname();
+  const pageLabels = {
+    "/": "Accueil",
+    "/services": "Nos services",
+    "/realisations": "Réalisations",
+    "/partenaires": "Partenaires",
+    "/contact": "Contact",
+  };
+  const currentPageLabel = pageLabels[pathname] ?? "Partenaires";
+  const [previousPage, setPreviousPage] = useState({
+    path: "/",
+    label: "Accueil",
+  });
 
+  useEffect(() => {
+    const previousPath = sessionStorage.getItem("comexa-previous-path");
+
+    if (previousPath && previousPath !== pathname) {
+      setPreviousPage({
+        path: previousPath,
+        label: pageLabels[previousPath] ?? "Page précédente",
+      });
+    }
+  }, [pathname]);
     const technologies = [
     {
       name: "Vercel",
@@ -69,7 +94,9 @@ export default function Partenaires() {
 
 
  
- const testimonials = [
+ // Témoignages publiés depuis l'espace équipe. Repli sur la liste ci-dessous si l'API est vide.
+  const apiTestimonials = usePublicList("/public/testimonials");
+  const testimonialFallback = [
     {
       project: "Atelier Noroît",
       text: "Comexa a su challenger nos idées sans jamais perdre de vue nos contraintes. Le nouveau site ressemble enfin à notre cabinet.",
@@ -92,28 +119,41 @@ export default function Partenaires() {
       role: "Responsable opérations, Oryon",
     },
   ];
+  const testimonials = apiTestimonials.items?.length
+    ? apiTestimonials.items.map((item) => ({
+        project: item.caseStudy?.title ?? item.authorCompany ?? "Témoignage",
+        text: item.quote,
+        initials: initialsOf(item.authorName),
+        name: item.authorName,
+        role: [item.authorRole, item.authorCompany].filter(Boolean).join(", "),
+      }))
+    : testimonialFallback;
   return (
     <main className="w-full overflow-hidden">
        
           
       
-          <section className="scroll-reveal w-full bg-[#f5f7fa] px-[18px] py-10 md:px-8 lg:px-[45px]">
+          <section className="scroll-reveal w-full bg-[#f5f7fa] px-5 py-10 sm:px-6 md:px-8 lg:px-[45px]">
       <div className="mx-auto max-w-[1240px]">
 
-        {/* Breadcrumb */}
         <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
-          <span>Accueil</span>
-          <span className="text-[18px] text-[#10294a]">›</span>
-          <span className="font-medium text-[#10294a]">
-            Partenaires
-          </span>
-        </div>
+            <Link
+              href={previousPage.path}
+              className="transition hover:text-[#10294a]"
+            >
+              {previousPage.label}
+            </Link>
+            <span className="text-[18px] text-[#10294a]">›</span>
+            <span className="font-medium text-[#10294a]">
+              {currentPageLabel}
+            </span>
+          </div>
 
         {/* Hero */}
-        <div className="relative mt-5 min-h-[330px] lg:min-h-[350px]">
+        <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
 
           {/* LEFT CONTENT */}
-          <div className="relative z-10 max-w-[720px]">
+          <div className="relative z-10 w-full max-w-[720px]">
 
             {/* Label */}
             <span className="inline-flex rounded-[8px] bg-[#168fe5] px-3 py-[7px] text-[10px] font-medium text-[#08203e]">
@@ -121,21 +161,21 @@ export default function Partenaires() {
             </span>
 
             {/* Title */}
-            <h1 className="mt-6 text-[43px] font-medium leading-[1.03] tracking-[-2px] text-[#10294a] sm:text-[52px] lg:text-[60px]">
+            <h1 className="mt-6 text-[clamp(2.35rem,8vw,3.75rem)] font-medium leading-[1.03] tracking-[-2px] text-[#10294a]">
               Le bon cap se construit
               <br />
               ensemble.
             </h1>
 
             {/* Description */}
-            <p className="mt-5 max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
+            <p className="mt-5 w-full max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
               Partenaires, technologies et collaborations : découvrez
               l’écosystème qui accompagne notre expertise en développement
               web.
             </p>
 
             {/* Button */}
-            <button className="mt-5 flex items-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition duration-200 hover:bg-[#0c82d2]">
+            <button className="mt-5 flex min-h-[46px] w-full items-center justify-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition duration-200 hover:bg-[#0c82d2] sm:w-fit">
               <span>Découvrir notre écosystème</span>
               <span className="text-[18px]">↗</span>
             </button>
@@ -183,7 +223,7 @@ export default function Partenaires() {
 
 
    
-      <section className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 md:px-10 lg:px-12">
+      <section className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 sm:px-6 md:px-10 lg:px-12">
       <div className="mx-auto max-w-[1180px]">
 
       
@@ -299,7 +339,7 @@ export default function Partenaires() {
               ILS EN PARLENT
             </span>
 
-            <h2 className="mt-5 max-w-[650px] text-[31px] font-medium leading-[1.08] tracking-[-1px] md:text-[38px]">
+            <h2 className="mt-5 max-w-[650px] text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px]">
               Des collaborations qui restent
               <br />
               simples et humaines.
@@ -318,7 +358,7 @@ export default function Partenaires() {
 
           {testimonials.map((testimonial) => (
             <article
-              key={testimonial.project}
+              key={`${testimonial.name}-${testimonial.project}`}
               className="flex min-h-[310px] flex-col rounded-[22px] border border-[#91b1cf] bg-[#163958] p-6"
             >
 
@@ -386,7 +426,7 @@ export default function Partenaires() {
               DEVENIR PARTENAIRE
             </span>
 
-            <h2 className="mt-5 max-w-[550px] text-[38px] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a] md:text-[43px]">
+            <h2 className="mt-5 max-w-[550px] text-[clamp(1.9rem,5vw,2.6875rem)] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a]">
               Et si nous prenions
               <br />
               le même cap ?
