@@ -22,20 +22,23 @@ const shiftDays = (day, delta) => {
 export default function RapportsJournaliersPage() {
   const { user } = useAuth();
   const [day, setDay] = useState(() => isoDay(new Date()));
+  // Incrémenté à chaque enregistrement ou suppression : recharge l'historique et la vue d'équipe.
+  const [version, setVersion] = useState(0);
+  const bump = () => setVersion((v) => v + 1);
   const canSeeTeam = can(user, "time:read:any");
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="flex flex-col gap-6">
-        <MyReport key={day} day={day} onDayChange={setDay} />
-        {canSeeTeam ? <TeamReports day={day} onPick={setDay} /> : null}
+        <MyReport key={day} day={day} onDayChange={setDay} onSaved={bump} />
+        {canSeeTeam ? <TeamReports key={`team-${version}`} day={day} onPick={setDay} /> : null}
       </div>
-      <History day={day} onPick={setDay} />
+      <History key={`history-${version}`} day={day} onPick={setDay} />
     </div>
   );
 }
 
-function MyReport({ day, onDayChange }) {
+function MyReport({ day, onDayChange, onSaved }) {
   const { request } = useAuth();
   const mine = useListing(`/daily-reports/mine?from=${day}&to=${day}`);
   const action = useAction(mine.reload);
@@ -60,6 +63,7 @@ function MyReport({ day, onDayChange }) {
       });
       setSaved("Rapport enregistré.");
       await mine.reload();
+      onSaved?.();
     } catch (caught) {
       setSaveError(messageOf(caught));
     }
@@ -90,7 +94,7 @@ function MyReport({ day, onDayChange }) {
           <div className="flex flex-wrap items-center gap-3">
             <button type="submit" className={primaryButton}>{existing ? "Mettre à jour" : "Enregistrer le rapport"}</button>
             {existing ? (
-              <button type="button" className={secondaryButton} onClick={() => action.run("delete", `/daily-reports/${day}`, { method: "DELETE" }, "Rapport supprimé.")}>
+              <button type="button" className={secondaryButton} onClick={async () => { await action.run("delete", `/daily-reports/${day}`, { method: "DELETE" }, "Rapport supprimé."); onSaved?.(); }}>
                 Supprimer ce rapport
               </button>
             ) : null}
