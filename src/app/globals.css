@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "../styles/comexa.tokens.css";
 @import "../styles/comexa.components.css";
+@import "../styles/workspace-glass.css";
 @import "../styles/comexa.public.css";
 
 :root {

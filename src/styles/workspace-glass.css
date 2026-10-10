@@ -1,0 +1,126 @@
+/*
+ * Thème « verre sombre » des modules avancés (calendrier, rapports, analytique).
+ * Le calendrier react-big-calendar est restylé ici : son CSS par défaut est clair.
+ * Les couleurs d'événement sont posées par `eventPropGetter`, voir calendrier/page.jsx.
+ */
+
+.calendar-glass .rbc-calendar {
+  color: rgba(255, 255, 255, 0.85);
+  font-family: inherit;
+}
+.calendar-glass .rbc-toolbar {
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.calendar-glass .rbc-toolbar .rbc-toolbar-label {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.calendar-glass .rbc-toolbar button {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.calendar-glass .rbc-toolbar button:hover,
+.calendar-glass .rbc-toolbar button:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  outline: none;
+}
+.calendar-glass .rbc-toolbar button.rbc-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(125, 211, 252, 0.45);
+  color: #fff;
+  box-shadow: 0 0 18px -4px rgba(56, 189, 248, 0.6);
+}
+.calendar-glass .rbc-month-view,
+.calendar-glass .rbc-time-view,
+.calendar-glass .rbc-agenda-view {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+.calendar-glass .rbc-month-row + .rbc-month-row,
+.calendar-glass .rbc-day-bg + .rbc-day-bg,
+.calendar-glass .rbc-header + .rbc-header,
+.calendar-glass .rbc-time-content,
+.calendar-glass .rbc-time-header-content,
+.calendar-glass .rbc-agenda-table th,
+.calendar-glass .rbc-agenda-table td {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+.calendar-glass .rbc-header {
+  padding: 10px 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.calendar-glass .rbc-date-cell {
+  padding: 6px 8px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+.calendar-glass .rbc-off-range-bg {
+  background: rgba(0, 0, 0, 0.14);
+}
+.calendar-glass .rbc-off-range {
+  color: rgba(255, 255, 255, 0.28);
+}
+.calendar-glass .rbc-today {
+  background: rgba(56, 189, 248, 0.07);
+}
+.calendar-glass .rbc-show-more {
+  color: #7dd3fc;
+  font-weight: 500;
+  background: transparent;
+}
+.calendar-glass .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  color: rgba(255, 255, 255, 0.82);
+}
+.calendar-glass .rbc-agenda-date-cell,
+.calendar-glass .rbc-agenda-time-cell {
+  color: rgba(255, 255, 255, 0.55);
+}
+.calendar-glass .rbc-event {
+  border: none;
+  border-radius: 8px;
+  padding: 2px 6px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+}
+.calendar-glass .rbc-event:focus {
+  outline: 2px solid rgba(125, 211, 252, 0.7);
+  outline-offset: 1px;
+}
+/* Échéance dépassée et non terminée : pulsation rouge. */
+@keyframes cx-overdue-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.0); }
+  50% { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.45); }
+}
+.calendar-glass .rbc-event.cx-overdue {
+  animation: cx-overdue-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-glass .rbc-event.cx-overdue { animation: none; }
+}
+
+/* Fenêtre de détail d'un événement : verre dépoli. */
+.cx-glass-modal {
+  background: rgba(11, 37, 69, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+}

@@ -25,6 +25,7 @@ export function GlowIcon({ children, tone = "sky", className = "" }) {
     sky: "bg-sky-400/15 text-sky-300 shadow-[0_0_24px_rgba(79,176,240,0.55)]",
     accent: "bg-blue-500/15 text-blue-300 shadow-[0_0_24px_rgba(30,134,224,0.6)]",
     mint: "bg-emerald-400/15 text-emerald-300 shadow-[0_0_24px_rgba(52,211,153,0.5)]",
+    violet: "bg-fuchsia-400/15 text-fuchsia-300 shadow-[0_0_24px_rgba(192,132,252,0.55)]",
     amber: "bg-amber-400/15 text-amber-300 shadow-[0_0_24px_rgba(251,191,36,0.45)]",
   };
   return (
