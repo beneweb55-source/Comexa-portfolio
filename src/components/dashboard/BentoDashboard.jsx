@@ -52,6 +52,7 @@ export default function BentoDashboard({ me, agency, canSeeAgency, agencyPeriod,
   const [pipelineOpen, setPipelineOpen] = useState(false);
   const [pipelineLoaded, setPipelineLoaded] = useState(false);
   const [prospectPage, setProspectPage] = useState(1);
+  const [timerTaskPage, setTimerTaskPage] = useState(1);
   const name = user?.firstName ?? "";
   const now = new Date();
   const today = now.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
@@ -61,7 +62,7 @@ export default function BentoDashboard({ me, agency, canSeeAgency, agencyPeriod,
   const canSeePipeline = can(user, "prospect:read:any") || can(user, "prospect:read:own");
   const shouldLoadProspects = canSeePipeline && (!canSeeAgency || pipelineLoaded);
   const prospects = useListing(shouldLoadProspects ? `/prospects?page=${prospectPage}&perPage=35` : null);
-  const timerTasks = useListing(canUseTimer(user) ? "/me/tasks?perPage=50" : null);
+  const timerTasks = useListing(canUseTimer(user) ? `/me/tasks?page=${timerTaskPage}&perPage=50` : null);
   const refreshing = me.loading || (canSeeAgency && agency.loading) || (shouldLoadProspects && prospects.loading) || (canUseTimer(user) && timerTasks.loading);
 
   function reloadAll() {
@@ -148,7 +149,7 @@ export default function BentoDashboard({ me, agency, canSeeAgency, agencyPeriod,
           ) : (
             <MyDistribution me={me} className={canUseTimer(user) ? "lg:col-span-8" : "lg:col-span-12"} />
           )}
-          {canUseTimer(user) ? <TimerTile tasks={timerTasks} className="lg:col-span-4" /> : null}
+          {canUseTimer(user) ? <TimerTile tasks={timerTasks} onTaskPageChange={setTimerTaskPage} className="lg:col-span-4" /> : null}
         </div>
       </section>
 

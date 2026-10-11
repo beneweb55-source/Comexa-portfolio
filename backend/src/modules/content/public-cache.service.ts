@@ -15,11 +15,16 @@ export class PublicCacheService {
   purgePublicSite(): void {
     const secret = this.config.get<string>('REVALIDATE_SECRET');
     if (!secret) {
-      this.logger.warn('REVALIDATE_SECRET absent : cache public non purgé (expiration naturelle, 1 h).');
+      this.logger.warn(
+        'REVALIDATE_SECRET absent : cache public non purgé (expiration naturelle, 1 h).',
+      );
       return;
     }
 
-    const frontend = (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000').replace(/\/+$/, '');
+    const frontend = (this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000').replace(
+      /\/+$/,
+      '',
+    );
 
     void this.post(`${frontend}/api/revalidate`, secret);
   }

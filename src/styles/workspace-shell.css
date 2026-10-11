@@ -850,3 +850,374 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* --------------------------------------------------------------------------
+   Comexa Liquid Glass — surfaces flottantes, reflets et profondeur maîtrisés
+   --------------------------------------------------------------------------
+   Le verre est réservé aux couches qui flottent ou organisent l'information.
+   Les textes et les états métier gardent des couleurs opaques à fort contraste.
+   Les filtres sont conditionnels pour laisser un rendu propre sans backdrop-filter.
+*/
+.cx-workspace {
+  --workspace-bg: #f1f6fc;
+  --workspace-glass-fill: rgba(255, 255, 255, 0.74);
+  --workspace-glass-strong: rgba(255, 255, 255, 0.86);
+  --workspace-glass-edge: rgba(255, 255, 255, 0.86);
+  --workspace-glass-hairline: rgba(38, 83, 132, 0.12);
+  --workspace-glass-shadow: 0 18px 46px rgba(18, 47, 80, 0.085), 0 3px 10px rgba(18, 47, 80, 0.035), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+  background:
+    radial-gradient(ellipse at 8% 0%, rgba(90, 183, 244, 0.16), transparent 31rem),
+    radial-gradient(ellipse at 88% 8%, rgba(139, 177, 246, 0.1), transparent 29rem),
+    radial-gradient(ellipse at 92% 72%, rgba(73, 190, 194, 0.055), transparent 33rem),
+    linear-gradient(150deg, #f2f7fd 0%, #f8fbff 48%, #eff5fb 100%);
+}
+
+.cx-workspace__sidebar,
+.cx-workspace__topbar,
+.cx-pub-nav__bar {
+  isolation: isolate;
+  border-color: var(--workspace-glass-edge);
+  background:
+    linear-gradient(142deg, rgba(255, 255, 255, 0.84) 0%, rgba(255, 255, 255, 0.67) 50%, rgba(238, 247, 255, 0.7) 100%);
+  box-shadow: var(--workspace-glass-shadow);
+}
+.cx-workspace__sidebar::before,
+.cx-workspace__topbar::before,
+.cx-pub-nav__bar::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: inherit;
+  background:
+    radial-gradient(115% 65% at 0% 0%, rgba(255, 255, 255, 0.78), transparent 68%),
+    linear-gradient(128deg, rgba(255, 255, 255, 0.22), transparent 38% 70%, rgba(125, 188, 239, 0.075));
+  content: "";
+  pointer-events: none;
+}
+.cx-workspace__sidebar > *,
+.cx-workspace__topbar > *,
+.cx-pub-nav__bar > * { position: relative; z-index: 1; }
+@supports ((backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px))) {
+  .cx-workspace__sidebar,
+  .cx-workspace__topbar,
+  .cx-pub-nav__bar {
+    background-color: var(--workspace-glass-fill);
+    -webkit-backdrop-filter: blur(18px) saturate(145%);
+    backdrop-filter: blur(18px) saturate(145%);
+  }
+}
+
+/* Capsules de navigation : lumière de bord, sélection nette, pas de halo permanent. */
+.cx-workspace__brand { border-bottom-color: rgba(50, 91, 137, 0.1); }
+.cx-workspace__nav-heading { color: #74869b; letter-spacing: 0.12em; }
+.cx-workspace__nav-link {
+  min-height: 42px;
+  border-radius: 14px;
+  color: #405a75;
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.cx-workspace__nav-link:hover {
+  transform: translateX(1px);
+  border-color: rgba(255, 255, 255, 0.82);
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.72), rgba(232, 244, 255, 0.58));
+  box-shadow: 0 3px 10px rgba(26, 70, 112, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  color: #143b62;
+}
+.cx-workspace__nav-link.is-active {
+  border-color: rgba(255, 255, 255, 0.94);
+  background:
+    linear-gradient(116deg, rgba(255, 255, 255, 0.84), rgba(226, 242, 255, 0.78)),
+    linear-gradient(110deg, rgba(30, 134, 224, 0.12), rgba(79, 176, 240, 0.06));
+  box-shadow: 0 5px 15px rgba(30, 93, 149, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.98), inset 0 0 0 1px rgba(30, 134, 224, 0.045);
+  color: #0d4b82;
+}
+.cx-workspace__nav-link:active { transform: scale(0.99); }
+.cx-workspace__nav-link:focus-visible,
+.cx-workspace__icon-action:focus-visible,
+.cx-workspace__mobile-toggle:focus-visible,
+.cx-workspace__compact-toggle:focus-visible,
+.cx-workspace__mobile-close:focus-visible,
+.cx-user-menu__trigger:focus-visible,
+.cx-user-menu__links a:focus-visible,
+.cx-user-menu__signout:focus-visible,
+.cx-prospect-move:focus-visible,
+.cx-prospect-move__option:focus-visible {
+  outline: 3px solid rgba(30, 134, 224, 0.72);
+  outline-offset: 3px;
+}
+
+/* Cartes de contenu : diffusion légère sur les surfaces, jamais sur les lignes. */
+.cx-workspace .cx-panel,
+.cx-workspace .cx-card:not(.cx-card--ink):not(.cx-card--accent),
+.cx-workspace .cx-calendar__panel,
+.cx-dashboard .cx-glass-card,
+.cx-dashboard__details {
+  border-color: rgba(255, 255, 255, 0.82);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(246, 250, 255, 0.78));
+  box-shadow: 0 12px 34px rgba(17, 45, 77, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  /* Les cartes de liste restent sans filtre : plusieurs dizaines peuvent être affichées. */
+  .cx-dashboard .cx-glass-card,
+  .cx-dashboard__details {
+    -webkit-backdrop-filter: blur(8px) saturate(118%);
+    backdrop-filter: blur(8px) saturate(118%);
+  }
+}
+.cx-workspace .cx-panel__head h4 { letter-spacing: -0.025em; }
+.cx-workspace .cx-dashboard__welcome {
+  border-color: rgba(255, 255, 255, 0.92);
+  background:
+    radial-gradient(ellipse at 92% 8%, rgba(113, 185, 244, 0.16), transparent 50%),
+    linear-gradient(124deg, rgba(255, 255, 255, 0.91), rgba(237, 247, 255, 0.73));
+  box-shadow: 0 18px 44px rgba(20, 62, 101, 0.075), inset 0 1px 0 #fff;
+}
+.cx-workspace .cx-dashboard__welcome::after { opacity: 0.78; }
+.cx-workspace .cx-dashboard__kpi { border-color: rgba(255, 255, 255, 0.86); }
+.cx-workspace .cx-dashboard__kpi--link:hover {
+  border-color: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 34px rgba(20, 62, 101, 0.12), inset 0 1px 0 #fff;
+}
+.cx-workspace .cx-dashboard__details { border-radius: 22px; }
+
+/* Boutons : les principaux gardent le bleu Comexa, les secondaires deviennent des capsules givrées. */
+.cx-workspace .cx-btn,
+.cx-workspace__icon-action,
+.cx-workspace__mobile-toggle,
+.cx-workspace__compact-toggle,
+.cx-workspace__mobile-close,
+.cx-user-menu__trigger,
+.cx-dashboard__quick-action,
+.cx-dashboard__refresh,
+.cx-dashboard__period-select,
+.cx-calendar__close,
+.cx-calendar__open-project,
+.cx-workspace-calendar .rbc-toolbar button,
+.cx-prospect-move,
+.cx-timer-pill__trigger {
+  border-radius: 14px;
+  transition: transform 160ms cubic-bezier(0.2, 0.7, 0.2, 1), border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.cx-workspace .cx-btn--primary,
+.cx-workspace .cx-btn--accent,
+.cx-workspace .cx-btn--danger,
+.cx-calendar__open-project,
+.cx-timer-pill__start,
+.cx-timer-pill__stop {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.19), rgba(255, 255, 255, 0) 62%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 5px 14px rgba(16, 61, 102, 0.15);
+}
+.cx-workspace .cx-btn--primary { --btn-bg: linear-gradient(145deg, #165f9e, #0d477e); --btn-border: rgba(10, 60, 103, 0.72); }
+.cx-workspace .cx-btn--accent { --btn-bg: linear-gradient(145deg, #329ae7, #1474c2); --btn-border: rgba(15, 99, 163, 0.68); }
+.cx-workspace .cx-btn--danger,
+.cx-timer-pill__stop { border-color: rgba(123, 34, 30, 0.72); background-color: #a32923; }
+.cx-workspace .cx-btn--outline,
+.cx-workspace .cx-btn--ghost,
+.cx-workspace__icon-action,
+.cx-workspace__mobile-toggle,
+.cx-workspace__compact-toggle,
+.cx-workspace__mobile-close,
+.cx-dashboard__quick-action,
+.cx-dashboard__refresh,
+.cx-calendar__close,
+.cx-workspace-calendar .rbc-toolbar button,
+.cx-prospect-move {
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.78), rgba(238, 246, 254, 0.58));
+  box-shadow: 0 4px 12px rgba(20, 54, 88, 0.055), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+}
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  .cx-workspace__icon-action,
+  .cx-workspace__mobile-toggle,
+  .cx-workspace__compact-toggle,
+  .cx-workspace__mobile-close,
+  .cx-user-menu__trigger,
+  .cx-dashboard__period-select,
+  .cx-timer-pill__trigger {
+    -webkit-backdrop-filter: blur(8px) saturate(122%);
+    backdrop-filter: blur(8px) saturate(122%);
+  }
+}
+.cx-workspace .cx-btn--outline { --btn-bg: rgba(255, 255, 255, 0.58); --btn-border: rgba(255, 255, 255, 0.9); }
+.cx-workspace .cx-btn--outline:hover:not(:disabled),
+.cx-workspace .cx-btn--ghost:hover:not(:disabled),
+.cx-workspace__icon-action:hover,
+.cx-workspace__mobile-toggle:hover,
+.cx-workspace__compact-toggle:hover,
+.cx-workspace__mobile-close:hover,
+.cx-dashboard__quick-action:hover,
+.cx-dashboard__refresh:hover:not(:disabled),
+.cx-workspace-calendar .rbc-toolbar button:hover,
+.cx-prospect-move:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.98);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(227, 241, 255, 0.82));
+  box-shadow: 0 8px 18px rgba(21, 62, 101, 0.1), inset 0 1px 0 #fff;
+  color: #0f4e8a;
+}
+.cx-workspace .cx-btn:active:not(:disabled),
+.cx-workspace__icon-action:active,
+.cx-workspace__mobile-toggle:active,
+.cx-dashboard__quick-action:active,
+.cx-dashboard__refresh:active:not(:disabled),
+.cx-prospect-move:active:not(:disabled) { transform: scale(0.985); }
+.cx-workspace .cx-btn:disabled,
+.cx-workspace__icon-action:disabled,
+.cx-workspace__mobile-toggle:disabled,
+.cx-workspace__compact-toggle:disabled,
+.cx-workspace__mobile-close:disabled { box-shadow: none; }
+
+/* Filtres et saisies : tactiles, bord lumineux au focus, contenu toujours opaque. */
+.cx-workspace .cx-input,
+.cx-workspace .cx-select,
+.cx-workspace .cx-textarea,
+.cx-dashboard__period-select,
+.cx-timer-pill__select {
+  border-color: rgba(70, 104, 140, 0.25);
+  background-color: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 1px 2px rgba(22, 52, 84, 0.035), 0 1px 0 rgba(255, 255, 255, 0.78);
+}
+@supports ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  .cx-dashboard__period-select,
+  .cx-timer-pill__select {
+    -webkit-backdrop-filter: blur(8px) saturate(115%);
+    backdrop-filter: blur(8px) saturate(115%);
+  }
+}
+.cx-workspace .cx-input:hover:not(:disabled),
+.cx-workspace .cx-select:hover:not(:disabled),
+.cx-workspace .cx-textarea:hover:not(:disabled) { border-color: rgba(24, 105, 172, 0.48); }
+.cx-workspace .cx-input:focus-visible,
+.cx-workspace .cx-select:focus-visible,
+.cx-workspace .cx-textarea:focus-visible,
+.cx-dashboard__period-select:focus-visible,
+.cx-timer-pill__select:focus-visible {
+  border-color: #1684d6;
+  outline: 3px solid rgba(30, 134, 224, 0.2);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px rgba(30, 134, 224, 0.4), 0 5px 16px rgba(30, 134, 224, 0.09), inset 0 1px 0 #fff;
+}
+.cx-workspace .cx-input[aria-invalid="true"],
+.cx-workspace .cx-select[aria-invalid="true"],
+.cx-workspace .cx-textarea[aria-invalid="true"] { border-color: #bd332d; box-shadow: 0 0 0 3px rgba(189, 51, 45, 0.1); }
+
+/* Menus, popovers et modales : une seule surface floutée, sur un scrim discret. */
+.cx-user-menu__popover,
+.cx-prospect-move__menu,
+.cx-pub-drawer__panel,
+.cx-glass-modal,
+.cx-workspace .cx-dialog,
+.cx-timer-pill__panel {
+  border-color: rgba(255, 255, 255, 0.9);
+  background:
+    radial-gradient(120% 70% at 0% 0%, rgba(255, 255, 255, 0.96), transparent 62%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(239, 247, 255, 0.82));
+  box-shadow: 0 24px 64px rgba(12, 42, 73, 0.18), 0 4px 14px rgba(12, 42, 73, 0.07), inset 0 1px 0 #fff;
+}
+@supports ((backdrop-filter: blur(16px)) or (-webkit-backdrop-filter: blur(16px))) {
+  .cx-user-menu__popover,
+  .cx-prospect-move__menu,
+  .cx-pub-drawer__panel,
+  .cx-glass-modal,
+  .cx-workspace .cx-dialog,
+  .cx-timer-pill__panel {
+    -webkit-backdrop-filter: blur(20px) saturate(145%);
+    backdrop-filter: blur(20px) saturate(145%);
+  }
+}
+.cx-user-menu__popover { border-radius: 20px; }
+.cx-user-menu__trigger {
+  border-color: rgba(255, 255, 255, 0.82);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(235, 245, 255, 0.65));
+  box-shadow: 0 4px 13px rgba(18, 51, 83, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.98);
+}
+.cx-user-menu__trigger:hover,
+.cx-user-menu__trigger[aria-expanded="true"] {
+  border-color: #fff;
+  background: linear-gradient(145deg, #fff, rgba(228, 241, 255, 0.9));
+  box-shadow: 0 9px 22px rgba(18, 51, 83, 0.1), inset 0 1px 0 #fff;
+}
+.cx-user-menu__links a:hover,
+.cx-user-menu__signout:hover { border-radius: 12px; }
+.cx-prospect-move__menu { border-radius: 16px; }
+.cx-prospect-move__option { min-height: 40px; border-radius: 11px; }
+.cx-prospect-move__option[aria-selected="true"],
+.cx-prospect-move__option[aria-current="true"] { background: rgba(30, 134, 224, 0.1); color: #0f4e8a; }
+.cx-calendar__overlay { background: rgba(12, 34, 57, 0.24); }
+@supports ((backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px))) {
+  .cx-calendar__overlay { -webkit-backdrop-filter: blur(10px) saturate(112%); backdrop-filter: blur(10px) saturate(112%); }
+  .cx-workspace .cx-dialog::backdrop { -webkit-backdrop-filter: blur(10px) saturate(112%); backdrop-filter: blur(10px) saturate(112%); }
+}
+.cx-workspace .cx-dialog { border-radius: 24px; }
+.cx-timer-pill__panel { border-radius: 23px; }
+
+.cx-workspace__logout:hover { border-color: rgba(255, 255, 255, 0.78); background: rgba(255, 255, 255, 0.7); }
+.cx-workspace__profile:hover,
+.cx-workspace__profile[aria-current="page"] { border-color: rgba(255, 255, 255, 0.82); background: rgba(255, 255, 255, 0.68); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9); }
+.cx-dashboard__period-control,
+.cx-dashboard__filters,
+.cx-list-toolbar,
+.cx-filter-bar { isolation: isolate; }
+.cx-workspace .cx-table th { background: rgba(240, 246, 253, 0.66); }
+.cx-workspace .cx-table tbody tr:hover { background: rgba(227, 241, 255, 0.56); }
+.cx-workspace .cx-empty { border-color: rgba(101, 138, 177, 0.28); background: rgba(248, 251, 255, 0.82); }
+
+.cx-pub-nav__bar { position: relative; border-radius: 22px; }
+.cx-pub-nav__link:hover,
+.cx-pub-nav__link[aria-current="page"] { background: rgba(255, 255, 255, 0.62); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84); }
+.cx-pub-nav__burger {
+  border-color: rgba(255, 255, 255, 0.88);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(236, 245, 255, 0.6));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94), 0 3px 10px rgba(20, 54, 88, 0.055);
+}
+.cx-pub-drawer__panel { border-radius: 28px 28px 0 0; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .cx-workspace__sidebar,
+  .cx-workspace__topbar,
+  .cx-pub-nav__bar,
+  .cx-workspace .cx-panel,
+  .cx-workspace .cx-card:not(.cx-card--ink):not(.cx-card--accent),
+  .cx-workspace .cx-calendar__panel,
+  .cx-dashboard .cx-glass-card,
+  .cx-dashboard__details,
+  .cx-user-menu__popover,
+  .cx-prospect-move__menu,
+  .cx-pub-drawer__panel,
+  .cx-glass-modal,
+  .cx-workspace .cx-dialog,
+  .cx-timer-pill__panel {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-image: none !important;
+    background-color: #fff !important;
+  }
+  .cx-workspace__sidebar::before,
+  .cx-workspace__topbar::before,
+  .cx-pub-nav__bar::before {
+    border-color: rgba(38, 83, 132, 0.1) !important;
+    background: none !important;
+  }
+  .cx-calendar__overlay,
+  .cx-workspace .cx-dialog::backdrop {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-color: rgba(12, 34, 57, 0.72) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-workspace__nav-link,
+  .cx-workspace__icon-action,
+  .cx-workspace__mobile-toggle,
+  .cx-dashboard__quick-action,
+  .cx-dashboard__refresh,
+  .cx-workspace .cx-btn,
+  .cx-workspace-calendar .rbc-toolbar button,
+  .cx-prospect-move { transition: none !important; }
+  .cx-workspace__nav-link:hover,
+  .cx-dashboard__quick-action:hover,
+  .cx-workspace .cx-btn:hover:not(:disabled) { transform: none !important; }
+}

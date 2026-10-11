@@ -5,15 +5,17 @@ import { formatDate, formatMoney, messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { MODIFICATION_STATUS, MODIFICATION_TONE, PRIORITY } from "@/lib/modifications";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
 
 /**
  * Demandes de modification du client : déposer une demande sur un de ses projets,
  * suivre son état et lire la décision de l'agence (avec son motif).
  */
 export default function ModificationsClientPage() {
-  const requests = useListing("/modification-requests?perPage=50");
-  const projects = useListing("/projects?perPage=100");
+  const [page, setPage] = useState(1);
+  const [projectPage, setProjectPage] = useState(1);
+  const requests = useListing(`/modification-requests?page=${page}&perPage=50`);
+  const projects = useListing(`/projects?page=${projectPage}&perPage=50`);
   const [showForm, setShowForm] = useState(false);
   const items = requests.items ?? [];
 
@@ -22,12 +24,14 @@ export default function ModificationsClientPage() {
       <Card
         title="Mes demandes de modification"
         action={
-          <button type="button" className={primaryButton} onClick={() => setShowForm((v) => !v)} disabled={(projects.items ?? []).length === 0}>
+          <button type="button" className={primaryButton} onClick={() => setShowForm((v) => !v)} disabled={projects.loading || (projects.items ?? []).length === 0}>
             {showForm ? "Fermer" : "Nouvelle demande"}
           </button>
         }
       >
         {requests.error ? <Notice>{requests.error}</Notice> : null}
+        {projects.error ? <Notice>{projects.error}</Notice> : null}
+        {projects.items === null && !projects.error ? <p className="cx-small">Chargement des projets…</p> : null}
         {requests.items === null && !requests.error ? <p className="cx-small">Chargement…</p> : null}
         {requests.items !== null && items.length === 0 ? <Empty>Aucune demande pour le moment.</Empty> : null}
 
@@ -50,18 +54,32 @@ export default function ModificationsClientPage() {
             </li>
           ))}
         </ul>
+        <Pagination meta={requests.meta} onPageChange={setPage} loading={requests.loading} />
       </Card>
 
-      {showForm ? <NewRequest projects={projects.items ?? []} onCreated={async () => { setShowForm(false); await requests.reload(); }} /> : null}
+      {showForm ? (
+        <NewRequest
+          projects={projects.items ?? []}
+          projectsMeta={projects.meta}
+          projectsLoading={projects.loading}
+          onProjectPageChange={setProjectPage}
+          onCreated={async () => { setShowForm(false); await requests.reload(); }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function NewRequest({ projects, onCreated }) {
+function NewRequest({ projects, projectsMeta, projectsLoading, onProjectPageChange, onCreated }) {
   const { request } = useAuth();
   const [form, setForm] = useState({ projectId: projects[0]?.id ?? "", title: "", description: "", priority: "NORMAL" });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+
+  function changeProjectPage(nextPage) {
+    setForm((current) => ({ ...current, projectId: "" }));
+    onProjectPageChange(nextPage);
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -83,11 +101,13 @@ function NewRequest({ projects, onCreated }) {
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <Field id="mod-project" label="Projet">
-            <select id="mod-project" required className={selectClass} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+            <select id="mod-project" required disabled={projectsLoading || projects.length === 0} className={selectClass} value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })}>
+              <option value="">Choisir un projet…</option>
               {projects.map((project) => (
                 <option key={project.id} value={project.id}>{project.name ?? project.reference}</option>
               ))}
             </select>
+            <Pagination meta={projectsMeta} onPageChange={changeProjectPage} loading={projectsLoading} label="Pagination des projets accessibles" />
           </Field>
         </div>
         <Field id="mod-title" label="Titre" hint="Trois caractères minimum.">
@@ -106,7 +126,7 @@ function NewRequest({ projects, onCreated }) {
           </Field>
         </div>
         <div className="md:col-span-2">
-          <button type="submit" disabled={busy || !form.projectId} className={primaryButton}>{busy ? "Envoi…" : "Envoyer la demande"}</button>
+          <button type="submit" disabled={busy || projectsLoading || !form.projectId} className={primaryButton}>{busy ? "Envoi…" : "Envoyer la demande"}</button>
         </div>
       </form>
     </Card>

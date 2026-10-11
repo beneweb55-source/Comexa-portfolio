@@ -1549,7 +1549,11 @@ describe('Chaine metier complete : visiteur -> prospect -> devis -> client -> pr
       .get(`${baseUrl}/invoices/${invoiceBId}`)
       .set(auth(portalBToken));
 
-    assert.equal(ownInvoiceB.status, 200, 'le porteur B doit lire sa propre facture une fois envoyee');
+    assert.equal(
+      ownInvoiceB.status,
+      200,
+      'le porteur B doit lire sa propre facture une fois envoyee',
+    );
     assert.equal(dataOf<InvoicePayload>(ownInvoiceB).clientId, clientBId);
 
     // --- Ce que A NE PEUT PAS obtenir en le DEMANDANT : le filtre dans l'URL --

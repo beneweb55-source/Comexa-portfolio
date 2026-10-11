@@ -2,11 +2,12 @@
 
 /* Messagerie partagée entre l'espace équipe et l'espace client (même API, mêmes droits côté serveur). */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
-import { Badge, Card, Empty, Notice, inputClass, primaryButton, secondaryButton, selectClass, textareaClass, Field } from "@/components/workspace/ui";
+import { useListing } from "@/lib/use-listing";
+import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass, textareaClass, Field } from "@/components/workspace/ui";
 
 const TYPE_LABEL = { DIRECT: "Direct", PROJECT: "Projet", CLIENT: "Client", SUPPORT: "Support" };
 const ROLE_LABEL = { OWNER: "Propriétaire", MEMBER: "Membre", GUEST: "Invité" };
@@ -23,33 +24,33 @@ function fullName(person) {
  */
 export default function MessagingPanel() {
   const { request, user } = useAuth();
-  const [conversations, setConversations] = useState({ items: null, error: null });
+  const [conversationPage, setConversationPage] = useState(1);
+  const conversations = useListing(`/conversations?page=${conversationPage}&perPage=50`);
+  const reloadConversationsRef = useRef(conversations.reload);
   const [selectedId, setSelectedId] = useState(null);
+  const selectedIdRef = useRef(null);
+  const threadRequestId = useRef(0);
   const [thread, setThread] = useState({ conversation: null, messages: [], nextCursor: null, error: null, loading: false });
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [notice, setNotice] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [members, setMembers] = useState(null);
 
-  const loadConversations = useCallback(async () => {
-    try {
-      const { data } = await request("/conversations?perPage=50");
-      setConversations({ items: data ?? [], error: null });
-    } catch (caught) {
-      setConversations((current) => ({ ...current, error: messageOf(caught) }));
-    }
-  }, [request]);
+  useEffect(() => {
+    reloadConversationsRef.current = conversations.reload;
+  }, [conversations.reload]);
 
   const loadThread = useCallback(
     async (id) => {
       if (!id) return;
-      setThread((current) => ({ ...current, loading: true, error: null }));
+      const requestId = ++threadRequestId.current;
       try {
         const [{ data: conversation }, page] = await Promise.all([
           request(`/conversations/${id}`),
           request(`/conversations/${id}/messages?perPage=50`),
         ]);
+        if (requestId !== threadRequestId.current || selectedIdRef.current !== id) return;
         setThread({
           conversation,
           messages: [...(page.data ?? [])].reverse(),
@@ -58,72 +59,97 @@ export default function MessagingPanel() {
           loading: false,
         });
         await request(`/conversations/${id}/read`, { method: "POST" }).catch(() => null);
-        loadConversations();
+        if (requestId === threadRequestId.current && selectedIdRef.current === id) reloadConversationsRef.current();
       } catch (caught) {
-        setThread((current) => ({ ...current, loading: false, error: messageOf(caught) }));
+        if (requestId === threadRequestId.current && selectedIdRef.current === id) {
+          setThread({ conversation: null, messages: [], nextCursor: null, error: messageOf(caught), loading: false });
+        }
       }
     },
-    [request, loadConversations],
+    [request],
   );
 
-  useEffect(() => {
-    loadConversations();
-    // Annuaire interne : réservé aux porteurs de `user:read:any` (le client n'y a pas accès).
-    if (!can(user, "user:read:any")) return;
-    request("/users?perPage=100&status=ACTIVE")
-      .then(({ data }) => setMembers(data ?? []))
-      .catch(() => setMembers([]));
-  }, [request, loadConversations, user]);
+  const selectConversation = useCallback((id) => {
+    if (selectedIdRef.current === id) {
+      if (id) {
+        setThread((current) => ({ ...current, loading: true, error: null }));
+        loadThread(id);
+      }
+      return;
+    }
+    selectedIdRef.current = id;
+    setSelectedId(id);
+    setDraft("");
+    setLoadingOlder(false);
+    setThread({ conversation: null, messages: [], nextCursor: null, error: null, loading: Boolean(id) });
+    if (id) loadThread(id);
+  }, [loadThread]);
 
-  useEffect(() => {
-    if (selectedId) loadThread(selectedId);
-  }, [selectedId, loadThread]);
+  useEffect(() => () => {
+    threadRequestId.current += 1;
+  }, []);
 
   async function loadOlder() {
-    if (!thread.nextCursor) return;
+    const conversationId = selectedId;
+    const cursor = thread.nextCursor;
+    if (!cursor || !conversationId || loadingOlder) return;
+    setLoadingOlder(true);
     try {
-      const page = await request(`/conversations/${selectedId}/messages?perPage=50&cursor=${encodeURIComponent(thread.nextCursor)}`);
-      setThread((current) => ({
+      const page = await request(`/conversations/${conversationId}/messages?perPage=50&cursor=${encodeURIComponent(cursor)}`);
+      if (selectedIdRef.current !== conversationId) return;
+      setThread((current) => current.conversation?.id === conversationId ? {
         ...current,
         messages: [...[...(page.data ?? [])].reverse(), ...current.messages],
         nextCursor: page.meta?.nextCursor ?? null,
-      }));
+      } : current);
     } catch (caught) {
-      setNotice({ tone: "error", text: messageOf(caught) });
+      if (selectedIdRef.current === conversationId) setNotice({ tone: "error", text: messageOf(caught) });
+    } finally {
+      setLoadingOlder(false);
     }
   }
 
   async function send(event) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body || !selectedId) return;
+    const conversationId = selectedId;
+    if (!body || !conversationId) return;
     setSending(true);
     setNotice(null);
     try {
-      await request(`/conversations/${selectedId}/messages`, { method: "POST", body: { body } });
-      setDraft("");
-      await loadThread(selectedId);
+      await request(`/conversations/${conversationId}/messages`, { method: "POST", body: { body } });
+      if (selectedIdRef.current === conversationId) {
+        setDraft("");
+        await loadThread(conversationId);
+      }
     } catch (caught) {
-      setNotice({ tone: "error", text: messageOf(caught) });
+      if (selectedIdRef.current === conversationId) setNotice({ tone: "error", text: messageOf(caught) });
     } finally {
       setSending(false);
     }
   }
 
   async function archive() {
+    const conversationId = selectedId;
+    if (!conversationId) return;
     try {
-      await request(`/conversations/${selectedId}`, { method: "PATCH", body: { isArchived: true } });
-      setNotice({ tone: "success", text: "Conversation archivée." });
-      setSelectedId(null);
-      setThread({ conversation: null, messages: [], nextCursor: null, error: null, loading: false });
-      loadConversations();
+      await request(`/conversations/${conversationId}`, { method: "PATCH", body: { isArchived: true } });
+      if (selectedIdRef.current === conversationId) {
+        setNotice({ tone: "success", text: "Conversation archivée." });
+        selectConversation(null);
+      }
+      if (items.length === 1 && conversationPage > 1) setConversationPage(conversationPage - 1);
+      else conversations.reload();
     } catch (caught) {
-      setNotice({ tone: "error", text: messageOf(caught) });
+      if (selectedIdRef.current === conversationId) setNotice({ tone: "error", text: messageOf(caught) });
     }
   }
 
   const items = conversations.items ?? [];
   const conversation = thread.conversation;
+  const canCreateConversation = can(user, "conversation:create:own");
+  const canManageConversations = can(user, "conversation:manage:any");
+  const canWriteMessages = can(user, "message:write:own");
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
@@ -135,19 +161,19 @@ export default function MessagingPanel() {
 
       <Card
         title="Conversations"
-        action={
+        action={canCreateConversation ? (
           <button type="button" className={secondaryButton} onClick={() => setCreating((value) => !value)}>
             {creating ? "Fermer" : "Nouvelle"}
           </button>
-        }
+        ) : null}
       >
         {creating ? (
           <NewConversation
-            members={members}
             onCreated={async (created) => {
               setCreating(false);
-              await loadConversations();
-              setSelectedId(created.id);
+              if (conversationPage === 1) await conversations.reload();
+              else setConversationPage(1);
+              selectConversation(created.id);
             }}
             onError={(text) => setNotice({ tone: "error", text })}
           />
@@ -162,7 +188,7 @@ export default function MessagingPanel() {
             <li key={item.id}>
               <button
                 type="button"
-                onClick={() => setSelectedId(item.id)}
+                onClick={() => selectConversation(item.id)}
                 aria-current={item.id === selectedId ? "true" : undefined}
                 className={`w-full rounded-lg border p-3 text-left transition-colors ${
                   item.id === selectedId
@@ -183,9 +209,10 @@ export default function MessagingPanel() {
             </li>
           ))}
         </ul>
+        <Pagination meta={conversations.meta} onPageChange={setConversationPage} loading={conversations.loading} label="Pagination des conversations" />
       </Card>
 
-      <Card title={conversation?.subject || "Fil de discussion"} action={conversation ? <button type="button" className={secondaryButton} onClick={archive}>Archiver</button> : null}>
+      <Card title={conversation?.subject || "Fil de discussion"} action={conversation && canManageConversations ? <button type="button" className={secondaryButton} onClick={archive}>Archiver</button> : null}>
         {!selectedId ? <Empty>Sélectionnez une conversation pour lire les messages.</Empty> : null}
         {thread.error ? <Notice>{thread.error}</Notice> : null}
         {thread.loading && !conversation ? <p className="cx-small">Chargement…</p> : null}
@@ -199,8 +226,8 @@ export default function MessagingPanel() {
 
             <div className="flex max-h-[480px] min-h-[200px] flex-col gap-3 overflow-y-auto rounded-lg bg-[var(--comexa-neutral-100)] p-4">
               {thread.nextCursor ? (
-                <button type="button" onClick={loadOlder} className={`${secondaryButton} self-center`}>
-                  Messages plus anciens
+                <button type="button" onClick={loadOlder} disabled={loadingOlder} className={`${secondaryButton} self-center`}>
+                  {loadingOlder ? "Chargement…" : "Messages plus anciens"}
                 </button>
               ) : null}
               {thread.messages.length === 0 ? <Empty>Aucun message. Écrivez le premier.</Empty> : null}
@@ -219,16 +246,18 @@ export default function MessagingPanel() {
               })}
             </div>
 
-            <form onSubmit={send} className="flex flex-col gap-3">
-              <Field id="message-body" label="Votre message">
-                <textarea id="message-body" rows={3} maxLength={10000} value={draft} onChange={(e) => setDraft(e.target.value)} className={textareaClass} />
-              </Field>
-              <div>
-                <button type="submit" disabled={sending || !draft.trim()} className={primaryButton}>
-                  {sending ? "Envoi…" : "Envoyer"}
-                </button>
-              </div>
-            </form>
+            {canWriteMessages ? (
+              <form onSubmit={send} className="flex flex-col gap-3">
+                <Field id="message-body" label="Votre message">
+                  <textarea id="message-body" rows={3} maxLength={10000} value={draft} onChange={(e) => setDraft(e.target.value)} className={textareaClass} />
+                </Field>
+                <div>
+                  <button type="submit" disabled={sending || !draft.trim()} className={primaryButton}>
+                    {sending ? "Envoi…" : "Envoyer"}
+                  </button>
+                </div>
+              </form>
+            ) : <Notice>Votre rôle ne permet pas d’envoyer des messages.</Notice>}
           </div>
         ) : null}
       </Card>
@@ -236,12 +265,21 @@ export default function MessagingPanel() {
   );
 }
 
-function NewConversation({ members, onCreated, onError }) {
-  const { request } = useAuth();
+function NewConversation({ onCreated, onError }) {
+  const { request, user } = useAuth();
+  const canReadMembers = can(user, "user:read:any");
   const [subject, setSubject] = useState("");
   const [type, setType] = useState("DIRECT");
   const [participantIds, setParticipantIds] = useState([]);
+  const [participantPage, setParticipantPage] = useState(1);
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const memberPath = canReadMembers
+    ? `/users?page=${participantPage}&perPage=25&status=ACTIVE${search ? `&search=${encodeURIComponent(search)}` : ""}`
+    : null;
+  const directory = useListing(memberPath);
+  const members = (directory.items ?? []).filter((member) => member.id !== user?.id);
 
   function toggle(id) {
     setParticipantIds((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
@@ -251,6 +289,10 @@ function NewConversation({ members, onCreated, onError }) {
     event.preventDefault();
     if (!subject.trim()) {
       onError("Le sujet est obligatoire.");
+      return;
+    }
+    if (canReadMembers && (directory.error || directory.items === null)) {
+      onError(directory.error ?? "Attendez le chargement de l’annuaire avant de créer la conversation.");
       return;
     }
     setBusy(true);
@@ -281,20 +323,44 @@ function NewConversation({ members, onCreated, onError }) {
           ))}
         </select>
       </Field>
-      {members === null ? <p className="cx-small">Chargement des membres…</p> : null}
-      {members && members.length > 0 ? (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="cx-label">Participants</legend>
-          {members.map((member) => (
-            <label key={member.id} className="flex items-center gap-2 text-[14px]">
-              <input type="checkbox" checked={participantIds.includes(member.id)} onChange={() => toggle(member.id)} />
-              {fullName(member)}
-            </label>
-          ))}
-        </fieldset>
-      ) : null}
+      {!canReadMembers ? (
+        <Notice>Vous serez ajouté automatiquement comme participant. L’ajout d’autres membres nécessite le droit de consulter l’annuaire.</Notice>
+      ) : (
+        <>
+          <Field id="conv-member-search" label="Rechercher des participants">
+            <div className="flex gap-2">
+              <input
+                id="conv-member-search"
+                className={inputClass}
+                value={searchDraft}
+                onChange={(event) => setSearchDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
+                placeholder="Nom ou adresse e-mail"
+              />
+              <button type="button" className={secondaryButton} onClick={() => { setSearch(searchDraft.trim()); setParticipantPage(1); }}>
+                Rechercher
+              </button>
+            </div>
+          </Field>
+          {directory.error ? <Notice>{directory.error}</Notice> : null}
+          {directory.items === null && !directory.error ? <p className="cx-small">Chargement des membres…</p> : null}
+          {directory.items !== null && !directory.error && members.length === 0 ? <p className="cx-small">Aucun participant trouvé.</p> : null}
+          {members.length > 0 ? (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="cx-label">Participants</legend>
+              {members.map((member) => (
+                <label key={member.id} className="flex items-center gap-2 text-[14px]">
+                  <input type="checkbox" checked={participantIds.includes(member.id)} onChange={() => toggle(member.id)} />
+                  {fullName(member)}
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
+          <Pagination meta={directory.meta} onPageChange={setParticipantPage} loading={directory.loading} label="Pagination des participants" />
+        </>
+      )}
       <div>
-        <button type="submit" disabled={busy} className={primaryButton}>
+        <button type="submit" disabled={busy || (canReadMembers && (directory.loading || Boolean(directory.error) || directory.items === null))} className={primaryButton}>
           {busy ? "Création…" : "Créer la conversation"}
         </button>
       </div>

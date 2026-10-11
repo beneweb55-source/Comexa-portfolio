@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { formatDate } from "@/lib/api";
 import { useAction, useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
 import { hasTeamAccess } from "@/lib/access";
-import { Badge, Card, Empty, Notice, secondaryButton } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Notice, Pagination, secondaryButton } from "@/components/workspace/ui";
 
 /*
  * Le backend produit des liens qui ne correspondent pas toujours aux routes du front
@@ -40,22 +40,32 @@ export default function NotificationsPanel() {
   const { user } = useAuth();
   const team = hasTeamAccess(user);
   const [onlyUnread, setOnlyUnread] = useState(false);
-  const list = useListing("/notifications?perPage=100");
-  const action = useAction(list.reload);
+  const [page, setPage] = useState(1);
+  const path = `/notifications?page=${page}&perPage=30${onlyUnread ? "&read=false" : ""}`;
+  const list = useListing(path);
+  const unreadList = useListing("/notifications?read=false&page=1&perPage=1");
+  const reloadNotifications = list.reload;
+  const reloadUnreadCount = unreadList.reload;
+  const refreshLists = useCallback(async () => {
+    await Promise.all([reloadNotifications(), reloadUnreadCount()]);
+  }, [reloadNotifications, reloadUnreadCount]);
+  const action = useAction(refreshLists);
   const items = list.items ?? [];
-  const visible = onlyUnread ? items.filter((n) => !n.readAt) : items;
-  const unread = items.filter((n) => !n.readAt).length;
+  const unread = Number.isFinite(Number(unreadList.meta?.total)) ? Number(unreadList.meta.total) : null;
 
   async function markRead(item) {
-    await action.run(`read:${item.id}`, `/notifications/${item.id}/read`, { method: "POST" }, "");
+    const result = await action.run(`read:${item.id}`, `/notifications/${item.id}/read`, { method: "POST" }, "");
+    if (result !== null && onlyUnread && items.length === 1 && page > 1) setPage(page - 1);
   }
 
   async function remove(item) {
-    await action.run(`delete:${item.id}`, `/notifications/${item.id}`, { method: "DELETE" }, "Notification supprimée.");
+    const result = await action.run(`delete:${item.id}`, `/notifications/${item.id}`, { method: "DELETE" }, "Notification supprimée.");
+    if (result !== null && items.length === 1 && page > 1) setPage(page - 1);
   }
 
   async function readAll() {
-    await action.run("all", "/notifications/read-all", { method: "POST" }, "Toutes les notifications sont lues.");
+    const result = await action.run("all", "/notifications/read-all", { method: "POST" }, "Toutes les notifications sont lues.");
+    if (result !== null && onlyUnread) setPage(1);
   }
 
   return (
@@ -63,23 +73,24 @@ export default function NotificationsPanel() {
       title={`Notifications${unread ? ` (${unread} non lue${unread > 1 ? "s" : ""})` : ""}`}
       action={
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={secondaryButton} aria-pressed={onlyUnread} onClick={() => setOnlyUnread((v) => !v)}>
+          <button type="button" className={secondaryButton} aria-pressed={onlyUnread} onClick={() => { setOnlyUnread((value) => !value); setPage(1); }}>
             {onlyUnread ? "Toutes" : "Non lues"}
           </button>
-          <button type="button" className={secondaryButton} onClick={readAll} disabled={unread === 0 || action.busy === "all"}>
+          <button type="button" className={secondaryButton} onClick={readAll} disabled={unread === null || unread === 0 || action.busy === "all"}>
             Tout marquer comme lu
           </button>
         </div>
       }
     >
       {list.error ? <Notice>{list.error}</Notice> : null}
+      {unreadList.error ? <Notice>{unreadList.error}</Notice> : null}
       {action.error ? <Notice>{action.error}</Notice> : null}
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
       {list.items === null && !list.error ? <p className="cx-small">Chargement…</p> : null}
-      {list.items !== null && visible.length === 0 ? <Empty>{onlyUnread ? "Aucune notification non lue." : "Aucune notification."}</Empty> : null}
+      {list.items !== null && items.length === 0 ? <Empty>{onlyUnread ? "Aucune notification non lue." : "Aucune notification."}</Empty> : null}
 
       <ul className="flex flex-col gap-3">
-        {visible.map((item) => (
+        {items.map((item) => (
           <li
             key={item.id}
             className={`flex flex-wrap items-start justify-between gap-3 rounded-lg border p-4 ${
@@ -112,6 +123,7 @@ export default function NotificationsPanel() {
           </li>
         ))}
       </ul>
+      <Pagination meta={list.meta} onPageChange={setPage} loading={list.loading} label="Pagination des notifications" />
     </Card>
   );
 }

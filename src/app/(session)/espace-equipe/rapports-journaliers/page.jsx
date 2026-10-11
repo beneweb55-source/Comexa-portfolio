@@ -2,6 +2,7 @@
 
 import { Fragment, useRef, useState } from "react";
 import { formatDate, messageOf } from "@/lib/api";
+import { fetchAllPages } from "@/lib/pagination.mjs";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { canReadOwnTasks } from "@/lib/timer-access";
@@ -104,14 +105,14 @@ function MyReport({ day, onDayChange, onSaved, canWrite }) {
     setFillError(null);
     setFillInfo(null);
     try {
-      const [tasksRes, timeRes] = await Promise.all([
-        request("/me/tasks?perPage=100"),
-        request(`/time-entries?perPage=100&from=${day}&to=${day}&userId=${encodeURIComponent(user.id)}`),
+      const [tasksResult, timeResult] = await Promise.all([
+        fetchAllPages(request, "/me/tasks?status=DONE&perPage=100"),
+        fetchAllPages(request, `/time-entries?perPage=100&from=${encodeURIComponent(day)}&to=${encodeURIComponent(day)}&userId=${encodeURIComponent(user.id)}`),
       ]);
-      const doneToday = (tasksRes.data ?? []).filter(
+      const doneToday = tasksResult.items.filter(
         (task) => task.status === "DONE" && task.completedAt && isoDay(new Date(task.completedAt)) === day,
       );
-      const entries = (timeRes.data ?? []).filter((entry) => String(entry.spentOn).slice(0, 10) === day);
+      const entries = timeResult.items.filter((entry) => String(entry.spentOn).slice(0, 10) === day);
       const totalMinutes = entries.reduce((sum, entry) => sum + (Number(entry.minutes) || 0), 0);
       const byProject = new Map();
       for (const entry of entries) {

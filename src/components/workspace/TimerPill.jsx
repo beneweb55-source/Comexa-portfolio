@@ -6,6 +6,7 @@ import { formatElapsed, useTimer } from "@/lib/timer";
 import { useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
 import { canUseTimer } from "@/lib/timer-access";
+import { Pagination } from "@/components/workspace/ui";
 import Icon from "@/components/dashboard/icons";
 
 /** Minuteur flottant Comexa, avec des surfaces claires et un menu clavier accessible. */
@@ -18,9 +19,10 @@ function TimerPillContent({ pathname }) {
   const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState("");
+  const [taskPage, setTaskPage] = useState(1);
   const { user } = useAuth();
   const allowed = canUseTimer(user);
-  const tasks = useListing(allowed ? "/me/tasks?perPage=50" : null);
+  const tasks = useListing(allowed ? `/me/tasks?page=${taskPage}&perPage=50` : null);
   const list = (tasks.items ?? []).filter((task) => task.status !== "DONE" && task.status !== "CANCELLED");
   const [stopError, setStopError] = useState(null);
   const dialogId = useId();
@@ -65,9 +67,11 @@ function TimerPillContent({ pathname }) {
 
   async function onStop() {
     setStopError(null);
-    const minutes = await stop();
-    if (minutes === null) setStopError("Enregistrement impossible : le minuteur continue.");
-    else setOpen(false);
+    const result = await stop();
+    if (result === null) setStopError("Enregistrement impossible : le minuteur continue.");
+    else if (result.remainingMinutes > 0) {
+      setStopError(`${result.savedMinutes} min enregistrées. Le minuteur continue pour les ${result.remainingMinutes} min restantes.`);
+    } else setOpen(false);
   }
 
   // Sur le tableau de bord, le minuteur est déjà une tuile : éviter le doublon.
@@ -96,6 +100,12 @@ function TimerPillContent({ pathname }) {
                 <option value="">{list.length ? "Choisir une tâche…" : tasks.items === null ? "Chargement…" : "Aucune tâche assignée"}</option>
                 {list.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
               </select>
+              <Pagination
+                meta={tasks.meta}
+                onPageChange={(nextPage) => { setPicked(""); setTaskPage(nextPage); }}
+                loading={tasks.loading}
+                label="Pagination des tâches du minuteur"
+              />
               <button
                 type="button"
                 disabled={!picked || saving}

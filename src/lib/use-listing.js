@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/session";
 import { messageOf } from "@/lib/api";
 
@@ -13,30 +13,45 @@ import { messageOf } from "@/lib/api";
  */
 export function useListing(path) {
   const { request } = useAuth();
-  const [state, setState] = useState({ items: null, meta: null, error: null, errorStatus: null, loading: true });
+  const activeRequest = useRef(null);
+  const [state, setState] = useState({ items: null, meta: null, error: null, errorStatus: null, loading: path !== null });
 
   const reload = useCallback(async () => {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+
     // Chemin null : ressource non accessible à ce porteur, aucune requête (évite un 403 inutile).
     if (path === null) {
       setState({ items: [], meta: null, error: null, errorStatus: null, loading: false });
       return;
     }
-    setState((current) => ({ ...current, loading: true }));
+
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    setState((current) => ({ ...current, loading: true, error: null, errorStatus: null }));
     try {
-      const { data, meta } = await request(path);
+      const { data, meta } = await request(path, { signal: controller.signal });
+      if (controller.signal.aborted || activeRequest.current !== controller) return;
       setState({ items: data, meta: meta ?? null, error: null, errorStatus: null, loading: false });
     } catch (caught) {
+      if (controller.signal.aborted || activeRequest.current !== controller) return;
       setState((current) => ({
         ...current,
         error: messageOf(caught),
         errorStatus: caught?.status ?? null,
         loading: false,
       }));
+    } finally {
+      if (activeRequest.current === controller) activeRequest.current = null;
     }
   }, [path, request]);
 
   useEffect(() => {
     reload();
+    return () => {
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    };
   }, [reload]);
 
   return { ...state, reload };

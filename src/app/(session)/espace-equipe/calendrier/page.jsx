@@ -9,7 +9,8 @@ import { fr } from "date-fns/locale/fr";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
-import { useListing } from "@/lib/use-listing";
+import { useAllListing } from "@/lib/use-all-listing";
+import { fetchAllPages } from "@/lib/pagination.mjs";
 import { GlowIcon } from "@/components/dashboard/GlassCard";
 import Icon from "@/components/dashboard/icons";
 
@@ -54,57 +55,60 @@ export default function CalendrierPage() {
   const seesAll = can(user, "task:read:any");
   const canReadProjects = can(user, "project:read:any") || can(user, "project:read:assigned") || can(user, "project:read:own");
   const loadTeamTasks = seesAll && canReadProjects;
-  const ownTasks = useListing(loadTeamTasks ? null : "/me/tasks?perPage=100");
-  const projects = useListing(canReadProjects ? "/projects?perPage=100" : null);
-  const [teamTasks, setTeamTasks] = useState({ items: null, error: null });
+  const ownTasks = useAllListing(loadTeamTasks ? null : "/me/tasks?perPage=100");
+  const projects = useAllListing(canReadProjects ? "/projects?perPage=100" : null);
+  const [teamTasks, setTeamTasks] = useState({ items: null, error: null, projectKey: null });
   const [selected, setSelected] = useState(null);
   const today = todayKey();
 
   const readableProjects = projects.items ?? EMPTY;
+  const projectKey = JSON.stringify(readableProjects.map(({ id, name, reference }) => [id, name, reference]));
   useEffect(() => {
-    let cancelled = false;
-    if (!loadTeamTasks || projects.items === null || readableProjects.length === 0) return undefined;
+    if (!loadTeamTasks || projects.error || projects.loading || projects.items === null || readableProjects.length === 0) {
+      return undefined;
+    }
 
+    const controller = new AbortController();
     async function loadTasks() {
       try {
         const allTasks = [];
-        // Limite la concurrence sans omettre les projets visibles.
+        // Limite la concurrence entre projets sans omettre de pages ou de projets visibles.
         for (let index = 0; index < readableProjects.length; index += 8) {
           const batch = readableProjects.slice(index, index + 8);
           const lists = await Promise.all(batch.map(async (project) => {
-            const { data } = await request(`/projects/${project.id}/tasks?perPage=100`);
-            return (data ?? []).map((task) => ({
+            const { items } = await fetchAllPages(
+              request,
+              `/projects/${encodeURIComponent(project.id)}/tasks?perPage=100`,
+              { signal: controller.signal },
+            );
+            return items.map((task) => ({
               ...task,
               projectId: project.id,
               project: { id: project.id, name: project.name, reference: project.reference },
             }));
           }));
           allTasks.push(...lists.flat());
-          if (cancelled) return;
         }
-        setTeamTasks({ items: allTasks, error: null });
+        if (!controller.signal.aborted) setTeamTasks({ items: allTasks, error: null, projectKey });
       } catch (caught) {
-        if (!cancelled) {
-          setTeamTasks((current) => ({
-            items: current.items ?? [],
-            error: messageOf(caught),
-          }));
-        }
+        if (!controller.signal.aborted) setTeamTasks({ items: null, error: messageOf(caught), projectKey });
       }
     }
 
     loadTasks();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadTeamTasks, projects.items, readableProjects, request]);
+    return () => controller.abort();
+  }, [loadTeamTasks, projectKey, projects.error, projects.items, projects.loading, readableProjects, request]);
 
+  const teamTasksAreCurrent = teamTasks.projectKey === projectKey;
+  const projectListFailed = Boolean(projects.error && projects.items === null);
   const taskItems = useMemo(() => {
     if (!loadTeamTasks) return ownTasks.items ?? EMPTY;
-    return readableProjects.length === 0 ? EMPTY : teamTasks.items ?? EMPTY;
-  }, [loadTeamTasks, ownTasks.items, readableProjects.length, teamTasks.items]);
-  const tasks = { items: taskItems, error: loadTeamTasks ? teamTasks.error : ownTasks.error };
-  const loading = projects.loading || (loadTeamTasks ? readableProjects.length > 0 && teamTasks.items === null : ownTasks.loading);
+    if (readableProjects.length === 0 || projectListFailed) return EMPTY;
+    return teamTasksAreCurrent ? teamTasks.items ?? EMPTY : EMPTY;
+  }, [loadTeamTasks, ownTasks.items, projectListFailed, readableProjects.length, teamTasks.items, teamTasksAreCurrent]);
+  const teamTasksLoading = loadTeamTasks && !projects.error && (projects.loading || projects.items === null || (readableProjects.length > 0 && !teamTasksAreCurrent));
+  const tasks = { items: taskItems, error: loadTeamTasks ? (teamTasksAreCurrent ? teamTasks.error : null) : ownTasks.error };
+  const loading = projects.loading || (loadTeamTasks ? teamTasksLoading : ownTasks.loading);
 
   const events = useMemo(() => {
     const out = [];

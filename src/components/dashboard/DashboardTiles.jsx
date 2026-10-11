@@ -8,6 +8,7 @@ import { TASK_STATUS } from "@/lib/labels";
 import { formatElapsed, useTimer } from "@/lib/timer";
 import GlassCard, { GlowIcon } from "@/components/dashboard/GlassCard";
 import Icon from "@/components/dashboard/icons";
+import { Pagination } from "@/components/workspace/ui";
 
 /*
  * Tuiles du tableau de bord. Chaque tuile reçoit SON état (chargement, erreur, données) :
@@ -263,7 +264,7 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
  * Minuteur : état réel du contexte (persisté dans le navigateur, enregistré côté API à l'arrêt).
  * La permission est vérifiée par l'appelant : cette tuile n'est rendue que si l'utilisateur peut s'en servir.
  */
-export function TimerTile({ tasks, className = "" }) {
+export function TimerTile({ tasks, onTaskPageChange, className = "" }) {
   const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
 
@@ -293,7 +294,7 @@ export function TimerTile({ tasks, className = "" }) {
           {tasks.items !== null && list.length === 0 && !tasks.error ? <p className="cx-dashboard__muted">Aucune tâche ouverte assignée.</p> : null}
           {list.length > 0 ? <p className="cx-dashboard__muted">Sélectionnez une tâche pour démarrer le minuteur.</p> : null}
           <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto pr-1">
-            {list.slice(0, 8).map((task) => (
+            {list.map((task) => (
               <li key={task.id}>
                 <button type="button" onClick={() => start(task)} className="cx-dashboard__task-button">
                   <span className="truncate">{task.title}</span>
@@ -302,6 +303,7 @@ export function TimerTile({ tasks, className = "" }) {
               </li>
             ))}
           </ul>
+          <Pagination meta={tasks.meta} onPageChange={onTaskPageChange} loading={tasks.loading} label="Pagination des tâches du minuteur" />
         </>
       )}
 
