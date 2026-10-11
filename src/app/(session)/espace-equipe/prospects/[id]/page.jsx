@@ -3,15 +3,23 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 
 /** Fiche d'un prospect : statut du pipeline, historique, puis conversion en client. */
 export default function ProspectDetailPage({ params }) {
   const { id } = use(params);
+  const { user } = useAuth();
+  const canWriteProspect = can(user, "prospect:write:any") || can(user, "prospect:write:own");
+  const canConvertProspect = can(user, "prospect:convert:any");
+  const canCreateQuote = can(user, "quote:write:any");
+  const canReadClients = can(user, "client:read:any");
+  const [historyPage, setHistoryPage] = useState(1);
   const prospect = useListing(`/prospects/${id}`);
-  const history = useListing(`/prospects/${id}/history?perPage=50`);
+  const history = useListing(`/prospects/${id}/history?page=${historyPage}&perPage=50`);
   const action = useAction(() => Promise.all([prospect.reload(), history.reload()]));
   const [statusDraft, setStatusDraft] = useState(null);
   const [note, setNote] = useState("");
@@ -62,9 +70,10 @@ export default function ProspectDetailPage({ params }) {
 
       {action.error ? <Notice>{action.error}</Notice> : null}
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
-      {converted?.id ? (
+      {converted ? (
         <Notice tone="success">
-          Client créé. <Link href="/espace-equipe/clients" className="underline">Voir les clients</Link>
+          Client créé.{" "}
+          {canReadClients ? <Link href="/espace-equipe/clients" className="underline">Voir les clients</Link> : null}
         </Notice>
       ) : null}
 
@@ -108,20 +117,23 @@ export default function ProspectDetailPage({ params }) {
         </dl>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href={`/espace-equipe/devis/nouveau?prospectId=${id}`} className={primaryButton}>
-            Créer un devis
-          </Link>
+          {canCreateQuote ? (
+            <Link href={`/espace-equipe/devis/nouveau?prospectId=${id}`} className={primaryButton}>
+              Créer un devis
+            </Link>
+          ) : null}
           {isConverted ? (
             <span className="self-center text-[14px] text-[var(--comexa-ink-soft)]">Ce prospect est déjà converti en client.</span>
-          ) : (
-            <button type="button" onClick={convert} disabled={action.busy === "convert"} className={secondaryButton}>
+          ) : canConvertProspect ? (
+            <button type="button" onClick={convert} disabled={Boolean(action.busy)} className={secondaryButton}>
               {action.busy === "convert" ? "Conversion…" : "Convertir en client"}
             </button>
-          )}
+          ) : null}
         </div>
       </Card>
 
-      <Card title="Changer le statut">
+      {canWriteProspect && !isConverted ? (
+        <Card title="Changer le statut">
         <div className="grid gap-4 md:grid-cols-3">
           <Field id="status" label="Nouveau statut">
             <select id="status" className={selectClass} value={currentStatus} onChange={(event) => setStatusDraft(event.target.value)}>
@@ -146,7 +158,8 @@ export default function ProspectDetailPage({ params }) {
             {action.busy === "status" ? "Enregistrement…" : "Mettre à jour le statut"}
           </button>
         </div>
-      </Card>
+        </Card>
+      ) : null}
 
       <Card title="Historique">
         {history.error ? <Notice>{history.error}</Notice> : null}
@@ -166,6 +179,7 @@ export default function ProspectDetailPage({ params }) {
             </li>
           ))}
         </ol>
+        <Pagination meta={history.meta} onPageChange={setHistoryPage} loading={history.loading} />
       </Card>
     </div>
   );

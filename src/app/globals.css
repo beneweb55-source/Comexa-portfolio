@@ -3,6 +3,7 @@
 @import "../styles/comexa.components.css";
 @import "../styles/workspace-glass.css";
 @import "../styles/comexa.public.css";
+@import "../styles/workspace-shell.css";
 
 :root {
   --background: #ffffff;

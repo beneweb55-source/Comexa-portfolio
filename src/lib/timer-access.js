@@ -4,8 +4,9 @@ import { can } from "@/lib/access";
  * Droits du minuteur. Il faut DEUX familles de permissions :
  *  - lire les tâches assignées (GET /me/tasks) pour choisir une tâche ;
  *  - saisir du temps (POST /tasks/:id/time-entries) pour l'enregistrer à l'arrêt.
- * Sans l'une des deux, le minuteur n'est pas proposé : aucun appel n'est tenté,
- * donc aucun 403 n'apparaît à l'utilisateur (voir le correctif /me/tasks).
+ * Avec `time:write:own`, le backend exige aussi une tâche modifiable ; avec
+ * `time:write:any`, une tâche lisible suffit. Sans ces droits, le minuteur n'est
+ * pas proposé : l'interface n'envoie pas un enregistrement voué à échouer.
  * Le serveur reste la référence : ces tests ne servent qu'à l'affichage.
  */
 export function canReadOwnTasks(user) {
@@ -17,5 +18,9 @@ export function canLogTime(user) {
 }
 
 export function canUseTimer(user) {
-  return canReadOwnTasks(user) && canLogTime(user);
+  if (!canReadOwnTasks(user) || !canLogTime(user)) return false;
+
+  // time:write:own asks the backend to requireWritable(task), not merely to
+  // requireReadable(task). Do not offer a timer whose first save would 404.
+  return can(user, "time:write:any") || can(user, "task:write:any") || can(user, "task:write:own");
 }

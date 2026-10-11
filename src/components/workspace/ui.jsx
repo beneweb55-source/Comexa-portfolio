@@ -58,6 +58,27 @@ export function Empty({ title, children }) {
   );
 }
 
+/** Contrôle de pagination commun aux listes renvoyées par l'API. */
+export function Pagination({ meta, onPageChange, loading = false, label = "Pagination des résultats" }) {
+  if (!meta || meta.totalPages <= 1) return null;
+
+  return (
+    <nav className="mt-5 flex flex-wrap items-center justify-between gap-3" aria-label={label}>
+      <p className="text-[12.5px] text-[var(--comexa-ink-muted)]" aria-live="polite">
+        Page {meta.page} sur {meta.totalPages} · {meta.total} résultats
+      </p>
+      <div className="flex gap-2">
+        <button type="button" className={secondaryButton} onClick={() => onPageChange(meta.page - 1)} disabled={loading || meta.page <= 1}>
+          Précédent
+        </button>
+        <button type="button" className={secondaryButton} onClick={() => onPageChange(meta.page + 1)} disabled={loading || meta.page >= meta.totalPages}>
+          Suivant
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 /** Ligne de formulaire : libellé, aide et erreur, au même rythme partout. */
 export function Field({ id, label, hint, error, children }) {
   return (
@@ -93,14 +114,14 @@ export function ConfirmDialog({ open, title, children, confirmLabel, onConfirm, 
   }, [open]);
 
   return (
-    <dialog ref={ref} className="cx-dialog" onCancel={(event) => { event.preventDefault(); onCancel?.(); }} aria-labelledby="cx-dialog-title">
+    <dialog ref={ref} className="cx-dialog" onCancel={(event) => { event.preventDefault(); if (!busy) onCancel?.(); }} aria-labelledby="cx-dialog-title">
       <h4 id="cx-dialog-title">{title}</h4>
       <div className="mt-3 text-[15px] leading-relaxed">{children}</div>
       <div className="cx-dialog__actions">
         <button type="button" className="cx-btn cx-btn--ghost" onClick={onCancel} disabled={busy}>
           Annuler
         </button>
-        <button type="button" className={tone === "danger" ? "cx-btn cx-btn--primary" : "cx-btn cx-btn--accent"} onClick={onConfirm} disabled={busy}>
+        <button type="button" className={tone === "danger" ? "cx-btn cx-btn--danger" : "cx-btn cx-btn--accent"} onClick={onConfirm} disabled={busy}>
           {busy ? "En cours…" : confirmLabel}
         </button>
       </div>

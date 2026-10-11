@@ -26,10 +26,10 @@ export default function EspaceClientPage() {
   return (
     <div className="flex flex-col gap-8">
       {noOrders && noProjects ? (
-        <Card variant="ink">
-          <p className="cx-eyebrow !text-white/80">Bienvenue</p>
-          <h4 className="mt-2 !text-white">Votre espace se remplit dès votre première commande.</h4>
-          <p className="cx-lead mt-3 !text-white/90">Choisissez un pack : son tarif s’affiche avant toute validation.</p>
+        <Card>
+          <p className="cx-eyebrow !text-[#0f65a2]">Bienvenue</p>
+          <h4 className="mt-2 !text-[#152f4d]">Votre espace se remplit dès votre première commande.</h4>
+          <p className="cx-lead mt-3 !text-[#526980]">Choisissez un pack : son tarif s’affiche avant toute validation.</p>
           <div className="mt-6">
             <Link href="/espace-client/commander" className="cx-btn cx-btn--accent">
               Voir les packs

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { formatDate, formatMoney, messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
 import { MODIFICATION_STATUS, MODIFICATION_TONE, PRIORITY } from "@/lib/modifications";
 
 /**
@@ -13,8 +13,10 @@ import { MODIFICATION_STATUS, MODIFICATION_TONE, PRIORITY } from "@/lib/modifica
  */
 export default function ModificationsPage() {
   const [status, setStatus] = useState("");
-  const path = `/modification-requests?perPage=100${status ? `&status=${status}` : ""}`;
-  const requests = useListing(path);
+  const [page, setPage] = useState(1);
+  const query = new URLSearchParams({ page: String(page), perPage: "100" });
+  if (status) query.set("status", status);
+  const requests = useListing(`/modification-requests?${query.toString()}`);
   const action = useAction(requests.reload);
   const items = requests.items ?? [];
 
@@ -23,7 +25,7 @@ export default function ModificationsPage() {
       title="Demandes de modification"
       action={
         <Field id="mod-status" label="Statut">
-          <select id="mod-status" className={`${selectClass} !w-[200px]`} value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select id="mod-status" className={`${selectClass} !w-[200px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
             <option value="">Tous</option>
             {Object.entries(MODIFICATION_STATUS).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -62,6 +64,7 @@ export default function ModificationsPage() {
           </li>
         ))}
       </ul>
+      <Pagination meta={requests.meta} onPageChange={setPage} loading={requests.loading} />
     </Card>
   );
 }

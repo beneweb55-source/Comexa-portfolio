@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import "react-big-calendar/lib/css/react-big-calendar.css";
@@ -9,8 +9,8 @@ import { fr } from "date-fns/locale/fr";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
-import { useListing } from "@/lib/use-listing";
-import MeshBackground from "@/components/dashboard/MeshBackground";
+import { useAllListing } from "@/lib/use-all-listing";
+import { fetchAllPages } from "@/lib/pagination.mjs";
 import { GlowIcon } from "@/components/dashboard/GlassCard";
 import Icon from "@/components/dashboard/icons";
 
@@ -44,8 +44,8 @@ const todayKey = () => {
 /**
  * Calendrier de l'équipe : échéances de mes tâches et des projets.
  * - Projets : pastille cyan lumineuse. Tâches : violet/rose.
- * - Échéance dépassée et élément non clos : rouge qui pulse.
- * - Clic : fenêtre de détail en verre, avec un lien vers le projet.
+ * - Échéance dépassée et élément non clos : rouge, sans animation permanente.
+ * - Clic : fenêtre de détail accessible, avec un lien vers le projet.
  * Les réunions ne sont pas modélisées côté API : elles n'apparaissent pas ici.
  */
 export default function CalendrierPage() {
@@ -53,26 +53,62 @@ export default function CalendrierPage() {
   // Qui voit toute l'équipe (task:read:any) : tâches de tous les projets, comme l'analytique.
   // Les autres ne voient que les tâches qui leur sont assignées.
   const seesAll = can(user, "task:read:any");
-  const ownTasks = useListing(seesAll ? null : "/me/tasks?perPage=100");
-  const projects = useListing("/projects?perPage=100");
-  const [teamTasks, setTeamTasks] = useState({ items: null, error: null });
+  const canReadProjects = can(user, "project:read:any") || can(user, "project:read:assigned") || can(user, "project:read:own");
+  const loadTeamTasks = seesAll && canReadProjects;
+  const ownTasks = useAllListing(loadTeamTasks ? null : "/me/tasks?perPage=100");
+  const projects = useAllListing(canReadProjects ? "/projects?perPage=100" : null);
+  const [teamTasks, setTeamTasks] = useState({ items: null, error: null, projectKey: null });
   const [selected, setSelected] = useState(null);
   const today = todayKey();
 
-  const projectIds = seesAll ? (projects.items ?? []).slice(0, 30).map((p) => p.id).join(",") : "";
+  const readableProjects = projects.items ?? EMPTY;
+  const projectKey = JSON.stringify(readableProjects.map(({ id, name, reference }) => [id, name, reference]));
   useEffect(() => {
-    let cancelled = false;
-    if (!projectIds) return undefined;
-    Promise.all(projectIds.split(",").map((id) => request(`/projects/${id}/tasks?perPage=100`).then((r) => r.data ?? [])))
-      .then((lists) => !cancelled && setTeamTasks({ items: lists.flat(), error: null }))
-      .catch((caught) => !cancelled && setTeamTasks({ items: [], error: messageOf(caught) }));
-    return () => {
-      cancelled = true;
-    };
-  }, [projectIds, request]);
+    if (!loadTeamTasks || projects.error || projects.loading || projects.items === null || readableProjects.length === 0) {
+      return undefined;
+    }
 
-  const taskItems = useMemo(() => (seesAll ? teamTasks.items : ownTasks.items) ?? EMPTY, [seesAll, teamTasks.items, ownTasks.items]);
-  const tasks = { items: taskItems, error: seesAll ? teamTasks.error : ownTasks.error };
+    const controller = new AbortController();
+    async function loadTasks() {
+      try {
+        const allTasks = [];
+        // Limite la concurrence entre projets sans omettre de pages ou de projets visibles.
+        for (let index = 0; index < readableProjects.length; index += 8) {
+          const batch = readableProjects.slice(index, index + 8);
+          const lists = await Promise.all(batch.map(async (project) => {
+            const { items } = await fetchAllPages(
+              request,
+              `/projects/${encodeURIComponent(project.id)}/tasks?perPage=100`,
+              { signal: controller.signal },
+            );
+            return items.map((task) => ({
+              ...task,
+              projectId: project.id,
+              project: { id: project.id, name: project.name, reference: project.reference },
+            }));
+          }));
+          allTasks.push(...lists.flat());
+        }
+        if (!controller.signal.aborted) setTeamTasks({ items: allTasks, error: null, projectKey });
+      } catch (caught) {
+        if (!controller.signal.aborted) setTeamTasks({ items: null, error: messageOf(caught), projectKey });
+      }
+    }
+
+    loadTasks();
+    return () => controller.abort();
+  }, [loadTeamTasks, projectKey, projects.error, projects.items, projects.loading, readableProjects, request]);
+
+  const teamTasksAreCurrent = teamTasks.projectKey === projectKey;
+  const projectListFailed = Boolean(projects.error && projects.items === null);
+  const taskItems = useMemo(() => {
+    if (!loadTeamTasks) return ownTasks.items ?? EMPTY;
+    if (readableProjects.length === 0 || projectListFailed) return EMPTY;
+    return teamTasksAreCurrent ? teamTasks.items ?? EMPTY : EMPTY;
+  }, [loadTeamTasks, ownTasks.items, projectListFailed, readableProjects.length, teamTasks.items, teamTasksAreCurrent]);
+  const teamTasksLoading = loadTeamTasks && !projects.error && (projects.loading || projects.items === null || (readableProjects.length > 0 && !teamTasksAreCurrent));
+  const tasks = { items: taskItems, error: loadTeamTasks ? (teamTasksAreCurrent ? teamTasks.error : null) : ownTasks.error };
+  const loading = projects.loading || (loadTeamTasks ? teamTasksLoading : ownTasks.loading);
 
   const events = useMemo(() => {
     const out = [];
@@ -121,31 +157,23 @@ export default function CalendrierPage() {
     return out;
   }, [taskItems, projects.items, today]);
 
-  // Fermer la fenêtre de détail avec Échap.
-  useEffect(() => {
-    if (!selected) return undefined;
-    const onKey = (event) => event.key === "Escape" && setSelected(null);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selected]);
-
+  const closeDialog = useCallback(() => setSelected(null), []);
   const error = tasks.error ?? projects.error;
   const overdueCount = events.filter((e) => e.overdue).length;
 
   return (
-    <div className="calendar-glass relative isolate overflow-hidden rounded-[36px] bg-[#071a33] p-5 text-white md:p-8">
-      <MeshBackground />
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="cx-workspace-calendar">
+      <header className="cx-calendar__header">
         <div>
-          <p className="text-[12.5px] font-medium uppercase tracking-[0.18em] text-sky-300/80">Échéances</p>
-          <h2 className="mt-2 bg-gradient-to-b from-white to-white/70 bg-clip-text text-[30px] font-semibold tracking-tight text-transparent">Calendrier de l’équipe</h2>
+          <p className="cx-calendar__eyebrow">Agenda des échéances</p>
+          <p className="cx-calendar__summary">{loading ? "Chargement des échéances…" : `${events.length} ${events.length === 1 ? "élément planifié" : "éléments planifiés"}`}</p>
         </div>
         <Legend overdueCount={overdueCount} />
       </header>
 
-      {error ? <p role="alert" className="mb-5 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-[14px] text-rose-100">{error}</p> : null}
+      {error ? <p role="alert" className="cx-calendar__error">{error}</p> : null}
 
-      <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.3)] backdrop-blur-xl md:p-5">
+      <div className="cx-calendar__panel">
         <div className="h-[660px]">
           <Calendar
             localizer={localizer}
@@ -165,81 +193,125 @@ export default function CalendrierPage() {
         </div>
       </div>
 
-      {selected ? <EventDialog event={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? <EventDialog event={selected} onClose={closeDialog} canOpenProject={canReadProjects} /> : null}
     </div>
   );
 }
 
 function eventStyle(event) {
   if (event.overdue) {
-    return { background: "linear-gradient(135deg,#f87171,#dc2626)", boxShadow: "0 0 16px -4px rgba(248,113,113,0.8)" };
+    return { background: "linear-gradient(135deg,#b42318,#8f1d18)" };
   }
   if (event.closed) {
-    return { background: "rgba(148,163,184,0.35)", color: "rgba(255,255,255,0.7)", textDecoration: "line-through" };
+    return { background: "#e5eaf0", color: "#526980", textDecoration: "line-through" };
   }
   if (event.kind === "project") {
-    return { background: "linear-gradient(135deg,#22d3ee,#1e86e0)", boxShadow: "0 0 18px -4px rgba(34,211,238,0.7)" };
+    return { background: "linear-gradient(135deg,#117a98,#135da6)" };
   }
-  return { background: "linear-gradient(135deg,#c084fc,#f472b6)", boxShadow: "0 0 18px -4px rgba(192,132,252,0.65)" };
+  return { background: "linear-gradient(135deg,#6642a3,#a83272)" };
 }
 
 function Legend({ overdueCount }) {
   const items = [
-    { label: "Projet", swatch: "bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.9)]" },
-    { label: "Tâche", swatch: "bg-fuchsia-400 shadow-[0_0_10px_rgba(192,132,252,0.9)]" },
-    { label: "En retard", swatch: "bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" },
-    { label: "Clos", swatch: "bg-slate-400/60" },
+    { label: "Projet", swatch: "bg-[#1688bd]" },
+    { label: "Tâche", swatch: "bg-[#8060ba]" },
+    { label: "En retard", swatch: "bg-[#c0271f]" },
+    { label: "Clos", swatch: "bg-slate-400" },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-4 text-[12.5px] text-white/70">
+    <div className="cx-calendar__legend">
       {items.map((item) => (
         <span key={item.label} className="inline-flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${item.swatch}`} aria-hidden="true" />
           {item.label}
         </span>
       ))}
-      {overdueCount ? <span className="rounded-full bg-red-500/15 px-3 py-1 text-red-200">{overdueCount} en retard</span> : null}
+      {overdueCount ? <span className="cx-calendar__overdue-count">{overdueCount} en retard</span> : null}
     </div>
   );
 }
 
-function EventDialog({ event, onClose }) {
+function EventDialog({ event, onClose, canOpenProject }) {
+  const dialogRef = useRef(null);
   const isProject = event.kind === "project";
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return undefined;
+
+    const previouslyFocused = document.activeElement;
+    const getFocusable = () => Array.from(dialog.querySelectorAll('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'));
+    (getFocusable()[0] ?? dialog).focus();
+
+    function trapFocus(keyEvent) {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        onClose();
+        return;
+      }
+      if (keyEvent.key !== "Tab") return;
+
+      const focusable = getFocusable();
+      if (!focusable.length) {
+        keyEvent.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (keyEvent.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+        keyEvent.preventDefault();
+        last.focus();
+      } else if (!keyEvent.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+        keyEvent.preventDefault();
+        first.focus();
+      }
+    }
+
+    window.addEventListener("keydown", trapFocus);
+    return () => {
+      window.removeEventListener("keydown", trapFocus);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose} role="presentation">
+    <div className="cx-calendar__overlay" onClick={onClose} role="presentation">
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="event-dialog-title"
         onClick={(e) => e.stopPropagation()}
-        className="cx-glass-modal w-full max-w-md rounded-[28px] p-6 text-white"
+        className="cx-glass-modal"
+        tabIndex={-1}
       >
         <div className="flex items-start gap-4">
           <GlowIcon tone={isProject ? "accent" : "violet"}><Icon name={isProject ? "folder" : "check"} /></GlowIcon>
           <div className="min-w-0">
-            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-white/55">{isProject ? "Projet" : "Tâche"}{event.reference ? ` · ${event.reference}` : ""}</p>
-            <h3 id="event-dialog-title" className="mt-1 text-[18px] font-semibold leading-snug text-white">{event.title}</h3>
+            <p className="text-[12px] font-medium uppercase tracking-[0.14em] text-[#71849a]">{isProject ? "Projet" : "Tâche"}{event.reference ? ` · ${event.reference}` : ""}</p>
+            <h3 id="event-dialog-title" className="mt-1 text-[18px] font-semibold leading-snug text-[#152f4d]">{event.title}</h3>
           </div>
         </div>
 
-        <dl className="mt-5 grid grid-cols-2 gap-3 text-[13.5px]">
-          <div className="rounded-2xl bg-white/[0.05] p-3">
-            <dt className="text-white/50">Échéance</dt>
-            <dd className="mt-1 font-medium text-white">{formatDate(event.dueDate)}</dd>
+        <dl className="cx-calendar__details">
+          <div className="cx-calendar__detail">
+            <dt className="text-[#152f4d]/50">Échéance</dt>
+            <dd className="mt-1 font-medium text-[#152f4d]">{formatDate(event.dueDate)}</dd>
           </div>
-          <div className="rounded-2xl bg-white/[0.05] p-3">
-            <dt className="text-white/50">Statut</dt>
-            <dd className="mt-1 font-medium text-white">{event.statusLabel}</dd>
+          <div className="cx-calendar__detail">
+            <dt className="text-[#152f4d]/50">Statut</dt>
+            <dd className="mt-1 font-medium text-[#152f4d]">{event.statusLabel}</dd>
           </div>
         </dl>
 
-        {event.overdue ? <p className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/10 p-3 text-[13px] text-red-100">Échéance dépassée, non clôturée.</p> : null}
-        {!isProject && event.projectName ? <p className="mt-4 text-[13px] text-white/60">Projet : {event.projectName}</p> : null}
+        {event.overdue ? <p className="cx-calendar__late">Échéance dépassée, non clôturée.</p> : null}
+        {!isProject && event.projectName ? <p className="mt-4 text-[13px] text-[#637991]">Projet : {event.projectName}</p> : null}
 
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button type="button" onClick={onClose} className="rounded-full border border-white/15 px-4 py-2 text-[13px] text-white/80 hover:bg-white/10">Fermer</button>
-          {event.projectId ? (
-            <Link href={`/espace-equipe/projets/${event.projectId}`} className="rounded-full bg-sky-500/80 px-4 py-2 text-[13px] font-medium text-white shadow-[0_0_20px_-4px_rgba(56,189,248,0.8)] hover:bg-sky-400">
+        <div className="cx-calendar__dialog-actions">
+          <button type="button" onClick={onClose} className="cx-calendar__close">Fermer</button>
+          {event.projectId && canOpenProject ? (
+            <Link href={`/espace-equipe/projets/${event.projectId}`} className="cx-calendar__open-project">
               Ouvrir le projet →
             </Link>
           ) : null}

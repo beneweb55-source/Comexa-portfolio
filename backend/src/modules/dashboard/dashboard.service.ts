@@ -85,6 +85,7 @@ export interface UpcomingTask {
   readonly dueDate: string | null;
   readonly priority: string;
   readonly status: string;
+  readonly projectId: string | null;
   readonly projectName: string | null;
   readonly assigneeName: string | null;
 }
@@ -245,7 +246,7 @@ interface UpcomingTaskRow {
   dueDate: Date | null;
   priority: string;
   status: string;
-  project: { name: string } | null;
+  project: { id: string; name: string } | null;
   assignee: { firstName: string; lastName: string } | null;
 }
 
@@ -256,6 +257,7 @@ function toUpcomingTask(row: UpcomingTaskRow): UpcomingTask {
     dueDate: row.dueDate === null ? null : row.dueDate.toISOString(),
     priority: row.priority,
     status: row.status,
+    projectId: row.project?.id ?? null,
     projectName: row.project?.name ?? null,
     assigneeName:
       row.assignee === null ? null : `${row.assignee.firstName} ${row.assignee.lastName}`.trim(),
@@ -400,7 +402,7 @@ export class DashboardService {
           dueDate: true,
           priority: true,
           status: true,
-          project: { select: { name: true } },
+          project: { select: { id: true, name: true } },
           assignee: { select: { firstName: true, lastName: true } },
         },
         // `id` en second critere : deux taches a la meme echeance doivent sortir
@@ -572,7 +574,7 @@ export class DashboardService {
         dueDate: true,
         priority: true,
         status: true,
-        project: { select: { name: true } },
+        project: { select: { id: true, name: true } },
         assignee: { select: { firstName: true, lastName: true } },
       },
       orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { formatDate } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
-import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 
 const ENTITY_TYPES = ["User", "Role", "Quote", "Invoice", "Payment", "Project", "Client", "Prospect", "Setting", "Service", "Package", "Testimonial", "Partner", "Faq"];
 
@@ -14,8 +14,9 @@ const ENTITY_TYPES = ["User", "Role", "Quote", "Invoice", "Payment", "Project", 
 export default function JournalPage() {
   const [filters, setFilters] = useState({ action: "", entityType: "", from: "", to: "" });
   const [applied, setApplied] = useState(filters);
+  const [page, setPage] = useState(1);
 
-  const params = new URLSearchParams({ perPage: "50" });
+  const params = new URLSearchParams({ page: String(page), perPage: "50" });
   for (const [key, value] of Object.entries(applied)) if (value) params.set(key, value);
   const logs = useListing(`/audit-logs?${params.toString()}`);
   const forbidden = logs.errorStatus === 403;
@@ -36,6 +37,7 @@ export default function JournalPage() {
         onSubmit={(event) => {
           event.preventDefault();
           setApplied({ ...filters, action: filters.action.trim(), entityType: filters.entityType.trim() });
+          setPage(1);
         }}
         className="mb-6 flex flex-wrap items-end gap-3"
       >
@@ -64,6 +66,7 @@ export default function JournalPage() {
             const empty = { action: "", entityType: "", from: "", to: "" };
             setFilters(empty);
             setApplied(empty);
+            setPage(1);
           }}
         >
           Réinitialiser
@@ -100,6 +103,7 @@ export default function JournalPage() {
           </table>
         </div>
       ) : null}
+      <Pagination meta={logs.meta} onPageChange={setPage} loading={logs.loading} />
     </Card>
   );
 }

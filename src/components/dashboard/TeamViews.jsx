@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useId, useRef, useState } from "react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, PAYMENT_METHOD, PROSPECT_STATUS } from "@/lib/commercial";
@@ -15,6 +16,10 @@ const label = (map, key) => map?.[key] ?? key ?? "—";
 const hm = (minutes) => {
   const m = Number(minutes) || 0;
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} min` : `${m} min`;
+};
+const percentFromRatio = (ratio) => {
+  const value = Number(ratio);
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format((Number.isFinite(value) ? value : 0) * 100);
 };
 
 /** Carte de chiffre : libellé, valeur, précision facultative. */
@@ -67,26 +72,54 @@ function Table({ columns, rows, empty }) {
 /** Onglets accessibles (rôles tablist/tab) : une seule vue visible à la fois. */
 export function Tabs({ tabs, initial = 0 }) {
   const [active, setActive] = useState(initial);
+  const instanceId = useId();
+  const tabRefs = useRef([]);
+
+  function focusTab(index) {
+    const next = (index + tabs.length) % tabs.length;
+    setActive(next);
+    tabRefs.current[next]?.focus();
+  }
+
+  function handleKeyDown(event, index) {
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      focusTab(index + 1);
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      focusTab(index - 1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      focusTab(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      focusTab(tabs.length - 1);
+    }
+  }
+
   return (
     <div>
-      <div role="tablist" aria-label="Sections du tableau de bord" className="mb-5 flex flex-wrap gap-1 rounded-2xl bg-[var(--comexa-neutral-100)] p-1">
+      <div role="tablist" aria-label="Sections détaillées du tableau de bord" aria-orientation="horizontal" className="cx-dashboard__tabs">
         {tabs.map((tab, i) => (
           <button
             key={tab.id}
-            id={`tab-${tab.id}`}
+            ref={(node) => { tabRefs.current[i] = node; }}
+            id={`${instanceId}-tab-${tab.id}`}
             type="button"
             role="tab"
+            tabIndex={active === i ? 0 : -1}
             aria-selected={active === i}
-            aria-controls={`panel-${tab.id}`}
+            aria-controls={`${instanceId}-panel-${tab.id}`}
             onClick={() => setActive(i)}
-            className={`rounded-xl px-4 py-2 text-[13.5px] font-medium ${active === i ? "bg-white text-[var(--comexa-ink)] shadow-sm" : "text-[var(--comexa-ink-soft)] hover:text-[var(--comexa-ink)]"}`}
+            onKeyDown={(event) => handleKeyDown(event, i)}
+            className={`cx-dashboard__tab${active === i ? " is-active" : ""}`}
           >
             {tab.label}
           </button>
         ))}
       </div>
       {tabs.map((tab, i) => (
-        <div key={tab.id} id={`panel-${tab.id}`} role="tabpanel" aria-labelledby={`tab-${tab.id}`} hidden={active !== i}>
+        <div key={tab.id} id={`${instanceId}-panel-${tab.id}`} role="tabpanel" tabIndex={0} aria-labelledby={`${instanceId}-tab-${tab.id}`} hidden={active !== i}>
           {active === i ? tab.content : null}
         </div>
       ))}
@@ -109,14 +142,14 @@ export function AgencyView({ data }) {
       <Stat label="Prospects ouverts" value={d.prospects?.open ?? 0} hint={`${d.prospects?.createdInPeriod ?? 0} créés sur la période`} />
       <Stat label="Projets actifs" value={d.projects?.active ?? 0} hint={`${d.projects?.overdue ?? 0} en retard`} />
       <Stat label="Tâches ouvertes" value={d.tasks?.open ?? 0} hint={`${d.tasks?.overdue ?? 0} en retard`} />
-      <Stat label="Taux d’encaissement" value={`${Number(d.collectionRate ?? 0)} %`} hint={`Période du ${formatDate(d.period?.periodStart)} au ${formatDate(d.period?.periodEnd)}`} />
+      <Stat label="Taux d’encaissement" value={`${percentFromRatio(d.collectionRate)} %`} hint={`Période du ${formatDate(d.period?.periodStart)} au ${formatDate(d.period?.periodEnd)}`} />
     </div>
   );
 
   const projectsFinance = (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-4">
-        <h3 className="text-[15px] font-semibold">Projets</h3>
+        <h3 className="text-[15px] font-semibold">Projets & prospects</h3>
         <div className="grid grid-cols-2 gap-3">
           <Stat label="Total" value={d.projects?.total ?? 0} />
           <Stat label="Avancement moyen" value={`${d.projects?.averageProgress ?? 0} %`} />
@@ -159,7 +192,7 @@ export function AgencyView({ data }) {
     </div>
   );
 
-  const teamTime = (
+  const deadlines = (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-3">
         <h3 className="text-[15px] font-semibold">Tâches à venir</h3>
@@ -197,8 +230,8 @@ export function AgencyView({ data }) {
       <Tabs
         tabs={[
           { id: "overview", label: "Vue d’ensemble", content: overview },
-          { id: "finance", label: "Projets & finances", content: projectsFinance },
-          { id: "team", label: "Équipe & temps", content: teamTime },
+          { id: "finance", label: "Activité & finances", content: projectsFinance },
+          { id: "team", label: "Échéances", content: deadlines },
         ]}
       />
     </Card>
@@ -207,32 +240,76 @@ export function AgencyView({ data }) {
 
 /** Ma journée : données de GET /dashboard/me. */
 export function MyDayView({ data }) {
+  const sections = data.sections ?? {
+    tasks: data.tasks != null,
+    timeEntries: data.timeEntries != null,
+    notifications: data.notifications != null,
+  };
   const tasks = data.tasks ?? {};
   const time = data.timeEntries ?? {};
   const notif = data.notifications ?? {};
-  const upcoming = data.upcoming ?? [];
+  const upcoming = Array.isArray(data.upcoming) ? data.upcoming : [];
+  const stats = [];
+
+  if (sections.tasks) stats.push(<Stat key="tasks" label="Tâches ouvertes" value={tasks.open ?? 0} hint={`${tasks.overdue ?? 0} en retard`} />);
+  if (sections.timeEntries) {
+    stats.push(<Stat key="time-today" label="Temps aujourd’hui" value={hm(time.todayMinutes)} />);
+    stats.push(<Stat key="time-month" label="Temps ce mois" value={hm(time.monthMinutes)} hint={`${time.monthEntries ?? 0} saisie(s)`} />);
+  }
+  if (sections.notifications) stats.push(<Stat key="notifications" label="Notifications non lues" value={notif.unread ?? 0} />);
+
+  const recentNotifications = sections.notifications ? (notif.recent ?? []).slice(0, 4) : [];
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Tâches ouvertes" value={tasks.open ?? 0} hint={`${tasks.overdue ?? 0} en retard`} />
-        <Stat label="Temps aujourd’hui" value={hm(time.todayMinutes)} />
-        <Stat label="Temps ce mois" value={hm(time.monthMinutes)} hint={`${time.monthEntries ?? 0} saisie(s)`} />
-        <Stat label="Notifications non lues" value={notif.unread ?? 0} />
-      </div>
-      <div>
-        <h3 className="mb-2 text-[15px] font-semibold">Mes prochaines échéances</h3>
-        <Table
-          empty="Aucune échéance à venir."
-          rows={upcoming}
-          columns={[
-            { key: "title", label: "Tâche", render: (t) => <span className="font-medium">{t.title}</span> },
-            { key: "project", label: "Projet", render: (t) => t.projectName ?? "—" },
-            { key: "due", label: "Échéance", render: (t) => formatDate(t.dueDate) },
-            { key: "priority", label: "Priorité", render: (t) => PRIORITY[t.priority] ?? "—" },
-            { key: "status", label: "Statut", render: (t) => <Badge tone={TASK_TONE[t.status] ?? "neutral"}>{label(TASK_STATUS, t.status)}</Badge> },
-          ]}
-        />
-      </div>
+    <div className="flex flex-col gap-6">
+      {stats.length ? <div className="cx-dashboard__detail-stats">{stats}</div> : <Empty title="Aucune donnée personnelle disponible" />}
+
+      {sections.tasks ? (
+        <section className="cx-dashboard__detail-section" aria-labelledby="cx-myday-deadlines-title">
+          <div className="cx-dashboard__detail-section-head">
+            <div>
+              <h3 id="cx-myday-deadlines-title" className="text-[15px] font-semibold">Mes prochaines échéances</h3>
+              <p className="cx-dashboard__muted">Les tâches qui approchent selon votre périmètre.</p>
+            </div>
+            <Link href="/espace-equipe/taches" className="cx-dashboard__text-link">Voir les tâches <span aria-hidden="true">→</span></Link>
+          </div>
+          <Table
+            empty="Aucune échéance à venir."
+            rows={upcoming}
+            columns={[
+              { key: "title", label: "Tâche", render: (t) => <span className="font-medium">{t.title}</span> },
+              { key: "project", label: "Projet", render: (t) => t.projectName ?? "—" },
+              { key: "due", label: "Échéance", render: (t) => formatDate(t.dueDate) },
+              { key: "priority", label: "Priorité", render: (t) => PRIORITY[t.priority] ?? "—" },
+              { key: "status", label: "Statut", render: (t) => <Badge tone={TASK_TONE[t.status] ?? "neutral"}>{label(TASK_STATUS, t.status)}</Badge> },
+            ]}
+          />
+        </section>
+      ) : null}
+
+      {sections.notifications ? (
+        <section className="cx-dashboard__detail-section" aria-labelledby="cx-myday-notifications-title">
+          <div className="cx-dashboard__detail-section-head">
+            <div>
+              <h3 id="cx-myday-notifications-title" className="text-[15px] font-semibold">Notifications récentes</h3>
+              <p className="cx-dashboard__muted">Les dernières alertes associées à votre compte.</p>
+            </div>
+            <Link href="/espace-equipe/notifications" className="cx-dashboard__text-link">Ouvrir les notifications <span aria-hidden="true">→</span></Link>
+          </div>
+          {recentNotifications.length ? (
+            <ul className="cx-dashboard__notification-list">
+              {recentNotifications.map((notification) => (
+                <li key={notification.id} className="cx-dashboard__notification-item">
+                  <span className="cx-dashboard__notification-dot" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="cx-dashboard__notification-title">{notification.title}</p>
+                    <p className="cx-dashboard__muted">{formatDate(notification.createdAt)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : <Empty title="Aucune notification récente." />}
+        </section>
+      ) : null}
     </div>
   );
 }

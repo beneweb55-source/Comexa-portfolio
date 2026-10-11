@@ -3,40 +3,70 @@
 import RequireSession from "@/components/workspace/RequireSession";
 import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 import { useAuth } from "@/lib/session";
-import { can } from "@/lib/access";
+import { canAny } from "@/lib/access";
 import { TimerProvider } from "@/lib/timer";
 import TimerPill from "@/components/workspace/TimerPill";
 
-// `any` : au moins une de ces permissions suffit à afficher l'entrée. Sans `any`, l'entrée est toujours visible.
-const NAV = [
-  { href: "/espace-equipe/tableau-de-bord", label: "Tableau de bord", any: ["dashboard:read:any", "dashboard:read:own"] },
-  { href: "/espace-equipe/notifications", label: "Notifications", any: ["notification:read:own"] },
-  { href: "/espace-equipe/contacts", label: "Contacts" },
-  { href: "/espace-equipe/prospects", label: "Prospects", nested: true },
-  { href: "/espace-equipe/devis", label: "Devis", nested: true },
-  { href: "/espace-equipe/factures", label: "Factures", nested: true },
-  { href: "/espace-equipe/commandes", label: "Commandes" },
-  { href: "/espace-equipe/demandes", label: "Demandes de projet" },
-  { href: "/espace-equipe/projets", label: "Projets", nested: true },
-  { href: "/espace-equipe/clients", label: "Clients" },
-  { href: "/espace-equipe/taches", label: "Tâches", any: ["task:read:any", "task:write:any", "task:write:own"] },
-  { href: "/espace-equipe/calendrier", label: "Calendrier", any: ["task:read:any"] },
-  { href: "/espace-equipe/rapports-journaliers", label: "Rapports journaliers", any: ["time:write:own", "time:read:any"] },
-  { href: "/espace-equipe/analytique", label: "Analytique", any: ["report:read:any"] },
-  { href: "/espace-equipe/temps", label: "Temps", any: ["time:write:own", "time:read:own", "time:read:any"] },
-  { href: "/espace-equipe/modifications", label: "Demandes de modification", any: ["modificationrequest:decide:any"] },
-  { href: "/espace-equipe/rapports", label: "Rapports", any: ["report:read:any", "report:read:own"] },
-  { href: "/espace-equipe/messagerie", label: "Messagerie", any: ["conversation:read:own"] },
-  { href: "/espace-equipe/contenu", label: "Contenu du site", any: ["service:read:any", "package:read:any", "testimonial:read:any", "partner:read:any", "faq:read:any"] },
-  { href: "/espace-equipe/membres", label: "Membres et droits", any: ["user:read:any"] },
-  { href: "/espace-equipe/roles", label: "Rôles et permissions", any: ["role:read:any"] },
-  { href: "/espace-equipe/journal", label: "Journal", any: ["audit:read:any"] },
-  { href: "/espace-equipe/parametres", label: "Paramètres", any: ["setting:read:any"] },
-  { href: "/espace-equipe/compte", label: "Mon compte" },
+const NAV_GROUPS = [
+  {
+    label: "Vue générale",
+    description: "Les priorités et repères utiles à votre activité.",
+    items: [
+      { href: "/espace-equipe/tableau-de-bord", label: "Tableau de bord", icon: "home", any: ["dashboard:read:any", "dashboard:read:own"] },
+      { href: "/espace-equipe/notifications", label: "Notifications", icon: "bell", any: ["notification:read:own"] },
+    ],
+  },
+  {
+    label: "Développement commercial",
+    description: "Qualification des demandes et suivi des opportunités.",
+    items: [
+      { href: "/espace-equipe/contacts", label: "Contacts", icon: "contact", any: ["contactrequest:read:any"] },
+      { href: "/espace-equipe/prospects", label: "Prospects", icon: "target", nested: true, any: ["prospect:read:any", "prospect:read:own"] },
+      { href: "/espace-equipe/devis", label: "Devis", icon: "quote", nested: true, any: ["quote:read:any"] },
+    ],
+  },
+  {
+    label: "Gestion commerciale",
+    description: "Commandes, projets reçus et facturation.",
+    items: [
+      { href: "/espace-equipe/factures", label: "Factures", icon: "invoice", nested: true, any: ["invoice:read:any"] },
+      { href: "/espace-equipe/commandes", label: "Commandes", icon: "cart", nested: true, any: ["order:read:any"] },
+      { href: "/espace-equipe/demandes", label: "Demandes de projet", icon: "inbox", any: ["project_request:read:any"] },
+      { href: "/espace-equipe/clients", label: "Clients", icon: "users", nested: true, any: ["client:read:any"] },
+    ],
+  },
+  {
+    label: "Production",
+    description: "Projets, tâches, calendrier et temps passé.",
+    items: [
+      { href: "/espace-equipe/projets", label: "Projets", icon: "folder", nested: true, any: ["project:read:any", "project:read:own", "project:read:assigned"] },
+      { href: "/espace-equipe/taches", label: "Tâches", icon: "kanban", any: ["task:read:any", "task:read:assigned", "task:read:own", "task:write:any", "task:write:own"] },
+      { href: "/espace-equipe/calendrier", label: "Calendrier", icon: "calendar", any: ["task:read:any"] },
+      { href: "/espace-equipe/temps", label: "Suivi du temps", icon: "clock", any: ["time:write:own", "time:read:own", "time:read:any"] },
+      { href: "/espace-equipe/rapports-journaliers", label: "Rapports journaliers", icon: "doc", any: ["time:write:own", "time:read:any"] },
+      { href: "/espace-equipe/messagerie", label: "Messagerie", icon: "message", any: ["conversation:read:own"] },
+    ],
+  },
+  {
+    label: "Pilotage et administration",
+    description: "Analyse, contenus et administration selon vos autorisations.",
+    items: [
+      { href: "/espace-equipe/analytique", label: "Analytique", icon: "chart", any: ["report:read:any"] },
+      { href: "/espace-equipe/rapports", label: "Rapports", icon: "doc", any: ["report:read:any", "report:read:own"] },
+      { href: "/espace-equipe/modifications", label: "Demandes de modification", icon: "edit", any: ["modificationrequest:decide:any"] },
+      { href: "/espace-equipe/contenu", label: "Contenu du site", icon: "layout", any: ["service:read:any", "package:read:any", "testimonial:read:any", "partner:read:any", "faq:read:any", "casestudy:read:any"] },
+      { href: "/espace-equipe/membres", label: "Membres et droits", icon: "users", any: ["user:read:any"] },
+      { href: "/espace-equipe/roles", label: "Rôles et permissions", icon: "shield", any: ["role:read:any"] },
+      { href: "/espace-equipe/journal", label: "Journal d’audit", icon: "history", any: ["audit:read:any"] },
+      { href: "/espace-equipe/parametres", label: "Paramètres", icon: "settings", any: ["setting:read:any"] },
+    ],
+  },
 ];
 
-function visibleItems(user) {
-  return NAV.filter((item) => !item.any || item.any.some((permission) => can(user, permission)));
+function visibleGroups(user) {
+  return NAV_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter((item) => canAny(user, item.any)) }))
+    .filter((group) => group.items.length > 0);
 }
 
 export default function EspaceEquipeLayout({ children }) {
@@ -44,7 +74,7 @@ export default function EspaceEquipeLayout({ children }) {
   return (
     <RequireSession>
       <TimerProvider>
-        <WorkspaceShell space="Espace équipe" title="Espace équipe" subtitle="Administration des commandes, clients et projets." items={visibleItems(user)}>
+        <WorkspaceShell space="Espace équipe" groups={visibleGroups(user)}>
           {children}
         </WorkspaceShell>
         <TimerPill />

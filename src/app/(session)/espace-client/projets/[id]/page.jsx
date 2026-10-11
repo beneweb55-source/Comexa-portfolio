@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/session";
 import { formatDate, messageOf } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
-import { Badge, Card, Empty, Notice, ProgressBar, secondaryButton } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Notice, Pagination, ProgressBar, secondaryButton } from "@/components/workspace/ui";
 
 const MILESTONE_TONE = { PLANNED: "neutral", REACHED: "success", MISSED: "danger", CANCELLED: "neutral" };
 
@@ -17,15 +17,18 @@ const MILESTONE_TONE = { PLANNED: "neutral", REACHED: "success", MISSED: "danger
 export default function ProjetClientPage({ params }) {
   const { id } = use(params);
   const { download } = useAuth();
-  const project = useListing(`/projects/${id}`);
-  const milestones = useListing(`/projects/${id}/milestones`);
-  const tasks = useListing(`/projects/${id}/tasks?perPage=100`);
-  const documents = useListing(`/documents?projectId=${id}&perPage=100`);
+  const [milestonePage, setMilestonePage] = useState(1);
+  const [taskPage, setTaskPage] = useState(1);
+  const [documentPage, setDocumentPage] = useState(1);
+  const project = useListing(`/projects/${encodeURIComponent(id)}`);
+  const milestones = useListing(`/projects/${encodeURIComponent(id)}/milestones?page=${milestonePage}&perPage=100`);
+  const tasks = useListing(`/projects/${encodeURIComponent(id)}/tasks?page=${taskPage}&perPage=100`);
+  const documents = useListing(`/documents?projectId=${encodeURIComponent(id)}&page=${documentPage}&perPage=100`);
   const [downloadError, setDownloadError] = useState(null);
 
   const current = project.items;
   // Taches : un compte sans droit recoit un refus, le bloc est alors masque.
-  const tasksVisible = tasks.items !== null;
+  const tasksVisible = tasks.errorStatus !== 403;
   const documentsList = documents.items ?? [];
   const milestoneList = milestones.items ?? [];
 
@@ -77,30 +80,37 @@ export default function ProjetClientPage({ params }) {
         </div>
       </Card>
 
-      <Card title="Jalons">
-        {milestoneList.length === 0 ? <Empty>Les jalons du projet seront publiés ici.</Empty> : null}
-        <ol className="flex flex-col gap-3">
-          {milestoneList.map((milestone) => (
-            <li key={milestone.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
-              <div>
-                <h3 className="text-[15px] font-semibold text-[var(--comexa-ink)]">{milestone.title}</h3>
-                {milestone.description ? <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">{milestone.description}</p> : null}
-                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
-                  Échéance {formatDate(milestone.dueDate)}
-                  {milestone.reachedAt ? ` · atteint le ${formatDate(milestone.reachedAt)}` : ""}
-                </p>
-              </div>
-              <Badge tone={MILESTONE_TONE[milestone.status] ?? "neutral"}>{MILESTONE_STATUS[milestone.status] ?? milestone.status}</Badge>
-            </li>
-          ))}
-        </ol>
-      </Card>
+      {milestones.errorStatus === 403 ? null : (
+        <Card title="Jalons">
+          {milestones.error ? <Notice>{milestones.error}</Notice> : null}
+          {milestones.items === null && !milestones.error ? <p className="cx-small" role="status">Chargement des jalons…</p> : null}
+          {milestones.items !== null && milestoneList.length === 0 ? <Empty>Les jalons du projet seront publiés ici.</Empty> : null}
+          <ol className="flex flex-col gap-3">
+            {milestoneList.map((milestone) => (
+              <li key={milestone.id} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
+                <div>
+                  <h3 className="text-[15px] font-semibold text-[var(--comexa-ink)]">{milestone.title}</h3>
+                  {milestone.description ? <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">{milestone.description}</p> : null}
+                  <p className="text-[13px] text-[var(--comexa-ink-muted)]">
+                    Échéance {formatDate(milestone.dueDate)}
+                    {milestone.reachedAt ? ` · atteint le ${formatDate(milestone.reachedAt)}` : ""}
+                  </p>
+                </div>
+                <Badge tone={MILESTONE_TONE[milestone.status] ?? "neutral"}>{MILESTONE_STATUS[milestone.status] ?? milestone.status}</Badge>
+              </li>
+            ))}
+          </ol>
+          <Pagination meta={milestones.meta} onPageChange={setMilestonePage} loading={milestones.loading} />
+        </Card>
+      )}
 
       {tasksVisible ? (
         <Card title="Tâches et échéances">
-          {tasks.items.length === 0 ? <Empty>Aucune tâche visible pour le moment.</Empty> : null}
+          {tasks.error ? <Notice>{tasks.error}</Notice> : null}
+          {tasks.items === null && !tasks.error ? <p className="cx-small" role="status">Chargement des tâches…</p> : null}
+          {tasks.items !== null && tasks.items.length === 0 ? <Empty>Aucune tâche visible pour le moment.</Empty> : null}
           <ul className="flex flex-col gap-2">
-            {tasks.items.map((task) => (
+            {(tasks.items ?? []).map((task) => (
               <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
                 <span className="text-[15px] text-[var(--comexa-ink)]">{task.title}</span>
                 <span className="flex items-center gap-3 text-[13px] text-[var(--comexa-ink-soft)]">
@@ -110,28 +120,34 @@ export default function ProjetClientPage({ params }) {
               </li>
             ))}
           </ul>
+          <Pagination meta={tasks.meta} onPageChange={setTaskPage} loading={tasks.loading} />
         </Card>
       ) : null}
 
-      <Card title="Documents">
-        {downloadError ? <Notice>{downloadError}</Notice> : null}
-        {documentsList.length === 0 ? <Empty>Aucun document partagé pour le moment.</Empty> : null}
-        <ul className="flex flex-col gap-2">
-          {documentsList.map((document) => (
-            <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
-              <div>
-                <p className="text-[15px] text-[var(--comexa-ink)]">{document.name}</p>
-                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
-                  {formatDate(document.createdAt)} · version {document.version}
-                </p>
-              </div>
-              <button type="button" onClick={() => handleDownload(document)} className={secondaryButton}>
-                Télécharger
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {documents.errorStatus === 403 ? null : (
+        <Card title="Documents">
+          {downloadError ? <Notice>{downloadError}</Notice> : null}
+          {documents.error ? <Notice>{documents.error}</Notice> : null}
+          {documents.items === null && !documents.error ? <p className="cx-small" role="status">Chargement des documents…</p> : null}
+          {documents.items !== null && documentsList.length === 0 ? <Empty>Aucun document partagé pour le moment.</Empty> : null}
+          <ul className="flex flex-col gap-2">
+            {documentsList.map((document) => (
+              <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
+                <div>
+                  <p className="text-[15px] text-[var(--comexa-ink)]">{document.name}</p>
+                  <p className="text-[13px] text-[var(--comexa-ink-muted)]">
+                    {formatDate(document.createdAt)} · version {document.version}
+                  </p>
+                </div>
+                <button type="button" onClick={() => handleDownload(document)} className={secondaryButton}>
+                  Télécharger
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Pagination meta={documents.meta} onPageChange={setDocumentPage} loading={documents.loading} />
+        </Card>
+      )}
     </div>
   );
 }

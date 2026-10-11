@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { formatDate, messageOf } from "@/lib/api";
+import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, ConfirmDialog, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { Badge, Card, ConfirmDialog, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 
 const USER_STATUS = { INVITED: "Invité", ACTIVE: "Actif", SUSPENDED: "Suspendu", ARCHIVED: "Archivé" };
 const USER_STATUS_TONE = { INVITED: "info", ACTIVE: "success", SUSPENDED: "warning", ARCHIVED: "neutral" };
@@ -29,12 +30,15 @@ function roleCode(role) {
  * Réservé aux comptes avec `user:manage:any` : sinon l'API refuse et la page l'indique.
  */
 export default function MembresPage() {
-  const { request } = useAuth();
+  const { user, request } = useAuth();
+  const canManageMembers = can(user, "user:manage:any");
+  const canReadRoles = can(user, "role:read:any");
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
-  const path = `/users?perPage=100${query ? `&search=${encodeURIComponent(query)}` : ""}${status ? `&status=${status}` : ""}${roleFilter ? `&roleCode=${roleFilter}` : ""}`;
+  const [page, setPage] = useState(1);
+  const path = `/users?page=${page}&perPage=100${query ? `&search=${encodeURIComponent(query)}` : ""}${status ? `&status=${status}` : ""}${roleFilter ? `&roleCode=${roleFilter}` : ""}`;
   const users = useListing(path);
   const action = useAction(users.reload);
   const [roles, setRoles] = useState([]);
@@ -46,10 +50,12 @@ export default function MembresPage() {
   const forbidden = users.errorStatus === 403;
 
   useEffect(() => {
+    if (!canReadRoles) return undefined;
     request("/roles")
       .then(({ data }) => setRoles(data ?? []))
       .catch(() => setRoles([]));
-  }, [request]);
+    return undefined;
+  }, [canReadRoles, request]);
 
   if (forbidden) {
     return (
@@ -92,26 +98,32 @@ export default function MembresPage() {
       <Card
         title="Membres et droits"
         action={
-          <button type="button" className={primaryButton} onClick={() => setCreating((value) => !value)}>
-            {creating ? "Fermer" : "Ajouter un membre"}
-          </button>
+          canManageMembers ? (
+            <button type="button" className={primaryButton} onClick={() => setCreating((value) => !value)}>
+              {creating ? "Fermer" : "Ajouter un membre"}
+            </button>
+          ) : null
         }
       >
-        {creating ? (
-          <CreateMember
-            roles={roles}
-            onCreated={(password, email) => {
-              setCreating(false);
-              setRevealed({ title: "Compte créé", email, password });
-              users.reload();
-            }}
-          />
+        {creating && canManageMembers ? (
+          canReadRoles ? (
+            <CreateMember
+              roles={roles}
+              onCreated={(password, email) => {
+                setCreating(false);
+                setPage(1);
+                setRevealed({ title: "Compte créé", email, password });
+                users.reload();
+              }}
+            />
+          ) : <Notice>Votre rôle ne permet pas de consulter les rôles nécessaires pour créer un compte.</Notice>
         ) : null}
 
         <form
           onSubmit={(event) => {
             event.preventDefault();
             setQuery(search.trim());
+            setPage(1);
           }}
           className="mb-5 flex flex-wrap items-end gap-3"
         >
@@ -119,7 +131,7 @@ export default function MembresPage() {
             <input id="members-search" className={`${inputClass} !w-[220px]`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nom ou e-mail" />
           </Field>
           <Field id="members-status" label="Statut">
-            <select id="members-status" className={`${selectClass} !w-[160px]`} value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select id="members-status" className={`${selectClass} !w-[160px]`} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
               <option value="">Tous</option>
               {Object.entries(USER_STATUS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
@@ -127,7 +139,7 @@ export default function MembresPage() {
             </select>
           </Field>
           <Field id="members-role" label="Rôle">
-            <select id="members-role" className={`${selectClass} !w-[200px]`} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <select id="members-role" className={`${selectClass} !w-[200px]`} value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}>
               <option value="">Tous</option>
               {roles.map((role) => (
                 <option key={role.code} value={role.code}>{role.name ?? ROLE_LABEL[role.code] ?? role.code}</option>
@@ -156,32 +168,37 @@ export default function MembresPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={USER_STATUS_TONE[user.status] ?? "neutral"}>{USER_STATUS[user.status] ?? user.status}</Badge>
-                <button type="button" className={secondaryButton} onClick={() => setEditingRoles(user)}>Rôles</button>
-                <button type="button" className={secondaryButton} onClick={() => setPendingReset(user)} disabled={action.busy === `reset:${user.id}`}>
-                  Réinitialiser le mot de passe
-                </button>
-                {user.status === "ACTIVE" ? (
-                  <button type="button" className={secondaryButton} onClick={() => setPendingSuspend(user)} disabled={action.busy === `suspend:${user.id}`}>
-                    Suspendre
-                  </button>
-                ) : null}
-                {user.status === "SUSPENDED" ? (
-                  <button
-                    type="button"
-                    className={secondaryButton}
-                    onClick={() => action.run(`reactivate:${user.id}`, `/users/${user.id}/reactivate`, { method: "POST" }, `${name(user)} est réactivé.`)}
-                    disabled={action.busy === `reactivate:${user.id}`}
-                  >
-                    Réactiver
-                  </button>
+                {canManageMembers ? (
+                  <>
+                    {canReadRoles ? <button type="button" className={secondaryButton} onClick={() => setEditingRoles(user)}>Rôles</button> : null}
+                    <button type="button" className={secondaryButton} onClick={() => setPendingReset(user)} disabled={Boolean(action.busy)}>
+                      Réinitialiser le mot de passe
+                    </button>
+                    {user.status === "ACTIVE" ? (
+                      <button type="button" className={secondaryButton} onClick={() => setPendingSuspend(user)} disabled={Boolean(action.busy)}>
+                        Suspendre
+                      </button>
+                    ) : null}
+                    {user.status === "SUSPENDED" ? (
+                      <button
+                        type="button"
+                        className={secondaryButton}
+                        onClick={() => action.run(`reactivate:${user.id}`, `/users/${user.id}/reactivate`, { method: "POST" }, `${name(user)} est réactivé.`)}
+                        disabled={Boolean(action.busy)}
+                      >
+                        Réactiver
+                      </button>
+                    ) : null}
+                  </>
                 ) : null}
               </div>
             </li>
           ))}
         </ul>
+        <Pagination meta={users.meta} onPageChange={setPage} loading={users.loading} />
       </Card>
 
-      {editingRoles ? (
+      {editingRoles && canManageMembers && canReadRoles ? (
         <EditRoles
           key={editingRoles.id}
           user={editingRoles}

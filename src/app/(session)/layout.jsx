@@ -1,12 +1,8 @@
-"use client";
-
-import { AuthProvider } from "@/lib/session";
-
 /**
- * Session pour les seules pages qui en ont besoin (connexion, inscription,
- * espaces). Les pages publiques du site ne demandent donc jamais de rafraichissement.
- * Le groupe `(session)` n'apparait pas dans les URL.
+ * Les pages d'authentification et les espaces partagent le fournisseur de session
+ * installé dans le layout racine. Le site public peut ainsi rendre le vrai compte
+ * connecté sans créer une deuxième session lors d'une navigation interne.
  */
 export default function SessionLayout({ children }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  return children;
 }

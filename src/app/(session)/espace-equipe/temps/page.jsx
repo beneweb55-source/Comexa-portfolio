@@ -5,20 +5,28 @@ import { formatDate, messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
 import { formatValue } from "@/components/workspace/DataView";
-import { Card, ConfirmDialog, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
+import { can } from "@/lib/access";
+import { canUseTimer } from "@/lib/timer-access";
+import { Card, ConfirmDialog, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
 
 /**
  * Feuille de temps : mes saisies (filtrables par période), correction, suppression,
  * et nouvelle saisie sur une de mes tâches. L'API borne déjà les lignes au périmètre du porteur.
  */
 export default function TempsPage() {
+  const { user } = useAuth();
+  const canReadTime = can(user, "time:read:any") || can(user, "time:read:own");
+  const canWriteTime = can(user, "time:write:any") || can(user, "time:write:own");
+  const canAddEntry = canUseTimer(user);
   const [range, setRange] = useState({ from: "", to: "" });
   const [applied, setApplied] = useState({ from: "", to: "" });
-  const params = new URLSearchParams({ perPage: "100" });
+  const [page, setPage] = useState(1);
+  const [taskPage, setTaskPage] = useState(1);
+  const params = new URLSearchParams({ page: String(page), perPage: "100" });
   if (applied.from) params.set("from", new Date(applied.from).toISOString());
   if (applied.to) params.set("to", new Date(`${applied.to}T23:59:59`).toISOString());
-  const entries = useListing(`/time-entries?${params.toString()}`);
-  const tasks = useListing("/me/tasks?perPage=100");
+  const entries = useListing(canReadTime ? `/time-entries?${params.toString()}` : null);
+  const tasks = useListing(canAddEntry ? `/me/tasks?page=${taskPage}&perPage=100` : null);
   const action = useAction(entries.reload);
   const [editing, setEditing] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -27,20 +35,23 @@ export default function TempsPage() {
 
   async function remove() {
     const target = pendingDelete;
-    await action.run(`delete:${target.id}`, `/time-entries/${target.id}`, { method: "DELETE" }, "Saisie supprimée.");
-    setPendingDelete(null);
+    if (!target) return;
+    const result = await action.run(`delete:${target.id}`, `/time-entries/${target.id}`, { method: "DELETE" }, "Saisie supprimée.");
+    if (result !== null) setPendingDelete(null);
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <NewEntry tasks={tasks} onSaved={entries.reload} />
+      {canAddEntry ? <NewEntry tasks={tasks} onTaskPageChange={setTaskPage} onSaved={entries.reload} /> : null}
 
+      {canReadTime ? (
       <Card title="Saisies">
         <form
           className="mb-5 flex flex-wrap items-end gap-3"
           onSubmit={(event) => {
             event.preventDefault();
             setApplied(range);
+            setPage(1);
           }}
         >
           <Field id="time-from" label="Du">
@@ -61,7 +72,9 @@ export default function TempsPage() {
 
         {items.length > 0 ? (
           <ul className="flex flex-col gap-3">
-            {items.map((entry) => (
+            {items.map((entry) => {
+              const canEditEntry = can(user, "time:write:any") || (can(user, "time:write:own") && entry.userId === user?.id);
+              return (
               <li key={entry.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-[15px] font-semibold text-[var(--comexa-ink)]">
@@ -70,17 +83,26 @@ export default function TempsPage() {
                   <p className="text-[14px] text-[var(--comexa-ink-soft)]">{entry.description || "Sans description"}</p>
                   <p className="text-[12.5px] text-[var(--comexa-ink-muted)]">{entry.billable ? "Facturable" : "Non facturable"}</p>
                 </div>
-                <div className="flex gap-2">
-                  <button type="button" className={secondaryButton} onClick={() => setEditing(entry)}>Modifier</button>
-                  <button type="button" className={secondaryButton} onClick={() => setPendingDelete(entry)}>Supprimer</button>
-                </div>
+                {canEditEntry ? (
+                  <div className="flex gap-2">
+                    <button type="button" className={secondaryButton} onClick={() => setEditing(entry)}>Modifier</button>
+                    <button type="button" className={secondaryButton} onClick={() => { action.setError(null); setPendingDelete(entry); }}>Supprimer</button>
+                  </div>
+                ) : null}
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : null}
+        <Pagination meta={entries.meta} onPageChange={setPage} loading={entries.loading} />
       </Card>
+      ) : (
+        <Card title="Feuille de temps">
+          <Notice tone="warning">{canAddEntry ? "Votre rôle autorise la saisie, mais ne permet pas de consulter la feuille de temps." : canWriteTime ? "Votre rôle permet d’écrire du temps, mais ne donne pas accès aux tâches nécessaires pour proposer une saisie." : "Votre rôle ne permet pas de consulter la feuille de temps."}</Notice>
+        </Card>
+      )}
 
-      {editing ? (
+      {canReadTime && canWriteTime && editing ? (
         <EditEntry
           key={editing.id}
           entry={editing}
@@ -93,7 +115,7 @@ export default function TempsPage() {
       ) : null}
 
       <ConfirmDialog
-        open={pendingDelete !== null}
+        open={canWriteTime && pendingDelete !== null}
         title="Supprimer cette saisie ?"
         confirmLabel="Supprimer"
         tone="danger"
@@ -101,22 +123,29 @@ export default function TempsPage() {
         onCancel={() => setPendingDelete(null)}
         onConfirm={remove}
       >
-        <p className="cx-small">{pendingDelete ? `${formatValue("minutes", pendingDelete.minutes)} du ${formatDate(pendingDelete.spentOn)} seront retirés de la feuille de temps.` : ""}</p>
+        {action.error ? <Notice>{action.error}</Notice> : <p className="cx-small">{pendingDelete ? `${formatValue("minutes", pendingDelete.minutes)} du ${formatDate(pendingDelete.spentOn)} seront retirés de la feuille de temps.` : ""}</p>}
       </ConfirmDialog>
     </div>
   );
 }
 
-function NewEntry({ tasks, onSaved }) {
+function NewEntry({ tasks, onTaskPageChange, onSaved }) {
   const { request } = useAuth();
   const [form, setForm] = useState({ taskId: "", minutes: "60", spentOn: new Date().toISOString().slice(0, 10), description: "", billable: true });
   const [error, setError] = useState(null);
+  const [saved, setSaved] = useState(null);
   const [busy, setBusy] = useState(false);
   const list = tasks.items ?? [];
+
+  function changeTaskPage(nextPage) {
+    setForm((current) => ({ ...current, taskId: "" }));
+    onTaskPageChange(nextPage);
+  }
 
   async function submit(event) {
     event.preventDefault();
     setError(null);
+    setSaved(null);
     if (!form.taskId) {
       setError("Choisissez une tâche.");
       return;
@@ -128,6 +157,7 @@ function NewEntry({ tasks, onSaved }) {
         body: { minutes: Number(form.minutes), spentOn: new Date(`${form.spentOn}T12:00:00`).toISOString(), description: form.description.trim() || undefined, billable: form.billable },
       });
       setForm({ ...form, description: "" });
+      setSaved("Saisie enregistrée.");
       await onSaved();
     } catch (caught) {
       setError(messageOf(caught));
@@ -140,11 +170,12 @@ function NewEntry({ tasks, onSaved }) {
     <Card title="Saisir du temps">
       {tasks.error ? <Notice>{tasks.error}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
+      {saved ? <Notice tone="success">{saved}</Notice> : null}
       {tasks.items !== null && list.length === 0 ? <Empty>Aucune tâche ne vous est assignée.</Empty> : null}
       <form onSubmit={submit} className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
           <Field id="entry-task" label="Tâche">
-            <select id="entry-task" className={selectClass} value={form.taskId} onChange={(e) => setForm({ ...form, taskId: e.target.value })}>
+            <select id="entry-task" className={selectClass} value={form.taskId} onChange={(e) => setForm({ ...form, taskId: e.target.value })} disabled={tasks.loading || list.length === 0}>
               <option value="">Choisir une tâche…</option>
               {list.map((task) => (
                 <option key={task.id} value={task.id}>{task.title ?? task.name ?? task.id}</option>
@@ -171,6 +202,7 @@ function NewEntry({ tasks, onSaved }) {
           <button type="submit" disabled={busy || list.length === 0} className={primaryButton}>{busy ? "Enregistrement…" : "Ajouter la saisie"}</button>
         </div>
       </form>
+      <Pagination meta={tasks.meta} onPageChange={changeTaskPage} loading={tasks.loading} />
     </Card>
   );
 }
