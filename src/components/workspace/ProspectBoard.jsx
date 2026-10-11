@@ -102,6 +102,7 @@ function MoveMenu({ label, targets, disabled, onPick }) {
                 id={menuId}
                 role="listbox"
                 aria-label={label}
+                data-theme="team-dark"
                 onKeyDown={handleMenuKeyDown}
                 style={{ top: pos.top, left: Math.max(8, pos.left), width: pos.width }}
                 className="cx-prospect-move__menu fixed z-[999]"

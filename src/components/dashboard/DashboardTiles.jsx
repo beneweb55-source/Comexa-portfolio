@@ -96,9 +96,9 @@ export function DistributionTile({ title, subtitle, rows = [], labels, icon = "c
         <div className="h-[220px] w-full" role="img" aria-label={`${title} : ${data.map((row) => `${row.name} ${row.count}`).join(", ")}`}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(27,58,95,0.09)" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} tick={{ fill: "#8292a5", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={130} tick={{ fill: "#526980", fontSize: 12.5 }} axisLine={false} tickLine={false} />
+              <CartesianGrid stroke="var(--workspace-chart-grid, rgba(27,58,95,0.09))" horizontal={false} />
+              <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--workspace-chart-muted, #8292a5)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={130} tick={{ fill: "var(--workspace-chart-label, #526980)", fontSize: 12.5 }} axisLine={false} tickLine={false} />
               <Tooltip content={<GlassTooltip />} cursor={{ fill: "rgba(30,134,224,0.06)" }} />
               <Bar dataKey="count" radius={[0, 10, 10, 0]} barSize={16}>
                 {data.map((row) => <Cell key={row.name} fill={row.fill} />)}

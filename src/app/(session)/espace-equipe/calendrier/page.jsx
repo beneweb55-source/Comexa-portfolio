@@ -204,7 +204,7 @@ function eventStyle(event) {
     return { background: "linear-gradient(135deg,#b42318,#8f1d18)" };
   }
   if (event.closed) {
-    return { background: "#e5eaf0", color: "#526980", textDecoration: "line-through" };
+    return { background: "linear-gradient(135deg,#35475b,#263748)", color: "#d2deeb", textDecoration: "line-through" };
   }
   if (event.kind === "project") {
     return { background: "linear-gradient(135deg,#117a98,#135da6)" };

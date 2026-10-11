@@ -214,8 +214,8 @@ export default function AnalytiquePage() {
             {data.byMember.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.byMember} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                  <XAxis type="number" tick={{ fill: "#8292a5", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" width={130} tick={{ fill: "#526980", fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <XAxis type="number" tick={{ fill: "var(--workspace-chart-muted, #8292a5)", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" width={130} tick={{ fill: "var(--workspace-chart-label, #526980)", fontSize: 12 }} axisLine={false} tickLine={false} />
                   <Tooltip content={<DarkTooltip unit="h" />} cursor={{ fill: "rgba(30,134,224,0.05)" }} />
                   <Bar dataKey="heures" name="Heures" fill="url(#barGrad)" radius={[0, 10, 10, 0]} isAnimationActive={false} />
                   <defs>
