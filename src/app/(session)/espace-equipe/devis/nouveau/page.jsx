@@ -4,22 +4,30 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatMoney, messageOf } from "@/lib/api";
+import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { daysFromToday, lineTotal } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
-import { Card, Field, Notice, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
+import { Card, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
 
 const EMPTY_LINE = { title: "", description: "", quantity: "1", unitPrice: "", discountPercent: "0" };
 
 function Form() {
   const router = useRouter();
-  const { request } = useAuth();
+  const { user, request } = useAuth();
+  const canReadProspects = can(user, "prospect:read:any") || can(user, "prospect:read:own");
+  const canReadClients = can(user, "client:read:any");
+  const canReadClientDetails = canReadClients || can(user, "client:read:own");
   const searchParams = useSearchParams();
   const presetProspect = searchParams.get("prospectId") ?? "";
   const presetClient = searchParams.get("clientId") ?? "";
 
-  const prospects = useListing("/prospects?perPage=100");
-  const clients = useListing("/clients?perPage=100");
+  const [prospectPage, setProspectPage] = useState(1);
+  const [clientPage, setClientPage] = useState(1);
+  const prospects = useListing(canReadProspects ? `/prospects?page=${prospectPage}&perPage=100` : null);
+  const clients = useListing(canReadClients ? `/clients?page=${clientPage}&perPage=100` : null);
+  const presetProspectDetails = useListing(canReadProspects && presetProspect ? `/prospects/${encodeURIComponent(presetProspect)}` : null);
+  const presetClientDetails = useListing(canReadClientDetails && presetClient ? `/clients/${encodeURIComponent(presetClient)}` : null);
 
   const [recipient, setRecipient] = useState(presetClient ? `client:${presetClient}` : presetProspect ? `prospect:${presetProspect}` : "");
   const [header, setHeader] = useState({
@@ -116,13 +124,25 @@ function Form() {
       </nav>
 
       {error ? <Notice>{error}</Notice> : null}
-      {prospects.error || clients.error ? <Notice>{prospects.error || clients.error}</Notice> : null}
+      {prospects.error || clients.error || presetProspectDetails.error || presetClientDetails.error ? (
+        <Notice>{prospects.error || clients.error || presetProspectDetails.error || presetClientDetails.error}</Notice>
+      ) : null}
 
       <Card title="Destinataire et en-tête">
         <div className="grid gap-4 md:grid-cols-2">
           <Field id="recipient" label="Destinataire *">
             <select id="recipient" className={inputClass} value={recipient} onChange={(event) => setRecipient(event.target.value)} disabled={recipientsLoading}>
               <option value="">{recipientsLoading ? "Chargement…" : "Choisir…"}</option>
+              {recipient.startsWith("client:") && clients.items !== null && !clients.items.some((client) => `client:${client.id}` === recipient) ? (
+                <option value={recipient}>{presetClientDetails.items?.companyName || "Client présélectionné"}</option>
+              ) : null}
+              {recipient.startsWith("prospect:") && prospects.items !== null && !prospects.items.some((prospect) => `prospect:${prospect.id}` === recipient) ? (
+                <option value={recipient}>
+                  {presetProspectDetails.items?.companyName ||
+                    `${presetProspectDetails.items?.contactFirstName ?? ""} ${presetProspectDetails.items?.contactLastName ?? ""}`.trim() ||
+                    "Prospect présélectionné"}
+                </option>
+              ) : null}
               {(clients.items ?? []).length > 0 ? (
                 <optgroup label="Clients">
                   {clients.items.map((client) => (
@@ -158,6 +178,33 @@ function Form() {
           <Field id="tax" label="TVA (%)">
             <input id="tax" type="number" min="0" step="0.01" className={inputClass} value={header.taxRate} onChange={setHeaderField("taxRate")} />
           </Field>
+        </div>
+        {!canReadClients && !canReadProspects && !(canReadClientDetails && presetClient) ? (
+          <div className="mt-4"><Notice>Votre rôle ne permet pas de consulter les destinataires nécessaires à la création d’un devis.</Notice></div>
+        ) : null}
+        <div className="grid gap-2 md:grid-cols-2">
+          {canReadClients ? (
+            <Pagination
+              meta={clients.meta}
+              label="Pagination des clients"
+              loading={clients.loading}
+              onPageChange={(nextPage) => {
+                if (recipient.startsWith("client:")) setRecipient("");
+                setClientPage(nextPage);
+              }}
+            />
+          ) : null}
+          {canReadProspects ? (
+            <Pagination
+              meta={prospects.meta}
+              label="Pagination des prospects"
+              loading={prospects.loading}
+              onPageChange={(nextPage) => {
+                if (recipient.startsWith("prospect:")) setRecipient("");
+                setProspectPage(nextPage);
+              }}
+            />
+          ) : null}
         </div>
       </Card>
 

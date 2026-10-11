@@ -3,11 +3,12 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/session";
-import { allowedPath } from "@/lib/access";
+import { allowedPath, homeFor } from "@/lib/access";
 
 /**
- * Garde d'un espace : sans session, retour a la connexion (avec retour apres
- * connexion) ; avec une session sans les droits requis, retour a l'espace client.
+ * Garde d'un espace : sans session, retour à la connexion avec retour après
+ * connexion ; sans la permission de cette route, retour à une destination
+ * autorisée pour le rôle. Le backend reste la protection des données.
  */
 export default function RequireSession({ children }) {
   const { status, user } = useAuth();
@@ -20,13 +21,13 @@ export default function RequireSession({ children }) {
     if (status === "anonymous") {
       router.replace(`/connexion?next=${encodeURIComponent(pathname)}`);
     } else if (status === "authenticated" && !allowed) {
-      router.replace("/espace-client");
+      router.replace(homeFor(user));
     }
-  }, [status, allowed, pathname, router]);
+  }, [status, user, allowed, pathname, router]);
 
   if (!allowed) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center text-[15px] text-[var(--comexa-ink-soft)]" role="status">
+      <div className="flex min-h-[60vh] items-center justify-center text-[15px] text-[var(--comexa-ink-soft)]" role="status" aria-live="polite">
         Chargement de votre espace…
       </div>
     );

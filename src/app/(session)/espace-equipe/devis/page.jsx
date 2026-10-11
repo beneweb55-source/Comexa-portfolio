@@ -5,12 +5,18 @@ import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, inputClass, primaryButton } from "@/components/workspace/ui";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
+import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton } from "@/components/workspace/ui";
 
 export default function DevisEquipePage() {
+  const { user } = useAuth();
+  const canCreateQuote = can(user, "quote:write:any");
   const [filter, setFilter] = useState("");
-  const path = filter ? `/quotes?perPage=50&status=${filter}` : "/quotes?perPage=50";
-  const quotes = useListing(path);
+  const [page, setPage] = useState(1);
+  const query = new URLSearchParams({ page: String(page), perPage: "50" });
+  if (filter) query.set("status", filter);
+  const quotes = useListing(`/quotes?${query.toString()}`);
   const items = quotes.items ?? [];
 
   return (
@@ -20,7 +26,7 @@ export default function DevisEquipePage() {
         title="Devis"
         action={
           <div className="flex items-center gap-3">
-            <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`} aria-label="Filtrer par statut">
+            <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer par statut">
               <option value="">Tous les statuts</option>
               {Object.entries(QUOTE_STATUS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -28,9 +34,11 @@ export default function DevisEquipePage() {
                 </option>
               ))}
             </select>
-            <Link href="/espace-equipe/devis/nouveau" className={primaryButton}>
-              Nouveau devis
-            </Link>
+            {canCreateQuote ? (
+              <Link href="/espace-equipe/devis/nouveau" className={primaryButton}>
+                Nouveau devis
+              </Link>
+            ) : null}
           </div>
         }
       >
@@ -62,6 +70,7 @@ export default function DevisEquipePage() {
             </li>
           ))}
         </ul>
+        <Pagination meta={quotes.meta} onPageChange={setPage} loading={quotes.loading} />
       </Card>
     </div>
   );

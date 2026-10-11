@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Entree de l'espace equipe : la garde de la rubrique verifie ensuite les droits.
+/** Entrée de l'espace équipe : le tableau de bord vérifie ensuite les droits. */
 export default function EspaceEquipeIndex() {
-  redirect("/espace-equipe/commandes");
+  redirect("/espace-equipe/tableau-de-bord");
 }

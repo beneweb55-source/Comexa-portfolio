@@ -7,7 +7,7 @@ import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
 
 const COLUMNS = [
   { id: "TODO", label: "À faire" },
@@ -26,7 +26,10 @@ const PRIORITY_TONE = { LOW: "neutral", NORMAL: "info", HIGH: "warning", URGENT:
 const PRIORITY_LABEL = { LOW: "Basse", NORMAL: "Normale", HIGH: "Haute", URGENT: "Urgente" };
 
 export default function TachesPage() {
-  const projects = useListing("/projects?perPage=100");
+  const { user } = useAuth();
+  const canReadProjects = ["project:read:any", "project:read:own", "project:read:assigned"].some((permission) => can(user, permission));
+  const [projectPage, setProjectPage] = useState(1);
+  const projects = useListing(canReadProjects ? `/projects?page=${projectPage}&perPage=100` : null);
   const [projectId, setProjectId] = useState("");
   const list = projects.items ?? [];
   const current = projectId || list[0]?.id || "";
@@ -45,8 +48,20 @@ export default function TachesPage() {
           </Field>
         }
       >
-        {projects.error ? <Notice>{projects.error}</Notice> : null}
-        {projects.items !== null && list.length === 0 ? <Empty>Aucun projet accessible.</Empty> : null}
+        {!canReadProjects ? <Notice>Votre rôle ne permet pas de consulter les projets nécessaires à ce tableau.</Notice> : null}
+        {canReadProjects && projects.error ? <Notice>{projects.error}</Notice> : null}
+        {canReadProjects && projects.items !== null && list.length === 0 ? <Empty>Aucun projet accessible.</Empty> : null}
+        {canReadProjects ? (
+          <Pagination
+            meta={projects.meta}
+            label="Pagination des projets"
+            onPageChange={(nextPage) => {
+              setProjectId("");
+              setProjectPage(nextPage);
+            }}
+            loading={projects.loading}
+          />
+        ) : null}
       </Card>
 
       {current ? <Board key={current} projectId={current} /> : null}
@@ -56,8 +71,13 @@ export default function TachesPage() {
 
 function Board({ projectId }) {
   const { user, request } = useAuth();
-  const canWrite = can(user, "task:write:any") || can(user, "task:write:own");
-  const tasks = useListing(`/projects/${projectId}/tasks?perPage=100`);
+  const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((permission) => can(user, permission));
+  const canWriteAny = can(user, "task:write:any");
+  const canWriteOwn = can(user, "task:write:own");
+  const canWrite = canWriteAny || canWriteOwn;
+  const canWriteTask = (task) => canWriteAny || (canWriteOwn && task.assigneeId === user?.id);
+  const [taskPage, setTaskPage] = useState(1);
+  const tasks = useListing(canReadTasks ? `/projects/${projectId}/tasks?page=${taskPage}&perPage=100` : null);
   const [overrides, setOverrides] = useState({});
   const [error, setError] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -77,7 +97,7 @@ function Board({ projectId }) {
 
   async function move(taskId, targetColumn) {
     const task = all.find((t) => t.id === taskId);
-    if (!task || columnOf(task.status) === targetColumn) return;
+    if (!task || !canWriteTask(task) || columnOf(task.status) === targetColumn) return;
     const previous = task.status;
     setError(null);
     setOverrides((o) => ({ ...o, [taskId]: targetColumn }));
@@ -99,26 +119,37 @@ function Board({ projectId }) {
     if (over && canWrite) move(dragged.id, over.id);
   }
 
+  async function onTaskCreated() {
+    if (taskPage === 1) await tasks.reload();
+    else setTaskPage(1);
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      {canWrite ? <NewTask projectId={projectId} onCreated={tasks.reload} /> : null}
-      {tasks.error ? <Notice>{tasks.error}</Notice> : null}
+      {canWrite ? <NewTask projectId={projectId} onCreated={onTaskCreated} /> : null}
+      {canReadTasks && tasks.error ? <Notice>{tasks.error}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
-      {tasks.items === null && !tasks.error ? <p className="cx-small">Chargement des tâches…</p> : null}
+      {canReadTasks && tasks.items === null && !tasks.error ? <p className="cx-small">Chargement des tâches…</p> : null}
+      {!canReadTasks ? <Notice>Votre rôle ne permet pas de consulter la liste des tâches de ce projet.</Notice> : null}
 
-      <DndContext sensors={sensors} onDragStart={(e) => setActiveId(e.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Tableau des tâches">
-          {COLUMNS.map((column) => (
-            <Column key={column.id} column={column} tasks={byColumn[column.id]} canWrite={canWrite} />
-          ))}
-        </div>
-        <DragOverlay>{active ? <TaskCard task={active} overlay /> : null}</DragOverlay>
-      </DndContext>
+      {canReadTasks ? (
+        <>
+          <DndContext sensors={sensors} onDragStart={(e) => setActiveId(e.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Tableau des tâches">
+              {COLUMNS.map((column) => (
+                <Column key={column.id} column={column} tasks={byColumn[column.id]} canWrite={canWrite} canWriteTask={canWriteTask} />
+              ))}
+            </div>
+            <DragOverlay>{active ? <TaskCard task={active} canWrite={canWriteTask(active)} overlay /> : null}</DragOverlay>
+          </DndContext>
+          <Pagination meta={tasks.meta} onPageChange={setTaskPage} loading={tasks.loading} />
+        </>
+      ) : null}
     </div>
   );
 }
 
-function Column({ column, tasks, canWrite }) {
+function Column({ column, tasks, canWrite, canWriteTask }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id, disabled: !canWrite });
   return (
     <section
@@ -132,7 +163,7 @@ function Column({ column, tasks, canWrite }) {
         <span className="rounded-full bg-[var(--comexa-surface)] px-2 py-0.5 text-[12.5px] text-[var(--comexa-ink-soft)]">{tasks.length}</span>
       </header>
       {tasks.map((task) => (
-        <DraggableTask key={task.id} task={task} canWrite={canWrite} />
+        <DraggableTask key={task.id} task={task} canWrite={canWriteTask(task)} />
       ))}
       {tasks.length === 0 ? <p className="px-1 py-6 text-center text-[13px] text-[var(--comexa-ink-muted)]">Aucune tâche</p> : null}
     </section>
@@ -148,11 +179,11 @@ function DraggableTask({ task, canWrite }) {
   );
 }
 
-function TaskCard({ task, overlay = false }) {
+function TaskCard({ task, canWrite = false, overlay = false }) {
   return (
     <article
-      className={`rounded-xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3 shadow-sm ${overlay ? "rotate-1 shadow-lg" : ""} cursor-grab touch-none`}
-      aria-roledescription="tâche déplaçable"
+      className={`rounded-xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3 shadow-sm ${overlay ? "rotate-1 shadow-lg" : ""} ${canWrite ? "cursor-grab touch-none" : "cursor-default"}`}
+      aria-roledescription={canWrite ? "tâche déplaçable" : undefined}
     >
       <p className="text-[14px] font-medium text-[var(--comexa-ink)]">{task.title}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">

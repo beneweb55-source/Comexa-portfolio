@@ -5,12 +5,14 @@ import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, remainingDue } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, inputClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Notice, Pagination, inputClass } from "@/components/workspace/ui";
 
 export default function FacturesEquipePage() {
   const [filter, setFilter] = useState("");
-  const path = filter ? `/invoices?perPage=50&status=${filter}` : "/invoices?perPage=50";
-  const invoices = useListing(path);
+  const [page, setPage] = useState(1);
+  const query = new URLSearchParams({ page: String(page), perPage: "50" });
+  if (filter) query.set("status", filter);
+  const invoices = useListing(`/invoices?${query.toString()}`);
   const items = invoices.items ?? [];
 
   return (
@@ -19,7 +21,7 @@ export default function FacturesEquipePage() {
       <Card
         title="Factures"
         action={
-          <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`} aria-label="Filtrer par statut">
+          <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer par statut">
             <option value="">Tous les statuts</option>
             {Object.entries(INVOICE_STATUS).map(([value, label]) => (
               <option key={value} value={value}>
@@ -56,6 +58,7 @@ export default function FacturesEquipePage() {
             </li>
           ))}
         </ul>
+        <Pagination meta={invoices.meta} onPageChange={setPage} loading={invoices.loading} />
       </Card>
     </div>
   );

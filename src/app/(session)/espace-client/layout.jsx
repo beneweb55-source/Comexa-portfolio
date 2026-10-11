@@ -3,27 +3,40 @@
 import RequireSession from "@/components/workspace/RequireSession";
 import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 import { useAuth } from "@/lib/session";
-import { can } from "@/lib/access";
+import { canAny } from "@/lib/access";
 
-// `any` : au moins une permission suffit à afficher l'entrée (les permissions sont celles du rôle CLIENT).
-const NAV = [
-  { href: "/espace-client", label: "Mon espace" },
-  { href: "/espace-client/tableau-de-bord", label: "Tableau de bord", any: ["dashboard:read:own"] },
-  { href: "/espace-client/commander", label: "Commander un pack", nested: true },
-  { href: "/espace-client/modifications", label: "Demandes de modification", any: ["modificationrequest:write:own", "modificationrequest:read:own"] },
-  { href: "/espace-client/notifications", label: "Notifications", any: ["notification:read:own"] },
-  { href: "/espace-client/compte", label: "Mon compte" },
+const NAV_GROUPS = [
+  {
+    label: "Vue générale",
+    description: "Retrouvez les informations importantes de votre compte.",
+    items: [
+      { href: "/espace-client", label: "Mon espace", icon: "home" },
+      { href: "/espace-client/tableau-de-bord", label: "Tableau de bord", icon: "chart", any: ["dashboard:read:own"] },
+    ],
+  },
+  {
+    label: "Mes échanges",
+    description: "Commandes, demandes et échanges avec l’équipe Comexa.",
+    items: [
+      { href: "/espace-client/commander", label: "Commander un pack", icon: "cart", nested: true },
+      { href: "/espace-client/modifications", label: "Demandes de modification", icon: "edit", any: ["modificationrequest:write:own", "modificationrequest:read:own"] },
+      { href: "/espace-client/messagerie", label: "Messagerie", icon: "message", any: ["conversation:read:own"] },
+      { href: "/espace-client/notifications", label: "Notifications", icon: "bell", any: ["notification:read:own"] },
+    ],
+  },
 ];
 
-function visibleItems(user) {
-  return NAV.filter((item) => !item.any || item.any.some((permission) => can(user, permission)));
+function visibleGroups(user) {
+  return NAV_GROUPS
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.any || canAny(user, item.any)) }))
+    .filter((group) => group.items.length > 0);
 }
 
 export default function EspaceClientLayout({ children }) {
   const { user } = useAuth();
   return (
     <RequireSession>
-      <WorkspaceShell space="Espace client" title="Mon espace client" subtitle="Commandes, paiements et suivi de vos projets." items={visibleItems(user)}>
+      <WorkspaceShell space="Espace client" groups={visibleGroups(user)}>
         {children}
       </WorkspaceShell>
     </RequireSession>

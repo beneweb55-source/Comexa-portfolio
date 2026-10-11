@@ -4,6 +4,8 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate, formatMoney } from "@/lib/api";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE, daysFromToday } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
@@ -15,6 +17,10 @@ import { Badge, Card, Notice, primaryButton, secondaryButton } from "@/component
  */
 export default function DevisDetailPage({ params }) {
   const { id } = use(params);
+  const { user } = useAuth();
+  const canSendQuote = can(user, "quote:send:any");
+  const canCreateInvoice = can(user, "invoice:write:any");
+  const canReadInvoices = can(user, "invoice:read:any");
   const router = useRouter();
   const quote = useListing(`/quotes/${id}`);
   const action = useAction(quote.reload);
@@ -65,9 +71,11 @@ export default function DevisDetailPage({ params }) {
       {invoiceCreated?.id ? (
         <Notice tone="success">
           Facture {invoiceCreated.reference} créée.{" "}
-          <button type="button" className="underline" onClick={() => router.push(`/espace-equipe/factures/${invoiceCreated.id}`)}>
-            Ouvrir la facture
-          </button>
+          {canReadInvoices ? (
+            <button type="button" className="underline" onClick={() => router.push(`/espace-equipe/factures/${invoiceCreated.id}`)}>
+              Ouvrir la facture
+            </button>
+          ) : null}
         </Notice>
       ) : null}
 
@@ -112,13 +120,13 @@ export default function DevisDetailPage({ params }) {
         ) : null}
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {data.status === "DRAFT" ? (
-            <button type="button" onClick={send} disabled={action.busy === "send"} className={primaryButton}>
+          {data.status === "DRAFT" && canSendQuote ? (
+            <button type="button" onClick={send} disabled={Boolean(action.busy)} className={primaryButton}>
               {action.busy === "send" ? "Envoi…" : "Envoyer au client"}
             </button>
           ) : null}
-          {data.status === "ACCEPTED" ? (
-            <button type="button" onClick={createInvoice} disabled={action.busy === "invoice"} className={primaryButton}>
+          {data.status === "ACCEPTED" && canCreateInvoice ? (
+            <button type="button" onClick={createInvoice} disabled={Boolean(action.busy)} className={primaryButton}>
               {action.busy === "invoice" ? "Création…" : "Créer la facture"}
             </button>
           ) : null}

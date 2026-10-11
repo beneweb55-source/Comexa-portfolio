@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { useObject } from "@/lib/use-object";
@@ -17,8 +18,9 @@ export default function TableauDeBordPage() {
   const { user } = useAuth();
   const canSeeAgency = can(user, "dashboard:read:any");
   const canSeeMe = canSeeAgency || can(user, "dashboard:read:own");
+  const [agencyPeriod, setAgencyPeriod] = useState("THIS_MONTH");
   const me = useObject("/dashboard/me", canSeeMe);
-  const agency = useObject("/dashboard", canSeeAgency);
+  const agency = useObject(`/dashboard?preset=${agencyPeriod}`, canSeeAgency);
 
   if (!canSeeMe) {
     return <Notice tone="warning">Votre compte n’a pas accès au tableau de bord de l’équipe.</Notice>;
@@ -26,19 +28,23 @@ export default function TableauDeBordPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <BentoDashboard me={me} agency={agency} canSeeAgency={canSeeAgency} />
+      <BentoDashboard me={me} agency={agency} canSeeAgency={canSeeAgency} agencyPeriod={agencyPeriod} onAgencyPeriodChange={setAgencyPeriod} />
 
-      <details className="group rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.25)] backdrop-blur-xl">
-        <summary className="cursor-pointer list-none text-[15px] font-semibold text-white marker:content-none">
-          <span className="flex items-center justify-between gap-3">
-            Tableaux détaillés
-            <span className="text-[12.5px] font-normal text-white/55 group-open:hidden">Afficher</span>
-            <span className="hidden text-[12.5px] font-normal text-white/55 group-open:inline">Replier</span>
+      <details className="cx-dashboard__details group">
+        <summary className="cx-dashboard__details-summary">
+          <span className="cx-dashboard__details-copy">
+            <span>Explorer les données détaillées</span>
+            <span className="cx-dashboard__details-description">Ouvrir les tableaux personnels et les indicateurs de l’agence disponibles pour votre rôle.</span>
+          </span>
+          <span className="cx-dashboard__details-toggle">
+            <span className="cx-dashboard__details-hint group-open:hidden">Afficher</span>
+            <span className="cx-dashboard__details-hint hidden group-open:inline">Replier</span>
+            <span className="cx-dashboard__details-chevron" aria-hidden="true">⌄</span>
           </span>
         </summary>
 
         <div className="mt-6 flex flex-col gap-8">
-          <Card title="Ma journée" action={<button type="button" className="cx-btn cx-btn--outline cx-btn--sm" onClick={me.reload}>Actualiser</button>}>
+          <Card title="Ma journée" action={<button type="button" className="cx-btn cx-btn--outline cx-btn--sm" onClick={me.reload} disabled={me.loading}>{me.loading ? "Actualisation…" : "Actualiser"}</button>}>
             {me.error ? <Notice>{me.error}</Notice> : null}
             {me.loading && !me.data ? <p className="cx-small">Chargement…</p> : null}
             {me.data ? <MyDayView data={me.data} /> : null}
@@ -47,7 +53,7 @@ export default function TableauDeBordPage() {
           {canSeeAgency ? (
             <div className="flex flex-col gap-3">
               <div className="flex justify-end">
-                <button type="button" className="cx-btn cx-btn--outline cx-btn--sm" onClick={agency.reload}>Actualiser l’agence</button>
+                <button type="button" className="cx-btn cx-btn--outline cx-btn--sm" onClick={agency.reload} disabled={agency.loading}>{agency.loading ? "Actualisation…" : "Actualiser l’agence"}</button>
               </div>
               {agency.error ? <Notice>{agency.error}</Notice> : null}
               {agency.loading && !agency.data ? <p className="cx-small">Chargement…</p> : null}

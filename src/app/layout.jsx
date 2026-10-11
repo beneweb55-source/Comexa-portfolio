@@ -5,6 +5,7 @@ import "@fontsource/space-grotesk/500.css";
 import "@fontsource/space-grotesk/600.css";
 import PublicChrome from "@/components/PublicChrome";
 import RouteHistory from "@/components/RouteHistory";
+import { AuthProvider } from "@/lib/session";
 
 
 export const metadata = {
@@ -22,8 +23,10 @@ export default function RootLayout({ children }) {
         suppressHydrationWarning
         className="flex min-h-full flex-col overflow-x-hidden bg-white text-gray-900"
       >
-        <RouteHistory />
-        <PublicChrome>{children}</PublicChrome>
+        <AuthProvider>
+          <RouteHistory />
+          <PublicChrome>{children}</PublicChrome>
+        </AuthProvider>
       </body>
     </html>
   );

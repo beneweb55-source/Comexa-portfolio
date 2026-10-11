@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { formatDate, formatMoney } from "@/lib/api";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { PROSPECT_SOURCE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 import ProspectBoard from "@/components/workspace/ProspectBoard";
 
 const EMPTY_PROSPECT = {
@@ -24,13 +24,16 @@ const EMPTY_PROSPECT = {
  * Glisser une fiche change son étape ; l'historique est écrit côté serveur.
  */
 export default function ProspectsPage() {
+  const { user } = useAuth();
+  const canCreateProspect = can(user, "prospect:write:any") || can(user, "prospect:write:own");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState(EMPTY_PROSPECT);
   const [formError, setFormError] = useState(null);
 
   // Le tableau affiche toutes les étapes : pas de filtre de statut. Recherche seule.
-  const params = new URLSearchParams({ perPage: "100" });
+  const params = new URLSearchParams({ page: String(page), perPage: "100" });
   if (search.trim()) params.set("search", search.trim());
   const prospects = useListing(`/prospects?${params.toString()}`);
   const action = useAction(prospects.reload);
@@ -79,12 +82,14 @@ export default function ProspectsPage() {
       <Card
         title="Prospects"
         action={
-          <button type="button" onClick={() => setCreating((open) => !open)} className={primaryButton}>
-            {creating ? "Fermer" : "Nouveau prospect"}
-          </button>
+          canCreateProspect ? (
+            <button type="button" onClick={() => setCreating((open) => !open)} className={primaryButton}>
+              {creating ? "Fermer" : "Nouveau prospect"}
+            </button>
+          ) : null
         }
       >
-        {creating ? (
+        {creating && canCreateProspect ? (
           <form onSubmit={create} noValidate className="mb-6 grid gap-4 rounded-lg border border-[var(--comexa-border-soft)] p-4 md:grid-cols-2">
             <Field id="p-company" label="Entreprise">
               <input id="p-company" className={inputClass} value={draft.companyName} onChange={update("companyName")} maxLength={200} />
@@ -131,19 +136,23 @@ export default function ProspectsPage() {
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
             Recherche
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Entreprise, contact, e-mail" className={`${inputClass} h-9 w-64 text-[13px]`} />
+            <input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Entreprise, contact, e-mail"
+              className={`${inputClass} h-10 w-[min(320px,72vw)] text-[13px]`}
+            />
           </label>
-          {prospects.meta && prospects.meta.total > items.length ? (
-            <p className="text-[13px] text-[var(--comexa-ink-soft)]">
-              {items.length} fiches affichées sur {prospects.meta.total}. Affinez la recherche pour voir les autres.
-            </p>
-          ) : null}
         </div>
 
         {prospects.items === null && !prospects.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
         {prospects.items !== null && items.length === 0 ? <Empty>Aucun prospect pour ces critères.</Empty> : null}
 
         {items.length > 0 ? <ProspectBoard items={items} onChanged={prospects.reload} /> : null}
+        <Pagination meta={prospects.meta} onPageChange={setPage} loading={prospects.loading} />
       </Card>
     </div>
   );

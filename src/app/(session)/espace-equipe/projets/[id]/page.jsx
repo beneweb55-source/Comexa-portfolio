@@ -3,24 +3,37 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/session";
+import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 
 const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE", "CANCELLED"];
 const PROJECT_STATUSES = ["DRAFT", "PLANNED", "IN_PROGRESS", "ON_HOLD", "IN_REVIEW", "COMPLETED", "CANCELLED", "ARCHIVED"];
 
 export default function ProjetEquipePage({ params }) {
   const { id } = use(params);
-  const { download } = useAuth();
+  const { user, download } = useAuth();
+  const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((permission) => can(user, permission));
+  const canWriteTasks = ["task:write:any", "task:write:own"].some((permission) => can(user, permission));
+  const canReadMilestones = can(user, "milestone:read:any");
+  const canWriteMilestones = can(user, "milestone:write:any");
+  const canReadDocuments = ["document:read:any", "document:read:own", "document:read:client"].some((permission) => can(user, permission));
+  const canSetProjectStatus = can(user, "project:manage:status");
+  const [milestonePage, setMilestonePage] = useState(1);
+  const [taskPage, setTaskPage] = useState(1);
+  const [documentPage, setDocumentPage] = useState(1);
   const project = useListing(`/projects/${id}`);
-  const milestones = useListing(`/projects/${id}/milestones`);
-  const tasks = useListing(`/projects/${id}/tasks?perPage=100`);
-  const documents = useListing(`/documents?projectId=${id}&perPage=100`);
+  const milestones = useListing(canReadMilestones ? `/projects/${id}/milestones?page=${milestonePage}&perPage=100` : null);
+  const tasks = useListing(canReadTasks ? `/projects/${id}/tasks?page=${taskPage}&perPage=100` : null);
+  const documents = useListing(canReadDocuments ? `/documents?projectId=${id}&page=${documentPage}&perPage=100` : null);
 
   const reloadAll = async () => {
-    await Promise.all([project.reload(), milestones.reload(), tasks.reload()]);
+    const reloads = [project.reload()];
+    if (canReadMilestones) reloads.push(milestones.reload());
+    if (canReadTasks) reloads.push(tasks.reload());
+    await Promise.all(reloads);
   };
   const action = useAction(reloadAll);
 
@@ -30,7 +43,8 @@ export default function ProjetEquipePage({ params }) {
   const [taskVisible, setTaskVisible] = useState(false);
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDue, setMilestoneDue] = useState("");
-  const [formError, setFormError] = useState(null);
+  const [taskFormError, setTaskFormError] = useState(null);
+  const [milestoneFormError, setMilestoneFormError] = useState(null);
   const [downloadError, setDownloadError] = useState(null);
 
   const current = project.items;
@@ -43,9 +57,9 @@ export default function ProjetEquipePage({ params }) {
 
   async function createTask(event) {
     event.preventDefault();
-    setFormError(null);
+    setTaskFormError(null);
     if (!taskTitle.trim()) {
-      setFormError("Le titre de la tâche est obligatoire.");
+      setTaskFormError("Le titre de la tâche est obligatoire.");
       return;
     }
     const result = await action.run(
@@ -63,9 +77,9 @@ export default function ProjetEquipePage({ params }) {
 
   async function createMilestone(event) {
     event.preventDefault();
-    setFormError(null);
+    setMilestoneFormError(null);
     if (!milestoneTitle.trim()) {
-      setFormError("Le titre du jalon est obligatoire.");
+      setMilestoneFormError("Le titre du jalon est obligatoire.");
       return;
     }
     const result = await action.run(
@@ -89,7 +103,7 @@ export default function ProjetEquipePage({ params }) {
     }
   }
 
-  const error = project.error ?? milestones.error ?? tasks.error;
+  const error = project.error ?? (canReadMilestones ? milestones.error : null) ?? (canReadTasks ? tasks.error : null);
 
   if (project.error && !current) {
     return (
@@ -121,27 +135,30 @@ export default function ProjetEquipePage({ params }) {
               <span>Client : {current.client?.companyName ?? "—"}</span>
               <span>Échéance : {formatDate(current.dueDate)}</span>
             </div>
-            <form onSubmit={changeProjectStatus} className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-                Changer le statut
-                <select value={projectStatus || current.status} onChange={(event) => setProjectStatus(event.target.value)} className={`${inputClass} h-10 w-auto min-w-[200px] text-[14px]`}>
-                  {PROJECT_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {PROJECT_STATUS[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit" disabled={action.busy === "project-status"} className={`${secondaryButton} h-10`}>
-                Enregistrer le statut
-              </button>
-            </form>
+            {canSetProjectStatus ? (
+              <form onSubmit={changeProjectStatus} className="flex flex-wrap items-end gap-3">
+                <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+                  Changer le statut
+                  <select value={projectStatus || current.status} onChange={(event) => setProjectStatus(event.target.value)} className={`${inputClass} h-10 w-auto min-w-[200px] text-[14px]`}>
+                    {PROJECT_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {PROJECT_STATUS[status]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button type="submit" disabled={Boolean(action.busy)} className={`${secondaryButton} h-10`}>
+                  Enregistrer le statut
+                </button>
+              </form>
+            ) : null}
           </div>
         </Card>
       ) : null}
 
-      <Card title="Jalons">
-        {milestones.items?.length === 0 ? <Empty>Aucun jalon.</Empty> : null}
+      {canReadMilestones || canWriteMilestones ? (
+        <Card title="Jalons">
+        {canReadMilestones && milestones.items?.length === 0 ? <Empty>Aucun jalon.</Empty> : null}
         <ol className="flex flex-col gap-2">
           {(milestones.items ?? []).map((milestone) => (
             <li key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
@@ -153,23 +170,29 @@ export default function ProjetEquipePage({ params }) {
             </li>
           ))}
         </ol>
-        <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-            Nouveau jalon
-            <input value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} className={inputClass} />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-            Échéance
-            <input type="date" value={milestoneDue} onChange={(event) => setMilestoneDue(event.target.value)} className={inputClass} />
-          </label>
-          <button type="submit" disabled={action.busy === "milestone-create"} className={primaryButton}>
-            Ajouter le jalon
-          </button>
-        </form>
-      </Card>
+        {canReadMilestones ? <Pagination meta={milestones.meta} onPageChange={setMilestonePage} loading={milestones.loading} /> : null}
+        {canWriteMilestones ? (
+          <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+              Nouveau jalon
+              <input value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} className={inputClass} />
+            </label>
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+              Échéance
+              <input type="date" value={milestoneDue} onChange={(event) => setMilestoneDue(event.target.value)} className={inputClass} />
+            </label>
+            <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>
+              Ajouter le jalon
+            </button>
+          </form>
+        ) : null}
+        {canWriteMilestones && milestoneFormError ? <div className="mt-3"><Notice>{milestoneFormError}</Notice></div> : null}
+        </Card>
+      ) : null}
 
-      <Card title="Tâches">
-        {tasks.items?.length === 0 ? <Empty>Aucune tâche.</Empty> : null}
+      {canReadTasks || canWriteTasks ? (
+        <Card title="Tâches">
+        {canReadTasks && tasks.items?.length === 0 ? <Empty>Aucune tâche.</Empty> : null}
         <ul className="flex flex-col gap-2">
           {(tasks.items ?? []).map((task) => (
             <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
@@ -180,48 +203,56 @@ export default function ProjetEquipePage({ params }) {
                   {task.isClientVisible ? " · visible par le client" : ""}
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
-                <span className="sr-only">Statut de la tâche {task.title}</span>
-                <select
-                  value={task.status}
-                  onChange={(event) =>
-                    action.run(`task:${task.id}`, `/tasks/${task.id}/status`, { method: "PATCH", body: { status: event.target.value } }, "Statut de la tâche mis à jour.")
-                  }
-                  className={`${inputClass} h-9 w-auto text-[13px]`}
-                >
-                  {TASK_STATUSES.map((status) => (
-                    <option key={status} value={status}>
-                      {TASK_STATUS[status]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {canWriteTasks ? (
+                <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
+                  <span className="sr-only">Statut de la tâche {task.title}</span>
+                  <select
+                    value={task.status}
+                    disabled={Boolean(action.busy)}
+                    onChange={(event) =>
+                      action.run(`task:${task.id}`, `/tasks/${task.id}/status`, { method: "PATCH", body: { status: event.target.value } }, "Statut de la tâche mis à jour.")
+                    }
+                    className={`${inputClass} h-9 w-auto text-[13px]`}
+                  >
+                    {TASK_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {TASK_STATUS[status]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : <Badge>{TASK_STATUS[task.status] ?? task.status}</Badge>}
             </li>
           ))}
         </ul>
-        <form onSubmit={createTask} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-            Nouvelle tâche
-            <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} className={inputClass} />
-          </label>
-          <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-            Échéance
-            <input type="date" value={taskDue} onChange={(event) => setTaskDue(event.target.value)} className={inputClass} />
-          </label>
-          <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
-              <input type="checkbox" checked={taskVisible} onChange={(event) => setTaskVisible(event.target.checked)} />
-              Visible par le client
+        {canReadTasks ? <Pagination meta={tasks.meta} onPageChange={setTaskPage} loading={tasks.loading} /> : null}
+        {canWriteTasks ? (
+          <form onSubmit={createTask} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+              Nouvelle tâche
+              <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} className={inputClass} />
             </label>
-            <button type="submit" disabled={action.busy === "task-create"} className={primaryButton}>
-              Ajouter
-            </button>
-          </div>
-        </form>
-        {formError ? <div className="mt-3"><Notice>{formError}</Notice></div> : null}
-      </Card>
+            <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+              Échéance
+              <input type="date" value={taskDue} onChange={(event) => setTaskDue(event.target.value)} className={inputClass} />
+            </label>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
+                <input type="checkbox" checked={taskVisible} onChange={(event) => setTaskVisible(event.target.checked)} />
+                Visible par le client
+              </label>
+              <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>
+                Ajouter
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {canWriteTasks && taskFormError ? <div className="mt-3"><Notice>{taskFormError}</Notice></div> : null}
+        </Card>
+      ) : null}
 
-      <Card title="Documents">
+      {canReadDocuments ? (
+        <Card title="Documents">
         {downloadError ? <Notice>{downloadError}</Notice> : null}
         {documents.error ? <Notice>{documents.error}</Notice> : null}
         {documents.items?.length === 0 ? <Empty>Aucun document rattaché à ce projet.</Empty> : null}
@@ -240,7 +271,9 @@ export default function ProjetEquipePage({ params }) {
             </li>
           ))}
         </ul>
-      </Card>
+        <Pagination meta={documents.meta} onPageChange={setDocumentPage} loading={documents.loading} />
+        </Card>
+      ) : null}
     </div>
   );
 }
