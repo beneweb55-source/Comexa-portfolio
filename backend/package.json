@@ -30,7 +30,8 @@
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "admin:create": "tsx scripts/create-admin.ts"
   },
   "engines": {
     "node": ">=20.0.0"

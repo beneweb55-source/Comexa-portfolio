@@ -3,30 +3,83 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { elapsedMinutes, parseStoredTimer, splitTimerDuration, timerStorageKey } from "@/lib/timer-utils.mjs";
 
 /*
- * Minuteur global de l'équipe. L'état « en cours » vit dans le navigateur (localStorage)
- * pour survivre à un rechargement. L'ARRÊT crée une vraie entrée de temps côté API
- * (POST /tasks/:id/time-entries) : rien n'est enregistré tant qu'on n'a pas arrêté.
+ * Minuteur global de l'équipe. Son état local est cloisonné par compte et
+ * survit à un rechargement. L'arrêt crée une vraie saisie côté API ; rien n'est
+ * enregistré tant que l'appel n'a pas réussi.
  */
-const STORAGE_KEY = "comexa.timer.v1";
 const TimerContext = createContext(null);
 
-function readStoredTimer() {
-  if (typeof window === "undefined") return null;
+function readStoredTimer(ownerId) {
+  const key = timerStorageKey(ownerId);
+  if (!key || typeof window === "undefined") return null;
+
+  for (const area of ["localStorage", "sessionStorage"]) {
+    try {
+      const storage = window[area];
+      const raw = storage.getItem(key);
+      const timer = parseStoredTimer(raw, ownerId);
+      if (timer) return timer;
+      if (raw) storage.removeItem(key);
+    } catch {
+      // Le navigateur peut interdire une zone de stockage entière.
+    }
+  }
+  return null;
+}
+
+function writeStoredTimer(ownerId, timer) {
+  const key = timerStorageKey(ownerId);
+  if (!key || typeof window === "undefined") return false;
+  const serialized = JSON.stringify(timer);
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
+    window.localStorage.setItem(key, serialized);
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // Le localStorage contient la valeur valide ; l'ancien secours sera ignoré.
+    }
+    return true;
   } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return null;
+    try {
+      window.sessionStorage.setItem(key, serialized);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
+function removeStoredTimer(ownerId) {
+  const key = timerStorageKey(ownerId);
+  if (!key || typeof window === "undefined") return false;
+  let removedEverywhere = true;
+  for (const area of ["localStorage", "sessionStorage"]) {
+    try {
+      window[area].removeItem(key);
+    } catch {
+      removedEverywhere = false;
+    }
+  }
+  return removedEverywhere;
+}
+
 export function TimerProvider({ children }) {
-  const { request } = useAuth();
-  // Lecture du minuteur sauvegardé à l'initialisation (navigateur seulement : l'espace n'est rendu qu'après connexion).
-  const [timer, setTimer] = useState(() => readStoredTimer());
+  const { request, user } = useAuth();
+  const ownerId = typeof user?.id === "string" ? user.id : null;
+
+  // Un changement de compte remonte le contexte et relit uniquement le stockage de ce porteur.
+  return (
+    <TimerSession key={ownerId ?? "anonymous"} ownerId={ownerId} request={request}>
+      {children}
+    </TimerSession>
+  );
+}
+
+function TimerSession({ children, ownerId, request }) {
+  const [timer, setTimer] = useState(() => readStoredTimer(ownerId));
   const [now, setNow] = useState(() => Date.now());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -38,34 +91,86 @@ export function TimerProvider({ children }) {
   }, [timer]);
 
   const start = useCallback((task) => {
-    const next = { taskId: task.id, title: task.title ?? "Tâche", startedAt: new Date().toISOString() };
-    setError(null);
-    setTimer(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }, []);
+    if (!ownerId || typeof task?.id !== "string" || task.id.length === 0) {
+      setError("Impossible de démarrer le minuteur sans compte connecté et tâche valide.");
+      return;
+    }
 
-  /** Arrête et enregistre. En cas d'échec, le minuteur continue : aucune minute perdue. */
+    const next = {
+      ownerId,
+      taskId: task.id,
+      title: typeof task.title === "string" && task.title.trim() ? task.title : "Tâche",
+      startedAt: new Date().toISOString(),
+    };
+    setError(null);
+    setNow(Date.now());
+    setTimer(next);
+    if (!writeStoredTimer(ownerId, next)) {
+      setError("Minuteur démarré, mais le navigateur ne peut pas le conserver après rechargement.");
+    }
+  }, [ownerId]);
+
+  /** Arrête et enregistre. En cas d'échec API, le minuteur continue sans perte de durée. */
   const stop = useCallback(async () => {
-    if (!timer) return null;
-    const elapsedMinutes = Math.round((Date.now() - new Date(timer.startedAt).getTime()) / 60000);
-    const minutes = Math.min(1440, Math.max(1, elapsedMinutes));
+    if (!timer || !ownerId || timer.ownerId !== ownerId) return null;
+
+    const elapsed = elapsedMinutes(timer.startedAt, Date.now());
+    if (elapsed === null) {
+      setError("La date de départ du minuteur est invalide. Il n'a pas été arrêté.");
+      return null;
+    }
+    const totalMinutes = Math.max(1, elapsed);
+    const plan = splitTimerDuration(timer.startedAt, totalMinutes);
+    if (!plan) {
+      setError("La durée du minuteur ne peut pas être répartie en saisies valides.");
+      return null;
+    }
+
     setSaving(true);
     setError(null);
+    let savedMinutes = 0;
     try {
-      await request(`/tasks/${timer.taskId}/time-entries`, {
-        method: "POST",
-        body: { minutes, spentOn: new Date().toISOString(), description: `Minuteur : ${timer.title}`.slice(0, 500), billable: true },
-      });
+      for (const chunk of plan.chunks) {
+        await request(`/tasks/${encodeURIComponent(timer.taskId)}/time-entries`, {
+          method: "POST",
+          body: {
+            minutes: chunk.minutes,
+            spentOn: chunk.spentOn,
+            description: `Minuteur : ${timer.title}`.slice(0, 500),
+            billable: true,
+          },
+        });
+        savedMinutes += chunk.minutes;
+
+        const remainingMinutes = totalMinutes - savedMinutes;
+        if (remainingMinutes > 0) {
+          const remainingTimer = { ...timer, startedAt: chunk.resumeAt };
+          setTimer(remainingTimer);
+          if (!writeStoredTimer(ownerId, remainingTimer)) {
+            setError(`${savedMinutes} min enregistrées. Le minuteur continue, mais sa reprise ne peut pas être conservée par le navigateur.`);
+            return { savedMinutes, remainingMinutes };
+          }
+        }
+      }
+
+      const remainingMinutes = totalMinutes - savedMinutes;
+      if (remainingMinutes > 0) {
+        setError(`${savedMinutes} min enregistrées. Le minuteur continue pour les ${remainingMinutes} min restantes.`);
+        return { savedMinutes, remainingMinutes };
+      }
+
       setTimer(null);
-      window.localStorage.removeItem(STORAGE_KEY);
-      return minutes;
+      if (!removeStoredTimer(ownerId)) {
+        setError("Temps enregistré, mais le navigateur n'a pas pu effacer l'état local du minuteur.");
+      }
+      return { savedMinutes, remainingMinutes: 0 };
     } catch (caught) {
       setError(messageOf(caught));
       return null;
     } finally {
       setSaving(false);
     }
-  }, [timer, request]);
+  }, [ownerId, request, timer]);
 
   const value = useMemo(
     () => ({

@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { formatDate, messageOf } from "@/lib/api";
+import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
 import { useObject } from "@/lib/use-object";
 import { DataView } from "@/components/workspace/DataView";
-import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
 
 const REPORT_TYPES = {
   COMMERCIAL_PIPELINE: "Pipeline commercial",
@@ -37,17 +38,23 @@ const STATUS_TONE = { GENERATED: "success", PENDING: "info", FAILED: "danger" };
  * Le résultat est figé à la date de génération (il ne se recalcule pas).
  */
 export default function RapportsPage() {
-  const reports = useListing("/reports?perPage=50");
+  const { user } = useAuth();
+  const canGenerate = can(user, "report:generate:any");
+  const [page, setPage] = useState(1);
+  const reports = useListing(`/reports?page=${page}&perPage=50`);
   const [selectedId, setSelectedId] = useState(null);
   const detail = useObject(selectedId ? `/reports/${selectedId}` : null, Boolean(selectedId));
   const items = reports.items ?? [];
 
   return (
     <div className="flex flex-col gap-6">
-      <Generate onCreated={async (created) => {
-        await reports.reload();
-        if (created?.id) setSelectedId(created.id);
-      }} />
+      {canGenerate ? (
+        <Generate onCreated={async (created) => {
+          setPage(1);
+          await reports.reload();
+          if (created?.id) setSelectedId(created.id);
+        }} />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <Card title="Rapports générés">
@@ -72,6 +79,7 @@ export default function RapportsPage() {
               </li>
             ))}
           </ul>
+          <Pagination meta={reports.meta} onPageChange={setPage} loading={reports.loading} />
         </Card>
 
         <Card title={detail.data?.title || (selectedId ? "Résultat" : "Résultat du rapport")}>

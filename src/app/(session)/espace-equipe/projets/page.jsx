@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { formatDate } from "@/lib/api";
 import { PROJECT_STATUS } from "@/lib/labels";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, ProgressBar } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Notice, Pagination, ProgressBar } from "@/components/workspace/ui";
 
 export default function ProjetsEquipePage() {
-  const projects = useListing("/projects?perPage=50");
+  const [page, setPage] = useState(1);
+  const projects = useListing(`/projects?page=${page}&perPage=50`);
   const items = projects.items ?? [];
 
   return (
@@ -35,6 +37,7 @@ export default function ProjetsEquipePage() {
             </li>
           ))}
         </ul>
+        <Pagination meta={projects.meta} onPageChange={setPage} loading={projects.loading} />
       </Card>
     </div>
   );

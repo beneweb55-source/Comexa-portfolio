@@ -1,7 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Put, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
-import { CurrentUser, RequireAnyPermission, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import {
+  CurrentUser,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators.js';
 import { DailyReportQueryDto, UpsertDailyReportDto } from './dto/daily-report.dto.js';
 import { DailyReportsService, type DailyReportView } from './daily-reports.service.js';
 
@@ -18,7 +22,10 @@ export class DailyReportsController {
   @Get('mine')
   @RequireAnyPermission('time:write:own', 'time:read:own')
   @ApiOperation({ summary: 'Lister mes récapitulatifs journaliers' })
-  listMine(@CurrentUser() user: AuthenticatedUser, @Query() query: DailyReportQueryDto): Promise<DailyReportView[]> {
+  listMine(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: DailyReportQueryDto,
+  ): Promise<DailyReportView[]> {
     return this.reports.listMine(user.id, query);
   }
 
@@ -43,7 +50,10 @@ export class DailyReportsController {
   @Delete(':date')
   @RequirePermissions('time:write:own')
   @ApiOperation({ summary: 'Supprimer mon récapitulatif d’un jour' })
-  remove(@CurrentUser() user: AuthenticatedUser, @Param('date') date: string): Promise<{ deleted: true }> {
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('date') date: string,
+  ): Promise<{ deleted: true }> {
     return this.reports.removeMine(user.id, date);
   }
 }

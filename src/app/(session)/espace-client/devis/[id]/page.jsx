@@ -31,7 +31,7 @@ export default function DevisClientPage({ params }) {
     request(`/quotes/${id}/view`, { method: "POST" })
       .then(() => reloadQuote())
       .catch(() => {});
-  }, [currentStatus, id, reloadQuote]);
+  }, [currentStatus, id, reloadQuote, request]);
 
   if (quote.items === null) {
     return <div className="flex flex-col gap-6">{quote.error ? <Notice>{quote.error}</Notice> : <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p>}</div>;

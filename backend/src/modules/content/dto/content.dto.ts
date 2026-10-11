@@ -1,6 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUrl, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 import { BooleanFilter } from '../../../common/dto/boolean-filter.js';
 import { ContentStatus } from '../../../generated/prisma/enums.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
@@ -49,9 +64,9 @@ const MAX_ITEM_LENGTH = 200;
 // -----------------------------------------------------------------------------
 
 export class CreateServiceDto {
-
   @ApiPropertyOptional({
-    description: 'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
+    description:
+      'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
     minimum: 0,
   })
   @IsOptional()
@@ -155,9 +170,9 @@ export class CreateServiceDto {
 }
 
 export class UpdateServiceDto {
-
   @ApiPropertyOptional({
-    description: 'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
+    description:
+      'Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne.',
     minimum: 0,
   })
   @IsOptional()
@@ -897,7 +912,7 @@ export class CreatePartnerDto {
   @IsOptional()
   @IsUrl(
     { require_protocol: true, protocols: ['https'] },
-    { message: "Le logo doit être une adresse https:// vers une image." },
+    { message: 'Le logo doit être une adresse https:// vers une image.' },
   )
   @MaxLength(500)
   logoUrl?: string;
@@ -934,13 +949,13 @@ export class UpdatePartnerDto {
   @MaxLength(120)
   name?: string;
 
-  @ApiPropertyOptional({ description: "URL https du logo. Envoyer null pour le retirer." })
+  @ApiPropertyOptional({ description: 'URL https du logo. Envoyer null pour le retirer.' })
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
   @emptyToUndefined()
   @IsUrl(
     { require_protocol: true, protocols: ['https'] },
-    { message: "Le logo doit être une adresse https:// vers une image." },
+    { message: 'Le logo doit être une adresse https:// vers une image.' },
   )
   @MaxLength(500)
   logoUrl?: string | null;

@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { formatDate, formatMoney, messageOf } from "@/lib/api";
+import { can } from "@/lib/access";
 import { useAction, useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
-import { Badge, Card, ConfirmDialog, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
+import { Badge, Card, ConfirmDialog, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
 
 /*
  * Contenu du site public, géré depuis l'espace équipe. Une seule mécanique pour
@@ -16,11 +17,11 @@ import { Badge, Card, ConfirmDialog, Empty, Field, Notice, inputClass, primaryBu
  */
 
 const TABS = [
-  { key: "services", label: "Services", path: "/content/services", toggle: "isActive", toggleLabel: "Visible sur le site" },
-  { key: "packages", label: "Packs et tarifs", path: "/content/packages", toggle: "isActive", toggleLabel: "Visible sur le site" },
-  { key: "testimonials", label: "Témoignages", path: "/content/testimonials", toggle: "isPublished", toggleLabel: "Publié" },
-  { key: "partners", label: "Partenaires", path: "/content/partners", toggle: "isActive", toggleLabel: "Visible sur le site" },
-  { key: "faqs", label: "Questions fréquentes", path: "/content/faqs", toggle: "isPublished", toggleLabel: "Publiée" },
+  { key: "services", label: "Services", path: "/content/services", readPermission: "service:read:any", writePermission: "service:write:any", toggle: "isActive", toggleLabel: "Visible sur le site" },
+  { key: "packages", label: "Packs et tarifs", path: "/content/packages", readPermission: "package:read:any", writePermission: "package:write:any", toggle: "isActive", toggleLabel: "Visible sur le site" },
+  { key: "testimonials", label: "Témoignages", path: "/content/testimonials", readPermission: "testimonial:read:any", writePermission: "testimonial:write:any", togglePermission: "testimonial:moderate:any", toggle: "isPublished", toggleLabel: "Publié" },
+  { key: "partners", label: "Partenaires", path: "/content/partners", readPermission: "partner:read:any", writePermission: "partner:write:any", toggle: "isActive", toggleLabel: "Visible sur le site" },
+  { key: "faqs", label: "Questions fréquentes", path: "/content/faqs", readPermission: "faq:read:any", writePermission: "faq:write:any", toggle: "isPublished", toggleLabel: "Publiée" },
 ];
 
 const FIELDS = {
@@ -100,37 +101,54 @@ function toPayload(tab, form) {
 }
 
 export default function ContenuPage() {
-  const [tab, setTab] = useState("services");
-  const config = TABS.find((item) => item.key === tab);
+  const { user } = useAuth();
+  const [tab, setTab] = useState(null);
+  const accessibleTabs = TABS.filter((item) => can(user, item.readPermission));
+  const activeTab = accessibleTabs.some((item) => item.key === tab) ? tab : accessibleTabs[0]?.key;
+  const config = TABS.find((item) => item.key === activeTab);
+
+  if (!config) {
+    return (
+      <Card title="Contenu du site">
+        <Notice tone="info">Votre rôle ne permet pas de consulter le contenu du site.</Notice>
+      </Card>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div role="tablist" aria-label="Contenus du site" className="flex flex-wrap gap-2">
-        {TABS.map((item) => (
+        {accessibleTabs.map((item) => (
           <button
             key={item.key}
             type="button"
             role="tab"
-            aria-selected={tab === item.key}
+            aria-selected={activeTab === item.key}
             onClick={() => setTab(item.key)}
-            className={tab === item.key ? primaryButton : secondaryButton}
+            className={activeTab === item.key ? primaryButton : secondaryButton}
           >
             {item.label}
           </button>
         ))}
       </div>
-      <ContentList key={tab} config={config} />
+      <ContentList key={activeTab} config={config} />
     </div>
   );
 }
 
 function ContentList({ config }) {
+  const { user } = useAuth();
+  const canWrite = can(user, config.writePermission);
+  const canToggle = can(user, config.togglePermission ?? config.writePermission);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState(null); // null = fermé, {} = création, item = édition
   const [pendingDelete, setPendingDelete] = useState(null);
   const [openRates, setOpenRates] = useState(null);
-  const listing = useListing(`${config.path}?perPage=100${query ? `&search=${encodeURIComponent(query)}` : ""}`);
+  const params = new URLSearchParams({ page: String(page), perPage: "100" });
+  if (query) params.set("search", query);
+  const listing = useListing(`${config.path}?${params.toString()}`);
   const action = useAction(listing.reload);
   const items = listing.items ?? [];
   const title = (item) => item[TITLE_KEY[config.key]] ?? "Sans titre";
@@ -165,13 +183,14 @@ function ContentList({ config }) {
               onSubmit={(event) => {
                 event.preventDefault();
                 setQuery(search.trim());
+                setPage(1);
               }}
               className="flex gap-2"
             >
               <input aria-label="Rechercher" className={`${inputClass} !w-[200px]`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher" />
               <button type="submit" className={secondaryButton}>Chercher</button>
             </form>
-            <button type="button" className={primaryButton} onClick={() => setEditing({})}>Ajouter</button>
+            {canWrite ? <button type="button" className={primaryButton} onClick={() => setEditing({})}>Ajouter</button> : null}
           </div>
         }
       >
@@ -191,24 +210,27 @@ function ContentList({ config }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button type="button" className={secondaryButton} onClick={() => toggle(item)} disabled={action.busy === `toggle:${item.id}`}>
-                  {item[config.toggle] ? "Masquer" : "Afficher"}
-                </button>
-                <button type="button" className={secondaryButton} onClick={() => setEditing(item)}>Modifier</button>
+                {canToggle ? (
+                  <button type="button" className={secondaryButton} onClick={() => toggle(item)} disabled={Boolean(action.busy)}>
+                    {item[config.toggle] ? "Masquer" : "Afficher"}
+                  </button>
+                ) : null}
+                {canWrite ? <button type="button" className={secondaryButton} onClick={() => setEditing(item)}>Modifier</button> : null}
                 {config.key === "packages" ? (
                   <button type="button" className={secondaryButton} onClick={() => setOpenRates(openRates === item.id ? null : item.id)}>
                     Tarifs
                   </button>
                 ) : null}
-                <button type="button" className={secondaryButton} onClick={() => setPendingDelete(item)}>Retirer</button>
+                {canWrite ? <button type="button" className={secondaryButton} onClick={() => setPendingDelete(item)}>Retirer</button> : null}
               </div>
-              {config.key === "packages" && openRates === item.id ? <RatesPanel pack={item} /> : null}
+              {config.key === "packages" && openRates === item.id ? <RatesPanel pack={item} canWrite={canWrite} /> : null}
             </li>
           ))}
         </ul>
+        <Pagination meta={listing.meta} onPageChange={setPage} loading={listing.loading} />
       </Card>
 
-      {editing !== null ? (
+      {editing !== null && canWrite ? (
         <ContentForm
           key={editing.id ?? "new"}
           config={config}
@@ -311,20 +333,20 @@ function ContentForm({ config, item, onClose, onSaved }) {
 }
 
 /** Tarifs d'un pack : une ligne par tarif, jamais de modification (la ligne reste pour l'historique). */
-function RatesPanel({ pack }) {
+function RatesPanel({ pack, canWrite }) {
   const rates = useListing(`/content/packages/${pack.id}/rates`);
   const action = useAction(rates.reload);
   const [form, setForm] = useState({ amount: "", currency: "DZD", effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   async function add(event) {
     event.preventDefault();
-    await action.run(
+    const result = await action.run(
       "add",
       `/content/packages/${pack.id}/rates`,
       { method: "POST", body: { amount: Number(form.amount), currency: form.currency, effectiveFrom: new Date(form.effectiveFrom).toISOString() } },
       "Tarif ajouté.",
     );
-    setForm((current) => ({ ...current, amount: "" }));
+    if (result) setForm((current) => ({ ...current, amount: "" }));
   }
 
   const items = rates.items ?? [];
@@ -344,8 +366,8 @@ function RatesPanel({ pack }) {
             </span>
             <span className="flex items-center gap-2">
               <Badge tone={rate.isActive ? "success" : "neutral"}>{rate.isActive ? "Actif" : "Retiré"}</Badge>
-              {rate.isActive ? (
-                <button type="button" className={secondaryButton} onClick={() => action.run(`deactivate:${rate.id}`, `/content/packages/${pack.id}/rates/${rate.id}/deactivate`, { method: "PATCH" }, "Tarif retiré de la vente.")}>
+              {rate.isActive && canWrite ? (
+                <button type="button" className={secondaryButton} onClick={() => action.run(`deactivate:${rate.id}`, `/content/packages/${pack.id}/rates/${rate.id}/deactivate`, { method: "PATCH" }, "Tarif retiré de la vente.")} disabled={Boolean(action.busy)}>
                   Retirer
                 </button>
               ) : null}
@@ -353,21 +375,23 @@ function RatesPanel({ pack }) {
           </li>
         ))}
       </ul>
-      <form onSubmit={add} className="flex flex-wrap items-end gap-3">
-        <Field id="rate-amount" label="Montant">
-          <input id="rate-amount" type="number" min="0.01" step="0.01" required className={`${inputClass} !w-[150px]`} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-        </Field>
-        <Field id="rate-currency" label="Devise">
-          <select id="rate-currency" className={`${inputClass} !w-[110px]`} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-            <option value="DZD">DZD</option>
-            <option value="EUR">EUR</option>
-          </select>
-        </Field>
-        <Field id="rate-date" label="En vigueur le">
-          <input id="rate-date" type="date" required className={`${inputClass} !w-[170px]`} value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
-        </Field>
-        <button type="submit" disabled={action.busy === "add"} className={primaryButton}>Ajouter le tarif</button>
-      </form>
+      {canWrite ? (
+        <form onSubmit={add} className="flex flex-wrap items-end gap-3">
+          <Field id="rate-amount" label="Montant">
+            <input id="rate-amount" type="number" min="0.01" step="0.01" required className={`${inputClass} !w-[150px]`} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          </Field>
+          <Field id="rate-currency" label="Devise">
+            <select id="rate-currency" className={`${inputClass} !w-[110px]`} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
+              <option value="DZD">DZD</option>
+              <option value="EUR">EUR</option>
+            </select>
+          </Field>
+          <Field id="rate-date" label="En vigueur le">
+            <input id="rate-date" type="date" required className={`${inputClass} !w-[170px]`} value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
+          </Field>
+          <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>Ajouter le tarif</button>
+        </form>
+      ) : null}
     </div>
   );
 }

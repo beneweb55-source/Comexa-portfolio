@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { messageOf } from "@/lib/api";
+import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
@@ -21,8 +22,11 @@ const RESOURCE_LABEL = {
  * se charge à la sélection. Le rôle ADMIN n'est pas modifiable : l'API le refuse aussi.
  */
 export default function RolesPage() {
+  const { user } = useAuth();
+  const canManageRoles = can(user, "role:manage:any");
+  const canReadPermissions = can(user, "permission:read:any");
   const roles = useListing("/roles");
-  const catalogue = useListing("/permissions");
+  const catalogue = useListing(canReadPermissions ? "/permissions" : null);
   const [selectedCode, setSelectedCode] = useState(null);
   const forbidden = roles.errorStatus === 403;
 
@@ -64,7 +68,7 @@ export default function RolesPage() {
       </Card>
 
       {selectedCode ? (
-        <RoleEditor key={selectedCode} code={selectedCode} catalogue={catalogue} onSaved={roles.reload} />
+        <RoleEditor key={selectedCode} code={selectedCode} catalogue={catalogue} canManageRoles={canManageRoles} canReadPermissions={canReadPermissions} onSaved={roles.reload} />
       ) : (
         <Card title="Permissions">
           <Empty>Sélectionnez un rôle pour voir et modifier ses permissions.</Empty>
@@ -74,13 +78,14 @@ export default function RolesPage() {
   );
 }
 
-function RoleEditor({ code, catalogue, onSaved }) {
+function RoleEditor({ code, catalogue, canManageRoles, canReadPermissions, onSaved }) {
   const { request } = useAuth();
   const [role, setRole] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [selected, setSelected] = useState(null);
   const action = useAction(onSaved);
   const locked = code === "ADMIN";
+  const canEdit = canManageRoles && canReadPermissions && !locked;
 
   useEffect(() => {
     let cancelled = false;
@@ -128,9 +133,11 @@ function RoleEditor({ code, catalogue, onSaved }) {
   return (
     <Card
       title={`Permissions : ${role.name}`}
-      action={locked ? <Badge tone="neutral">Lecture seule</Badge> : null}
+      action={!canEdit ? <Badge tone="neutral">Lecture seule</Badge> : null}
     >
       {locked ? <Notice tone="info">Le rôle Administrateur garde toutes les permissions. Il ne peut pas être modifié.</Notice> : null}
+      {!canManageRoles ? <Notice tone="info">Votre rôle peut consulter les permissions, mais ne peut pas les modifier.</Notice> : null}
+      {canManageRoles && !canReadPermissions ? <Notice>Votre rôle ne permet pas de consulter le catalogue des permissions nécessaire à la modification.</Notice> : null}
       {action.error ? <Notice>{action.error}</Notice> : null}
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
       {catalogue.error ? <Notice>{catalogue.error}</Notice> : null}
@@ -145,7 +152,7 @@ function RoleEditor({ code, catalogue, onSaved }) {
                   <input
                     type="checkbox"
                     className="mt-1"
-                    disabled={locked}
+                    disabled={!canEdit}
                     checked={selected.includes(permission.code)}
                     onChange={() => toggle(permission.code)}
                   />
@@ -160,9 +167,9 @@ function RoleEditor({ code, catalogue, onSaved }) {
         ))}
       </div>
 
-      {!locked ? (
+      {canEdit ? (
         <div className="mt-6 flex gap-3">
-          <button type="button" className={primaryButton} onClick={save} disabled={action.busy === "save"}>
+          <button type="button" className={primaryButton} onClick={save} disabled={Boolean(action.busy)}>
             {action.busy === "save" ? "Enregistrement…" : "Enregistrer les permissions"}
           </button>
           <button type="button" className={secondaryButton} onClick={() => setSelected((role.permissions ?? []).map((p) => p.code))}>

@@ -83,7 +83,11 @@ export class DailyReportsService {
   }
 
   /** Crée ou remplace mon rapport du jour. */
-  async upsertMine(userId: string, day: string, body: UpsertDailyReportDto): Promise<DailyReportView> {
+  async upsertMine(
+    userId: string,
+    day: string,
+    body: UpsertDailyReportDto,
+  ): Promise<DailyReportView> {
     const reportDate = this.parseDay(day);
     if (JSON.stringify(body.contentJson).length > MAX_CONTENT_CHARS) {
       throw new BadRequestException('Le rapport dépasse la taille maximale autorisée.');

@@ -4,7 +4,9 @@ import { useState } from "react";
 import { formatDate } from "@/lib/api";
 import { PROJECT_REQUEST_STATUS } from "@/lib/labels";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, inputClass, primaryButton } from "@/components/workspace/ui";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
+import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton } from "@/components/workspace/ui";
 
 const STATUS_FILTERS = ["", "NEW", "IN_REVIEW", "CONVERTED", "CLOSED"];
 
@@ -20,9 +22,13 @@ const SHORT_REASON = {
  * visible que de l'equipe.
  */
 export default function DemandesPage() {
+  const { user } = useAuth();
+  const canManageRequests = can(user, "project_request:manage:any");
   const [filter, setFilter] = useState("");
-  const path = filter ? `/project-requests?perPage=50&status=${filter}` : "/project-requests?perPage=50";
-  const requests = useListing(path);
+  const [page, setPage] = useState(1);
+  const query = new URLSearchParams({ page: String(page), perPage: "50" });
+  if (filter) query.set("status", filter);
+  const requests = useListing(`/project-requests?${query.toString()}`);
   const action = useAction(requests.reload);
   const [drafts, setDrafts] = useState({});
 
@@ -57,7 +63,7 @@ export default function DemandesPage() {
         action={
           <label className="flex items-center gap-2 text-[14px] text-[var(--comexa-ink-soft)]">
             Statut
-            <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`}>
+            <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer les demandes de projet par statut">
               <option value="">Toutes</option>
               {STATUS_FILTERS.slice(1).map((status) => (
                 <option key={status} value={status}>
@@ -99,35 +105,42 @@ export default function DemandesPage() {
                   <blockquote className="mt-3 rounded-md bg-[var(--comexa-neutral-50)] px-3 py-2 text-[14px] text-[var(--comexa-ink-soft)]">{item.message}</blockquote>
                 ) : null}
 
-                <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-start">
-                  <select
-                    aria-label={`Statut de ${item.reference}`}
-                    value={draft.status}
-                    onChange={(event) => updateDraft(item, { status: event.target.value })}
-                    className={`${inputClass} h-10 text-[14px]`}
-                  >
-                    {Object.entries(PROJECT_REQUEST_STATUS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                  <textarea
-                    aria-label={`Note interne ${item.reference}`}
-                    placeholder="Note interne (non visible du client)"
-                    rows={2}
-                    value={draft.teamNote}
-                    onChange={(event) => updateDraft(item, { teamNote: event.target.value })}
-                    className={`${inputClass} h-auto py-2 text-[14px]`}
-                  />
-                  <button type="button" onClick={() => save(item)} disabled={busy} className={`${primaryButton} h-10 px-4 text-[14px]`}>
-                    {busy ? "Enregistrement…" : "Enregistrer"}
-                  </button>
-                </div>
+                {canManageRequests ? (
+                  <div className="mt-4 grid gap-3 md:grid-cols-[220px_1fr_auto] md:items-start">
+                    <select
+                      aria-label={`Statut de ${item.reference}`}
+                      value={draft.status}
+                      onChange={(event) => updateDraft(item, { status: event.target.value })}
+                      className={`${inputClass} h-10 text-[14px]`}
+                    >
+                      {Object.entries(PROJECT_REQUEST_STATUS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      aria-label={`Note interne ${item.reference}`}
+                      placeholder="Note interne (non visible du client)"
+                      rows={2}
+                      value={draft.teamNote}
+                      onChange={(event) => updateDraft(item, { teamNote: event.target.value })}
+                      className={`${inputClass} h-auto py-2 text-[14px]`}
+                    />
+                    <button type="button" onClick={() => save(item)} disabled={busy} className={`${primaryButton} h-10 px-4 text-[14px]`}>
+                      {busy ? "Enregistrement…" : "Enregistrer"}
+                    </button>
+                  </div>
+                ) : item.teamNote ? (
+                  <p className="mt-4 rounded-md bg-[var(--comexa-neutral-50)] px-3 py-2 text-[13.5px] text-[var(--comexa-ink-soft)]">
+                    <strong>Note interne :</strong> {item.teamNote}
+                  </p>
+                ) : null}
               </li>
             );
           })}
         </ul>
+        <Pagination meta={requests.meta} onPageChange={setPage} loading={requests.loading} />
       </Card>
     </div>
   );

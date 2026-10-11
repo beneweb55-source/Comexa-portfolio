@@ -7,7 +7,7 @@ services:
     name: comexa-api
     runtime: docker
     region: frankfurt
-    plan: free            # le palier gratuit s'endort : inacceptable pour un site de production
+    plan: free               # gratuit : pas de carte bancaire. Le service s'endort après 15 min ; passer à starter pour la production
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
     healthCheckPath: /api/health
@@ -24,11 +24,11 @@ services:
         sync: false           # ex. https://www.exemple.fr (le domaine Vercel/public du front)
       - key: FRONTEND_URL
         sync: false           # même domaine que CORS_ORIGIN (liens dans les courriels, revalidation)
-      # --- Base de données (Neon) : deux URL distinctes, voir le guide
+      # --- Base de données (Supabase) : DATABASE_URL = pooler 6543 ?pgbouncer=true ; DIRECT_URL = 5432
       - key: DATABASE_URL
-        sync: false           # hôte -pooler, runtime
+        sync: false           # pooler Supabase, port 6543, ?pgbouncer=true
       - key: DIRECT_URL
-        sync: false           # hôte direct, migrations uniquement
+        sync: false           # direct Supabase, port 5432, migrations uniquement
       # --- Authentification : deux secrets DIFFÉRENTS (openssl rand -base64 48)
       - key: JWT_ACCESS_SECRET
         sync: false
@@ -66,7 +66,7 @@ services:
       - key: S3_SECRET_ACCESS_KEY
         sync: false
       - key: S3_FORCE_PATH_STYLE
-        value: "true"
+        value: "true"        # obligatoire avec Supabase Storage
       # --- Divers
       - key: DOCS_ENABLED
         value: "false"        # documentation API fermée en production
@@ -76,6 +76,8 @@ services:
         value: 1h
       - key: EMAIL_VERIFICATION_TTL
         value: 24h
+      - key: EMAIL_VERIFICATION_REQUIRED
+        value: "false"   # veille : verification e-mail suspendue (code conservé) ; passer à true quand le domaine Mailjet est prêt
       - key: PAYMENT_METHODS_DZD
         value: BANK_TRANSFER,CASH
       - key: PAYMENT_METHODS_EUR

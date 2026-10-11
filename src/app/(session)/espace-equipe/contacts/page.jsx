@@ -5,7 +5,9 @@ import Link from "next/link";
 import { formatDate } from "@/lib/api";
 import { CONTACT_STATUS, CONTACT_STATUS_TONE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
+import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 
 const FILTERS = ["", "NEW", "IN_REVIEW", "CONVERTED", "SPAM", "ARCHIVED"];
 const EDITABLE_STATUSES = ["NEW", "IN_REVIEW", "SPAM", "ARCHIVED"];
@@ -16,9 +18,15 @@ const EDITABLE_STATUSES = ["NEW", "IN_REVIEW", "SPAM", "ARCHIVED"];
  * La conversion est définitive : le serveur refuse de convertir deux fois.
  */
 export default function ContactsEquipePage() {
+  const { user } = useAuth();
+  const canUpdateContacts = can(user, "contactrequest:write:any");
+  const canConvertContacts = can(user, "contactrequest:convert:any");
+  const canReadProspects = can(user, "prospect:read:any") || can(user, "prospect:read:own");
   const [filter, setFilter] = useState("");
-  const path = filter ? `/contact-requests?perPage=50&status=${filter}` : "/contact-requests?perPage=50";
-  const contacts = useListing(path);
+  const [page, setPage] = useState(1);
+  const query = new URLSearchParams({ page: String(page), perPage: "50" });
+  if (filter) query.set("status", filter);
+  const contacts = useListing(`/contact-requests?${query.toString()}`);
   const action = useAction(contacts.reload);
   const [drafts, setDrafts] = useState({});
   const [converted, setConverted] = useState(null);
@@ -74,7 +82,7 @@ export default function ContactsEquipePage() {
         action={
           <label className="flex items-center gap-2 text-[14px] text-[var(--comexa-ink-soft)]">
             Statut
-            <select value={filter} onChange={(event) => setFilter(event.target.value)} className={`${inputClass} h-9 w-auto text-[13px]`}>
+            <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer les demandes de contact par statut">
               <option value="">Tous</option>
               {FILTERS.filter(Boolean).map((status) => (
                 <option key={status} value={status}>
@@ -123,7 +131,7 @@ export default function ContactsEquipePage() {
                 {isConverted ? (
                   <p className="mt-3 text-[13.5px] text-[var(--comexa-ink-soft)]">
                     Demande transformée en prospect le {formatDate(item.convertedAt)}.
-                    {item.convertedProspectId ? (
+                    {item.convertedProspectId && canReadProspects ? (
                       <>
                         {" "}
                         <Link href={`/espace-equipe/prospects/${item.convertedProspectId}`} className="text-[var(--comexa-accent-strong)] underline">
@@ -132,43 +140,54 @@ export default function ContactsEquipePage() {
                       </>
                     ) : null}
                   </p>
-                ) : (
+                ) : canUpdateContacts || canConvertContacts ? (
                   <div className="mt-3 flex flex-wrap items-end gap-3">
-                    <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-                      Statut
-                      <select
-                        value={draft.status}
-                        onChange={(event) => patchDraft(item, { status: event.target.value })}
-                        className={`${inputClass} h-9 w-auto text-[13px]`}
-                      >
-                        {EDITABLE_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {CONTACT_STATUS[status]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
-                      Note interne
-                      <input
-                        value={draft.notes}
-                        onChange={(event) => patchDraft(item, { notes: event.target.value })}
-                        maxLength={5000}
-                        className={`${inputClass} h-9 text-[13px]`}
-                      />
-                    </label>
-                    <button type="button" onClick={() => save(item)} disabled={busy} className={secondaryButton}>
-                      Enregistrer
-                    </button>
-                    <button type="button" onClick={() => convert(item)} disabled={busy} className={primaryButton}>
-                      {busy && action.busy === `convert:${item.id}` ? "Conversion…" : "Transformer en prospect"}
-                    </button>
+                    {canUpdateContacts ? (
+                      <>
+                        <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+                          Statut
+                          <select
+                            value={draft.status}
+                            onChange={(event) => patchDraft(item, { status: event.target.value })}
+                            className={`${inputClass} h-10 w-auto text-[13px]`}
+                          >
+                            {EDITABLE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {CONTACT_STATUS[status]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="flex min-w-[220px] flex-1 flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+                          Note interne
+                          <input
+                            value={draft.notes}
+                            onChange={(event) => patchDraft(item, { notes: event.target.value })}
+                            maxLength={5000}
+                            className={`${inputClass} h-10 text-[13px]`}
+                          />
+                        </label>
+                        <button type="button" onClick={() => save(item)} disabled={busy} className={secondaryButton}>
+                          Enregistrer
+                        </button>
+                      </>
+                    ) : item.notes ? (
+                      <p className="w-full text-[13.5px] text-[var(--comexa-ink-soft)]"><strong>Note interne :</strong> {item.notes}</p>
+                    ) : null}
+                    {canConvertContacts ? (
+                      <button type="button" onClick={() => convert(item)} disabled={busy} className={primaryButton}>
+                        {busy && action.busy === `convert:${item.id}` ? "Conversion…" : "Transformer en prospect"}
+                      </button>
+                    ) : null}
                   </div>
-                )}
+                ) : item.notes ? (
+                  <p className="mt-3 text-[13.5px] text-[var(--comexa-ink-soft)]"><strong>Note interne :</strong> {item.notes}</p>
+                ) : null}
               </li>
             );
           })}
         </ul>
+        <Pagination meta={contacts.meta} onPageChange={setPage} loading={contacts.loading} />
       </Card>
     </div>
   );

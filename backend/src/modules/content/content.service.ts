@@ -701,9 +701,15 @@ export class ContentService {
     // les demander provoquait une erreur Prisma (500) sur toute modification d'un service.
     switch (model) {
       case 'service':
-        return { ...(await this.prisma.service.findFirst({ where, select: { id: true, slug: true } })), publishedAt: null } as WithSlug | null;
+        return {
+          ...(await this.prisma.service.findFirst({ where, select: { id: true, slug: true } })),
+          publishedAt: null,
+        } as WithSlug | null;
       case 'package':
-        return { ...(await this.prisma.package.findFirst({ where, select: { id: true, slug: true } })), publishedAt: null } as WithSlug | null;
+        return {
+          ...(await this.prisma.package.findFirst({ where, select: { id: true, slug: true } })),
+          publishedAt: null,
+        } as WithSlug | null;
       case 'category':
         // Une categorie n'a pas de date de publication : on rend `null` plutot
         // que d'inventer un champ, et `publishedAt` n'est lu que pour les
@@ -713,7 +719,10 @@ export class ContentService {
           select: { id: true, slug: true },
         });
       case 'caseStudy':
-        return this.prisma.caseStudy.findFirst({ where, select: { id: true, slug: true, publishedAt: true } });
+        return this.prisma.caseStudy.findFirst({
+          where,
+          select: { id: true, slug: true, publishedAt: true },
+        });
     }
   }
 
@@ -818,7 +827,10 @@ interface WithSlug {
  * sequentielle, il ne revele ni volume ni ordre de creation.
  */
 /** Un prix de depart sans devise n'a pas de sens : refus explicite (400). */
-function assertPriceHasCurrency(dto: { startingPrice?: number | null; startingPriceCurrency?: string }) {
+function assertPriceHasCurrency(dto: {
+  startingPrice?: number | null;
+  startingPriceCurrency?: string;
+}) {
   if (dto.startingPrice != null && !dto.startingPriceCurrency) {
     throw AppException.badRequest(
       'SERVICE_PRICE_CURRENCY_REQUIRED',

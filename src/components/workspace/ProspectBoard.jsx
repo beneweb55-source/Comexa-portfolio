@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
@@ -21,20 +21,22 @@ function MoveMenu({ label, targets, disabled, onPick }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuId = useId();
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = () => setOpen(false);
-    const onKey = (event) => {
-      if (event.key === "Escape") setOpen(false);
+    menuRef.current?.querySelector('[role="option"]')?.focus();
+    const closeAndRestoreFocus = () => {
+      setOpen(false);
+      buttonRef.current?.focus();
     };
+    const close = () => closeAndRestoreFocus();
     window.addEventListener("resize", close);
     window.addEventListener("scroll", close, true);
-    window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", close, true);
-      window.removeEventListener("keydown", onKey);
     };
   }, [open]);
 
@@ -47,6 +49,29 @@ function MoveMenu({ label, targets, disabled, onPick }) {
     setOpen(!open);
   }
 
+  function handleMenuKeyDown(event) {
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      buttonRef.current?.focus();
+      return;
+    }
+    if (event.key === "Tab") {
+      setOpen(false);
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+    const options = Array.from(menuRef.current?.querySelectorAll('[role="option"]') ?? []);
+    if (!options.length) return;
+    event.preventDefault();
+    const currentIndex = options.indexOf(document.activeElement);
+    const delta = event.key === "ArrowDown" ? 1 : -1;
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + delta + options.length) % options.length;
+    options[nextIndex].focus();
+  }
+
   return (
     <>
       <button
@@ -54,12 +79,13 @@ function MoveMenu({ label, targets, disabled, onPick }) {
         type="button"
         aria-label={label}
         aria-haspopup="listbox"
+        aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         disabled={disabled || targets.length === 0}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
         onClick={toggle}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 text-[12.5px] font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+        className="cx-prospect-move"
       >
         Déplacer
         <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
@@ -70,12 +96,15 @@ function MoveMenu({ label, targets, disabled, onPick }) {
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
+              <div className="fixed inset-0 z-[998]" onClick={() => { setOpen(false); buttonRef.current?.focus(); }} />
               <ul
+                ref={menuRef}
+                id={menuId}
                 role="listbox"
                 aria-label={label}
+                onKeyDown={handleMenuKeyDown}
                 style={{ top: pos.top, left: Math.max(8, pos.left), width: pos.width }}
-                className="fixed z-[999] overflow-hidden rounded-2xl border border-white/15 bg-[#0b2748]/95 p-1 shadow-[0_20px_50px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+                className="cx-prospect-move__menu fixed z-[999]"
               >
                 {targets.map((target) => (
                   <li key={target} role="none">
@@ -85,9 +114,10 @@ function MoveMenu({ label, targets, disabled, onPick }) {
                       aria-selected="false"
                       onClick={() => {
                         setOpen(false);
+                        buttonRef.current?.focus();
                         onPick(target);
                       }}
-                      className="w-full rounded-xl px-3 py-2 text-left text-[13px] text-white transition hover:bg-white/10"
+                      className="cx-prospect-move__option"
                     >
                       {PROSPECT_STATUS[target]}
                     </button>
@@ -102,7 +132,7 @@ function MoveMenu({ label, targets, disabled, onPick }) {
   );
 }
 
-/* Deux thèmes : « light » pour les pages de l'espace équipe, « glass » pour le tableau de bord sombre. */
+/* Kanban clair partagé entre la page de prospection et le tableau de bord. */
 const THEMES = {
   light: {
     column: (over) => (over ? "border-[var(--comexa-accent)] bg-[var(--comexa-accent-soft)]" : "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)]"),
@@ -111,14 +141,6 @@ const THEMES = {
     soft: "text-[var(--comexa-ink-soft)]",
     card: "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] shadow-sm",
     name: "text-[var(--comexa-ink)]",
-  },
-  glass: {
-    column: (over) => (over ? "border-sky-300/60 bg-sky-400/15" : "border-white/10 bg-white/[0.04]"),
-    title: "text-white",
-    muted: "text-white/50",
-    soft: "text-white/65",
-    card: "border-white/10 bg-white/[0.07] shadow-[0_8px_24px_rgba(0,0,0,0.25),inset_0_1px_0_0_rgba(255,255,255,0.08)] backdrop-blur-xl hover:border-white/25",
-    name: "text-white",
   },
 };
 

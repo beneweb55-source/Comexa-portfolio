@@ -3,6 +3,8 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, PAYMENT_METHOD, PAYMENT_RECORD_STATUS, remainingDue } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
@@ -12,6 +14,10 @@ const TODAY = () => new Date().toISOString().slice(0, 10);
 /** Fiche d'une facture : état, encaissements, envoi au client et annulation. */
 export default function FactureDetailPage({ params }) {
   const { id } = use(params);
+  const { user } = useAuth();
+  const canSendInvoice = can(user, "invoice:send:any");
+  const canManageInvoice = can(user, "invoice:write:any");
+  const canRecordPayment = can(user, "payment:write:any");
   const invoice = useListing(`/invoices/${id}`);
   const action = useAction(invoice.reload);
   const [payment, setPayment] = useState({ amount: "", method: "BANK_TRANSFER", paidAt: TODAY(), externalReference: "", notes: "" });
@@ -25,6 +31,7 @@ export default function FactureDetailPage({ params }) {
   const due = remainingDue(data);
   const payments = data.payments ?? [];
   const isOpen = !["PAID", "CANCELLED", "REFUNDED"].includes(data.status);
+  const canAcceptPayment = ["SENT", "PARTIALLY_PAID", "OVERDUE"].includes(data.status);
 
   async function send() {
     await action.run("send", `/invoices/${id}/send`, { method: "POST" }, "Facture envoyée au client.");
@@ -96,20 +103,20 @@ export default function FactureDetailPage({ params }) {
         </dl>
 
         <div className="mt-6 flex flex-wrap gap-3">
-          {data.status === "DRAFT" ? (
-            <button type="button" onClick={send} disabled={action.busy === "send"} className={primaryButton}>
+          {data.status === "DRAFT" && canSendInvoice ? (
+            <button type="button" onClick={send} disabled={Boolean(action.busy)} className={primaryButton}>
               {action.busy === "send" ? "Envoi…" : "Envoyer au client"}
             </button>
           ) : null}
-          {isOpen && Number(data.amountPaid) === 0 ? (
-            <button type="button" onClick={cancel} disabled={action.busy === "cancel"} className={secondaryButton}>
+          {isOpen && Number(data.amountPaid) === 0 && canManageInvoice ? (
+            <button type="button" onClick={cancel} disabled={Boolean(action.busy)} className={secondaryButton}>
               {action.busy === "cancel" ? "Annulation…" : "Annuler la facture"}
             </button>
           ) : null}
         </div>
       </Card>
 
-      {isOpen && due > 0 ? (
+      {canAcceptPayment && due > 0 && canRecordPayment ? (
         <Card title="Enregistrer un encaissement">
           <form onSubmit={recordPayment} noValidate className="grid gap-4 md:grid-cols-3">
             <Field id="pay-amount" label={`Montant (${data.currency}) *`} hint={`Reste à payer : ${formatMoney(due, data.currency)}`}>
@@ -135,7 +142,7 @@ export default function FactureDetailPage({ params }) {
             </Field>
             {paymentError ? <Notice>{paymentError}</Notice> : null}
             <div className="md:col-span-3 flex justify-end">
-              <button type="submit" disabled={action.busy === "payment"} className={primaryButton}>
+              <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>
                 {action.busy === "payment" ? "Enregistrement…" : "Enregistrer l'encaissement"}
               </button>
             </div>
