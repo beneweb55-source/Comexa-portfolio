@@ -128,3 +128,11 @@ export function formatDate(value) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(value));
 }
+
+/** Formate une journée métier stockée à minuit UTC sans la décaler au fuseau local. */
+export function formatDateOnly(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeZone: "UTC" }).format(date);
+}

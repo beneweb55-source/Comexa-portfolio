@@ -29,6 +29,13 @@ export default function AnalytiquePage() {
     d.setDate(d.getDate() - 29);
     return isoDay(d);
   }, []);
+  const [asOf, setAsOf] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setAsOf(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const canReadTeamTime = can(user, "time:read:any");
   const canReadTeamProjects = can(user, "project:read:any");
   const canReadTeamTasks = can(user, "task:read:any");
@@ -79,7 +86,7 @@ export default function AnalytiquePage() {
   const timeDataReady = canReadTeamTime && entries.items !== null && !entries.loading && !entries.error;
   const projectsDataReady = canReadTeamProjects && projects.items !== null && !projects.loading && !projects.error;
   const tasksDataReady = hasTaskAccess && projectsDataReady && (projectItems.length === 0 || (tasksAreCurrent && tasks.items !== null && !taskError));
-  const data = useMemo(() => buildAnalytics(entries.items ?? EMPTY, projectItems, taskItems, users.items ?? EMPTY, from, to), [entries.items, projectItems, taskItems, users.items, from, to]);
+  const data = useMemo(() => buildAnalytics(entries.items ?? EMPTY, projectItems, taskItems, users.items ?? EMPTY, from, to, asOf), [entries.items, projectItems, taskItems, users.items, from, to, asOf]);
   // Les noms des membres sont distincts des droits de rapport ; à défaut, « Membre ».
   const errors = [entries.error, projects.error, taskError, canReadMemberNames ? users.error : null].filter(Boolean);
   const permissionHints = [

@@ -41,7 +41,7 @@ const NAV_GROUPS = [
     items: [
       { href: "/espace-equipe/projets", label: "Projets", icon: "folder", nested: true, any: ["project:read:any", "project:read:own", "project:read:assigned"] },
       { href: "/espace-equipe/taches", label: "Tâches", icon: "kanban", any: ["task:read:any", "task:read:assigned", "task:read:own", "task:write:any", "task:write:own"] },
-      { href: "/espace-equipe/calendrier", label: "Calendrier", icon: "calendar", any: ["task:read:any"] },
+      { href: "/espace-equipe/calendrier", label: "Calendrier", icon: "calendar", any: ["task:read:any", "task:read:assigned", "task:read:own", "project:read:any", "project:read:assigned", "project:read:own"] },
       { href: "/espace-equipe/temps", label: "Suivi du temps", icon: "clock", any: ["time:write:own", "time:read:own", "time:read:any"] },
       { href: "/espace-equipe/rapports-journaliers", label: "Rapports journaliers", icon: "doc", any: ["time:write:own", "time:read:any"] },
       { href: "/espace-equipe/messagerie", label: "Messagerie", icon: "message", any: ["conversation:read:own"] },

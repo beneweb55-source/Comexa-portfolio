@@ -6,7 +6,8 @@ import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { format, getDay, parse, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale/fr";
-import { formatDate, messageOf } from "@/lib/api";
+import { formatDateOnly, messageOf } from "@/lib/api";
+import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAllListing } from "@/lib/use-all-listing";
@@ -36,11 +37,6 @@ const PROJECT_CLOSED = ["COMPLETED", "CANCELLED", "ARCHIVED"];
 
 /** Clé « AAAA-MM-JJ » d'une date ISO, sans décalage de fuseau. */
 const dayKey = (iso) => String(iso).slice(0, 10);
-const todayKey = () => {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-};
-
 /**
  * Calendrier de l'équipe : échéances de mes tâches et des projets.
  * - Projets : pastille cyan lumineuse. Tâches : violet/rose.
@@ -59,7 +55,12 @@ export default function CalendrierPage() {
   const projects = useAllListing(canReadProjects ? "/projects?perPage=100" : null);
   const [teamTasks, setTeamTasks] = useState({ items: null, error: null, projectKey: null });
   const [selected, setSelected] = useState(null);
-  const today = todayKey();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const readableProjects = projects.items ?? EMPTY;
   const projectKey = JSON.stringify(readableProjects.map(({ id, name, reference }) => [id, name, reference]));
@@ -125,7 +126,7 @@ export default function CalendrierPage() {
         kind: "task",
         status: task.status,
         statusLabel: TASK_LABEL[task.status] ?? task.status,
-        overdue: !closed && dayKey(task.dueDate) < today,
+        overdue: !closed && isDeadlinePassed(task.dueDate, now),
         closed,
         projectId: task.projectId,
         projectName: task.project?.name ?? "",
@@ -146,7 +147,7 @@ export default function CalendrierPage() {
         kind: "project",
         status: project.status,
         statusLabel: PROJECT_LABEL[project.status] ?? project.status,
-        overdue: !closed && dayKey(project.dueDate) < today,
+        overdue: !closed && isDeadlinePassed(project.dueDate, now),
         closed,
         projectId: project.id,
         projectName: project.name,
@@ -155,7 +156,7 @@ export default function CalendrierPage() {
       });
     }
     return out;
-  }, [taskItems, projects.items, today]);
+  }, [taskItems, projects.items, now]);
 
   const closeDialog = useCallback(() => setSelected(null), []);
   const error = tasks.error ?? projects.error;
@@ -297,7 +298,7 @@ function EventDialog({ event, onClose, canOpenProject }) {
         <dl className="cx-calendar__details">
           <div className="cx-calendar__detail">
             <dt className="text-[#152f4d]/50">Échéance</dt>
-            <dd className="mt-1 font-medium text-[#152f4d]">{formatDate(event.dueDate)}</dd>
+            <dd className="mt-1 font-medium text-[#152f4d]">{formatDateOnly(event.dueDate)}</dd>
           </div>
           <div className="cx-calendar__detail">
             <dt className="text-[#152f4d]/50">Statut</dt>

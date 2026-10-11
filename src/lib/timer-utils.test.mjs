@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { elapsedMinutes, localWorkDay, parseStoredTimer, splitTimerDuration, timerStorageKey } from "./timer-utils.mjs";
+import { elapsedMinutes, localDateInputValue, localWorkDay, parseStoredTimer, splitTimerDuration, timerStorageKey } from "./timer-utils.mjs";
 
 test("timerStorageKey scopes browser state to the authenticated user", () => {
   assert.notEqual(timerStorageKey("user-a"), timerStorageKey("user-b"));
   assert.equal(timerStorageKey(null), null);
   assert.equal(timerStorageKey("user/a"), "comexa.timer.v2:user%2Fa");
+});
+
+test("localDateInputValue respects the user's calendar day near UTC midnight", () => {
+  const previousTimezone = process.env.TZ;
+  process.env.TZ = "Africa/Algiers";
+  try {
+    assert.equal(localDateInputValue(new Date("2026-10-10T23:30:00.000Z")), "2026-10-11");
+    assert.equal(localDateInputValue(new Date("invalid")), "");
+  } finally {
+    if (previousTimezone === undefined) delete process.env.TZ;
+    else process.env.TZ = previousTimezone;
+  }
 });
 
 test("parseStoredTimer accepts only valid records owned by the current user", () => {

@@ -1,3 +1,5 @@
+import { isDeadlinePassed } from "./date-utils.mjs";
+
 const STATUS_LABEL = {
   TODO: "À faire",
   IN_PROGRESS: "En cours",
@@ -10,7 +12,7 @@ const STATUS_LABEL = {
 const isoDay = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
 /** Agrégations pures des données réelles de l'analytique d'équipe. */
-export function buildAnalytics(entries, projects, tasks, users, from, to) {
+export function buildAnalytics(entries, projects, tasks, users, from, to, asOf = Date.now()) {
   const dayKeys = [];
   for (let date = new Date(`${from}T12:00:00`); isoDay(date) <= to; date.setDate(date.getDate() + 1)) {
     dayKeys.push(isoDay(date));
@@ -60,7 +62,7 @@ export function buildAnalytics(entries, projects, tasks, users, from, to) {
   // Les tâches annulées sont exclues ; une tâche terminée ne peut pas être en retard.
   const counted = tasks.filter((task) => task.status !== "CANCELLED");
   const doneCount = counted.filter((task) => task.status === "DONE").length;
-  const lateCount = counted.filter((task) => task.status !== "DONE" && task.dueDate && String(task.dueDate).slice(0, 10) < to).length;
+  const lateCount = counted.filter((task) => task.status !== "DONE" && isDeadlinePassed(task.dueDate, asOf)).length;
   const total = counted.length;
   const openCount = total - doneCount - lateCount;
 

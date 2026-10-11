@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { allowedPath, canAny, hasTeamAccess } from "./access.js";
+
+test("team calendar is available to the scopes used by its data loaders", () => {
+  const assignedDeveloper = {
+    roles: ["DEVELOPER"],
+    permissions: ["task:read:assigned"],
+  };
+  const projectLead = {
+    roles: ["PROJECT_MANAGER"],
+    permissions: ["project:read:own"],
+  };
+
+  assert.equal(canAny(assignedDeveloper, ["task:read:assigned", "project:read:own"]), true);
+  assert.equal(allowedPath(assignedDeveloper, "/espace-equipe/calendrier"), true);
+  assert.equal(allowedPath(projectLead, "/espace-equipe/calendrier"), true);
+});
+
+test("client project visibility does not grant access to the team calendar", () => {
+  const client = {
+    roles: ["CLIENT"],
+    permissions: ["project:read:own"],
+  };
+
+  assert.equal(hasTeamAccess(client), false);
+  assert.equal(allowedPath(client, "/espace-equipe/calendrier"), false);
+});

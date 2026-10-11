@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { formatDate, formatMoney } from "@/lib/api";
+import { formatDateOnly, formatMoney } from "@/lib/api";
+import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { TASK_STATUS } from "@/lib/labels";
 import { formatElapsed, useTimer } from "@/lib/timer";
 import GlassCard, { GlowIcon } from "@/components/dashboard/GlassCard";
@@ -177,7 +178,13 @@ export function FinanceTile({ open, overdue, collected, rate, className = "" }) 
 
 /** Échéances : tâches (et factures, pour l'agence) à venir. */
 export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, tasksHref, tasksLinkLabel = "Toutes les tâches", invoicesHref, className = "" }) {
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const invoiceRows = invoices ?? [];
   const empty = tasks.length === 0 && invoiceRows.length === 0;
   const summary = [
@@ -208,7 +215,7 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
       <ul className="cx-dashboard__due-list">
         {tasks.slice(0, 6).map((task) => {
           const open = task.status !== "DONE" && task.status !== "CANCELLED";
-          const late = task.dueDate && new Date(task.dueDate).getTime() < now && open;
+          const late = open && isDeadlinePassed(task.dueDate, now);
           const href = typeof taskHref === "function" ? taskHref(task) : null;
           const content = (
             <>
@@ -217,14 +224,14 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
                 <p className="cx-dashboard__muted cx-dashboard__due-meta">{task.projectName ?? "Sans projet"}{task.assigneeName ? ` · ${task.assigneeName}` : ""}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className={`cx-dashboard__due-date${late ? " is-late" : ""}`}>{formatDate(task.dueDate)}</p>
+                <p className={`cx-dashboard__due-date${late ? " is-late" : ""}`}>{formatDateOnly(task.dueDate)}</p>
                 <p className="cx-dashboard__muted cx-dashboard__due-status">{TASK_STATUS[task.status] ?? task.status}</p>
               </div>
             </>
           );
           return (
             <li key={task.id}>
-              {href ? <Link href={href} className="cx-dashboard__due-row" aria-label={`${task.title}, échéance ${formatDate(task.dueDate)}`}>{content}</Link> : <div className="cx-dashboard__due-row">{content}</div>}
+              {href ? <Link href={href} className="cx-dashboard__due-row" aria-label={`${task.title}, échéance ${formatDateOnly(task.dueDate)}`}>{content}</Link> : <div className="cx-dashboard__due-row">{content}</div>}
             </li>
           );
         })}
@@ -237,14 +244,14 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
               </div>
               <div className="shrink-0 text-right">
                 <p className="cx-dashboard__due-date is-attention">{formatMoney(invoice.outstanding, invoice.currency)}</p>
-                <p className="cx-dashboard__muted cx-dashboard__due-status">{formatDate(invoice.dueDate)}</p>
+                <p className="cx-dashboard__muted cx-dashboard__due-status">{formatDateOnly(invoice.dueDate)}</p>
               </div>
             </>
           );
           const href = typeof invoiceHref === "function" ? invoiceHref(invoice) : null;
           return (
             <li key={invoice.id}>
-              {href ? <Link href={href} className="cx-dashboard__due-row cx-dashboard__due-row--invoice" aria-label={`Facture ${invoice.reference}, échéance ${formatDate(invoice.dueDate)}`}>{content}</Link> : <div className="cx-dashboard__due-row cx-dashboard__due-row--invoice">{content}</div>}
+              {href ? <Link href={href} className="cx-dashboard__due-row cx-dashboard__due-row--invoice" aria-label={`Facture ${invoice.reference}, échéance ${formatDateOnly(invoice.dueDate)}`}>{content}</Link> : <div className="cx-dashboard__due-row cx-dashboard__due-row--invoice">{content}</div>}
             </li>
           );
         })}

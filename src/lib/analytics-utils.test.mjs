@@ -41,17 +41,19 @@ test("buildAnalytics excludes cancelled tasks and counts late, active projects, 
       { id: "t2", status: "TODO", dueDate: "2026-10-29" },
       { id: "t3", status: "IN_PROGRESS", dueDate: "2026-10-31" },
       { id: "t4", status: "CANCELLED", dueDate: "2026-10-01" },
+      { id: "t5", status: "TODO", dueDate: "2026-10-30T12:00:00.000Z" },
     ],
     [],
     RANGE.from,
     RANGE.to,
+    Date.parse("2026-10-30T12:00:00.000Z"),
   );
 
-  assert.equal(data.total, 3);
+  assert.equal(data.total, 4);
   assert.equal(data.doneCount, 1);
   assert.equal(data.lateCount, 1);
-  assert.equal(data.openCount, 1);
-  assert.equal(data.completionRate, 33);
+  assert.equal(data.openCount, 2);
+  assert.equal(data.completionRate, 25);
   assert.equal(data.tasksByStatus.CANCELLED, 1);
   assert.ok(data.statusSlices.every((slice) => slice.key !== "CANCELLED"));
   assert.equal(data.activeProjects, 1);

@@ -5,6 +5,15 @@ export function timerStorageKey(ownerId) {
   return `${TIMER_STORAGE_PREFIX}${encodeURIComponent(ownerId)}`;
 }
 
+/** Valeur d'un champ `date` selon le calendrier local de l'utilisateur. */
+export function localDateInputValue(date = new Date()) {
+  if (!(date instanceof Date) || !Number.isFinite(date.getTime())) return "";
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 /** Lit et valide un enregistrement local sans jamais accepter un minuteur d'un autre compte. */
 export function parseStoredTimer(raw, ownerId) {
   if (typeof raw !== "string" || !raw || typeof ownerId !== "string" || ownerId.length === 0) return null;
