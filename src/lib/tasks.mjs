@@ -67,3 +67,17 @@ export function creatorAvatarUrlOf(profile) {
   if (!value) return null;
   return /^(https?:\/\/|\/)/.test(value) ? value : null;
 }
+
+/**
+ * Vrai si l'API ne renvoie pas le projet et le créateur d'une tâche.
+ *
+ * Ces deux champs sont arrivés avec le filtre « par personne » : leur ABSENCE
+ * (et non leur valeur nulle) signifie que le serveur tourne sur une version
+ * antérieure au frontend. Sans ce test, l'écran affiche « Créateur inconnu » sur
+ * chaque ligne, ce qui ressemble à une donnée manquante alors que c'est une
+ * version de serveur à reconstruire.
+ */
+export function tasksPayloadIsOutdated(tasks) {
+  const items = Array.isArray(tasks) ? tasks : [];
+  return items.some((task) => task && (!("reporter" in task) || !("project" in task)));
+}

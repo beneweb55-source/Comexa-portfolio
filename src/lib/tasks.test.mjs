@@ -7,6 +7,7 @@ import {
   creatorNameOf,
   taskCreatorsPath,
   taskListPath,
+  tasksPayloadIsOutdated,
 } from "./tasks.mjs";
 
 test("taskListPath ouvre toutes les tâches du projet quand le filtre vaut « Tous »", () => {
@@ -63,4 +64,13 @@ test("creatorAvatarUrlOf n'accepte qu'une adresse affichable, sinon null", () =>
   assert.equal(creatorAvatarUrlOf({ avatarKey: "   " }), null);
   assert.equal(creatorAvatarUrlOf({}), null);
   assert.equal(creatorAvatarUrlOf(null), null);
+});
+
+test("tasksPayloadIsOutdated signale une reponse d'API anterieure au filtre par personne", () => {
+  assert.equal(tasksPayloadIsOutdated([{ id: "t1", title: "Cadrage", project: { id: "p1" }, reporter: { id: "u1" } }]), false);
+  assert.equal(tasksPayloadIsOutdated([{ id: "t1", title: "Cadrage", reporter: null }]), true);
+  assert.equal(tasksPayloadIsOutdated([{ id: "t1", title: "Cadrage", project: null }]), true);
+  assert.equal(tasksPayloadIsOutdated([null, undefined]), false);
+  assert.equal(tasksPayloadIsOutdated(null), false);
+  assert.equal(tasksPayloadIsOutdated([]), false);
 });

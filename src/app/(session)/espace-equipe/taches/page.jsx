@@ -6,7 +6,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
-import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath } from "@/lib/tasks";
+import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath, tasksPayloadIsOutdated } from "@/lib/tasks";
 import { useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
 import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
@@ -159,7 +159,15 @@ function Board({ projectId }) {
             onChange={onCreatorChange}
             loading={creators.loading}
             error={creators.error}
+            errorStatus={creators.errorStatus}
           />
+          {tasksPayloadIsOutdated(tasks.items) ? (
+            <Notice>
+              Cette version de l’API ne renvoie ni le projet ni le créateur des tâches : le serveur
+              backend tourne sur une version antérieure au frontend. Reconstruisez-le et redémarrez-le
+              (npm run build puis node dist/main.js dans backend/).
+            </Notice>
+          ) : null}
           {tasks.items?.length === 0 ? (
             <Empty>
               {creatorId

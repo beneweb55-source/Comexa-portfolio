@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
-import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath } from "@/lib/tasks";
+import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath, tasksPayloadIsOutdated } from "@/lib/tasks";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
@@ -220,7 +220,17 @@ export default function ProjetEquipePage({ params }) {
               }}
               loading={taskCreators.loading}
               error={taskCreators.error}
+              errorStatus={taskCreators.errorStatus}
             />
+          </div>
+        ) : null}
+        {canReadTasks && tasksPayloadIsOutdated(tasks.items) ? (
+          <div className="mb-5">
+            <Notice>
+              Cette version de l’API ne renvoie ni le projet ni le créateur des tâches : le serveur
+              backend tourne sur une version antérieure au frontend. Reconstruisez-le et redémarrez-le
+              (npm run build puis node dist/main.js dans backend/).
+            </Notice>
           </div>
         ) : null}
         {canReadTasks && tasks.items?.length === 0 ? (

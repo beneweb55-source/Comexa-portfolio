@@ -17,10 +17,18 @@ import { UserAvatar } from "@/components/workspace/UserAvatar";
  * aucune tâche n'y figure pas. Un projet sans tâche n'a donc rien à filtrer, et le
  * composant ne rend rien — l'écran affiche son état vide.
  */
-export function TaskCreatorFilter({ creators, value = EVERY_CREATOR, onChange, loading = false, error = null }) {
+export function TaskCreatorFilter({ creators, value = EVERY_CREATOR, onChange, loading = false, error = null, errorStatus = null }) {
   const profiles = creators ?? [];
 
-  if (error) return <Notice>{error}</Notice>;
+  if (error) {
+    return (
+      <Notice>
+        {errorStatus === 404
+          ? "Filtre par personne indisponible : cette version de l’API ne connaît pas la route des profils. Reconstruisez et redémarrez le serveur backend (npm run build puis node dist/main.js dans backend/)."
+          : error}
+      </Notice>
+    );
+  }
   if (loading && profiles.length === 0) {
     return <p className="cx-small" role="status">Chargement des profils…</p>;
   }
