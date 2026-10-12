@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import logo from "../../../public/comexa-logo-horizontal-transparent.png";
+import logoLight from "../../../public/comexa-logo-horizontal-clair-transparent.png";
 import Icon from "@/components/dashboard/icons";
 import UserMenu from "@/components/workspace/UserMenu";
 import { hasTeamAccess } from "@/lib/access";
@@ -156,7 +157,7 @@ function WorkspaceShellContent({ space, groups, children, pathname }) {
   }
 
   return (
-    <div className="cx-app cx-workspace">
+    <div className={`cx-app cx-workspace${isTeam ? " cx-workspace--team" : ""}`}>
       <a className="cx-workspace__skip-link" href="#workspace-main">Passer à la zone de travail</a>
       <div className={`cx-workspace__frame${compact ? " is-compact" : ""}`}>
         {mobileOpen ? (

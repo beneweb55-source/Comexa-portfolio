@@ -10,6 +10,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Le backend a son propre ESLint (`npm run lint` dans backend/) :
+    // front et back n'ont ni le même parser ni les mêmes règles.
+    "backend/**",
   ]),
 ]);
 

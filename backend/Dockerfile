@@ -117,5 +117,13 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+# Les MIGRATIONS tournent au demarrage, avant le serveur.
+#
+# `prisma migrate deploy` est idempotent : sans migration en attente, il ne fait
+# rien et rend la main en moins d'une seconde. C'est la piece qui manquait a la
+# chaine « push = mise en production » : sans elle, une image neuve demarrait
+# sur un schema ancien et chaque nouvelle table tombait en erreur 500 jusqu'a
+# une intervention manuelle. `exec` fait de Node le PID 1 effectif (via
+# dumb-init) : SIGTERM le rejoint au lieu de rester dans un shell.
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && exec node dist/main.js"]

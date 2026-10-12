@@ -1455,3 +1455,24 @@ dediee.
 
 Detail complet (les trois etats et leur raison d'etre, l'audit
 `USER_CLIENT_SCOPE_CHANGED`) : `docs/api-user-client-scope.md`.
+
+
+## Routes ajoutées après la veille e-mail (P1 → P3)
+
+Le tableau ci-dessus date de l'inventaire « 165 routes ». Les ajouts suivants
+sont en service et **doivent figurer dans tout contrôle d'accès** :
+
+| Route | Permission(s) | Notes |
+| --- | --- | --- |
+| `POST /me/tasks` | `task:write:personal` | Tâche personnelle : sans projet, non visible client. |
+| `GET /me/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` **ou** `task:read:personal` | `?personalOnly=true` restreint à l'espace personnel. |
+| `GET /timer` | `time:write:own` **ou** `time:write:any` | Session active du porteur (ou `null`). |
+| `POST /timer/start` | `time:write:own` **ou** `time:write:any` | `taskId` facultatif (temps sans tâche, non facturable). |
+| `POST /timer/pause` `POST /timer/resume` `POST /timer/stop` | idem | 200 ; un second `start` concurrent → 409 `TIMER_ALREADY_ACTIVE`. |
+| `GET /me/calendar/events` | `calendar:read:own` | Ses événements + ceux où il est invité. |
+| `GET /calendar/events` | `calendar:read:team` | Événements PARTAGÉS uniquement. |
+| `POST /me/calendar/events` `PATCH|DELETE /me/calendar/events/:id` | `calendar:write:own` | Proprietaire uniquement (un privé reste privé, admin compris). |
+| `PUT /me/calendar/events/:id/participants` | `calendar:write:own` | Liste complète des invités (événements SHARED). |
+| `GET /api/health` | publique | Sondage réel (`SELECT 1`) **et bloc `contract`** (poignée de main de version). |
+
+Chaque réponse porte l'en-tête `X-Comexa-Contract` : voir `src/health/contract.ts`.

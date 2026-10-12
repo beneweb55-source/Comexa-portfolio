@@ -46,11 +46,17 @@ describe('perimetre complet (personne + projet)', () => {
     });
   });
 
-  it('any EST borne par le projet', () => {
+  it('any EST borne par le projet, SAUF pour ses propres saisies', () => {
     // « Toutes les saisies » veut dire « toutes celles des projets que je peux
-    // atteindre », jamais « toutes celles de l'agence ».
+    // atteindre », jamais « toutes celles de l'agence ». La seconde branche du
+    // OU rend au porteur ses saisies SANS projet (taches personnelles) : sans
+    // elle, le filtre de relation les exclurait — les siennes comprises — et
+    // celles des autres n'y entrent de toute facon pas.
     assert.deepEqual(timeEntryPerimeter(SCOPE_ANY, DEV, { clientId: 'client-9' }), {
-      AND: [{}, { project: { deletedAt: null, AND: [{ clientId: 'client-9' }] } }],
+      OR: [
+        { AND: [{}, { project: { deletedAt: null, AND: [{ clientId: 'client-9' }] } }] },
+        { userId: 'dev-1' },
+      ],
     });
   });
 

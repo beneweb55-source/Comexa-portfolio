@@ -550,7 +550,17 @@ async function buildTimeSpent(
       : Promise.resolve([]),
     byProjectRows.length > 0
       ? prisma.project.findMany({
-          where: { id: { in: byProjectRows.map((row) => row.projectId) } },
+          // `project: { deletedAt: null }` dans le `where` exclut deja les
+          // saisies sans projet (taches personnelles) : le filtre `!== null`
+          // ci-dessous ne sert qu'a dire au compilateur ce que la requete sait
+          // deja — un `projectId` de ce groupBy ne peut pas etre nul.
+          where: {
+            id: {
+              in: byProjectRows
+                .map((row) => row.projectId)
+                .filter((id): id is string => id !== null),
+            },
+          },
           select: { id: true, reference: true, name: true },
         })
       : Promise.resolve([]),
@@ -569,15 +579,20 @@ async function buildTimeSpent(
     entries: groupCount(row),
   }));
 
-  const byProject: ProjectMinutes[] = byProjectRows.map((row) => {
+  // Meme precision que pour `projects` ci-dessus : les saisies sans projet sont
+  // deja hors du `where`, `row.projectId` ne peut donc pas etre nul.
+  const byProject: ProjectMinutes[] = byProjectRows.flatMap((row) => {
+    if (row.projectId === null) return [];
     const project = projectNames.get(row.projectId);
-    return {
-      projectId: row.projectId,
-      reference: project?.reference ?? '',
-      name: project?.name ?? 'Projet supprime',
-      minutes: countOf(row._sum.minutes),
-      entries: groupCount(row),
-    };
+    return [
+      {
+        projectId: row.projectId,
+        reference: project?.reference ?? '',
+        name: project?.name ?? 'Projet supprime',
+        minutes: countOf(row._sum.minutes),
+        entries: groupCount(row),
+      },
+    ];
   });
 
   const billableMinutes = byBillable

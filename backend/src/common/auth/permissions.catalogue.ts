@@ -81,8 +81,10 @@ export const PERMISSIONS = {
   'task:read:any': 'Consulter toutes les taches',
   'task:read:assigned': 'Consulter les taches qui nous sont assignees',
   'task:read:own': 'Consulter ses propres taches',
+  'task:read:personal': 'Consulter ses taches personnelles (sans projet)',
   'task:write:any': 'Creer et modifier toutes les taches',
   'task:write:own': 'Modifier les taches qui nous sont assignees',
+  'task:write:personal': 'Creer, modifier et supprimer ses taches personnelles',
   'task:assign:any': 'Assigner une tache a un membre',
   'task:delete:any': 'Supprimer une tache',
   'time:read:any': 'Consulter le temps saisi par tous',
@@ -92,6 +94,19 @@ export const PERMISSIONS = {
   'activity:read:any': "Consulter le fil d'activite",
   'activity:read:own': "Consulter le fil d'activite de ses projets",
   'activity:write:any': "Publier dans le fil d'activite",
+
+  // ---------------------------------------------------------------------------
+  // Calendriers (personnel et equipe)
+  //
+  // Meme grammaire que les taches personnelles : `:own` designe LIGNE A LIGNE
+  // son propre espace, `:team` la vue commune des evenements PARTAGES. Les
+  // echeances de taches/projets ne demandent aucune permission de plus : elles
+  // sont derivees des droits `task:*` / `project:*` deja poses.
+  // ---------------------------------------------------------------------------
+  'calendar:read:own': 'Consulter son calendrier personnel',
+  'calendar:write:own': 'Creer, modifier et supprimer ses propres evenements',
+  'calendar:read:team': "Consulter les evenements partages de l'equipe",
+  'calendar:manage:any': 'Gerer tous les evenements de calendrier',
 
   // ---------------------------------------------------------------------------
   // Devis, facturation, paiements
@@ -259,6 +274,15 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'dashboard:read:own',
     'report:read:any',
     'setting:read:any',
+    // Taches personnelles et minuteur : un espace propre a chaque membre,
+    // meme pour un role sans taches de projet.
+    'task:read:personal',
+    'task:write:personal',
+    'time:read:own',
+    'time:write:own',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.PROJECT_MANAGER]: [
@@ -295,6 +319,8 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'report:read:any',
     'report:generate:any',
     'dashboard:read:any',
+    'task:read:personal',
+    'task:write:personal',
     'conversation:read:own',
     'conversation:create:own',
     'conversation:manage:any',
@@ -303,6 +329,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:read:own',
     'notification:manage:own',
     'setting:read:any',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.DEVELOPER]: [
@@ -326,6 +355,11 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:own',
+    'task:read:personal',
+    'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.DESIGNER]: [
@@ -349,6 +383,11 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:own',
+    'task:read:personal',
+    'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.SALES]: [
@@ -391,6 +430,11 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'task:read:own',
     'time:read:own',
     'time:write:own',
+    'task:read:personal',
+    'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   /**

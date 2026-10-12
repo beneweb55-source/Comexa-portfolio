@@ -96,9 +96,9 @@ export function DistributionTile({ title, subtitle, rows = [], labels, icon = "c
         <div className="h-[220px] w-full" role="img" aria-label={`${title} : ${data.map((row) => `${row.name} ${row.count}`).join(", ")}`}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(27,58,95,0.09)" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} tick={{ fill: "#8292a5", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={130} tick={{ fill: "#526980", fontSize: 12.5 }} axisLine={false} tickLine={false} />
+              <CartesianGrid stroke="var(--workspace-chart-grid, rgba(27,58,95,0.09))" horizontal={false} />
+              <XAxis type="number" allowDecimals={false} tick={{ fill: "var(--workspace-chart-muted, #8292a5)", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" width={130} tick={{ fill: "var(--workspace-chart-label, #526980)", fontSize: 12.5 }} axisLine={false} tickLine={false} />
               <Tooltip content={<GlassTooltip />} cursor={{ fill: "rgba(30,134,224,0.06)" }} />
               <Bar dataKey="count" radius={[0, 10, 10, 0]} barSize={16}>
                 {data.map((row) => <Cell key={row.name} fill={row.fill} />)}
@@ -272,7 +272,7 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
  * La permission est vérifiée par l'appelant : cette tuile n'est rendue que si l'utilisateur peut s'en servir.
  */
 export function TimerTile({ tasks, onTaskPageChange, className = "" }) {
-  const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
+  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
 
   return (
@@ -281,18 +281,39 @@ export function TimerTile({ tasks, onTaskPageChange, className = "" }) {
         <GlowIcon tone={timer ? "mint" : "sky"}><Icon name={timer ? "clock" : "bolt"} /></GlowIcon>
         <div>
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Minuteur</h3>
-          <p className="cx-dashboard__muted">{timer ? "Enregistrement en cours" : "Aucun minuteur actif"}</p>
+          <p className="cx-dashboard__muted">
+            {!timer
+              ? "Aucun minuteur actif"
+              : timer.status === "PAUSED"
+                ? "En pause"
+                : "Enregistrement en cours"}
+          </p>
         </div>
       </div>
 
       {timer ? (
         <>
           <p className="cx-dashboard__timer-value">{formatElapsed(elapsedSeconds)}</p>
-          <p className="truncate text-[13.5px] text-[#526980]" title={timer.title}>{timer.title}</p>
-          <button type="button" onClick={() => stop()} disabled={saving} className="cx-dashboard__timer-stop">
-            <Icon name="stop" className="h-4 w-4" />
-            {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-          </button>
+          <p className="truncate text-[13.5px] text-[#526980]" title={timer.title}>
+            {timer.title}{timer.taskIsPersonal ? " · Personnel" : ""}
+          </p>
+          <div className="flex gap-2">
+            {timer.status === "PAUSED" ? (
+              <button type="button" onClick={() => resume()} disabled={saving} className="cx-dashboard__task-button">
+                <Icon name="play" className="h-3.5 w-3.5" />
+                Reprendre
+              </button>
+            ) : (
+              <button type="button" onClick={() => pause()} disabled={saving} className="cx-dashboard__task-button">
+                <Icon name="pause" className="h-3.5 w-3.5" />
+                Pause
+              </button>
+            )}
+            <button type="button" onClick={() => stop()} disabled={saving} className="cx-dashboard__timer-stop">
+              <Icon name="stop" className="h-4 w-4" />
+              {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
+            </button>
+          </div>
         </>
       ) : (
         <>

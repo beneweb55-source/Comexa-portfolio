@@ -16,7 +16,7 @@ export default function TimerPill() {
 }
 
 function TimerPillContent({ pathname }) {
-  const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
+  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState("");
   const [taskPage, setTaskPage] = useState(1);
@@ -68,9 +68,14 @@ function TimerPillContent({ pathname }) {
   async function onStop() {
     setStopError(null);
     const result = await stop();
-    if (result === null) setStopError("Enregistrement impossible : le minuteur continue.");
-    else if (result.remainingMinutes > 0) {
-      setStopError(`${result.savedMinutes} min enregistrées. Le minuteur continue pour les ${result.remainingMinutes} min restantes.`);
+    if (result === null) {
+      setStopError("Enregistrement impossible : réessayez, le minuteur serveur garde la session.");
+    } else if (result.overflowMinutes > 0) {
+      // Plafond serveur à 24 h : la saisie existe, mais la durée dépasse.
+      setStopError(
+        `${result.savedMinutes} min enregistrées (plafond de 24 h). Corrigez la saisie de temps de ${result.overflowMinutes} min manuellement.`,
+      );
+      setOpen(false);
     } else setOpen(false);
   }
 
@@ -78,18 +83,36 @@ function TimerPillContent({ pathname }) {
   if (!allowed || pathname === "/espace-equipe/tableau-de-bord") return null;
 
   return (
-    <div ref={rootRef} className="cx-timer-pill">
+    <div ref={rootRef} className="cx-timer-pill" data-theme="team-glass">
       {open ? (
         <section ref={panelRef} id={dialogId} role="dialog" aria-labelledby={`${dialogId}-title`} className="cx-timer-pill__panel">
           {timer ? (
             <>
-              <p className="cx-timer-pill__eyebrow">Enregistrement en cours</p>
+              <p className="cx-timer-pill__eyebrow">
+                {timer.status === "PAUSED" ? "En pause" : "Enregistrement en cours"}
+              </p>
               <h2 id={`${dialogId}-title`} className="cx-timer-pill__time">{formatElapsed(elapsedSeconds)}</h2>
-              <p className="cx-timer-pill__task" title={timer.title}>{timer.title}</p>
-              <button type="button" onClick={onStop} disabled={saving} className="cx-timer-pill__stop">
-                <Icon name="stop" />
-                {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-              </button>
+              <p className="cx-timer-pill__task" title={timer.title}>
+                {timer.title}
+                {timer.taskIsPersonal ? " · Personnel" : ""}
+              </p>
+              <div className="cx-timer-pill__actions">
+                {timer.status === "PAUSED" ? (
+                  <button type="button" onClick={() => resume()} disabled={saving} className="cx-timer-pill__start">
+                    <Icon name="play" />
+                    Reprendre
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => pause()} disabled={saving} className="cx-timer-pill__start">
+                    <Icon name="pause" />
+                    Pause
+                  </button>
+                )}
+                <button type="button" onClick={onStop} disabled={saving} className="cx-timer-pill__stop">
+                  <Icon name="stop" />
+                  {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
+                </button>
+              </div>
             </>
           ) : (
             <>

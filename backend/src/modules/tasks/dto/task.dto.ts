@@ -110,6 +110,52 @@ export class CreateTaskDto {
   order?: number;
 }
 
+/**
+ * TACHE PERSONNELLE — un `CreateTaskDto` REDUIT, et c'est le contrat.
+ *
+ * Les champs absents le sont volontairement : pas de projet, pas de jalon, pas
+ * de parent, pas d'assigne, pas de visibilite client, pas d'ordre de tableau.
+ * Ce qui ne peut pas etre renseigne ne peut pas etre detourne ;
+ * `TasksService.createPersonal` impose le reste a l'ecriture (assigne =
+ * rapporteur = porteur, `isPersonal: true`, `isClientVisible: false`).
+ */
+export class CreatePersonalTaskDto {
+  @ApiProperty({ example: 'Preparer les notes de la reunion client', maxLength: 300 })
+  @IsString()
+  @MinLength(2, { message: 'Le titre de la tache est trop court.' })
+  @MaxLength(300)
+  title!: string;
+
+  @ApiPropertyOptional({ maxLength: 5000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  description?: string;
+
+  @ApiPropertyOptional({ enum: Priority, default: Priority.NORMAL })
+  @IsOptional()
+  @IsEnum(Priority)
+  priority?: Priority;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: MAX_ESTIMATE_MINUTES })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: "L'estimation doit etre un entier de minutes." })
+  @Min(1, { message: "L'estimation doit etre strictement positive." })
+  @Max(MAX_ESTIMATE_MINUTES)
+  estimateMinutes?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateStringLike()
+  startDate?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateStringLike()
+  dueDate?: string | null;
+}
+
 export class UpdateTaskDto {
   @ApiPropertyOptional({ maxLength: 300 })
   @IsOptional()
@@ -235,4 +281,13 @@ export class TaskQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Uniquement les taches sans parent.' })
   @BooleanFilter()
   rootOnly?: boolean;
+
+  /**
+   * `?personalOnly=true` : ne garder que les taches PERSONNELLES (espace prive).
+   * Meme piege de conversion que `rootOnly` — mesure documentee dans
+   * `boolean-filter.ts`.
+   */
+  @ApiPropertyOptional({ description: 'Uniquement les taches personnelles.' })
+  @BooleanFilter()
+  personalOnly?: boolean;
 }

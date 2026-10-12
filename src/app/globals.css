@@ -4,6 +4,7 @@
 @import "../styles/workspace-glass.css";
 @import "../styles/comexa.public.css";
 @import "../styles/workspace-shell.css";
+@import "../styles/workspace-team-glass.css";
 
 :root {
   --background: #ffffff;

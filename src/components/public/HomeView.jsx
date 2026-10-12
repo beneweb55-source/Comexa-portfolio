@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { initialsOf } from "@/lib/public-api";
-import { formatMoney } from "@/lib/api";
+import { apiFetch, formatMoney, messageOf } from "@/lib/api";
 import Image from "next/image";
 import Link from "next/link";
 import quisommesnous from "../../../public/image.png";
@@ -141,6 +141,74 @@ export default function HomeView({ apiServices, apiTestimonials }) {
     : testimonials;
   const [selectedNeed, setSelectedNeed] = useState("Site vitrine");
   const [featured, ...smallProjects] = projects;
+
+  // Formulaire de contact de l'accueil : raccordé à la même API que /contact
+  // (POST /api/public/contact-requests). Une seule vérité : la demande part
+  // réellement vers l'espace équipe, et le visiteur reçoit un état explicite.
+  const EMPTY_CONTACT = { firstName: "", lastName: "", companyName: "", email: "", phone: "", message: "" };
+  const [contact, setContact] = useState(EMPTY_CONTACT);
+  const [consent, setConsent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+
+  const updateContact = (field) => (event) =>
+    setContact((current) => ({ ...current, [field]: event.target.value }));
+
+  async function handleContactSubmit(event) {
+    event.preventDefault();
+    if (sending) return;
+
+    const firstName = contact.firstName.trim();
+    const lastName = contact.lastName.trim();
+    const email = contact.email.trim();
+    const message = contact.message.trim();
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      setFeedback({ tone: "error", text: "Indiquez votre prénom et votre nom (2 caractères minimum)." });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFeedback({ tone: "error", text: "Indiquez une adresse e-mail valide." });
+      return;
+    }
+    if (message.length < 10) {
+      setFeedback({ tone: "error", text: "Décrivez votre projet en quelques phrases (10 caractères minimum)." });
+      return;
+    }
+    if (!consent) {
+      setFeedback({ tone: "error", text: "Merci d'accepter que Comexa utilise vos informations pour répondre à votre demande." });
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setSending(true);
+    setFeedback(null);
+    try {
+      await apiFetch("/public/contact-requests", {
+        method: "POST",
+        body: {
+          firstName,
+          lastName,
+          email,
+          companyName: contact.companyName.trim() || undefined,
+          phone: contact.phone.trim() || undefined,
+          subject: selectedNeed,
+          message,
+          source: window.location.pathname,
+          utmSource: params.get("utm_source") || undefined,
+          utmMedium: params.get("utm_medium") || undefined,
+          utmCampaign: params.get("utm_campaign") || undefined,
+        },
+      });
+      setContact(EMPTY_CONTACT);
+      setConsent(false);
+      setFeedback({ tone: "success", text: "Merci ! Votre demande est bien enregistrée. Nous revenons vers vous rapidement." });
+    } catch (error) {
+      setFeedback({ tone: "error", text: messageOf(error) });
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <main>
@@ -418,32 +486,94 @@ export default function HomeView({ apiServices, apiTestimonials }) {
           <form
             className="cx-card cx-card--raised"
             style={{ display: "grid", gap: "var(--comexa-space-4)", padding: "var(--comexa-space-6)" }}
-            onSubmit={(event) => event.preventDefault()}
+            onSubmit={handleContactSubmit}
             aria-describedby="contact-status"
           >
             <h3 style={{ fontSize: "24px", lineHeight: 1.2 }}>
               Parlons de votre projet
             </h3>
-            <p id="contact-status" className="cx-alert cx-alert--info" role="status" style={{ margin: 0 }}>
-              Le formulaire n’est pas encore raccordé à notre messagerie. Écrivez-nous à bonjour@comexa.dz.
-            </p>
-            <div style={{ display: "grid", gap: "var(--comexa-space-4)", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+            {feedback ? (
+              <p
+                id="contact-status"
+                className={`cx-alert cx-alert--${feedback.tone === "success" ? "success" : "error"}`}
+                role="status"
+                style={{ margin: 0 }}
+              >
+                {feedback.text}
+              </p>
+            ) : (
+              <p id="contact-status" className="cx-caption" style={{ margin: 0 }}>
+                Votre demande arrive directement dans l’espace équipe. Nous revenons vers vous avec une première lecture claire.
+              </p>
+            )}
+            <div style={{ display: "grid", gap: "var(--comexa-space-4)", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
               <div>
-                <label htmlFor="contact-name" className="cx-label">Nom</label>
-                <input id="contact-name" name="name" type="text" autoComplete="name" placeholder="Votre nom" className="cx-input" />
+                <label htmlFor="contact-firstname" className="cx-label">Prénom</label>
+                <input
+                  id="contact-firstname"
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Votre prénom"
+                  className="cx-input"
+                  value={contact.firstName}
+                  onChange={updateContact("firstName")}
+                />
               </div>
               <div>
+                <label htmlFor="contact-lastname" className="cx-label">Nom</label>
+                <input
+                  id="contact-lastname"
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  placeholder="Votre nom"
+                  className="cx-input"
+                  value={contact.lastName}
+                  onChange={updateContact("lastName")}
+                />
+              </div>
+            </div>
+            <div style={{ display: "grid", gap: "var(--comexa-space-4)", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              <div>
                 <label htmlFor="contact-company" className="cx-label">Entreprise</label>
-                <input id="contact-company" name="company" type="text" autoComplete="organization" placeholder="Votre organisation" className="cx-input" />
+                <input
+                  id="contact-company"
+                  name="company"
+                  type="text"
+                  autoComplete="organization"
+                  placeholder="Votre organisation"
+                  className="cx-input"
+                  value={contact.companyName}
+                  onChange={updateContact("companyName")}
+                />
+              </div>
+              <div>
+                <label htmlFor="contact-phone" className="cx-label">Téléphone</label>
+                <input
+                  id="contact-phone"
+                  name="phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="0555 55 55 55"
+                  className="cx-input"
+                  value={contact.phone}
+                  onChange={updateContact("phone")}
+                />
               </div>
             </div>
             <div>
               <label htmlFor="contact-email" className="cx-label">E-mail professionnel</label>
-              <input id="contact-email" name="email" type="email" autoComplete="email" placeholder="vous@entreprise.com" className="cx-input" />
-            </div>
-            <div>
-              <label htmlFor="contact-phone" className="cx-label">Téléphone</label>
-              <input id="contact-phone" name="phone" type="tel" autoComplete="tel" placeholder="0555 55 55 55" className="cx-input" />
+              <input
+                id="contact-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="vous@entreprise.com"
+                className="cx-input"
+                value={contact.email}
+                onChange={updateContact("email")}
+              />
             </div>
             <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
               <legend className="cx-label">Votre besoin</legend>
@@ -471,14 +601,37 @@ export default function HomeView({ apiServices, apiTestimonials }) {
             </fieldset>
             <div>
               <label htmlFor="contact-message" className="cx-label">Votre projet</label>
-              <textarea id="contact-message" name="message" rows={4} placeholder="Contexte, objectifs, calendrier…" className="cx-textarea" />
+              <textarea
+                id="contact-message"
+                name="message"
+                rows={4}
+                placeholder="Contexte, objectifs, calendrier…"
+                className="cx-textarea"
+                value={contact.message}
+                onChange={updateContact("message")}
+              />
             </div>
+            <label
+              htmlFor="contact-consent"
+              style={{ display: "flex", gap: "var(--comexa-space-2)", alignItems: "flex-start", cursor: "pointer" }}
+              className="cx-caption"
+            >
+              <input
+                id="contact-consent"
+                name="consent"
+                type="checkbox"
+                checked={consent}
+                onChange={(event) => setConsent(event.target.checked)}
+                style={{ marginTop: "2px", width: "16px", height: "16px", accentColor: "var(--comexa-accent)" }}
+              />
+              <span>J’accepte que Comexa utilise mes informations pour répondre à ma demande.</span>
+            </label>
             <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--comexa-space-4)" }}>
               <p className="cx-caption" style={{ maxWidth: "34ch", margin: 0 }}>
                 Vos informations restent confidentielles et servent uniquement à vous répondre.
               </p>
-              <button type="submit" className="cx-btn cx-btn--primary" disabled aria-disabled="true">
-                Envoyer ma demande
+              <button type="submit" className="cx-btn cx-btn--primary" disabled={sending} aria-disabled={sending}>
+                {sending ? "Envoi en cours…" : "Envoyer ma demande"}
               </button>
             </div>
           </form>

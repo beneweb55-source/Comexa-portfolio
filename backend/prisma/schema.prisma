@@ -347,6 +347,14 @@ enum ReportStatus {
   FAILED
 }
 
+/// Etat d'une session de minuteur. `STOPPED` est terminal : la session est
+/// soldee par une saisie de temps, puis conservee comme historique.
+enum TimerSessionStatus {
+  RUNNING
+  PAUSED
+  STOPPED
+}
+
 // =============================================================================
 // IDENTITE, ROLES ET PERMISSIONS
 // =============================================================================
@@ -407,6 +415,7 @@ model User {
   assignedTasks           Task[]                    @relation("TaskAssignee")
   reportedTasks           Task[]                    @relation("TaskReporter")
   timeEntries             TimeEntry[]
+  timerSessions           TimerSession[]
   activities              Activity[]                @relation("ActivityActor")
   leadStatusChanges       LeadStatusHistory[]
   createdQuotes           Quote[]                   @relation("QuoteCreator")
@@ -422,6 +431,8 @@ model User {
   requestedModifs         ModificationRequest[]     @relation("ModificationRequester")
   decidedModifs           ModificationRequest[]     @relation("ModificationDecider")
   assignedUserRoles       UserRole[]                @relation("UserRoleAssigner")
+  ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
+  calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
   generatedReports        Report[]
   updatedSettings         Setting[]
@@ -865,6 +876,7 @@ model Project {
   members              ProjectMember[]
   milestones           Milestone[]
   tasks                Task[]
+  calendarEvents       CalendarEvent[] @relation("CalendarEventProject")
   timeEntries          TimeEntry[]
   activities           Activity[]
   invoices             Invoice[]
@@ -925,8 +937,14 @@ model Milestone {
 /// voir l'organisation interne de l'agence par accident.
 model Task {
   id          String     @id @default(cuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// `null` pour une tache PERSONNELLE : elle n'appartient a aucun projet et ne
+  /// concerne que son proprietaire (voir `isPersonal`). Les taches de projet
+  /// conservent exactement le meme comportement qu'avant.
+  projectId   String?
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Tache personnelle : sans projet, sans client, visible uniquement par son
+  /// proprietaire (assigne = rapporteur = createur). Jamais visible du client.
+  isPersonal  Boolean    @default(false)
   milestoneId String?
   milestone   Milestone? @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
 
@@ -959,6 +977,8 @@ model Task {
   timeEntries TimeEntry[]
   activities  Activity[]
   documents   Document[]
+  timerSessions TimerSession[]
+  calendarEvents CalendarEvent[] @relation("CalendarEventTask")
 
   @@index([projectId, status])
   @@index([milestoneId])
@@ -973,9 +993,13 @@ model Task {
 /// Temps passe. En minutes (entier) : pas d'arrondi flottant sur une duree qui
 /// finit en facturation.
 model TimeEntry {
-  id        String  @id @default(cuid())
-  projectId String
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  /// `null` quand la saisie vient d'une tache PERSONNELLE : le temps reste
+  /// imputable a son auteur, mais a aucun projet. Les feuilles de temps et les
+  /// rapports continuent de raisonner par projet ; les lignes sans projet ne
+  /// sortent que dans le perimetre `own` de leur auteur.
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   taskId    String?
   task      Task?   @relation(fields: [taskId], references: [id], onDelete: SetNull)
   userId    String
@@ -988,14 +1012,144 @@ model TimeEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  /// Session de minuteur dont cette saisie est la clature (relation 1-1).
+  timerSession TimerSession?
+
   @@index([projectId, spentOn])
   @@index([taskId])
   @@index([userId, spentOn])
   @@map("time_entries")
 }
 
+/// SESSION DE MINUTEUR SERVEUR.
+///
+/// Le minuteur ne vit PLUS dans le navigateur : une session appartient au
+/// compte, survit au changement de machine, a la fermeture de l'onglet et a la
+/// purge du stockage local. Le decompte se reconstruit a partir de
+/// `accumulatedSeconds` (secondes soldees par les pauses) et de `resumedAt`
+/// (depart du segment en cours) : aucune duree n'est calculee cote client.
+///
+/// UNE SEULE SESSION ACTIVE PAR COMPTE. La garantie est portee par un index
+/// partiel unique en base (voir la migration) : deux demarrages concurrents ne
+/// peuvent pas ouvrir deux sessions, meme sans verrou applicatif.
+///
+/// A l'arret, la session cree la saisie de temps correspondante (`timeEntry`)
+/// puis passe en `STOPPED` avec `savedMinutes` : l'historique dit ce qui a ete
+/// encaisse, meme si la saisie est corrigee ou supprimee plus tard.
+model TimerSession {
+  id     String             @id @default(cuid())
+  userId String
+  user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId String?
+  task   Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  status TimerSessionStatus @default(RUNNING)
+
+  startedAt DateTime
+  /// Depart du segment de decompte en cours. `null` quand la session est en
+  /// pause : toute la duree ecoulee est alors deja dans `accumulatedSeconds`.
+  resumedAt DateTime?
+  pausedAt  DateTime?
+  stoppedAt DateTime?
+
+  /// Secondes deja soldees (segments termines par une pause ou un arret).
+  accumulatedSeconds Int @default(0)
+  /// Minutes effectivement ecrites dans la saisie de temps a l'arret.
+  savedMinutes Int?
+
+  timeEntryId String?     @unique
+  timeEntry   TimeEntry?  @relation(fields: [timeEntryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([taskId])
+  @@index([status, startedAt])
+  @@map("timer_sessions")
+}
+
 /// Journal d'un projet : ce qui s'est passe, dans l'ordre. Alimente la
 /// timeline du projet et, si `isClientVisible`, celle du client.
+enum CalendarEventKind {
+  /// Rendez-vous ou reunion : un creneau avec debut et fin.
+  EVENT
+  /// Rappel personnel ponctuel (sans duree).
+  REMINDER
+  /// Echeance (creneau ou date).
+  DEADLINE
+}
+
+enum CalendarVisibility {
+  /// Proprietaire UNIQUEMENT. Aucun participant, jamais dans la vue equipe.
+  PRIVATE
+  /// Proprietaire + participants, et visible dans la vue equipe par les
+  /// porteurs de `calendar:read:team`.
+  SHARED
+}
+
+/// EVENEMENT DE CALENDRIER — source de verite des RENDEZ-VOUS et RAPPELS.
+///
+/// Les echeances de taches et de projets ne sont PAS recopiees ici : elles sont
+/// derivees a la lecture (voir `CalendarService`) a partir de `Task.dueDate` et
+/// `Project.dueDate`, leurs seules sources de verite. Une meme date n'existe
+/// donc jamais deux fois dans deux tables.
+///
+/// Regles metier (appliquees dans `CalendarService`, testees en e2e) :
+///  - le proprietaire est le seul a modifier/supprimer son evenement ;
+///  - `PRIVATE` n'a AUCUN participant et ne quitte jamais son proprietaire ;
+///  - `SHARED` est la seule visibilite vue par l'equipe ;
+///  - les horodatages sont stockes en UTC (ISO 8601 avec decalage a l'ecriture).
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  ownerId     String
+  owner       User     @relation("CalendarEventOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  kind        CalendarEventKind  @default(EVENT)
+  visibility  CalendarVisibility @default(PRIVATE)
+
+  /// Debut (UTC). Une date seule (evenement « toute la journée ») est stockee a
+  /// minuit UTC du jour, avec `allDay = true`.
+  startsAt DateTime
+  /// Fin (UTC). `null` pour un rappel ou une echeance ponctuelle.
+  endsAt   DateTime?
+  allDay   Boolean @default(false)
+  location String?
+
+  /// Lien OPTIONNEL vers la tache ou le projet concerne — jamais obligatoire :
+  /// un rendez-vous personnel n'appartient a aucun projet.
+  taskId    String?
+  task      Task?    @relation("CalendarEventTask", fields: [taskId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project? @relation("CalendarEventProject", fields: [projectId], references: [id], onDelete: SetNull)
+
+  participants CalendarEventParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, startsAt])
+  @@index([visibility, startsAt])
+  @@index([taskId])
+  @@index([projectId])
+  @@map("calendar_events")
+}
+
+/// Participant d'un evenement SHARED (invites). Le proprietaire n'est PAS dans
+/// cette table : il est `ownerId`, et le voit toujours.
+model CalendarEventParticipant {
+  eventId String
+  event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation("CalendarEventParticipant", fields: [userId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("calendar_event_participants")
+}
+
 model Activity {
   id        String   @id @default(cuid())
   projectId String?

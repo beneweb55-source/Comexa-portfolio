@@ -115,6 +115,13 @@ export function isFutureWorkDay(spentOn: Date, now: Date): boolean {
  * role qui recevrait `time:read:any` sans perimetre de projet lirait le temps de
  * toute la structure.
  *
+ * LES SAISIES SANS PROJET (taches personnelles) ne tombent dans AUCUN perimetre
+ * de projet, et le filtre de relation `project: {...}` les exclurait toutes —
+ * y compris celles du porteur lui-meme. Le `any` est donc un OU : le perimetre
+ * de projet, PLUS ses propres saisies (`userId`). Un responsable voit ainsi son
+ * temps personnel sans jamais voir celui des autres : une saisie sans projet
+ * d'un collegue ne satisfait aucune des deux branches.
+ *
  * Le troisieme parametre est le filtre de projet deja construit. S'il manque
  * alors que le scope est `any`, on ne sert RIEN : c'est un appelant qui a oublie
  * de le fournir, et une erreur d'appel ne doit pas se transformer en fuite.
@@ -135,6 +142,9 @@ export function timeEntryPerimeter(
   }
 
   return {
-    AND: [personFilter, { project: { deletedAt: null, AND: [projectWhere] } }],
+    OR: [
+      { AND: [personFilter, { project: { deletedAt: null, AND: [projectWhere] } }] },
+      { userId: subject.userId },
+    ],
   };
 }
