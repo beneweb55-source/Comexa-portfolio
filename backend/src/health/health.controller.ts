@@ -3,6 +3,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { API_CONTRACT, type ApiContract } from './contract.js';
 
 /**
  * Sonde de sante.
@@ -29,6 +30,7 @@ export class HealthController {
     database: string;
     uptimeSeconds: number;
     timestamp: string;
+    contract: ApiContract;
   }> {
     const databaseUp = await this.prisma.isHealthy();
 
@@ -43,6 +45,10 @@ export class HealthController {
       database: 'up',
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
+      // Le bloc `contract` permet au frontend de detecter un backend PERIME
+      // (build plus ancien que l'interface) et de le dire clairement, au lieu
+      // de laisser des 404/400 silencieux seuls dans la console navigateur.
+      contract: API_CONTRACT,
     };
   }
 }

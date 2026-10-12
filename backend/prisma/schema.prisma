@@ -431,6 +431,8 @@ model User {
   requestedModifs         ModificationRequest[]     @relation("ModificationRequester")
   decidedModifs           ModificationRequest[]     @relation("ModificationDecider")
   assignedUserRoles       UserRole[]                @relation("UserRoleAssigner")
+  ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
+  calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
   generatedReports        Report[]
   updatedSettings         Setting[]
@@ -874,6 +876,7 @@ model Project {
   members              ProjectMember[]
   milestones           Milestone[]
   tasks                Task[]
+  calendarEvents       CalendarEvent[] @relation("CalendarEventProject")
   timeEntries          TimeEntry[]
   activities           Activity[]
   invoices             Invoice[]
@@ -975,6 +978,7 @@ model Task {
   activities  Activity[]
   documents   Document[]
   timerSessions TimerSession[]
+  calendarEvents CalendarEvent[] @relation("CalendarEventTask")
 
   @@index([projectId, status])
   @@index([milestoneId])
@@ -1067,6 +1071,85 @@ model TimerSession {
 
 /// Journal d'un projet : ce qui s'est passe, dans l'ordre. Alimente la
 /// timeline du projet et, si `isClientVisible`, celle du client.
+enum CalendarEventKind {
+  /// Rendez-vous ou reunion : un creneau avec debut et fin.
+  EVENT
+  /// Rappel personnel ponctuel (sans duree).
+  REMINDER
+  /// Echeance (creneau ou date).
+  DEADLINE
+}
+
+enum CalendarVisibility {
+  /// Proprietaire UNIQUEMENT. Aucun participant, jamais dans la vue equipe.
+  PRIVATE
+  /// Proprietaire + participants, et visible dans la vue equipe par les
+  /// porteurs de `calendar:read:team`.
+  SHARED
+}
+
+/// EVENEMENT DE CALENDRIER — source de verite des RENDEZ-VOUS et RAPPELS.
+///
+/// Les echeances de taches et de projets ne sont PAS recopiees ici : elles sont
+/// derivees a la lecture (voir `CalendarService`) a partir de `Task.dueDate` et
+/// `Project.dueDate`, leurs seules sources de verite. Une meme date n'existe
+/// donc jamais deux fois dans deux tables.
+///
+/// Regles metier (appliquees dans `CalendarService`, testees en e2e) :
+///  - le proprietaire est le seul a modifier/supprimer son evenement ;
+///  - `PRIVATE` n'a AUCUN participant et ne quitte jamais son proprietaire ;
+///  - `SHARED` est la seule visibilite vue par l'equipe ;
+///  - les horodatages sont stockes en UTC (ISO 8601 avec decalage a l'ecriture).
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  ownerId     String
+  owner       User     @relation("CalendarEventOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  kind        CalendarEventKind  @default(EVENT)
+  visibility  CalendarVisibility @default(PRIVATE)
+
+  /// Debut (UTC). Une date seule (evenement « toute la journée ») est stockee a
+  /// minuit UTC du jour, avec `allDay = true`.
+  startsAt DateTime
+  /// Fin (UTC). `null` pour un rappel ou une echeance ponctuelle.
+  endsAt   DateTime?
+  allDay   Boolean @default(false)
+  location String?
+
+  /// Lien OPTIONNEL vers la tache ou le projet concerne — jamais obligatoire :
+  /// un rendez-vous personnel n'appartient a aucun projet.
+  taskId    String?
+  task      Task?    @relation("CalendarEventTask", fields: [taskId], references: [id], onDelete: SetNull)
+  projectId String?
+  project   Project? @relation("CalendarEventProject", fields: [projectId], references: [id], onDelete: SetNull)
+
+  participants CalendarEventParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, startsAt])
+  @@index([visibility, startsAt])
+  @@index([taskId])
+  @@index([projectId])
+  @@map("calendar_events")
+}
+
+/// Participant d'un evenement SHARED (invites). Le proprietaire n'est PAS dans
+/// cette table : il est `ownerId`, et le voit toujours.
+model CalendarEventParticipant {
+  eventId String
+  event   CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation("CalendarEventParticipant", fields: [userId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("calendar_event_participants")
+}
+
 model Activity {
   id        String   @id @default(cuid())
   projectId String?

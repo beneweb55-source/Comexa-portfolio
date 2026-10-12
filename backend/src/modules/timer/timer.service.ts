@@ -109,9 +109,11 @@ export class TimerService {
    * pas parce qu'on voit une tache qu'on doit pouvoir l'imputer. C'est la meme
    * exigence que `POST /tasks/:id/time-entries` sous `time:write:own`.
    */
-  async start(taskId: string, policy: AccessPolicy, meta: RequestContext) {
+  async start(taskId: string | null | undefined, policy: AccessPolicy, meta: RequestContext) {
     this.refuseClientSpace(policy);
-    const task = await this.tasks.requireWritable(taskId, policy);
+    // Sans tache : pas de perimetre a verifier — le temps sera non facturable
+    // et sans projet (regle documentee dans `StartTimerDto`).
+    const task = taskId ? await this.tasks.requireWritable(taskId, policy) : null;
 
     // Double verification, avant l'ecriture : l'index unique partiel de la base
     // est la garantie finale (il couvre la concurrence), mais un 409 propre est
@@ -125,25 +127,42 @@ export class TimerService {
     }
 
     const now = new Date();
-    const created = await this.prisma.timerSession.create({
-      data: {
-        userId: policy.userId,
-        taskId: task.id,
-        status: TimerSessionStatus.RUNNING,
-        startedAt: now,
-        resumedAt: now,
-        pausedAt: null,
-        accumulatedSeconds: 0,
-      },
-      select: TIMER_SESSION_SELECT,
-    });
+    let created;
+    try {
+      created = await this.prisma.timerSession.create({
+        data: {
+          userId: policy.userId,
+          taskId: task?.id ?? null,
+          status: TimerSessionStatus.RUNNING,
+          startedAt: now,
+          resumedAt: now,
+          pausedAt: null,
+          accumulatedSeconds: 0,
+        },
+        select: TIMER_SESSION_SELECT,
+      });
+    } catch (caught) {
+      // DEUX `start` CONCURRENTS passent tous les deux la verification
+      // ci-dessus ; l'index partiel `timer_sessions_one_active_per_user` en
+      // laisse passer un seul. Le second arrive ici (P2002) et recoit le meme
+      // 409 que s'il etait arrive une seconde plus tard. Sans ce rattrapage,
+      // une course produirait un 500 « contrainte violee » — exactement le
+      // genre d'etat incoherent que le minuteur promet de ne jamais creer.
+      if ((caught as { code?: string })?.code === 'P2002') {
+        throw AppException.conflict(
+          'TIMER_ALREADY_ACTIVE',
+          'Un minuteur est deja en cours. Terminez-le ou mettez-le en pause avant d’en demarrer un autre.',
+        );
+      }
+      throw caught;
+    }
 
     await this.audit.record({
       actorId: policy.userId,
       action: 'TIMER_STARTED',
       entityType: 'TimerSession',
       entityId: created.id,
-      after: { taskId: task.id, isPersonal: task.isPersonal },
+      after: { taskId: task?.id ?? null, isPersonal: task?.isPersonal ?? null },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });

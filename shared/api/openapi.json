@@ -2859,6 +2859,205 @@
         ]
       }
     },
+    "/api/me/calendar/events": {
+      "get": {
+        "operationId": "CalendarController_listMine",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mes événements (et ceux où je suis invité) sur une période.",
+        "tags": [
+          "Calendrier"
+        ]
+      },
+      "post": {
+        "operationId": "CalendarController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCalendarEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer un événement personnel (privé par défaut).",
+        "tags": [
+          "Calendrier"
+        ]
+      }
+    },
+    "/api/me/calendar/events/{id}": {
+      "get": {
+        "operationId": "CalendarController_getOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Un événement visible par le porteur (404 sinon).",
+        "tags": [
+          "Calendrier"
+        ]
+      },
+      "patch": {
+        "operationId": "CalendarController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCalendarEventDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Modifier son événement (le propriétaire uniquement).",
+        "tags": [
+          "Calendrier"
+        ]
+      },
+      "delete": {
+        "operationId": "CalendarController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer son événement (le propriétaire uniquement).",
+        "tags": [
+          "Calendrier"
+        ]
+      }
+    },
+    "/api/me/calendar/events/{id}/participants": {
+      "put": {
+        "operationId": "CalendarController_replaceParticipants",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceParticipantsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Poser la liste complète des invités (événements partagés).",
+        "tags": [
+          "Calendrier"
+        ]
+      }
+    },
+    "/api/calendar/events": {
+      "get": {
+        "operationId": "CalendarController_listTeam",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Les événements partagés de l'équipe sur une période.",
+        "tags": [
+          "Calendrier"
+        ]
+      }
+    },
     "/api/timer": {
       "get": {
         "operationId": "TimerController_current",
@@ -8551,6 +8750,130 @@
           }
         }
       },
+      "CreateCalendarEventDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EVENT",
+              "REMINDER",
+              "DEADLINE"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PRIVATE",
+              "SHARED"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Debut (ISO 8601). Une date seule est acceptee pour un evenement `allDay`."
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Fin (ISO 8601) — omise pour un rappel ou une echeance ponctuelle."
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "taskId": {
+            "type": "string",
+            "description": "Lien optionnel vers une tache (lecture requise) — jamais une obligation.",
+            "maxLength": 64
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Lien optionnel vers un projet (lecture requise).",
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "title",
+          "startsAt"
+        ]
+      },
+      "UpdateCalendarEventDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "EVENT",
+              "REMINDER",
+              "DEADLINE"
+            ]
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "PRIVATE",
+              "SHARED"
+            ]
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "taskId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "projectId": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "ReplaceParticipantsDto": {
+        "type": "object",
+        "properties": {
+          "userIds": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "userIds"
+        ]
+      },
       "StartTimerDto": {
         "type": "object",
         "properties": {
@@ -8558,12 +8881,9 @@
             "type": "string",
             "maxLength": 64,
             "example": "clx123abc",
-            "description": "Tache a chronometrer (projet ou personnelle)."
+            "description": "Tache a chronometrer (projet ou personnelle) — omise pour un suivi sans tache."
           }
-        },
-        "required": [
-          "taskId"
-        ]
+        }
       },
       "UpsertDailyReportDto": {
         "type": "object",

@@ -6,6 +6,16 @@
 .cx-calendar__legend { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 16px; color: #62778e; font-size: 11px; }
 .cx-calendar__overdue-count { border: 1px solid rgba(192, 39, 31, 0.14); border-radius: 999px; background: #fff1f0; padding: 4px 9px; color: #a32923; font-size: 10px; font-weight: 600; }
 .cx-calendar__error { margin: 0 0 14px; border: 1px solid rgba(192, 39, 31, 0.17); border-radius: 13px; background: #fff3f2; padding: 12px 14px; color: #a32923; font-size: 13px; }
+.cx-contract-banner { margin: 0 0 16px; border: 1px solid rgba(192, 39, 31, 0.25); border-radius: 13px; background: #fff3f2; padding: 12px 16px; color: #a32923; font-size: 13px; line-height: 1.5; }
+.cx-calendar__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.cx-calendar__toggle { border: 1px solid rgba(21, 47, 77, 0.16); border-radius: 999px; background: rgba(255, 255, 255, 0.72); padding: 8px 14px; color: #3c5470; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cx-calendar__toggle--on { background: linear-gradient(135deg, #159173, #12755f); border-color: transparent; color: #fff; }
+.cx-calendar__create { border: 1px solid transparent; border-radius: 999px; background: linear-gradient(135deg, #117a98, #135da6); padding: 8px 16px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cx-calendar__field { display: block; margin-top: 14px; }
+.cx-calendar__field > span { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #71849a; }
+.cx-calendar__field input, .cx-calendar__field select, .cx-calendar__field textarea { width: 100%; border: 1px solid rgba(21, 47, 77, 0.16); border-radius: 11px; background: rgba(255, 255, 255, 0.85); padding: 10px 12px; color: #152f4d; font-size: 14px; font-family: inherit; }
+.cx-calendar__field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cx-calendar__check { display: flex; align-items: center; gap: 8px; margin-top: 14px; color: #3c5470; font-size: 13px; }
 .cx-calendar__panel { min-width: 0; overflow-x: auto; border: 1px solid rgba(31, 64, 103, 0.1); border-radius: 20px; background: rgba(255, 255, 255, 0.93); padding: 14px; box-shadow: 0 9px 24px rgba(16, 39, 70, 0.045), inset 0 1px 0 #fff; }
 
 .cx-workspace-calendar .rbc-calendar { min-width: 560px; color: #526980; font-family: inherit; font-size: 13px; }

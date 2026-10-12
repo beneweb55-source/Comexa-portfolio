@@ -4,6 +4,7 @@ import RequireSession from "@/components/workspace/RequireSession";
 import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 import { useAuth } from "@/lib/session";
 import { canAny } from "@/lib/access";
+import ApiContractBanner from "@/components/ApiContractBanner";
 
 const NAV_GROUPS = [
   {
@@ -37,6 +38,7 @@ export default function EspaceClientLayout({ children }) {
   return (
     <RequireSession>
       <WorkspaceShell space="Espace client" groups={visibleGroups(user)}>
+        <ApiContractBanner />
         {children}
       </WorkspaceShell>
     </RequireSession>

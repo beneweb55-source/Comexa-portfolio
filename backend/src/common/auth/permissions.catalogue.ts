@@ -96,6 +96,19 @@ export const PERMISSIONS = {
   'activity:write:any': "Publier dans le fil d'activite",
 
   // ---------------------------------------------------------------------------
+  // Calendriers (personnel et equipe)
+  //
+  // Meme grammaire que les taches personnelles : `:own` designe LIGNE A LIGNE
+  // son propre espace, `:team` la vue commune des evenements PARTAGES. Les
+  // echeances de taches/projets ne demandent aucune permission de plus : elles
+  // sont derivees des droits `task:*` / `project:*` deja poses.
+  // ---------------------------------------------------------------------------
+  'calendar:read:own': 'Consulter son calendrier personnel',
+  'calendar:write:own': 'Creer, modifier et supprimer ses propres evenements',
+  'calendar:read:team': "Consulter les evenements partages de l'equipe",
+  'calendar:manage:any': 'Gerer tous les evenements de calendrier',
+
+  // ---------------------------------------------------------------------------
   // Devis, facturation, paiements
   // ---------------------------------------------------------------------------
   'quote:read:any': 'Consulter tous les devis',
@@ -267,6 +280,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'task:write:personal',
     'time:read:own',
     'time:write:own',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.PROJECT_MANAGER]: [
@@ -313,6 +329,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:read:own',
     'notification:manage:own',
     'setting:read:any',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.DEVELOPER]: [
@@ -338,6 +357,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'report:read:own',
     'task:read:personal',
     'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.DESIGNER]: [
@@ -363,6 +385,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'report:read:own',
     'task:read:personal',
     'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   [RoleCode.SALES]: [
@@ -407,6 +432,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'time:write:own',
     'task:read:personal',
     'task:write:personal',
+    'calendar:read:own',
+    'calendar:write:own',
+    'calendar:read:team',
   ],
 
   /**

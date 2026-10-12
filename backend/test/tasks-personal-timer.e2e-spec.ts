@@ -532,4 +532,116 @@ describe('Taches personnelles et minuteur serveur (bout en bout, base reelle)', 
     const clientTimer = await as(clientToken).get('/timer');
     assert.equal(clientTimer.status, 403, clientTimer.text);
   });
+
+  // ---------------------------------------------------------------------------
+  // Regles avancees exigees par le cahier des charges
+  // ---------------------------------------------------------------------------
+
+  it("L'URL exacte du signalement ?personalOnly=true&page=1&perPage=25 est valide", async () => {
+    // C'est la requete litterale envoyee par la page Taches du frontend : son
+    // contrat (personalOnly + pagination) doit etre accepte tel quel.
+    const response = await as(devToken).get('/me/tasks?personalOnly=true&page=1&perPage=25');
+    assert.equal(response.status, 200, response.text);
+    const body = response.body as SuccessBody<PersonalTaskData[]>;
+    assert.equal(body.success, true);
+    assert.equal(body.meta?.page, 1);
+    assert.equal(body.meta?.perPage, 25);
+    assert.ok(
+      (body.data ?? []).every((task) => task.isPersonal && task.projectId === null),
+      'personalOnly ne sert que des taches personnelles',
+    );
+  });
+
+  it('filtres et pagination restent coherents apres plusieurs creations', async () => {
+    // Trois taches de statuts distincts, identifiees par un prefixe commun.
+    const prefix = 'Pagination scenario';
+    for (const [title, status] of [
+      [`${prefix} 1`, 'TODO'],
+      [`${prefix} 2`, 'IN_PROGRESS'],
+      [`${prefix} 3`, 'DONE'],
+    ] as const) {
+      const created = await as(devToken).post('/me/tasks').send({ title });
+      assert.equal(created.status, 201, created.text);
+      const task = dataOf<PersonalTaskData>(created);
+      if (status !== 'TODO') {
+        const moved = await as(devToken).patch(`/tasks/${task.id}/status`).send({ status });
+        assert.equal(moved.status, 200, moved.text);
+      }
+    }
+
+    // Filtre par statut : une seule ligne DONE, et elle est bien la bonne.
+    const done = await as(devToken).get('/me/tasks?personalOnly=true&status=DONE&perPage=100');
+    assert.equal(done.status, 200, done.text);
+    const doneItems = dataOf<PersonalTaskData[]>(done).filter((t) => t.title.startsWith(prefix));
+    assert.equal(doneItems.length, 1);
+    assert.equal(doneItems[0]?.status, 'DONE');
+
+    // Pagination page=1 perPage=1 : exactement une ligne, le total est juste.
+    const page1 = await as(devToken).get('/me/tasks?personalOnly=true&page=1&perPage=1');
+    assert.equal(page1.status, 200, page1.text);
+    const body1 = page1.body as SuccessBody<PersonalTaskData[]>;
+    assert.equal(body1.data.length, 1);
+    assert.ok((body1.meta?.total ?? 0) >= 3, 'le total couvre toutes les pages');
+    assert.ok((body1.meta?.totalPages ?? 0) >= 3);
+
+    // La page 2 n'est pas la meme ligne.
+    const page2 = await as(devToken).get('/me/tasks?personalOnly=true&page=2&perPage=1');
+    const body2 = page2.body as SuccessBody<PersonalTaskData[]>;
+    assert.notEqual(body2.data[0]?.id, body1.data[0]?.id);
+  });
+
+  it('le minuteur peut tourner SANS tache : temps reel, non facturable, sans projet', async () => {
+    const started = await as(devToken).post('/timer/start').send({});
+    assert.equal(started.status, 201, started.text);
+    const session = dataOf<TimerSessionData>(started);
+    assert.equal(session.status, 'RUNNING');
+    assert.equal(session.taskId, null);
+
+    const stopped = await as(devToken).post('/timer/stop');
+    assert.equal(stopped.status, 200, stopped.text);
+    const result = dataOf<TimerSessionData>(stopped);
+    assert.ok((result.savedMinutes ?? 0) >= 1);
+
+    // La saisie existe, orpheline assumee : non facturable, sans tache ni projet.
+    const entries = await prisma.timeEntry.findMany({
+      where: { id: result.timeEntryId ?? undefined },
+    });
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.taskId, null);
+    assert.equal(entries[0]?.projectId, null);
+    assert.equal(entries[0]?.billable, false);
+  });
+
+  it('DEUX demarrages simultanés : une seule session, un 409 — jamais un 500', async () => {
+    const mine = await as(devToken).get('/me/tasks?personalOnly=true');
+    const task = firstTask(dataOf<PersonalTaskData[]>(mine), 'tache du developpeur');
+
+    // Vraie concurrence : les deux requetes partent en parallele.
+    const [first, second] = await Promise.all([
+      as(devToken).post('/timer/start').send({ taskId: task.id }),
+      as(devToken).post('/timer/start').send({ taskId: task.id }),
+    ]);
+    const statuses = [first.status, second.status].sort();
+    assert.deepEqual(statuses, [201, 409], `obtenu ${first.status}/${second.status}`);
+    const loser = first.status === 409 ? first : second;
+    assert.equal(errorOf(loser).code, 'TIMER_ALREADY_ACTIVE');
+
+    // UNE seule session active en base, quoi qu'il arrive.
+    const active = await prisma.timerSession.count({
+      where: { userId: devUserId, status: { in: ['RUNNING', 'PAUSED'] } },
+    });
+    assert.equal(active, 1);
+
+    const stopped = await as(devToken).post('/timer/stop');
+    assert.equal(stopped.status, 200, stopped.text);
+  });
+
+  it('un jeton invalide est rejete partout (401), sans fuite', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`${baseUrl}/timer`)
+      .set('Authorization', 'Bearer jeton-invalide');
+    assert.equal(response.status, 401, response.text);
+    const noToken = await request(app.getHttpServer()).get(`${baseUrl}/me/tasks`);
+    assert.equal(noToken.status, 401, noToken.text);
+  });
 });

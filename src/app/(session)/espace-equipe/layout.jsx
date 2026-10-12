@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/session";
 import { canAny } from "@/lib/access";
 import { TimerProvider } from "@/lib/timer";
 import TimerPill from "@/components/workspace/TimerPill";
+import ApiContractBanner from "@/components/ApiContractBanner";
 
 const NAV_GROUPS = [
   {
@@ -75,6 +76,7 @@ export default function EspaceEquipeLayout({ children }) {
     <RequireSession>
       <TimerProvider>
         <WorkspaceShell space="Espace équipe" groups={visibleGroups(user)}>
+          <ApiContractBanner />
           {children}
         </WorkspaceShell>
         <TimerPill />

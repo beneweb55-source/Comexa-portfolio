@@ -1,6 +1,7 @@
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import type { NextFunction, Request, Response } from 'express';
 import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -9,6 +10,7 @@ import { configureClientIp, parseTrustProxy } from './common/http/client-ip.js';
 import { docsSessionSecret, protectDocs } from './common/http/docs-access.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
 import { docsEnabled } from './config/env.validation.js';
+import { API_CONTRACT, API_CONTRACT_HEADER } from './health/contract.js';
 
 /**
  * CONFIGURATION DE L'APPLICATION, PARTAGEE ENTRE LE DEMARRAGE ET LES TESTS.
@@ -63,6 +65,13 @@ export function configureApp(app: INestApplication): AppSetupResult {
 
   app.use(helmet());
   app.use(cookieParser());
+  // Chaque reponse — y compris les erreurs du routeur — annonce la version du
+  // contrat qu'elle sert. C'est la signature qui permet de prouver, en un
+  // en-tete, quel build repond reellement derriere un nom de domaine.
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader(API_CONTRACT_HEADER, API_CONTRACT.version);
+    next();
+  });
 
   // Le refresh token voyage dans un cookie ; sans `credentials: true` le
   // navigateur ne l'enverrait pas, et sans liste blanche d'origines n'importe
