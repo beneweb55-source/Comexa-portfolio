@@ -34,6 +34,7 @@ import {
   hasOpenSubTasks,
   isClosedTaskStatus,
   isTaskEditable,
+  taskFilterWhere,
   taskScopeWhere,
 } from './task-rules.js';
 
@@ -59,6 +60,25 @@ import {
  *    elle resiste meme a un changement concurrent.
  */
 
+/**
+ * PROFIL D'UN COMPTE, tel qu'il apparait a cote d'une tache.
+ *
+ * Un seul `select` pour l'assigne ET pour le createur, et pour toutes les listes :
+ * deux projections differentes divergeraient, et le champ oublie serait celui de
+ * la photo.
+ *
+ * `avatarKey` est la cle de stockage de la photo (jamais le binaire, voir
+ * `User.avatarKey`), exactement comme dans `UserView`. Le frontend affiche la
+ * photo quand elle existe et retombe sur les initiales sinon — la presentation
+ * reste donc correcte meme sans photo.
+ */
+const TASK_PROFILE_SELECT = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  avatarKey: true,
+} as const;
+
 /** Detail d'une tache. Commun a la lecture et aux retours d'ecriture. */
 const TASK_DETAIL_SELECT = {
   id: true,
@@ -81,8 +101,8 @@ const TASK_DETAIL_SELECT = {
   updatedAt: true,
   project: { select: { id: true, reference: true, name: true, status: true } },
   milestone: { select: { id: true, title: true, status: true } },
-  assignee: { select: { id: true, firstName: true, lastName: true } },
-  reporter: { select: { id: true, firstName: true, lastName: true } },
+  assignee: { select: TASK_PROFILE_SELECT },
+  reporter: { select: TASK_PROFILE_SELECT },
   subTasks: {
     where: { deletedAt: null },
     orderBy: { order: 'asc' },
@@ -112,6 +132,24 @@ export class TasksService {
   // Lecture
   // ---------------------------------------------------------------------------
 
+  /**
+   * TOUTES LES TACHES D'UN PROJET, celles des autres comprises.
+   *
+   * La liste n'est JAMAIS restreinte au createur : un chef de projet qui ouvre un
+   * projet voit le travail de toute l'equipe. Le seul filtre qui s'applique est
+   * le perimetre du porteur (`taskScopeWhere`) et, s'il est demande, le filtre par
+   * createur de la requete.
+   *
+   * TROIS COMPOSITIONS, ET AUCUNE N'EST FACULTATIVE :
+   *
+   *  - `projectId: project.id` vient du PROJET CHARGE, pas de la requete : le
+   *    perimetre du projet a deja ete verifie (`requireReadable`, qui repond 404),
+   *    et c'est cet identifiant-la qui borne la liste ;
+   *  - `reporterId` (le filtre « par personne ») est combine en `AND` avec lui :
+   *    un createur d'un AUTRE projet donne donc une liste vide, jamais les taches
+   *    de son projet ;
+   *  - le perimetre de lecture est le troisieme membre de ce meme `AND`.
+   */
   async listForProject(projectId: string, query: TaskQueryDto, policy: AccessPolicy) {
     this.refuseClientSpace(policy);
     // Perimetre du PROJET d'abord : `GET /projects/:id/tasks` sur un projet hors
@@ -123,7 +161,7 @@ export class TasksService {
     const where: Prisma.TaskWhereInput = {
       projectId: project.id,
       deletedAt: null,
-      AND: [this.readWhere(policy), buildTaskFilters(query)],
+      AND: [this.readWhere(policy), taskFilterWhere(query)],
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -140,7 +178,15 @@ export class TasksService {
           title: true,
           status: true,
           priority: true,
+          projectId: true,
+          // Le nom du projet accompagne chaque tache : un tableau qui rassemble
+          // des taches de plusieurs projets (ou un filtre « par personne ») doit
+          // pouvoir dire de quel projet vient la ligne qu'il affiche.
+          project: { select: { id: true, name: true } },
+          reporterId: true,
+          reporter: { select: TASK_PROFILE_SELECT },
           assigneeId: true,
+          assignee: { select: TASK_PROFILE_SELECT },
           parentTaskId: true,
           milestoneId: true,
           dueDate: true,
@@ -148,13 +194,65 @@ export class TasksService {
           estimateMinutes: true,
           isClientVisible: true,
           order: true,
-          assignee: { select: { id: true, firstName: true, lastName: true } },
         },
       }),
       this.prisma.task.count({ where }),
     ]);
 
     return paginated(items, total, p);
+  }
+
+  /**
+   * PROFILS DES PERSONNES QUI ONT CREE DES TACHES DANS CE PROJET.
+   *
+   * C'est la source du filtre « par personne » : l'ecran a besoin des noms et des
+   * photos AVANT de filtrer, et il ne peut pas les deduire de la page de taches
+   * affichee — une personne n'y apparait que sur la page qui la contient.
+   *
+   * LE PERIMETRE DE LECTURE S'APPLIQUE ICI COMME AILLEURS. La liste est derivee
+   * des taches que le porteur peut lire, avec le meme `where` que la liste : un
+   * developpeur (scope `assigned`) ne voit donc que les createurs des taches qui
+   * lui sont assignees, et personne n'apprend par ce raccourci qui travaille sur
+   * le projet.
+   *
+   * PROJET SANS TACHE : tableau vide, pas 404. Le projet existe et a ete verifie ;
+   * il n'y a simplement aucun profil a proposer, et l'ecran affiche son etat vide.
+   */
+  async listCreators(projectId: string, policy: AccessPolicy) {
+    this.refuseClientSpace(policy);
+    const project = await this.projects.requireReadable(projectId, policy);
+
+    const groups = await this.prisma.task.groupBy({
+      by: ['reporterId'],
+      where: {
+        projectId: project.id,
+        deletedAt: null,
+        AND: [this.readWhere(policy)],
+      },
+      _count: { _all: true },
+    });
+
+    // `reporterId` est nullable : une tache dont le compte createur a ete
+    // supprime definitivement n'a plus de profil a proposer au filtre.
+    const counts = new Map<string, number>();
+    for (const group of groups) {
+      if (group.reporterId) counts.set(group.reporterId, group._count._all);
+    }
+
+    if (counts.size === 0) return [];
+
+    const profiles = await this.prisma.user.findMany({
+      where: { id: { in: [...counts.keys()] } },
+      select: TASK_PROFILE_SELECT,
+    });
+
+    return profiles
+      .map((profile) => ({ ...profile, taskCount: counts.get(profile.id) ?? 0 }))
+      .sort(
+        (left, right) =>
+          left.lastName.localeCompare(right.lastName, 'fr') ||
+          left.firstName.localeCompare(right.firstName, 'fr'),
+      );
   }
 
   /**
@@ -176,7 +274,7 @@ export class TasksService {
     const where: Prisma.TaskWhereInput = {
       deletedAt: null,
       project: { deletedAt: null },
-      AND: [{ assigneeId: policy.userId }, this.readWhere(policy), buildTaskFilters(query)],
+      AND: [{ assigneeId: policy.userId }, this.readWhere(policy), taskFilterWhere(query)],
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -235,6 +333,17 @@ export class TasksService {
 
   /**
    * Cree une tache dans un projet.
+   *
+   * LE CREATEUR VIENT DU JETON, JAMAIS DU CORPS DE LA REQUETE. `reporterId` est
+   * ecrit depuis `policy.userId`, donc l'auteur d'une tache est toujours
+   * l'utilisateur authentifie — il n'existe aucun champ par lequel l'appelant
+   * pourrait designer quelqu'un d'autre, ni se faire passer pour un autre. Le
+   * champ n'est d'ailleurs pas declare dans `CreateTaskDto`.
+   *
+   * Le retour est le DETAIL de la tache (`this.detail`) : il porte le titre, le
+   * projet (`id` et `name`) et le profil du createur (`id`, `firstName`,
+   * `lastName`, `avatarKey`). L'ecran qui vient de creer la tache n'a donc rien a
+   * recharger pour l'afficher correctement.
    *
    * DEUX SCOPES D'ECRITURE, DEUX COMPORTEMENTS DIFFERENTS POUR L'ASSIGNATION.
    *
@@ -820,21 +929,6 @@ export class TasksService {
       );
     }
   }
-}
-
-/** Filtres de recherche. Toujours combines en `AND` avec le perimetre. */
-function buildTaskFilters(query: TaskQueryDto): Prisma.TaskWhereInput {
-  const filters: Prisma.TaskWhereInput = {};
-
-  if (query.status) filters.status = query.status;
-  if (query.priority) filters.priority = query.priority;
-  if (query.assigneeId) filters.assigneeId = query.assigneeId;
-  if (query.milestoneId) filters.milestoneId = query.milestoneId;
-  // `null` en Prisma signifie « IS NULL » : uniquement les taches sans parent.
-  if (query.rootOnly) filters.parentTaskId = null;
-  if (query.search) filters.title = { contains: query.search, mode: 'insensitive' };
-
-  return filters;
 }
 
 function toDateOrNull(value: string | null): Date | null {

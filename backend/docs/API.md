@@ -1336,6 +1336,7 @@ Trois colonnes, trois lectures :
 | Route | Permission | Succes |
 |---|---|---|
 | `GET /projects/:projectId/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
+| `GET /projects/:projectId/tasks/creators` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
 | `POST /projects/:projectId/tasks` | `task:write:any` **ou** `task:write:own` | 201 |
 | `GET /me/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
 | `GET /tasks/:id` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
@@ -1343,6 +1344,28 @@ Trois colonnes, trois lectures :
 | `PATCH /tasks/:id/status` | `task:write:any` **ou** `task:write:own` | 200 |
 | `PATCH /tasks/:id/assign` | `task:assign:any` | 200 |
 | `DELETE /tasks/:id` | `task:delete:any` | 200 |
+
+**Ce que porte une tache de la liste.** `id`, `title`, `projectId` et
+`project: { id, name }`, `reporterId` et `reporter: { id, firstName, lastName,
+avatarKey }` — le créateur —, `assigneeId` et `assignee` quand il y en a un, plus
+le statut, la priorité, l'échéance et l'ordre. Le créateur d'une tâche est
+TOUJOURS le porteur du jeton qui l'a créée : `reporterId` n'est pas un champ du
+corps de `POST`, il est écrit depuis la session. `avatarKey` est la clé de
+stockage de la photo (`null` s'il n'y en a pas) : l'interface affiche la photo
+quand elle existe et retombe sur les initiales sinon.
+
+**Le filtre « par personne »** s'applique avec `?reporterId=<id>` sur
+`GET /projects/:projectId/tasks`. C'est un IDENTIFIANT de compte, jamais un nom :
+deux homonymes ne se confondent pas, et un renommage ne déplace pas les tâches.
+Le filtre est combiné en `AND` avec le projet et avec la portée du porteur : il ne
+peut donc pas faire sortir la liste du projet interrogé, et un identifiant qui n'a
+créé aucune tâche dans ce projet rend une liste vide (200), pas une erreur. Sans
+`reporterId`, la liste contient les tâches du projet **quel que soit leur auteur**.
+
+**`GET /projects/:projectId/tasks/creators`** rend les profils à afficher dans le
+filtre, déjà restreints aux tâches que le porteur peut lire :
+`[{ id, firstName, lastName, avatarKey, taskCount }]`, trié par nom. Un projet
+sans tâche rend `[]`.
 
 #### `time-entries/time-entries.controller.ts`
 

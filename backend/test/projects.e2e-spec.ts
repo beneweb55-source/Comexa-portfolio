@@ -76,6 +76,14 @@ interface ProjectData {
   manager: { id: string } | null;
 }
 
+/**
+ * Une tache, telle que le DETAIL la rend.
+ *
+ * `project`, `reporterId` et `reporter` sont OPTIONNELS parce que cette interface
+ * sert aussi aux listes : `/me/tasks` reste volontairement legere et ne les porte
+ * pas. Le detail d'une tache, lui, les porte toujours — c'est ce que verifient
+ * les scenarios plus bas, champ par champ.
+ */
 interface TaskData {
   id: string;
   title: string;
@@ -83,6 +91,18 @@ interface TaskData {
   assigneeId: string | null;
   projectId: string;
   parentTaskId: string | null;
+  reporterId?: string | null;
+  project?: { id: string; name: string };
+  reporter?: { id: string; firstName: string; lastName: string; avatarKey: string | null } | null;
+}
+
+/** Un profil propose par le filtre « par personne ». */
+interface TaskCreatorData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  avatarKey: string | null;
+  taskCount: number;
 }
 
 interface MilestoneData {
@@ -552,6 +572,175 @@ describe('Projets, taches, jalons et temps (bout en bout, base reelle)', () => {
       .send({ assigneeId: otherDevUserId });
 
     assert.equal(response.status, 403, response.text);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Taches : projet, createur et filtre par personne
+  // ---------------------------------------------------------------------------
+
+  it('rend le projet et le profil du createur de chaque tache, quel que soit son auteur', async () => {
+    // Le responsable ouvre le projet : il doit y voir TOUTES ses taches, celles
+    // des autres comprises. Les deux auteurs ci-dessous le prouvent.
+    const parLeResponsable = dataOf<TaskData>(
+      await as(pmToken).post(`/projects/${projectAId}/tasks`).send({ title: 'Cadrage valide' }),
+    );
+    const parLeDev = dataOf<TaskData>(
+      await as(devToken)
+        .post(`/projects/${projectAId}/tasks`)
+        .send({ title: 'Correctif d’affichage' }),
+    );
+
+    // LE CREATEUR VIENT DU JETON. `reporterId` n'existe pas dans le corps de la
+    // requete : le dev signe sa tache, et ne peut pas signer celle d'un autre.
+    assert.equal(parLeDev.reporter?.id, devUserId);
+    assert.equal(parLeResponsable.reporter?.id, pmUserId);
+    assert.equal(parLeDev.project?.id, projectAId);
+    assert.ok(parLeDev.project?.name, 'le nom du projet accompagne la tache');
+
+    const response = await as(pmToken).get(`/projects/${projectAId}/tasks?perPage=100`);
+    assert.equal(response.status, 200, response.text);
+    const taches = dataOf<TaskData[]>(response);
+
+    const ids = new Set(taches.map((tache) => tache.id));
+    assert.ok(ids.has(parLeDev.id), 'la liste n’est pas restreinte au createur courant');
+    assert.ok(ids.has(parLeResponsable.id));
+
+    for (const tache of taches) {
+      assert.equal(tache.project?.id, projectAId, 'aucune tache d’un autre projet ne doit sortir');
+      assert.ok(tache.reporter?.id, `la tache ${tache.id} doit porter le profil de son createur`);
+      assert.ok(tache.reporter?.firstName, 'le prenom du createur est rendu');
+      assert.ok(tache.reporter?.lastName, 'le nom du createur est rendu');
+    }
+  });
+
+  it('filtre par createur avec ?reporterId=, sans jamais sortir du projet courant', async () => {
+    const parLeDev = dataOf<TaskData>(
+      await as(devToken)
+        .post(`/projects/${projectAId}/tasks`)
+        .send({ title: 'Tache signee par le dev' }),
+    );
+    const parLeResponsable = dataOf<TaskData>(
+      await as(pmToken)
+        .post(`/projects/${projectAId}/tasks`)
+        .send({ title: 'Tache signee par le responsable' }),
+    );
+    // Le responsable a AUSSI des taches dans le projet B : elles ne doivent pas
+    // remonter quand on interroge le projet A avec son identifiant.
+    const dansLeProjetB = dataOf<TaskData>(
+      await as(pmToken)
+        .post(`/projects/${projectBId}/tasks`)
+        .send({ title: 'Tache du responsable ailleurs' }),
+    );
+
+    const response = await as(pmToken).get(
+      `/projects/${projectAId}/tasks?perPage=100&reporterId=${devUserId}`,
+    );
+    assert.equal(response.status, 200, response.text);
+    const taches = dataOf<TaskData[]>(response);
+
+    assert.ok(
+      taches.some((tache) => tache.id === parLeDev.id),
+      'la tache du createur demande doit sortir',
+    );
+    assert.equal(
+      taches.some((tache) => tache.id === parLeResponsable.id),
+      false,
+      'les taches d’un autre createur sont exclues',
+    );
+
+    for (const tache of taches) {
+      assert.equal(tache.reporterId, devUserId, 'seules les taches de ce createur');
+      assert.equal(tache.projectId, projectAId, 'et seulement dans le projet interroge');
+    }
+
+    // ET LE FILTRE NE FAIT PAS SORTIR DU PROJET : les taches du meme createur
+    // rangees dans le projet B restent invisibles ici.
+    const parLeResponsableDansA = await as(pmToken).get(
+      `/projects/${projectAId}/tasks?perPage=100&reporterId=${pmUserId}`,
+    );
+    const tachesDeA = dataOf<TaskData[]>(parLeResponsableDansA);
+    assert.equal(
+      tachesDeA.some((tache) => tache.id === dansLeProjetB.id),
+      false,
+      'le filtre ne peut pas elargir la liste a un autre projet',
+    );
+    for (const tache of tachesDeA) {
+      assert.equal(tache.projectId, projectAId);
+    }
+  });
+
+  it('rend une liste vide quand le profil filtre n’a cree aucune tache dans le projet', async () => {
+    // `otherDev` est ASSIGNE a une tache de ce projet, mais n’en a cree aucune :
+    // le filtre porte sur le CREATEUR (identifiant unique du compte), pas sur
+    // l'assigne, et la reponse est vide sans etre une erreur.
+    const assignee = dataOf<TaskData>(
+      await as(pmToken)
+        .post(`/projects/${projectAId}/tasks`)
+        .send({ title: 'Tache confiee a un collegue', assigneeId: otherDevUserId }),
+    );
+    assert.equal(assignee.reporterId, pmUserId, 'c’est le responsable qui a cree la tache');
+
+    const response = await as(pmToken).get(
+      `/projects/${projectAId}/tasks?perPage=100&reporterId=${otherDevUserId}`,
+    );
+    assert.equal(response.status, 200, response.text);
+    assert.deepEqual(dataOf<TaskData[]>(response), []);
+  });
+
+  it('propose les profils qui ont cree des taches, et jamais un profil sans tache', async () => {
+    const response = await as(pmToken).get(`/projects/${projectAId}/tasks/creators`);
+    assert.equal(response.status, 200, response.text);
+    const profils = dataOf<TaskCreatorData[]>(response);
+
+    assert.ok(
+      profils.some((profil) => profil.id === devUserId),
+      'le dev a cree une tache dans ce projet',
+    );
+    assert.ok(profils.some((profil) => profil.id === pmUserId));
+
+    for (const profil of profils) {
+      assert.ok(profil.taskCount > 0, `le profil ${profil.id} est propose sans aucune tache`);
+      assert.equal(typeof profil.firstName, 'string', 'le prenom est rendu');
+      assert.equal(typeof profil.lastName, 'string', 'le nom est rendu');
+      assert.equal('passwordHash' in profil, false, 'aucune colonne de compte ne sort par ici');
+    }
+  });
+
+  it('limite les profils proposes au perimetre de lecture du porteur', async () => {
+    // Le dev ne lit que les taches qui lui sont assignees : le filtre ne doit donc
+    // pas lui apprendre, par la liste des profils, qui travaille sur le projet.
+    const visibles = dataOf<TaskData[]>(
+      await as(devToken).get(`/projects/${projectAId}/tasks?perPage=100`),
+    );
+    const createursVisibles = new Set(visibles.map((tache) => tache.reporterId));
+
+    const profils = dataOf<TaskCreatorData[]>(
+      await as(devToken).get(`/projects/${projectAId}/tasks/creators`),
+    );
+
+    for (const profil of profils) {
+      assert.ok(
+        createursVisibles.has(profil.id),
+        `le profil ${profil.id} n’a aucune tache visible par ce porteur`,
+      );
+    }
+  });
+
+  it('rend une liste vide, sans erreur, sur un projet qui n’a aucune tache', async () => {
+    const projet = dataOf<ProjectData>(
+      await as(pmToken)
+        .post('/projects')
+        .send({ name: 'Projet sans tache', clientId: clientAId, managerId: pmUserId }),
+    );
+    createdProjectIds.push(projet.id);
+
+    const taches = await as(pmToken).get(`/projects/${projet.id}/tasks`);
+    assert.equal(taches.status, 200, taches.text);
+    assert.deepEqual(dataOf<TaskData[]>(taches), []);
+
+    const profils = await as(pmToken).get(`/projects/${projet.id}/tasks/creators`);
+    assert.equal(profils.status, 200, profils.text);
+    assert.deepEqual(dataOf<TaskCreatorData[]>(profils), []);
   });
 
   // ---------------------------------------------------------------------------

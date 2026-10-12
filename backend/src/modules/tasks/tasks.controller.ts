@@ -48,6 +48,28 @@ export class TasksController {
     return this.tasks.listForProject(projectId, query, new AccessPolicy(user));
   }
 
+  /**
+   * Les profils a afficher dans le filtre « par personne ».
+   *
+   * CETTE ROUTE EST DECLAREE AVANT `POST projects/:projectId/tasks`, et le chemin
+   * est volontairement plus long : `projects/:projectId/tasks` ne capte pas
+   * `/creators`, qui est un segment de plus. Aucun `:id` ne peut donc absorber le
+   * mot, contrairement au piege documente plus bas pour `me/tasks`.
+   *
+   * Elle ne rend que des profils ayant CREE une tache DANS CE PROJET, parmi
+   * celles que le porteur peut lire : le filtre ne propose jamais une personne
+   * dont le clic donnerait une liste vide, ni une personne d'un autre projet.
+   */
+  @Get('projects/:projectId/tasks/creators')
+  @RequireAnyPermission('task:read:any', 'task:read:assigned', 'task:read:own')
+  @ApiOperation({ summary: 'Profils ayant cree des taches visibles dans ce projet.' })
+  async listCreators(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.listCreators(projectId, new AccessPolicy(user));
+  }
+
   @Post('projects/:projectId/tasks')
   @RequireAnyPermission('task:write:any', 'task:write:own')
   @ApiOperation({ summary: 'Creer une tache (ou une sous-tache) dans un projet.' })

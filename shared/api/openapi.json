@@ -2076,6 +2076,16 @@
             }
           },
           {
+            "name": "reporterId",
+            "required": false,
+            "in": "query",
+            "description": "Taches creees par ce compte (identifiant unique).",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
             "name": "milestoneId",
             "required": false,
             "in": "query",
@@ -2147,6 +2157,30 @@
         ]
       }
     },
+    "/api/projects/{projectId}/tasks/creators": {
+      "get": {
+        "operationId": "TasksController_listCreators",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Profils ayant cree des taches visibles dans ce projet.",
+        "tags": [
+          "Taches"
+        ]
+      }
+    },
     "/api/me/tasks": {
       "get": {
         "operationId": "TasksController_listMine",
@@ -2208,6 +2242,16 @@
             "name": "assigneeId",
             "required": false,
             "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "reporterId",
+            "required": false,
+            "in": "query",
+            "description": "Taches creees par ce compte (identifiant unique).",
             "schema": {
               "maxLength": 64,
               "type": "string"
@@ -2815,6 +2859,179 @@
         "summary": "Supprimer une saisie.",
         "tags": [
           "Temps"
+        ]
+      }
+    },
+    "/api/daily-reports/mine": {
+      "get": {
+        "operationId": "DailyReportsController_listMine",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Restreint la vue d’équipe à un membre.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister mes récapitulatifs journaliers",
+        "tags": [
+          "Rapports journaliers"
+        ]
+      }
+    },
+    "/api/daily-reports": {
+      "get": {
+        "operationId": "DailyReportsController_listTeam",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "example": "2026-10-31",
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Restreint la vue d’équipe à un membre.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister les récapitulatifs de l’équipe",
+        "tags": [
+          "Rapports journaliers"
+        ]
+      }
+    },
+    "/api/daily-reports/{date}": {
+      "put": {
+        "operationId": "DailyReportsController_upsert",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertDailyReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Enregistrer mon récapitulatif d’un jour (crée ou remplace)",
+        "tags": [
+          "Rapports journaliers"
+        ]
+      },
+      "delete": {
+        "operationId": "DailyReportsController_remove",
+        "parameters": [
+          {
+            "name": "date",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer mon récapitulatif d’un jour",
+        "tags": [
+          "Rapports journaliers"
         ]
       }
     },
@@ -6680,6 +6897,8 @@
                 "CASH",
                 "CHECK",
                 "PAYPAL",
+                "CCP",
+                "BARIDIMOB",
                 "OTHER"
               ]
             }
@@ -6894,6 +7113,8 @@
                 "CASH",
                 "CHECK",
                 "PAYPAL",
+                "CCP",
+                "BARIDIMOB",
                 "OTHER"
               ]
             }
@@ -8200,6 +8421,24 @@
           }
         }
       },
+      "UpsertDailyReportDto": {
+        "type": "object",
+        "properties": {
+          "contentJson": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Document JSON de l’éditeur (Tiptap)."
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 280,
+            "description": "Résumé court affiché dans les listes."
+          }
+        },
+        "required": [
+          "contentJson"
+        ]
+      },
       "CreateConversationDto": {
         "type": "object",
         "properties": {
@@ -8507,6 +8746,20 @@
       "CreateServiceDto": {
         "type": "object",
         "properties": {
+          "startingPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9999999999,
+            "description": "Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne."
+          },
+          "startingPriceCurrency": {
+            "type": "string",
+            "enum": [
+              "DZD",
+              "EUR",
+              "USD"
+            ]
+          },
           "slug": {
             "type": "string",
             "maxLength": 80,
@@ -8576,6 +8829,20 @@
       "UpdateServiceDto": {
         "type": "object",
         "properties": {
+          "startingPrice": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9999999999,
+            "description": "Prix de depart facultatif (saisi a la main, jamais seede). Devise obligatoire si renseigne."
+          },
+          "startingPriceCurrency": {
+            "type": "string",
+            "enum": [
+              "DZD",
+              "EUR",
+              "USD"
+            ]
+          },
           "slug": {
             "type": "string",
             "maxLength": 80
@@ -9089,10 +9356,11 @@
             "minLength": 2,
             "maxLength": 120
           },
-          "logoKey": {
+          "logoUrl": {
             "type": "string",
-            "maxLength": 300,
-            "description": "Cle du logo dans le stockage."
+            "maxLength": 500,
+            "format": "uri",
+            "description": "URL https de l'image du logo (hébergée ailleurs)."
           },
           "websiteUrl": {
             "type": "string",
@@ -9122,9 +9390,12 @@
             "minLength": 2,
             "maxLength": 120
           },
-          "logoKey": {
+          "logoUrl": {
             "type": "string",
-            "maxLength": 300
+            "nullable": true,
+            "maxLength": 500,
+            "format": "uri",
+            "description": "URL https du logo. Envoyer null pour le retirer."
           },
           "websiteUrl": {
             "type": "string",
@@ -9645,6 +9916,8 @@
               "CASH",
               "CHECK",
               "PAYPAL",
+              "CCP",
+              "BARIDIMOB",
               "OTHER"
             ],
             "type": "string",

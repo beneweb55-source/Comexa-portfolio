@@ -6,8 +6,11 @@ import { CSS } from "@dnd-kit/utilities";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
+import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath } from "@/lib/tasks";
 import { useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
+import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
+import { UserAvatar } from "@/components/workspace/UserAvatar";
 
 const COLUMNS = [
   { id: "TODO", label: "À faire" },
@@ -77,7 +80,13 @@ function Board({ projectId }) {
   const canWrite = canWriteAny || canWriteOwn;
   const canWriteTask = (task) => canWriteAny || (canWriteOwn && task.assigneeId === user?.id);
   const [taskPage, setTaskPage] = useState(1);
-  const tasks = useListing(canReadTasks ? `/projects/${projectId}/tasks?page=${taskPage}&perPage=100` : null);
+  // « Tous » par défaut, puis un identifiant de compte : le filtre est un
+  // `reporterId`, jamais un nom. Le serveur le combine en `AND` avec ce projet,
+  // donc un profil sélectionné ici ne peut pas faire remonter les tâches d'un
+  // autre projet.
+  const [creatorId, setCreatorId] = useState(EVERY_CREATOR);
+  const tasks = useListing(canReadTasks ? taskListPath(projectId, { page: taskPage, perPage: 100, reporterId: creatorId }) : null);
+  const creators = useListing(canReadTasks ? taskCreatorsPath(projectId) : null);
   const [overrides, setOverrides] = useState({});
   const [error, setError] = useState(null);
   const [activeId, setActiveId] = useState(null);
@@ -120,8 +129,18 @@ function Board({ projectId }) {
   }
 
   async function onTaskCreated() {
+    // La tâche créée est signée par le porteur : on revient sur « Tous » pour
+    // qu'elle soit visible, et on recharge les profils pour que son créateur
+    // apparaisse dans le filtre.
+    setCreatorId(EVERY_CREATOR);
     if (taskPage === 1) await tasks.reload();
     else setTaskPage(1);
+    await creators.reload();
+  }
+
+  function onCreatorChange(nextCreatorId) {
+    setCreatorId(nextCreatorId);
+    setTaskPage(1);
   }
 
   return (
@@ -134,6 +153,20 @@ function Board({ projectId }) {
 
       {canReadTasks ? (
         <>
+          <TaskCreatorFilter
+            creators={creators.items}
+            value={creatorId}
+            onChange={onCreatorChange}
+            loading={creators.loading}
+            error={creators.error}
+          />
+          {tasks.items?.length === 0 ? (
+            <Empty>
+              {creatorId
+                ? "Aucune tâche de cette personne dans ce projet."
+                : "Aucune tâche dans ce projet."}
+            </Empty>
+          ) : null}
           <DndContext sensors={sensors} onDragStart={(e) => setActiveId(e.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Tableau des tâches">
               {COLUMNS.map((column) => (
@@ -186,10 +219,15 @@ function TaskCard({ task, canWrite = false, overlay = false }) {
       aria-roledescription={canWrite ? "tâche déplaçable" : undefined}
     >
       <p className="text-[14px] font-medium text-[var(--comexa-ink)]">{task.title}</p>
+      {task.project?.name ? <p className="mt-0.5 text-[12px] text-[var(--comexa-ink-muted)]">Projet {task.project.name}</p> : null}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
         <Badge tone={PRIORITY_TONE[task.priority] ?? "neutral"}>{PRIORITY_LABEL[task.priority] ?? task.priority}</Badge>
         {task.status === "BLOCKED" ? <Badge tone="danger">Bloquée</Badge> : null}
         {task.dueDate ? <span className="text-[var(--comexa-ink-muted)]">Échéance {formatDate(task.dueDate)}</span> : null}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--comexa-ink-soft)]">
+        <UserAvatar profile={task.reporter} size={22} />
+        <span>{creatorNameOf(task.reporter)}</span>
       </div>
     </article>
   );

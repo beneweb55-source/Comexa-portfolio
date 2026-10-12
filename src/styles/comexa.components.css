@@ -366,6 +366,69 @@
   .cx-dialog[open] { animation: cx-dialog-in var(--comexa-duration-slow) var(--comexa-ease-out) both; }
   .cx-dialog__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--comexa-space-3); margin-top: var(--comexa-space-6); }
 
+  /* ============ Profils et filtre « par personne » ============ */
+  /* Vignette de photo, et repli sur les initiales : le même élément porte les
+     deux, pour qu'une tâche dont le créateur n'a pas de photo reste alignée. */
+  .cx-avatar {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid rgba(30, 134, 224, 0.18);
+    border-radius: 10px;
+    background: linear-gradient(145deg, rgba(30, 134, 224, 0.13), rgba(79, 176, 240, 0.21));
+    color: var(--comexa-accent-text);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    object-fit: cover;
+  }
+
+  .cx-filter {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--comexa-space-2);
+  }
+  .cx-filter__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--comexa-space-2);
+    min-height: 38px;
+    max-width: 220px;
+    padding: 4px 12px 4px 6px;
+    border: 1px solid var(--comexa-border-soft);
+    border-radius: var(--comexa-radius-pill);
+    background: var(--comexa-surface);
+    color: var(--comexa-ink-soft);
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .cx-filter__chip:hover { border-color: var(--comexa-accent); color: var(--comexa-ink); }
+  .cx-filter__chip[aria-pressed="true"] {
+    border-color: var(--comexa-accent);
+    background: var(--comexa-accent-soft);
+    color: var(--comexa-accent-text);
+    font-weight: 600;
+  }
+  .cx-filter__chip--all { padding: 4px 16px; }
+  .cx-filter__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cx-filter__count {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border-radius: var(--comexa-radius-pill);
+    background: var(--comexa-neutral-200);
+    color: var(--comexa-ink-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
   /* ============ États ============ */
   .cx-empty {
     display: flex;

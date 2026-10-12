@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_OWN } from '../../common/auth/principal.js';
-import { TaskStatus } from '../../generated/prisma/enums.js';
+import { Priority, TaskStatus } from '../../generated/prisma/enums.js';
 import type { ScopeSubject } from '../projects/project-scope.js';
 import {
   CLOSED_TASK_STATUSES,
@@ -13,6 +13,7 @@ import {
   hasOpenSubTasks,
   isClosedTaskStatus,
   isTaskEditable,
+  taskFilterWhere,
   taskScopeWhere,
   taskWriteScopeWhere,
 } from './task-rules.js';
@@ -83,6 +84,58 @@ describe('ordres de scope des taches', () => {
 
   it('ecrit sans le scope assigned', () => {
     assert.deepEqual(TASK_WRITE_ORDER, [SCOPE_ANY, SCOPE_OWN]);
+  });
+});
+
+describe('filtres de recherche d’une liste de taches', () => {
+  it('ne rend RIEN quand rien n’est demande : la liste reste entiere', () => {
+    assert.deepEqual(taskFilterWhere({}), {});
+  });
+
+  it('filtre le createur par son IDENTIFIANT, jamais par un nom', () => {
+    // Le filtre « par personne » est un `reporterId`. Ecrit sur un nom, il
+    // confondrait deux homonymes et suivrait les renommages.
+    assert.deepEqual(taskFilterWhere({ reporterId: 'user-1' }), { reporterId: 'user-1' });
+    assert.deepEqual(taskFilterWhere({ reporterId: '' }), {});
+  });
+
+  it('ne porte JAMAIS le projet : c’est le service qui le pose, en `AND`', () => {
+    // LE POINT DE SECURITE DE CE FICHIER. Le filtre par createur vient de la
+    // requete HTTP ; s'il portait le projet, il pourrait le REMPLACER et faire
+    // remonter les taches d'un autre projet. Il n'en porte aucun, et la liste est
+    // bornee par `projectId: <projet verifie>` de `listForProject`.
+    const where = taskFilterWhere({ reporterId: 'user-1', status: TaskStatus.TODO });
+
+    assert.equal('projectId' in where, false);
+    assert.equal('project' in where, false);
+    assert.equal('deletedAt' in where, false);
+  });
+
+  it('combine plusieurs criteres sans en perdre aucun', () => {
+    assert.deepEqual(
+      taskFilterWhere({
+        status: TaskStatus.IN_PROGRESS,
+        priority: Priority.HIGH,
+        assigneeId: 'dev-1',
+        reporterId: 'pm-1',
+        milestoneId: 'jalon-1',
+      }),
+      {
+        status: TaskStatus.IN_PROGRESS,
+        priority: Priority.HIGH,
+        assigneeId: 'dev-1',
+        reporterId: 'pm-1',
+        milestoneId: 'jalon-1',
+      },
+    );
+  });
+
+  it('traduit rootOnly en « sans parent » et cherche le titre sans casse', () => {
+    assert.deepEqual(taskFilterWhere({ rootOnly: true }), { parentTaskId: null });
+    assert.deepEqual(taskFilterWhere({ rootOnly: false }), {});
+    assert.deepEqual(taskFilterWhere({ search: 'maquette' }), {
+      title: { contains: 'maquette', mode: 'insensitive' },
+    });
   });
 });
 

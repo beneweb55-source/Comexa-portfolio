@@ -5,7 +5,7 @@ import {
   type ScopeName,
 } from '../../common/auth/principal.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { TaskStatus } from '../../generated/prisma/enums.js';
+import { TaskStatus, type Priority } from '../../generated/prisma/enums.js';
 import type { ScopeSubject } from '../projects/project-scope.js';
 
 /**
@@ -84,6 +84,47 @@ export function taskWriteScopeWhere(
     default:
       return MATCH_NOTHING;
   }
+}
+
+/**
+ * FILTRES DE RECHERCHE — ce que l'APPELANT demande, PAS ce qu'il a le droit.
+ *
+ * Fonction PURE qui ne connait ni le projet ni le porteur : elle rend un `where`
+ * que les services combinent en `AND` avec le perimetre de lecture ET avec
+ * `projectId`. C'est cette composition qui rend l'elargissement impossible :
+ * `?reporterId=<autre>` restreint la liste A L'INTERIEUR du projet courant, il ne
+ * peut pas la faire sortir du projet — ni rejoindre les taches d'un autre.
+ *
+ * `reporterId` EST L'IDENTIFIANT DU COMPTE CREATEUR, et jamais son nom. Deux
+ * homonymes ne se confondent donc pas, et un renommage ne deplace pas les taches
+ * d'une personne vers une autre. Le filtre d'affichage du frontend, lui, a
+ * besoin des noms et des photos : c'est `TasksService.listCreators`, qui les
+ * derive des MEMES taches que celles que le porteur peut lire.
+ */
+export interface TaskFilterInput {
+  readonly status?: TaskStatus;
+  readonly priority?: Priority;
+  readonly assigneeId?: string;
+  /** Createur de la tache : le filtre « par personne ». */
+  readonly reporterId?: string;
+  readonly milestoneId?: string;
+  readonly rootOnly?: boolean;
+  readonly search?: string;
+}
+
+export function taskFilterWhere(query: TaskFilterInput): Prisma.TaskWhereInput {
+  const filters: Prisma.TaskWhereInput = {};
+
+  if (query.status) filters.status = query.status;
+  if (query.priority) filters.priority = query.priority;
+  if (query.assigneeId) filters.assigneeId = query.assigneeId;
+  if (query.reporterId) filters.reporterId = query.reporterId;
+  if (query.milestoneId) filters.milestoneId = query.milestoneId;
+  // `null` en Prisma signifie « IS NULL » : uniquement les taches sans parent.
+  if (query.rootOnly) filters.parentTaskId = null;
+  if (query.search) filters.title = { contains: query.search, mode: 'insensitive' };
+
+  return filters;
 }
 
 /**
