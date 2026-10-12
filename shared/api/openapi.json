@@ -2076,6 +2076,16 @@
             }
           },
           {
+            "name": "reporterId",
+            "required": false,
+            "in": "query",
+            "description": "Taches creees par ce compte (identifiant unique).",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
             "name": "milestoneId",
             "required": false,
             "in": "query",
@@ -2156,6 +2166,30 @@
         ]
       }
     },
+    "/api/projects/{projectId}/tasks/creators": {
+      "get": {
+        "operationId": "TasksController_listCreators",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Profils ayant cree des taches visibles dans ce projet.",
+        "tags": [
+          "Taches"
+        ]
+      }
+    },
     "/api/me/tasks": {
       "get": {
         "operationId": "TasksController_listMine",
@@ -2217,6 +2251,16 @@
             "name": "assigneeId",
             "required": false,
             "in": "query",
+            "schema": {
+              "maxLength": 64,
+              "type": "string"
+            }
+          },
+          {
+            "name": "reporterId",
+            "required": false,
+            "in": "query",
+            "description": "Taches creees par ce compte (identifiant unique).",
             "schema": {
               "maxLength": 64,
               "type": "string"

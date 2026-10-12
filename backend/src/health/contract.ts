@@ -43,7 +43,7 @@ export interface ApiContract {
 }
 
 export const API_CONTRACT: ApiContract = {
-  version: '2026-10-12.3',
+  version: '2026-10-12.4',
   features: {
     // P2 : suivi du temps persiste cote serveur.
     timer: true,
@@ -51,6 +51,11 @@ export const API_CONTRACT: ApiContract = {
     personalTasks: true,
     // P3 : calendriers personnel et equipe.
     calendar: true,
+    // Filtre « par personne » des taches : `?reporterId=` sur la liste d'un
+    // projet et `GET /projects/:id/tasks/creators`. Un serveur anterieur repond
+    // 400 sur le parametre inconnu et 404 sur la route : le frontend doit le
+    // savoir avant d'afficher des cartes sans createur.
+    taskCreators: true,
   },
 };
 

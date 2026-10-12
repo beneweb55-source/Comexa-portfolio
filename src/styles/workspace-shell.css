@@ -1174,6 +1174,72 @@
 }
 .cx-pub-drawer__panel { border-radius: 28px 28px 0 0; }
 
+/*
+ * Filtre « par personne » des tâches, et photo (ou initiales) du créateur.
+ * Ce sont des CONTROLES, pas des surfaces flottantes : pastilles opaques et
+ * contrastées, le verre restant réservé à la navigation et aux menus.
+ */
+.cx-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cx-filter__chip {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid rgba(31, 64, 103, 0.14);
+  border-radius: 999px;
+  background: #fff;
+  color: #173452;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+.cx-filter__chip:hover:not([aria-pressed="true"]) {
+  border-color: rgba(30, 134, 224, 0.4);
+  background: rgba(227, 241, 255, 0.72);
+}
+.cx-filter__chip:focus-visible { outline: 2px solid rgba(30, 134, 224, 0.28); outline-offset: 2px; }
+.cx-filter__chip[aria-pressed="true"] {
+  border-color: rgba(30, 134, 224, 0.55);
+  background: rgba(30, 134, 224, 0.12);
+  color: #0f4e8a;
+}
+.cx-filter__chip--all { padding-inline: 14px; }
+.cx-filter__name { max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-filter__count {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(31, 64, 103, 0.08);
+  color: #526980;
+  font-size: 11px;
+  font-weight: 700;
+}
+.cx-filter__chip[aria-pressed="true"] .cx-filter__count { background: rgba(30, 134, 224, 0.2); color: #0f4e8a; }
+.cx-avatar {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(30, 134, 224, 0.18);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(30, 134, 224, 0.13), rgba(79, 176, 240, 0.21));
+  color: #0f4e8a;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  object-fit: cover;
+}
+@media (max-width: 600px) {
+  .cx-filter__chip { min-height: 44px; padding: 0 13px; font-size: 13px; }
+  .cx-filter__name { max-width: 8rem; }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .cx-workspace__sidebar,
   .cx-workspace__topbar,

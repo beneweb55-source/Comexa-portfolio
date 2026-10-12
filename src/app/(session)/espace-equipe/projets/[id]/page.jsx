@@ -6,8 +6,11 @@ import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
+import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath, tasksPayloadIsOutdated } from "@/lib/tasks";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
+import { UserAvatar } from "@/components/workspace/UserAvatar";
 
 const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE", "CANCELLED"];
 const PROJECT_STATUSES = ["DRAFT", "PLANNED", "IN_PROGRESS", "ON_HOLD", "IN_REVIEW", "COMPLETED", "CANCELLED", "ARCHIVED"];
@@ -24,15 +27,21 @@ export default function ProjetEquipePage({ params }) {
   const [milestonePage, setMilestonePage] = useState(1);
   const [taskPage, setTaskPage] = useState(1);
   const [documentPage, setDocumentPage] = useState(1);
+  // « Tous » par défaut : aucune tâche du projet n'est masquée à l'ouverture.
+  const [taskCreatorId, setTaskCreatorId] = useState(EVERY_CREATOR);
   const project = useListing(`/projects/${id}`);
   const milestones = useListing(canReadMilestones ? `/projects/${id}/milestones?page=${milestonePage}&perPage=100` : null);
-  const tasks = useListing(canReadTasks ? `/projects/${id}/tasks?page=${taskPage}&perPage=100` : null);
+  // Les tâches du projet, quel que soit leur auteur. Le filtre « par personne »
+  // ajoute `reporterId` — un identifiant de compte — et le serveur le combine en
+  // `AND` avec ce projet : le filtre ne peut pas faire sortir la liste d'ici.
+  const tasks = useListing(canReadTasks ? taskListPath(id, { page: taskPage, perPage: 100, reporterId: taskCreatorId }) : null);
+  const taskCreators = useListing(canReadTasks ? taskCreatorsPath(id) : null);
   const documents = useListing(canReadDocuments ? `/documents?projectId=${id}&page=${documentPage}&perPage=100` : null);
 
   const reloadAll = async () => {
     const reloads = [project.reload()];
     if (canReadMilestones) reloads.push(milestones.reload());
-    if (canReadTasks) reloads.push(tasks.reload());
+    if (canReadTasks) reloads.push(tasks.reload(), taskCreators.reload());
     await Promise.all(reloads);
   };
   const action = useAction(reloadAll);
@@ -72,6 +81,11 @@ export default function ProjetEquipePage({ params }) {
       setTaskTitle("");
       setTaskDue("");
       setTaskVisible(false);
+      // Le créateur est le porteur : la tâche qui vient de naître doit être
+      // visible, donc on revient sur « Tous » plutôt que de la cacher derrière un
+      // filtre resté sur quelqu'un d'autre.
+      setTaskCreatorId(EVERY_CREATOR);
+      setTaskPage(1);
     }
   }
 
@@ -192,15 +206,53 @@ export default function ProjetEquipePage({ params }) {
 
       {canReadTasks || canWriteTasks ? (
         <Card title="Tâches">
-        {canReadTasks && tasks.items?.length === 0 ? <Empty>Aucune tâche.</Empty> : null}
+        {canReadTasks ? (
+          <div className="mb-5">
+            <TaskCreatorFilter
+              creators={taskCreators.items}
+              value={taskCreatorId}
+              onChange={(creatorId) => {
+                setTaskCreatorId(creatorId);
+                // Un changement de filtre repart de la première page : rester en
+                // page 3 d'une liste qui vient de se réduire afficherait un vide
+                // trompeur.
+                setTaskPage(1);
+              }}
+              loading={taskCreators.loading}
+              error={taskCreators.error}
+              errorStatus={taskCreators.errorStatus}
+            />
+          </div>
+        ) : null}
+        {canReadTasks && tasksPayloadIsOutdated(tasks.items) ? (
+          <div className="mb-5">
+            <Notice>
+              Cette version de l’API ne renvoie ni le projet ni le créateur des tâches : le serveur
+              backend tourne sur une version antérieure au frontend. Reconstruisez-le et redémarrez-le
+              (npm run build puis node dist/main.js dans backend/).
+            </Notice>
+          </div>
+        ) : null}
+        {canReadTasks && tasks.items?.length === 0 ? (
+          <Empty>
+            {taskCreatorId
+              ? "Aucune tâche de cette personne dans ce projet."
+              : "Aucune tâche dans ce projet."}
+          </Empty>
+        ) : null}
         <ul className="flex flex-col gap-2">
           {(tasks.items ?? []).map((task) => (
             <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-[15px] text-[var(--comexa-ink)]">{task.title}</p>
-                <p className="text-[13px] text-[var(--comexa-ink-muted)]">
-                  échéance {formatDate(task.dueDate)}
-                  {task.isClientVisible ? " · visible par le client" : ""}
+                <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--comexa-ink-muted)]">
+                  <span>Projet {task.project?.name ?? current?.name ?? "—"}</span>
+                  <span>échéance {formatDate(task.dueDate)}</span>
+                  {task.isClientVisible ? <span>visible par le client</span> : null}
+                  <span className="inline-flex items-center gap-2 text-[var(--comexa-ink-soft)]">
+                    <UserAvatar profile={task.reporter} size={24} />
+                    {creatorNameOf(task.reporter)}
+                  </span>
                 </p>
               </div>
               {canWriteTasks ? (

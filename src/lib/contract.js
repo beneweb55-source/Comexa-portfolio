@@ -24,10 +24,10 @@
  */
 
 /** Fonctionnalites que CETTE interface utilise desormais. */
-export const REQUIRED_FEATURES = ["timer", "personalTasks", "calendar"];
+export const REQUIRED_FEATURES = ["timer", "personalTasks", "calendar", "taskCreators"];
 
 /** Version du contrat attendue (informative, affichee dans le diagnostic). */
-export const EXPECTED_CONTRACT_VERSION = "2026-10-12.3";
+export const EXPECTED_CONTRACT_VERSION = "2026-10-12.4";
 
 /**
  * Interroge la sante de l'API et compare au contrat attendu.
