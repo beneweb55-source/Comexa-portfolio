@@ -183,7 +183,7 @@ export class TimeEntriesService {
     // projet ni client a facturer. Le forcer ici — plutot que de faire confiance
     // a l'appelant — evite qu'une saisie personnelle gonfle un jour un total
     // facturable.
-    const billable = task.isPersonal ? false : dto.billable ?? true;
+    const billable = task.isPersonal ? false : (dto.billable ?? true);
     const projectOfTask = task.project;
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -214,7 +214,11 @@ export class TimeEntriesService {
             taskId: task.id,
             clientId: projectOfTask.clientId,
             actorId: policy.userId,
-            metadata: { timeEntryId: entry.id, minutes: dto.minutes, spentOn: spentOn.toISOString() },
+            metadata: {
+              timeEntryId: entry.id,
+              minutes: dto.minutes,
+              spentOn: spentOn.toISOString(),
+            },
             // INTERNE. Le temps saisi alimente la facturation : c'est une donnee
             // d'agence. La publier dans l'espace client reviendrait a montrer le
             // cout du travail en meme temps que son avancement.

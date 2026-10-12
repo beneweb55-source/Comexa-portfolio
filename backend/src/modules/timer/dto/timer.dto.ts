@@ -11,7 +11,10 @@ import { IsString, MaxLength } from 'class-validator';
  * un compte-rendu qu'on ne peut pas verifier.
  */
 export class StartTimerDto {
-  @ApiProperty({ example: 'clx123abc', description: 'Tache a chronometrer (projet ou personnelle).' })
+  @ApiProperty({
+    example: 'clx123abc',
+    description: 'Tache a chronometrer (projet ou personnelle).',
+  })
   @IsString()
   @MaxLength(64)
   taskId!: string;

@@ -412,8 +412,14 @@ export class TasksService {
     this.refuseClientSpace(policy);
     const before = await this.access.requireWritable(taskId, policy);
     const wide = policy.has('task:write:any');
+    // Une tache PERSONNELLE reste modifiable par son proprietaire, meme close :
+    // c'est son carnet de travail prive, personne d'autre n'a de confiance a y
+    // accorder. La regle « un DONE ne bouge plus » protege la FIABILITE d'un
+    // rapport de projet — elle n'a aucun sens sur une note personnelle que son
+    // seul lecteur decide de corriger.
+    const editable = wide || before.isPersonal;
 
-    if (!isTaskEditable(before.status, wide)) {
+    if (!isTaskEditable(before.status, editable)) {
       throw AppException.unprocessable(
         'TASK_CLOSED_NOT_EDITABLE',
         `Cette tache est ${before.status} : seul un porteur de task:write:any peut encore la modifier.`,
@@ -450,7 +456,7 @@ export class TasksService {
         where: {
           id: taskId,
           deletedAt: null,
-          ...(wide ? {} : { status: { notIn: [...CLOSED_TASK_STATUSES] } }),
+          ...(editable ? {} : { status: { notIn: [...CLOSED_TASK_STATUSES] } }),
         },
         data: {
           ...(dto.title === undefined ? {} : { title: dto.title }),
@@ -663,7 +669,7 @@ export class TasksService {
     if (before.isPersonal) {
       throw AppException.unprocessable(
         'PERSONAL_TASK_NOT_ASSIGNABLE',
-        'Une tache personnelle appartient a son createur : elle ne s\'assigne pas.',
+        "Une tache personnelle appartient a son createur : elle ne s'assigne pas.",
         { taskId },
       );
     }

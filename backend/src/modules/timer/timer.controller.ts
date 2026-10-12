@@ -1,10 +1,7 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
-import {
-  CurrentUser,
-  RequireAnyPermission,
-} from '../../common/decorators/auth.decorators.js';
+import { CurrentUser, RequireAnyPermission } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
 import { StartTimerDto } from './dto/timer.dto.js';
 import { TimerService } from './timer.service.js';
@@ -50,6 +47,7 @@ export class TimerController {
   }
 
   @Post('timer/pause')
+  @HttpCode(HttpStatus.OK)
   @RequireAnyPermission('time:write:own', 'time:write:any')
   @ApiOperation({ summary: 'Mettre en pause (le segment en cours est replie).' })
   async pause(@CurrentUser() user: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
@@ -57,6 +55,7 @@ export class TimerController {
   }
 
   @Post('timer/resume')
+  @HttpCode(HttpStatus.OK)
   @RequireAnyPermission('time:write:own', 'time:write:any')
   @ApiOperation({ summary: 'Reprendre une session en pause.' })
   async resume(@CurrentUser() user: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
@@ -64,8 +63,9 @@ export class TimerController {
   }
 
   @Post('timer/stop')
+  @HttpCode(HttpStatus.OK)
   @RequireAnyPermission('time:write:own', 'time:write:any')
-  @ApiOperation({ summary: "Terminer la session et enregistrer la saisie de temps." })
+  @ApiOperation({ summary: 'Terminer la session et enregistrer la saisie de temps.' })
   async stop(@CurrentUser() user: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
     return this.timer.stop(new AccessPolicy(user), meta);
   }

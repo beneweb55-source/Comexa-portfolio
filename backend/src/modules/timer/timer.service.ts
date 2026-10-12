@@ -7,7 +7,13 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { TaskAccessService } from '../tasks/task-access.service.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 import { normalizeWorkDay } from '../time-entries/time-rules.js';
-import { canPauseTimer, canResumeTimer, canStopTimer, elapsedSecondsOf, minutesForSeconds } from './timer-rules.js';
+import {
+  canPauseTimer,
+  canResumeTimer,
+  canStopTimer,
+  elapsedSecondsOf,
+  minutesForSeconds,
+} from './timer-rules.js';
 
 /**
  * MINUTEUR SERVEUR — la source de verite du chronometrage.
@@ -156,7 +162,10 @@ export class TimerService {
     this.refuseClientSpace(policy);
     const session = await this.findActive(policy);
     if (!session || !canPauseTimer(session.status)) {
-      throw AppException.conflict('TIMER_NOT_RUNNING', 'Aucun minuteur en cours à mettre en pause.');
+      throw AppException.conflict(
+        'TIMER_NOT_RUNNING',
+        'Aucun minuteur en cours à mettre en pause.',
+      );
     }
 
     const now = new Date();
@@ -172,7 +181,10 @@ export class TimerService {
     });
 
     if (moved.count !== 1) {
-      throw AppException.conflict('TIMER_STATE_CONFLICT', 'Le minuteur a changé pendant la mise en pause.');
+      throw AppException.conflict(
+        'TIMER_STATE_CONFLICT',
+        'Le minuteur a changé pendant la mise en pause.',
+      );
     }
 
     await this.audit.record({
@@ -186,7 +198,13 @@ export class TimerService {
       userAgent: meta.userAgent,
     });
 
-    return this.present({ ...session, status: TimerSessionStatus.PAUSED, pausedAt: now, resumedAt: null, accumulatedSeconds: seconds });
+    return this.present({
+      ...session,
+      status: TimerSessionStatus.PAUSED,
+      pausedAt: now,
+      resumedAt: null,
+      accumulatedSeconds: seconds,
+    });
   }
 
   /** Reprise : un nouveau segment part de maintenant. */
@@ -210,7 +228,10 @@ export class TimerService {
     });
 
     if (moved.count !== 1) {
-      throw AppException.conflict('TIMER_STATE_CONFLICT', 'Le minuteur a changé pendant la reprise.');
+      throw AppException.conflict(
+        'TIMER_STATE_CONFLICT',
+        'Le minuteur a changé pendant la reprise.',
+      );
     }
 
     await this.audit.record({
@@ -224,7 +245,12 @@ export class TimerService {
       userAgent: meta.userAgent,
     });
 
-    return this.present({ ...session, status: TimerSessionStatus.RUNNING, resumedAt: now, pausedAt: null });
+    return this.present({
+      ...session,
+      status: TimerSessionStatus.RUNNING,
+      resumedAt: now,
+      pausedAt: null,
+    });
   }
 
   /**
@@ -258,27 +284,28 @@ export class TimerService {
     const task = session.task;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // La tache peut avoir ete supprimee pendant la session (relation
-      // `SetNull`) : on arrete la session dans tous les cas — un minuteur qui
-      // refuse de s'arreter est pire qu'une saisie introuvable.
-      let timeEntryId: string | null = null;
-
-      if (session.taskId && task) {
-        const entry = await tx.timeEntry.create({
-          data: {
-            projectId: task.projectId,
-            taskId: session.taskId,
-            userId: policy.userId,
-            spentOn,
-            minutes,
-            description: `Minuteur : ${task.title}`.slice(0, 500),
-            // Une tache personnelle n'a pas de client : rien a facturer.
-            billable: !task.isPersonal,
-          },
-          select: { id: true },
-        });
-        timeEntryId = entry.id;
-      }
+      // LA SAISIE EST TOUJOURS CREEE, MEME SI LA TACHE A DISPARU pendant la
+      // session (relation `SetNull`). Un temps reellement travaille ne se perd
+      // pas parce que sa tache a ete supprimee entre-temps : la ligne devient
+      // simplement orpheline (sans tache ni projet) et reste visible dans la
+      // feuille de temps de son auteur. Refuser de l'ecrire et rendre 0 minute
+      // serait une perte silencieuse — exactement ce que le minuteur promet de
+      // ne plus faire.
+      const entry = await tx.timeEntry.create({
+        data: {
+          projectId: task?.projectId ?? null,
+          taskId: session.taskId,
+          userId: policy.userId,
+          spentOn,
+          minutes,
+          description: (task ? `Minuteur : ${task.title}` : 'Minuteur').slice(0, 500),
+          // Une tache personnelle n'a pas de client : rien a facturer. Une
+          // tache disparue n'a plus de perimetre facturable : non plus.
+          billable: task ? !task.isPersonal : false,
+        },
+        select: { id: true },
+      });
+      const timeEntryId = entry.id;
 
       // Compare-and-swap sur le statut : un second `stop` concurrent ne trouve
       // plus de ligne active et n'ecrit PAS une seconde saisie.
@@ -326,11 +353,11 @@ export class TimerService {
         stoppedAt: now,
         resumedAt: null,
         accumulatedSeconds: totalSeconds,
-        savedMinutes: result.timeEntryId ? minutes : null,
+        savedMinutes: minutes,
         timeEntryId: result.timeEntryId,
       }),
-      savedMinutes: result.timeEntryId ? minutes : 0,
-      overflowMinutes: result.timeEntryId ? overflowMinutes : 0,
+      savedMinutes: minutes,
+      overflowMinutes,
       timeEntryId: result.timeEntryId,
     };
   }

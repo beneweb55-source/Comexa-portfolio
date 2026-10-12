@@ -182,7 +182,8 @@ export function personalTaskShapeViolation(input: {
   if (input.milestoneId) return 'Une tache personnelle ne peut pas porter de jalon.';
   if (input.parentTaskId) return 'Une tache personnelle ne peut pas etre une sous-tache.';
   if (input.isClientVisible) return 'Une tache personnelle n’est jamais visible d’un client.';
-  if (input.assigneeId) return 'Une tache personnelle appartient a son createur : elle ne s’assigne pas.';
+  if (input.assigneeId)
+    return 'Une tache personnelle appartient a son createur : elle ne s’assigne pas.';
   return null;
 }
 

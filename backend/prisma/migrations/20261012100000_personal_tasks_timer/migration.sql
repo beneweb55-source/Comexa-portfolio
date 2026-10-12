@@ -53,3 +53,41 @@ CREATE UNIQUE INDEX "timer_sessions_one_active_per_user" ON "timer_sessions"("us
 ALTER TABLE "timer_sessions" ADD CONSTRAINT "timer_sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "timer_sessions" ADD CONSTRAINT "timer_sessions_taskId_fkey" FOREIGN KEY ("taskId") REFERENCES "tasks"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "timer_sessions" ADD CONSTRAINT "timer_sessions_timeEntryId_fkey" FOREIGN KEY ("timeEntryId") REFERENCES "time_entries"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- -----------------------------------------------------------------------------
+-- DROITS NOUVEAUX : la migration les ACCORDE ELLE-MEME.
+--
+-- Les permissions sont des LIGNES en base (`permissions`, `role_permissions`),
+-- pas seulement du code : sans cet ajout, un deploiement qui ne relancerait pas
+-- `npm run db:seed` laisserait tous les roles — l'ADMIN compris, dont le
+-- catalogue est etale a l'insertion — sans `task:*:personal`, et les nouvelles
+-- routes repondraient 403 a tout le monde. `db:seed` re-synchronise les roles
+-- entierement quand il tourne ; ce bloc rend `prisma migrate deploy` suffisant,
+-- et il est IDEMPOTENT (les deux cles se protegent par `ON CONFLICT`).
+-- -----------------------------------------------------------------------------
+
+-- Les deux codes du catalogue (`permissions.catalogue.ts` : portee `personal`).
+INSERT INTO "permissions" ("id", "code", "resource", "action", "scope", "description", "createdAt", "updatedAt")
+SELECT gen_random_uuid()::text, c."code", c."resource", c."action", c."scope", c."description", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM (VALUES
+  ('task:read:personal', 'task', 'read',  'personal', 'Consulter ses taches personnelles (sans projet)'),
+  ('task:write:personal','task', 'write', 'personal', 'Creer, modifier et supprimer ses taches personnelles')
+) AS c("code", "resource", "action", "scope", "description")
+WHERE NOT EXISTS (SELECT 1 FROM "permissions" p WHERE p."code" = c."code");
+
+-- Les six roles d'equipe, ADMIN compris (son catalogue est une expansion).
+INSERT INTO "role_permissions" ("roleId", "permissionId")
+SELECT r."id", p."id"
+FROM "roles" r
+JOIN "permissions" p ON p."code" IN ('task:read:personal', 'task:write:personal')
+WHERE r."code" IN ('ADMIN', 'COMMUNICATION_MANAGER', 'PROJECT_MANAGER', 'DEVELOPER', 'DESIGNER', 'SALES')
+ON CONFLICT DO NOTHING;
+
+-- Le gerant communication recoit aussi son espace temps (`time:read/Write:own`)
+-- qu'il n'avait pas : le minuteur et la feuille de temps personnels en dependent.
+INSERT INTO "role_permissions" ("roleId", "permissionId")
+SELECT r."id", p."id"
+FROM "roles" r
+JOIN "permissions" p ON p."code" IN ('time:read:own', 'time:write:own')
+WHERE r."code" = 'COMMUNICATION_MANAGER'
+ON CONFLICT DO NOTHING;

@@ -82,9 +82,11 @@ function TimerSession({ children, ownerId, request }) {
   const refresh = useCallback(async () => {
     if (!ownerId) return null;
     try {
-      const raw = await request("/timer");
-      if (mounted.current) applySession(raw ?? null);
-      return raw ?? null;
+      // `request` renvoie l'enveloppe { data, meta } : c'est `data` qui porte
+      // la session (ou null). Ne pas déballer ici afficherait une session vide.
+      const { data } = await request("/timer");
+      if (mounted.current) applySession(data ?? null);
+      return data ?? null;
     } catch (caught) {
       if (mounted.current) {
         setLoading(false);
@@ -130,12 +132,12 @@ function TimerSession({ children, ownerId, request }) {
       setSaving(true);
       setError(null);
       try {
-        const raw = await request("/timer/start", { method: "POST", body: { taskId: task.id } });
+        const { data } = await request("/timer/start", { method: "POST", body: { taskId: task.id } });
         if (mounted.current) {
-          applySession(raw);
+          applySession(data);
           setSaving(false);
         }
-        return presentSession(raw);
+        return presentSession(data);
       } catch (caught) {
         if (mounted.current) {
           setError(messageOf(caught));
@@ -153,12 +155,12 @@ function TimerSession({ children, ownerId, request }) {
     setSaving(true);
     setError(null);
     try {
-      const raw = await request("/timer/pause", { method: "POST" });
+      const { data } = await request("/timer/pause", { method: "POST" });
       if (mounted.current) {
-        applySession(raw);
+        applySession(data);
         setSaving(false);
       }
-      return presentSession(raw);
+      return presentSession(data);
     } catch (caught) {
       if (mounted.current) {
         setError(messageOf(caught));
@@ -174,12 +176,12 @@ function TimerSession({ children, ownerId, request }) {
     setSaving(true);
     setError(null);
     try {
-      const raw = await request("/timer/resume", { method: "POST" });
+      const { data } = await request("/timer/resume", { method: "POST" });
       if (mounted.current) {
-        applySession(raw);
+        applySession(data);
         setSaving(false);
       }
-      return presentSession(raw);
+      return presentSession(data);
     } catch (caught) {
       if (mounted.current) {
         setError(messageOf(caught));
@@ -202,12 +204,12 @@ function TimerSession({ children, ownerId, request }) {
     setSaving(true);
     setError(null);
     try {
-      const raw = await request("/timer/stop", { method: "POST" });
+      const { data } = await request("/timer/stop", { method: "POST" });
       const result = {
-        savedMinutes: raw?.savedMinutes ?? 0,
+        savedMinutes: data?.savedMinutes ?? 0,
         remainingMinutes: 0,
-        overflowMinutes: raw?.overflowMinutes ?? 0,
-        timeEntryId: raw?.timeEntryId ?? null,
+        overflowMinutes: data?.overflowMinutes ?? 0,
+        timeEntryId: data?.timeEntryId ?? null,
       };
       if (mounted.current) {
         setTimer(null);
