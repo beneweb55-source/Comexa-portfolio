@@ -257,6 +257,20 @@ export class TaskQueryDto extends PaginationQueryDto {
   @MaxLength(64)
   assigneeId?: string;
 
+  /**
+   * Filtre « par personne », sur le CREATEUR de la tache.
+   *
+   * C'est un IDENTIFIANT DE COMPTE, jamais un nom : deux homonymes restent deux
+   * personnes, et un renommage ne deplace pas des taches. Combine en `AND` avec
+   * le projet et le perimetre du porteur (voir `taskFilterWhere`), il ne peut pas
+   * faire sortir la liste du projet courant.
+   */
+  @ApiPropertyOptional({ description: 'Taches creees par ce compte (identifiant unique).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  reporterId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
