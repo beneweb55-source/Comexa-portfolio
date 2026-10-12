@@ -14,19 +14,25 @@ tableaux de bord Render et Vercel.
 - Préparer Mailjet : clés API, et un expéditeur **validé** (`SMTP_FROM`).
 - Préparer le stockage S3-compatible (Backblaze B2 documenté) : bucket **créé à l'avance**.
 
-## 1. Base Neon : migrations
+## 1. Base Supabase : migrations
 
 Deux URL : `DIRECT_URL` (hôte **sans** `-pooler`) pour les migrations, `DATABASE_URL`
 (hôte `-pooler`) pour l'application.
 
+**Les migrations s'appliquent automatiquement au démarrage du conteneur** :
+le `CMD` du Dockerfile exécute `npx prisma migrate deploy` (idempotent, verrou
+advisory PostgreSQL) avant de lancer le serveur. Aucune intervention manuelle
+n'est nécessaire après un `autoDeploy` ; le geste ci-dessous reste possible en
+secours, depuis un poste de développement :
+
 ```bash
 cd backend
-DIRECT_URL='postgresql://…' npm run prisma:deploy   # migrations, geste délibéré
+DIRECT_URL='postgresql://…' npm run prisma:deploy
 ```
 
 Ne **pas** lancer `npm run db:seed` en production : le seed crée des comptes de démonstration
 à mot de passe connu et des partenaires fictifs. Les vraies données se saisissent ensuite via
-l'espace Admin.
+l'espace Admin. Pour créer le premier compte administrateur : `npm run admin:create`.
 
 > Point ouvert avant mise en production : vérifier que les rôles et permissions existent en
 > base sans passer par le seed de démonstration (un script « rôles seuls » est à prévoir si
