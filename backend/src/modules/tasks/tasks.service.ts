@@ -19,6 +19,7 @@ import { subjectOf } from '../projects/project-scope.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 import {
   AssignTaskDto,
+  CreatePersonalTaskDto,
   CreateTaskDto,
   TaskQueryDto,
   UpdateTaskDto,
@@ -27,6 +28,7 @@ import {
 import { TaskAccessService, type TaskRef } from './task-access.service.js';
 import {
   CLOSED_TASK_STATUSES,
+  PERSONAL_TASK_WRITE_CODE,
   TASK_READ_ORDER,
   TASK_WRITE_ORDER,
   canAttachSubTask,
@@ -34,6 +36,8 @@ import {
   hasOpenSubTasks,
   isClosedTaskStatus,
   isTaskEditable,
+  personalTaskShapeViolation,
+  taskReadWhereFor,
   taskScopeWhere,
 } from './task-rules.js';
 
@@ -63,6 +67,7 @@ import {
 const TASK_DETAIL_SELECT = {
   id: true,
   projectId: true,
+  isPersonal: true,
   milestoneId: true,
   parentTaskId: true,
   title: true,
@@ -175,8 +180,11 @@ export class TasksService {
 
     const where: Prisma.TaskWhereInput = {
       deletedAt: null,
-      project: { deletedAt: null },
-      AND: [{ assigneeId: policy.userId }, this.readWhere(policy), buildTaskFilters(query)],
+      // Une tache personnelle n'a pas de projet : le perimetre accepte soit un
+      // projet non supprime, soit l'absence de projet — et rien d'autre (une
+      // tache de projet supprime reste invisible).
+      OR: [{ project: { deletedAt: null } }, { projectId: null }],
+      AND: [{ assigneeId: policy.userId }, taskReadWhereFor(policy), buildTaskFilters(query)],
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -194,6 +202,7 @@ export class TasksService {
           completedAt: true,
           estimateMinutes: true,
           projectId: true,
+          isPersonal: true,
           parentTaskId: true,
           project: { select: { id: true, reference: true, name: true } },
           milestone: { select: { id: true, title: true } },
@@ -267,6 +276,7 @@ export class TasksService {
       const task = await tx.task.create({
         data: {
           projectId: project.id,
+          isPersonal: false,
           milestoneId: dto.milestoneId ?? null,
           parentTaskId: dto.parentTaskId ?? null,
           title: dto.title,
@@ -335,6 +345,69 @@ export class TasksService {
     return this.detail(created.id);
   }
 
+  /**
+   * Cree une TACHE PERSONNELLE : une liste de travail privee, sans projet ni
+   * client. `POST /me/tasks`.
+   *
+   * TROIS CHOIX, TOUS SECURITAIRES :
+   *
+   *  - ASSIGNE = RAPPORTEUR = PORTEUR. Une tache personnelle ne s'assigne a
+   *    personne d'autre, sans quoi elle retomberait dans le perimetre d'un
+   *    tiers sans que `personalTaskWhere` puisse la distinguer.
+   *  - PAS DE JALON, PAS DE PARENT, `isClientVisible: false` — et ce n'est pas
+   *    seulement une convention : `CreatePersonalTaskDto` ne porte MEME PAS ces
+   *    champs, donc rien ne peut les renseigner, fut-ce par erreur.
+   *  - AUCUNE ENTREE DE FIL D'ACTIVITE, AUCUNE NOTIFICATION. Le fil exige un
+   *    projet, et annoncer « X a cree une tache » revelerait l'existence d'un
+   *    espace qui se definit justement par sa discretion. L'audit, lui, trace
+   *    le geste : c'est une journalisation interne, invisible des autres
+   *    ecrans, et elle reste due.
+   */
+  async createPersonal(dto: CreatePersonalTaskDto, policy: AccessPolicy, meta: RequestContext) {
+    this.refuseClientSpace(policy);
+
+    // Le garde de route exige deja `task:write:personal` ; cette verification
+    // est la seconde barriere, comme `refuseClientSpace` : elle ne depend pas
+    // du decorateur, qui peut changer.
+    if (!policy.has(PERSONAL_TASK_WRITE_CODE)) {
+      throw AppException.forbidden(
+        'Creer une tache personnelle exige la permission task:write:personal.',
+      );
+    }
+
+    const created = await this.prisma.task.create({
+      data: {
+        projectId: null,
+        isPersonal: true,
+        milestoneId: null,
+        parentTaskId: null,
+        title: dto.title,
+        description: dto.description ?? null,
+        priority: dto.priority,
+        assigneeId: policy.userId,
+        reporterId: policy.userId,
+        estimateMinutes: dto.estimateMinutes ?? null,
+        startDate: dto.startDate ? new Date(dto.startDate) : null,
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        isClientVisible: false,
+        order: 0,
+      },
+      select: { id: true },
+    });
+
+    await this.audit.record({
+      actorId: policy.userId,
+      action: 'TASK_CREATED',
+      entityType: 'Task',
+      entityId: created.id,
+      after: { isPersonal: true, title: dto.title, assigneeId: policy.userId },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    return this.detail(created.id);
+  }
+
   async update(taskId: string, dto: UpdateTaskDto, policy: AccessPolicy, meta: RequestContext) {
     this.refuseClientSpace(policy);
     const before = await this.access.requireWritable(taskId, policy);
@@ -348,12 +421,26 @@ export class TasksService {
       );
     }
 
-    if (dto.milestoneId !== undefined && dto.milestoneId !== null) {
+    // Une tache personnelle refuse tout ce qui la rattacherait au collectif :
+    // jalon, visibilite client. `wide` n'y change rien — c'est une question de
+    // perimetre, pas de grade.
+    if (before.isPersonal) {
+      const shapeError = personalTaskShapeViolation(dto);
+      if (shapeError) {
+        throw AppException.unprocessable('PERSONAL_TASK_SHAPE_REFUSED', shapeError, { taskId });
+      }
+    }
+
+    if (dto.milestoneId !== undefined && dto.milestoneId !== null && before.projectId) {
       await this.requireMilestoneOfProject(dto.milestoneId, before.projectId);
     }
 
     const visibilityChanged =
       dto.isClientVisible !== undefined && dto.isClientVisible !== before.isClientVisible;
+    // Apres la garde ci-dessus, une tache personnelle ne peut plus porter de
+    // changement de visibilite : la variable locale ne sert qu'a le dire au
+    // compilateur (le `project` d'une tache personnelle est `null`).
+    const projectOfTask = before.project;
 
     await this.prisma.$transaction(async (tx) => {
       // Le statut clos est repris dans le `where` en plus du controle ci-dessus :
@@ -385,16 +472,16 @@ export class TasksService {
         );
       }
 
-      if (visibilityChanged) {
+      if (visibilityChanged && projectOfTask) {
         await this.activity.record(
           {
             type: ActivityType.NOTE,
             message: dto.isClientVisible
               ? `La tache « ${before.title} » est desormais partagee avec le client.`
               : `La tache « ${before.title} » n'est plus partagee avec le client.`,
-            projectId: before.projectId,
+            projectId: projectOfTask.id,
             taskId,
-            clientId: before.project.clientId,
+            clientId: projectOfTask.clientId,
             actorId: policy.userId,
             metadata: { field: 'isClientVisible', value: dto.isClientVisible ?? false },
             // TOUJOURS INTERNE, dans les deux sens. Quand on RETIRE une tache de
@@ -474,7 +561,10 @@ export class TasksService {
       }
     }
 
-    const recipients = this.recipientsOf(before, policy.userId);
+    // Une tache personnelle ne previent PERSONNE : son existence meme est une
+    // information privee. `projectOfTask` vaut alors `null` et coupe le fil.
+    const recipients = before.isPersonal ? [] : this.recipientsOf(before, policy.userId);
+    const projectOfTask = before.project;
     const completing = dto.status === TaskStatus.DONE;
 
     await this.prisma.$transaction(async (tx) => {
@@ -496,22 +586,26 @@ export class TasksService {
         );
       }
 
-      await this.activity.record(
-        {
-          type: completing ? ActivityType.TASK_COMPLETED : ActivityType.STATUS_CHANGE,
-          message: `Tache « ${before.title} » : ${before.status} → ${dto.status}.`,
-          projectId: before.projectId,
-          taskId,
-          clientId: before.project.clientId,
-          actorId: policy.userId,
-          metadata: { from: before.status, to: dto.status },
-          // La visibilite de l'entree SUIT celle de la tache, et c'est un choix
-          // conscient : une tache partagee avec le client voit son avancement
-          // partage aussi (c'est l'interet), une tache interne reste interne.
-          isClientVisible: before.isClientVisible,
-        },
-        tx,
-      );
+      // Une tache personnelle n'ecrit dans AUCUN fil de projet : l'entree
+      // exigerait un projet, et son existence est une information privee.
+      if (!before.isPersonal && projectOfTask) {
+        await this.activity.record(
+          {
+            type: completing ? ActivityType.TASK_COMPLETED : ActivityType.STATUS_CHANGE,
+            message: `Tache « ${before.title} » : ${before.status} → ${dto.status}.`,
+            projectId: projectOfTask.id,
+            taskId,
+            clientId: projectOfTask.clientId,
+            actorId: policy.userId,
+            metadata: { from: before.status, to: dto.status },
+            // La visibilite de l'entree SUIT celle de la tache, et c'est un choix
+            // conscient : une tache partagee avec le client voit son avancement
+            // partage aussi (c'est l'interet), une tache interne reste interne.
+            isClientVisible: before.isClientVisible,
+          },
+          tx,
+        );
+      }
 
       if (recipients.length > 0) {
         await this.notifications.notifyMany(
@@ -521,7 +615,9 @@ export class TasksService {
             title: completing
               ? `Tache terminee : ${before.title}`
               : `Tache « ${before.title} » : statut ${dto.status}`,
-            body: `Projet « ${before.project.name} »`,
+            // Pour une tache personnelle, `recipients` est vide : cette branche
+            // ne s'atteint jamais et le repli ne sert qu'au typage.
+            body: projectOfTask ? `Projet « ${projectOfTask.name} »` : 'Tache personnelle',
             link: `/taches/${taskId}`,
             entityType: 'Task',
             entityId: taskId,
@@ -560,6 +656,18 @@ export class TasksService {
     this.refuseClientSpace(policy);
     const before = await this.access.requireReadable(taskId, policy);
 
+    // Une tache personnelle ne s'assigne PAS, meme par un porteur de
+    // `task:assign:any` : changer son assigne la ferait apparaitre dans
+    // l'espace personnel d'un tiers (ou l'en ferait sortir), ce que
+    // `personalTaskWhere` est justement cense rendre impossible.
+    if (before.isPersonal) {
+      throw AppException.unprocessable(
+        'PERSONAL_TASK_NOT_ASSIGNABLE',
+        'Une tache personnelle appartient a son createur : elle ne s\'assigne pas.',
+        { taskId },
+      );
+    }
+
     if (dto.assigneeId === before.assigneeId) {
       throw AppException.conflict(
         'TASK_ASSIGNEE_UNCHANGED',
@@ -571,34 +679,40 @@ export class TasksService {
       await this.requireAssignableUser(dto.assigneeId);
     }
 
+    // Apres la garde ci-dessus, une tache personnelle ne passe pas : `project`
+    // est toujours present. La variable locale ne sert qu'a le prouver.
+    const projectOfTask = before.project;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({
         where: { id: taskId },
         data: { assigneeId: dto.assigneeId },
       });
 
-      if (dto.assigneeId) {
-        await ensureTeamMember(tx, before.projectId, dto.assigneeId);
+      if (dto.assigneeId && projectOfTask) {
+        await ensureTeamMember(tx, projectOfTask.id, dto.assigneeId);
       }
 
-      await this.activity.record(
-        {
-          type: ActivityType.NOTE,
-          message: dto.assigneeId
-            ? `Tache « ${before.title} » assignee.`
-            : `Tache « ${before.title} » desassignee.`,
-          projectId: before.projectId,
-          taskId,
-          clientId: before.project.clientId,
-          actorId: policy.userId,
-          metadata: { from: before.assigneeId, to: dto.assigneeId },
-          // Qui travaille sur quoi est de l'organisation interne. Une tache
-          // partageable reste partageable : c'est sa VISIBILITE qui est suivie,
-          // pas celle des personnes qui la traitent.
-          isClientVisible: false,
-        },
-        tx,
-      );
+      if (projectOfTask) {
+        await this.activity.record(
+          {
+            type: ActivityType.NOTE,
+            message: dto.assigneeId
+              ? `Tache « ${before.title} » assignee.`
+              : `Tache « ${before.title} » desassignee.`,
+            projectId: projectOfTask.id,
+            taskId,
+            clientId: projectOfTask.clientId,
+            actorId: policy.userId,
+            metadata: { from: before.assigneeId, to: dto.assigneeId },
+            // Qui travaille sur quoi est de l'organisation interne. Une tache
+            // partageable reste partageable : c'est sa VISIBILITE qui est suivie,
+            // pas celle des personnes qui la traitent.
+            isClientVisible: false,
+          },
+          tx,
+        );
+      }
 
       if (dto.assigneeId && dto.assigneeId !== policy.userId) {
         await this.notifications.notify(
@@ -606,7 +720,7 @@ export class TasksService {
           {
             type: NotificationType.TASK_ASSIGNED,
             title: `Nouvelle tache : ${before.title}`,
-            body: `Projet « ${before.project.name} »`,
+            body: projectOfTask ? `Projet « ${projectOfTask.name} »` : 'Tache',
             link: `/taches/${taskId}`,
             entityType: 'Task',
             entityId: taskId,
@@ -640,9 +754,28 @@ export class TasksService {
    * faire plutot que de laisser l'appelant deviner.
    */
   async remove(taskId: string, policy: AccessPolicy, meta: RequestContext) {
-    policy.requireScope('task', 'delete', ['any']);
     this.refuseClientSpace(policy);
-    const before = await this.access.requireReadable(taskId, policy);
+
+    // SANS `task:delete:any`, la seule chose que cette route ouvre est la tache
+    // PERSONNELLE du porteur, via `task:write:personal` (declare sur le garde).
+    // Un chef de projet garde le circuit classique ; un membre sans droit de
+    // suppression sur les projets peut tout de meme nettoyer son espace prive.
+    const personalOnly = !policy.has('task:delete:any');
+    let before: TaskRef;
+
+    if (personalOnly) {
+      if (!policy.has(PERSONAL_TASK_WRITE_CODE)) {
+        throw AppException.forbidden(
+          'Supprimer une tache exige la permission task:delete:any, ou task:write:personal pour vos propres taches personnelles.',
+        );
+      }
+      before = await this.access.requireOwnPersonal(taskId, policy);
+    } else {
+      policy.requireScope('task', 'delete', ['any']);
+      before = await this.access.requireReadable(taskId, policy);
+    }
+
+    const projectOfTask = before.project;
 
     const children = await this.prisma.task.count({
       where: { parentTaskId: taskId, deletedAt: null },
@@ -659,21 +792,25 @@ export class TasksService {
     await this.prisma.$transaction(async (tx) => {
       await tx.task.update({ where: { id: taskId }, data: { deletedAt: new Date() } });
 
-      await this.activity.record(
-        {
-          type: ActivityType.NOTE,
-          message: `Tache « ${before.title} » supprimee.`,
-          projectId: before.projectId,
-          clientId: before.project.clientId,
-          actorId: policy.userId,
-          metadata: { taskId },
-          // Une suppression est une operation interne : l'annoncer au client
-          // reviendrait a lui apprendre l'existence d'une tache qu'il ne voyait
-          // peut-etre pas.
-          isClientVisible: false,
-        },
-        tx,
-      );
+      // Une tache personnelle n'ecrit dans aucun fil de projet : voir
+      // `changeStatus` pour la raison complete.
+      if (!before.isPersonal && projectOfTask) {
+        await this.activity.record(
+          {
+            type: ActivityType.NOTE,
+            message: `Tache « ${before.title} » supprimee.`,
+            projectId: projectOfTask.id,
+            clientId: projectOfTask.clientId,
+            actorId: policy.userId,
+            metadata: { taskId },
+            // Une suppression est une operation interne : l'annoncer au client
+            // reviendrait a lui apprendre l'existence d'une tache qu'il ne voyait
+            // peut-etre pas.
+            isClientVisible: false,
+          },
+          tx,
+        );
+      }
     });
 
     await this.audit.record({
@@ -718,7 +855,7 @@ export class TasksService {
 
   /** Qui doit etre prevenu d'un changement de statut : l'assigne, le rapporteur, le responsable. */
   private recipientsOf(task: TaskRef, actorId: string): string[] {
-    const candidates = [task.assigneeId, task.reporterId, task.project.managerId];
+    const candidates = [task.assigneeId, task.reporterId, task.project?.managerId ?? null];
     return [...new Set(candidates.filter((id): id is string => Boolean(id) && id !== actorId))];
   }
 
@@ -832,6 +969,8 @@ function buildTaskFilters(query: TaskQueryDto): Prisma.TaskWhereInput {
   if (query.milestoneId) filters.milestoneId = query.milestoneId;
   // `null` en Prisma signifie « IS NULL » : uniquement les taches sans parent.
   if (query.rootOnly) filters.parentTaskId = null;
+  // `?personalOnly=true` : l'espace personnel du porteur (voir `listMine`).
+  if (query.personalOnly) filters.isPersonal = true;
   if (query.search) filters.title = { contains: query.search, mode: 'insensitive' };
 
   return filters;

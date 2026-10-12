@@ -31,6 +31,7 @@ import { RoleModule } from './modules/roles/role.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
 import { TimeEntriesModule } from './modules/time-entries/time-entries.module.js';
+import { TimerModule } from './modules/timer/timer.module.js';
 import { DailyReportsModule } from './modules/daily-reports/daily-reports.module.js';
 import { UserModule } from './modules/users/user.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -253,6 +254,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     TasksModule,
     MilestonesModule,
     TimeEntriesModule,
+    TimerModule,
     DailyReportsModule,
 
     /**

@@ -2,11 +2,12 @@ import {
   SCOPE_ANY,
   SCOPE_ASSIGNED,
   SCOPE_OWN,
+  type AccessPolicy,
   type ScopeName,
 } from '../../common/auth/principal.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { TaskStatus } from '../../generated/prisma/enums.js';
-import type { ScopeSubject } from '../projects/project-scope.js';
+import { subjectOf, type ScopeSubject } from '../projects/project-scope.js';
 
 /**
  * REGLES DES TACHES — fonctions PURES.
@@ -84,6 +85,105 @@ export function taskWriteScopeWhere(
     default:
       return MATCH_NOTHING;
   }
+}
+
+// -----------------------------------------------------------------------------
+// TACHES PERSONNELLES : perimetres composes
+// -----------------------------------------------------------------------------
+
+/**
+ * UNE TACHE PERSONNELLE N'APPARTIENT QU'A SON PROPRIETAIRE.
+ *
+ * Le filtre ci-dessous est la traduction directe de cette regle : personnelle,
+ * sans projet, et assignee au porteur (a la creation, assigne = rapporteur =
+ * createur — voir `TasksService.createPersonal`). Aucun scope `any` ne l'ouvre :
+ * un chef de projet detenant `task:read:any` voit toutes les taches DE PROJET,
+ * pas les taches personnelles de ses collegues. C'est la distinction exigee
+ * entre travail collectif et espace personnel.
+ */
+export function personalTaskWhere(userId: string): Prisma.TaskWhereInput {
+  return { isPersonal: true, projectId: null, assigneeId: userId };
+}
+
+/** Codes qui ouvrent l'espace personnel, en lecture puis en ecriture. */
+export const PERSONAL_TASK_READ_CODE = 'task:read:personal';
+export const PERSONAL_TASK_WRITE_CODE = 'task:write:personal';
+
+/**
+ * PERIMETRE DE LECTURE COMPLET : scopes classiques ET espace personnel.
+ *
+ * Pourquoi une composition et non un scope de plus : `task:read:personal` ne
+ * suit pas la meme grammaire que `any`/`assigned`/`own` — il ne designe pas une
+ * partie des taches de projet, mais un AUTRE ensemble de taches. Le melanger a
+ * `TASK_READ_ORDER` ferait croire qu'il est « plus etroit que own », alors
+ * qu'il est simplement ailleurs.
+ *
+ * `any` EXCLUT LES TACHES PERSONNELLES DES AUTRES : sans ce retrait, ajouter
+ * une tache personnelle ferait entrer la vie privee d'un membre dans le tableau
+ * de chaque chef de projet.
+ */
+export function taskReadWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
+  const scope = policy.widestScope('task', 'read', TASK_READ_ORDER);
+  const standard: Prisma.TaskWhereInput | null =
+    scope === null
+      ? null
+      : scope === SCOPE_ANY
+        ? { AND: [{ isPersonal: false }, taskScopeWhere(scope, subjectOf(policy))] }
+        : taskScopeWhere(scope, subjectOf(policy));
+
+  const personal: Prisma.TaskWhereInput | null = policy.has(PERSONAL_TASK_READ_CODE)
+    ? personalTaskWhere(policy.userId)
+    : null;
+
+  if (standard && personal) return { OR: [standard, personal] };
+  if (standard) return standard;
+  if (personal) return personal;
+  return MATCH_NOTHING;
+}
+
+/**
+ * PERIMETRE D'ECRITURE COMPLET, meme logique que la lecture.
+ *
+ * `task:write:own` couvre deja les taches personnelles du porteur (elles lui
+ * sont assignees) : le branche personnelle ci-dessous sert donc surtout aux
+ * roles qui n'ont AUCUNE tache de projet (ex. gerant communication) mais un
+ * espace personnel. `any` reste exclu des taches personnelles d'autrui.
+ */
+export function taskWriteWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
+  const scope = policy.widestScope('task', 'write', TASK_WRITE_ORDER);
+  const standard: Prisma.TaskWhereInput | null =
+    scope === null
+      ? null
+      : scope === SCOPE_ANY
+        ? { AND: [{ isPersonal: false }, taskWriteScopeWhere(scope, subjectOf(policy))] }
+        : taskWriteScopeWhere(scope, subjectOf(policy));
+
+  const personal: Prisma.TaskWhereInput | null = policy.has(PERSONAL_TASK_WRITE_CODE)
+    ? personalTaskWhere(policy.userId)
+    : null;
+
+  if (standard && personal) return { OR: [standard, personal] };
+  if (standard) return standard;
+  if (personal) return personal;
+  return MATCH_NOTHING;
+}
+
+/**
+ * Une tache personnelle refuse ce qui la relierait au collectif : jalon,
+ * parent, visibilite client. Renvoie une phrase lisible, ou `null` si la forme
+ * convient — meme contrat que `minutesViolation` et `passwordPolicyViolation`.
+ */
+export function personalTaskShapeViolation(input: {
+  readonly milestoneId?: string | null;
+  readonly parentTaskId?: string | null;
+  readonly isClientVisible?: boolean | null;
+  readonly assigneeId?: string | null;
+}): string | null {
+  if (input.milestoneId) return 'Une tache personnelle ne peut pas porter de jalon.';
+  if (input.parentTaskId) return 'Une tache personnelle ne peut pas etre une sous-tache.';
+  if (input.isClientVisible) return 'Une tache personnelle n’est jamais visible d’un client.';
+  if (input.assigneeId) return 'Une tache personnelle appartient a son createur : elle ne s’assigne pas.';
+  return null;
 }
 
 /**

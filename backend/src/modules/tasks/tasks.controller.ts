@@ -9,6 +9,7 @@ import {
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
 import {
   AssignTaskDto,
+  CreatePersonalTaskDto,
   CreateTaskDto,
   TaskQueryDto,
   UpdateTaskDto,
@@ -69,21 +70,50 @@ export class TasksController {
    * l'ordre reste la precaution qui evite de le decouvrir a l'execution.
    */
   @Get('me/tasks')
-  @RequireAnyPermission('task:read:any', 'task:read:assigned', 'task:read:own')
+  @RequireAnyPermission(
+    'task:read:any',
+    'task:read:assigned',
+    'task:read:own',
+    'task:read:personal',
+  )
   @ApiOperation({ summary: 'Taches assignees au porteur, tous projets confondus.' })
   async listMine(@Query() query: TaskQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.tasks.listMine(query, new AccessPolicy(user));
   }
 
+  /**
+   * Cree une tache PERSONNELLE : espace prive, sans projet ni client.
+   *
+   * `task:write:personal` SEUL ouvre cette route, et le service le re-verifie.
+   * Les scopes classiques d'ecriture (`own`, `any`) parlent des taches DE
+   * PROJET : ils ne donnent aucun droit ici, et cette route ne donne aucun
+   * droit sur elles — la separation des deux espaces tient des deux cotes.
+   */
+  @Post('me/tasks')
+  @RequirePermissions('task:write:personal')
+  @ApiOperation({ summary: 'Creer une tache personnelle (sans projet ni client).' })
+  async createPersonal(
+    @Body() dto: CreatePersonalTaskDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @RequestMeta() meta: RequestContext,
+  ) {
+    return this.tasks.createPersonal(dto, new AccessPolicy(user), meta);
+  }
+
   @Get('tasks/:id')
-  @RequireAnyPermission('task:read:any', 'task:read:assigned', 'task:read:own')
+  @RequireAnyPermission(
+    'task:read:any',
+    'task:read:assigned',
+    'task:read:own',
+    'task:read:personal',
+  )
   @ApiOperation({ summary: "Detail d'une tache, sous-taches et temps saisi compris." })
   async getOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.tasks.getOne(id, new AccessPolicy(user));
   }
 
   @Patch('tasks/:id')
-  @RequireAnyPermission('task:write:any', 'task:write:own')
+  @RequireAnyPermission('task:write:any', 'task:write:own', 'task:write:personal')
   @ApiOperation({ summary: 'Modifier une tache (titre, echeance, estimation, visibilite).' })
   async update(
     @Param('id') id: string,
@@ -95,7 +125,7 @@ export class TasksController {
   }
 
   @Patch('tasks/:id/status')
-  @RequireAnyPermission('task:write:any', 'task:write:own')
+  @RequireAnyPermission('task:write:any', 'task:write:own', 'task:write:personal')
   @ApiOperation({ summary: 'Changer le statut (transitions controlees, sous-taches verifiees).' })
   async changeStatus(
     @Param('id') id: string,
@@ -127,8 +157,13 @@ export class TasksController {
     return this.tasks.assign(id, dto, new AccessPolicy(user), meta);
   }
 
+  /**
+   * Suppression. `task:delete:any` pour les taches de projet ; a defaut,
+   * `task:write:personal` ouvre la route UNIQUEMENT pour les taches
+   * personnelles du porteur — le service (`TasksService.remove`) trie.
+   */
   @Delete('tasks/:id')
-  @RequirePermissions('task:delete:any')
+  @RequireAnyPermission('task:delete:any', 'task:write:personal')
   @ApiOperation({ summary: 'Supprimer une tache (suppression logique).' })
   async remove(
     @Param('id') id: string,

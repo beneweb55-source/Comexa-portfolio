@@ -4,13 +4,7 @@ import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { TaskStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
-import { subjectOf } from '../projects/project-scope.js';
-import {
-  TASK_READ_ORDER,
-  TASK_WRITE_ORDER,
-  taskScopeWhere,
-  taskWriteScopeWhere,
-} from './task-rules.js';
+import { taskReadWhereFor, taskWriteWhereFor } from './task-rules.js';
 
 /**
  * ACCES A UNE TACHE, EN UN SEUL ENDROIT.
@@ -42,30 +36,58 @@ export class TaskAccessService {
 
   /** La tache, si le porteur peut la LIRE. Sinon : 404. */
   async requireReadable(taskId: string, policy: AccessPolicy): Promise<TaskRef> {
-    const scope = policy.requireScope('task', 'read', TASK_READ_ORDER);
-    return this.load(taskId, taskScopeWhere(scope, subjectOf(policy)));
+    return this.load(taskId, taskReadWhereFor(policy));
   }
 
   /** La tache, si le porteur peut la MODIFIER. Sinon : 404. */
   async requireWritable(taskId: string, policy: AccessPolicy): Promise<TaskRef> {
-    const scope = policy.requireScope('task', 'write', TASK_WRITE_ORDER);
-    return this.load(taskId, taskWriteScopeWhere(scope, subjectOf(policy)));
+    return this.load(taskId, taskWriteWhereFor(policy));
+  }
+
+  /**
+   * La tache PERSONNELLE du porteur, si elle existe. Sinon : 404.
+   *
+   * Reservee aux routes dont la seule ouverture est « la mienne » — aujourd'hui
+   * `DELETE /tasks/:id` via `task:write:personal`. Elle n'utilise pas les
+   * scopes classiques : un porteur de `task:read:any` ne doit PAS passer par
+   * ici pour atteindre l'espace prive d'un collegue, et un porteur sans scope
+   * de lecture de projet (ex. gerant communication) doit pourtant pouvoir
+   * supprimer ses propres taches personnelles.
+   */
+  async requireOwnPersonal(taskId: string, policy: AccessPolicy): Promise<TaskRef> {
+    const task = await this.prisma.task.findFirst({
+      where: {
+        id: taskId,
+        deletedAt: null,
+        isPersonal: true,
+        projectId: null,
+        assigneeId: policy.userId,
+      },
+      select: TASK_REF_SELECT,
+    });
+
+    if (!task) {
+      throw AppException.notFound('TASK_NOT_FOUND', 'Cette tache est introuvable.');
+    }
+
+    return task;
   }
 
   /**
    * 404 ET NON 403, meme raison que pour les projets : un 403 confirmerait que
    * l'identifiant correspond a une tache existante. Voir
    * `ProjectAccessService.requireReadable`.
+   *
+   * `OR: [{ project non supprime }, { projectId: null }]` : une tache
+   * PERSONNELLE n'a pas de projet, et ne doit pas disparaitre du perimetre pour
+   * autant ; une tache de projet dont le projet est supprime, si.
    */
   private async load(taskId: string, scopeWhere: Prisma.TaskWhereInput): Promise<TaskRef> {
     const task = await this.prisma.task.findFirst({
       where: {
         id: taskId,
         deletedAt: null,
-        // Une tache d'un projet supprime ne doit plus sortir. Le controle est
-        // fait par la relation et non par une seconde requete : une requete
-        // separee laisserait une fenetre entre les deux.
-        project: { deletedAt: null },
+        OR: [{ project: { deletedAt: null } }, { projectId: null }],
         AND: [scopeWhere],
       },
       select: TASK_REF_SELECT,
@@ -84,17 +106,21 @@ export interface TaskRef {
   readonly id: string;
   readonly title: string;
   readonly status: TaskStatus;
-  readonly projectId: string;
+  /** `null` pour une tache personnelle. */
+  readonly projectId: string | null;
+  /** Vrai pour une tache personnelle : privee, sans projet ni client. */
+  readonly isPersonal: boolean;
   readonly assigneeId: string | null;
   readonly reporterId: string | null;
   readonly milestoneId: string | null;
   readonly isClientVisible: boolean;
+  /** `null` pour une tache personnelle. */
   readonly project: {
     readonly id: string;
     readonly name: string;
     readonly managerId: string | null;
     readonly clientId: string;
-  };
+  } | null;
 }
 
 const TASK_REF_SELECT = {
@@ -102,6 +128,7 @@ const TASK_REF_SELECT = {
   title: true,
   status: true,
   projectId: true,
+  isPersonal: true,
   assigneeId: true,
   reporterId: true,
   milestoneId: true,

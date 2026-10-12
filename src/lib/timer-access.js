@@ -10,7 +10,13 @@ import { can } from "@/lib/access";
  * Le serveur reste la référence : ces tests ne servent qu'à l'affichage.
  */
 export function canReadOwnTasks(user) {
-  return can(user, "task:read:any") || can(user, "task:read:assigned") || can(user, "task:read:own");
+  return (
+    can(user, "task:read:any") ||
+    can(user, "task:read:assigned") ||
+    can(user, "task:read:own") ||
+    // Espace personnel : sans projet ni assignation, mais chronométrable quand même.
+    can(user, "task:read:personal")
+  );
 }
 
 export function canLogTime(user) {
@@ -22,5 +28,10 @@ export function canUseTimer(user) {
 
   // time:write:own asks the backend to requireWritable(task), not merely to
   // requireReadable(task). Do not offer a timer whose first save would 404.
-  return can(user, "time:write:any") || can(user, "task:write:any") || can(user, "task:write:own");
+  return (
+    can(user, "time:write:any") ||
+    can(user, "task:write:any") ||
+    can(user, "task:write:own") ||
+    can(user, "task:write:personal")
+  );
 }

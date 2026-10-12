@@ -1039,15 +1039,15 @@ qui le suit.
 
 ## 10. Inventaire des routes
 
-Les **165 routes** que l'application enregistre, relevees une par une dans les
-`src/**/*.controller.ts` (28 controleurs). C'est la piece a opposer au reste de ce
+Les **171 routes** que l'application enregistre, relevees une par une dans les
+`src/**/*.controller.ts` (29 controleurs). C'est la piece a opposer au reste de ce
 document : une route absente d'ici n'existe pas, et une route presente existe.
 
 Trois colonnes, trois lectures :
 
 - **Route** : chemin relatif au prefixe global, comme partout dans ce document.
   Un `@Get()` sans argument sous un prefixe donne le prefixe seul (`GET /clients`) :
-  Nest retire la barre oblique finale. Les 165 entrees sont listees par fichier, et
+  Nest retire la barre oblique finale. Les 171 entrees sont listees par fichier, et
   le fichier est le controleur — donc la route y est, et c'est la source.
 - **Permission** : `publique` (aucun jeton n'est exige), `jeton seul` (route
   d'authentification : le jeton suffit, aucune permission n'est lue), sinon les
@@ -1337,12 +1337,29 @@ Trois colonnes, trois lectures :
 |---|---|---|
 | `GET /projects/:projectId/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
 | `POST /projects/:projectId/tasks` | `task:write:any` **ou** `task:write:own` | 201 |
-| `GET /me/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
-| `GET /tasks/:id` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
-| `PATCH /tasks/:id` | `task:write:any` **ou** `task:write:own` | 200 |
-| `PATCH /tasks/:id/status` | `task:write:any` **ou** `task:write:own` | 200 |
+| `GET /me/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` **ou** `task:read:personal` | 200 |
+| `POST /me/tasks` | `task:write:personal` | 201 |
+| `GET /tasks/:id` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` **ou** `task:read:personal` | 200 |
+| `PATCH /tasks/:id` | `task:write:any` **ou** `task:write:own` **ou** `task:write:personal` | 200 |
+| `PATCH /tasks/:id/status` | `task:write:any` **ou** `task:write:own` **ou** `task:write:personal` | 200 |
 | `PATCH /tasks/:id/assign` | `task:assign:any` | 200 |
-| `DELETE /tasks/:id` | `task:delete:any` | 200 |
+| `DELETE /tasks/:id` | `task:delete:any` **ou** `task:write:personal` (tache personnelle du porteur seulement) | 200 |
+
+#### `timer/timer.controller.ts` — minuteur serveur (2026-10)
+
+Une seule session active par compte (index unique partiel en base ; le second
+`start` recoit 409 `TIMER_ALREADY_ACTIVE`). `POST /timer/stop` cree la saisie de
+temps dans la MEME transaction que l'arret ; `spentOn` = jour UTC du demarrage ;
+`billable: false` sur tache personnelle ; plafond 24 h signale par
+`overflowMinutes`.
+
+| Route | Permission | Succes |
+|---|---|---|
+| `GET /timer` | `time:write:own` **ou** `time:write:any` | 200 |
+| `POST /timer/start` | `time:write:own` **ou** `time:write:any` | 201 |
+| `POST /timer/pause` | `time:write:own` **ou** `time:write:any` | 201 |
+| `POST /timer/resume` | `time:write:own` **ou** `time:write:any` | 201 |
+| `POST /timer/stop` | `time:write:own` **ou** `time:write:any` | 201 |
 
 #### `time-entries/time-entries.controller.ts`
 

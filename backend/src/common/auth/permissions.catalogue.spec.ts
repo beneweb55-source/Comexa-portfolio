@@ -10,7 +10,7 @@ import {
   ROLE_PERMISSIONS,
   parsePermissionCode,
 } from './permissions.catalogue.js';
-import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_CLIENT, SCOPE_OWN } from './principal.js';
+import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_CLIENT, SCOPE_OWN, SCOPE_PERSONAL } from './principal.js';
 
 /**
  * LE CATALOGUE CONTRE SON USAGE REEL.
@@ -203,6 +203,7 @@ const SCOPE_TOKENS: Record<string, string> = {
   SCOPE_OWN,
   SCOPE_ASSIGNED,
   SCOPE_CLIENT,
+  SCOPE_PERSONAL,
 };
 
 /**
@@ -244,12 +245,22 @@ const SCOPE_TOKENS: Record<string, string> = {
  * une portee inconnue, la question n'est pas « comment le faire passer » mais
  * « cette portee filtre-t-elle des lignes, ou separe-t-elle une capacite ? » —
  * et la reponse determine si elle doit rejoindre `principal.ts`.
+ *
+ * SEPTIEME PORTEE, `personal` (2026-10) : DECISION PRISE, ET VOICI POURQUOI.
+ * `task:read:personal` / `task:write:personal` FILTRENT DES LIGNES — les taches
+ * personnelles du porteur, sans projet ni client. C'est donc un SCOPE_PERSONAL
+ * de `principal.ts`, au meme titre que `own`. Mais il ne prend place dans aucun
+ * ordre de precedence : `any` n'ouvre PAS l'espace personnel des autres, et la
+ * composition se fait par OU dans `task-rules.ts` (`taskReadWhereFor` /
+ * `taskWriteWhereFor`). Ce n'est pas une capacite de plus dans la grammaire
+ * existante : c'est un ensemble de lignes a part, et la grammaire le dit.
  */
 const DECLARED_SCOPES = [
   SCOPE_ANY,
   SCOPE_OWN,
   SCOPE_ASSIGNED,
   SCOPE_CLIENT,
+  SCOPE_PERSONAL,
   'team',
   'status',
 ] as const;

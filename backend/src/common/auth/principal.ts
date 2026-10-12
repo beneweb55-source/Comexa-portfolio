@@ -33,6 +33,16 @@ export const SCOPE_ANY = 'any';
 export const SCOPE_OWN = 'own';
 export const SCOPE_ASSIGNED = 'assigned';
 export const SCOPE_CLIENT = 'client';
+/**
+ * La portee PERSONNELLE : l'espace prive d'un membre, hors de tout projet.
+ *
+ * C'est une portee qui FILTRE DES LIGNES (les taches personnelles du porteur),
+ * comme `own` et `assigned` — d'ou sa place ici. Mais elle ne prend place dans
+ * AUCUN ordre de precedence (`widestScope`) : elle designe un AUTRE ensemble de
+ * lignes que `any`/`assigned`/`own`, pas un sous-ensemble. Les perimetres composes
+ * qui la melangent s'ecrivent une seule fois, dans `task-rules.ts`.
+ */
+export const SCOPE_PERSONAL = 'personal';
 
 export type ScopeName = string;
 

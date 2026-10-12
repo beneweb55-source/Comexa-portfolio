@@ -63,7 +63,8 @@ interface TimeEntryRef {
   readonly id: string;
   readonly userId: string;
   readonly taskId: string | null;
-  readonly projectId: string;
+  /** `null` pour une saisie sur tache PERSONNELLE : elle ne releve d'aucun projet. */
+  readonly projectId: string | null;
   readonly minutes: number;
   readonly spentOn: Date;
   readonly description: string | null;
@@ -178,37 +179,50 @@ export class TimeEntriesService {
     const spentOn = normalizeWorkDay(dto.spentOn ? new Date(dto.spentOn) : new Date());
     this.refuseFutureDay(spentOn);
 
+    // Le temps d'une tache PERSONNELLE n'est JAMAIS facturable : il n'y a ni
+    // projet ni client a facturer. Le forcer ici — plutot que de faire confiance
+    // a l'appelant — evite qu'une saisie personnelle gonfle un jour un total
+    // facturable.
+    const billable = task.isPersonal ? false : dto.billable ?? true;
+    const projectOfTask = task.project;
+
     const created = await this.prisma.$transaction(async (tx) => {
       const entry = await tx.timeEntry.create({
         data: {
-          // LE PROJET VIENT DE LA TACHE. Voir l'en-tete du fichier.
+          // LE PROJET VIENT DE LA TACHE. Voir l'en-tete du fichier. `null` pour
+          // une tache personnelle : la saisie existe, hors de tout projet.
           projectId: task.projectId,
           taskId: task.id,
           userId,
           spentOn,
           minutes: dto.minutes,
           description: dto.description ?? null,
-          billable: dto.billable ?? true,
+          billable,
         },
         select: { id: true },
       });
 
-      await this.activity.record(
-        {
-          type: ActivityType.TIME_LOGGED,
-          message: `${formatMinutes(dto.minutes)} saisi(s) sur « ${task.title} ».`,
-          projectId: task.projectId,
-          taskId: task.id,
-          clientId: task.project.clientId,
-          actorId: policy.userId,
-          metadata: { timeEntryId: entry.id, minutes: dto.minutes, spentOn: spentOn.toISOString() },
-          // INTERNE. Le temps saisi alimente la facturation : c'est une donnee
-          // d'agence. La publier dans l'espace client reviendrait a montrer le
-          // cout du travail en meme temps que son avancement.
-          isClientVisible: false,
-        },
-        tx,
-      );
+      // Pas de projet, pas de fil : une saisie personnelle ne s'annonce nulle
+      // part (meme raison que pour les taches personnelles — voir
+      // `TasksService.changeStatus`).
+      if (projectOfTask && task.projectId) {
+        await this.activity.record(
+          {
+            type: ActivityType.TIME_LOGGED,
+            message: `${formatMinutes(dto.minutes)} saisi(s) sur « ${task.title} ».`,
+            projectId: task.projectId,
+            taskId: task.id,
+            clientId: projectOfTask.clientId,
+            actorId: policy.userId,
+            metadata: { timeEntryId: entry.id, minutes: dto.minutes, spentOn: spentOn.toISOString() },
+            // INTERNE. Le temps saisi alimente la facturation : c'est une donnee
+            // d'agence. La publier dans l'espace client reviendrait a montrer le
+            // cout du travail en meme temps que son avancement.
+            isClientVisible: false,
+          },
+          tx,
+        );
+      }
 
       return entry;
     });

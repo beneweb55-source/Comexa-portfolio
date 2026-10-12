@@ -272,7 +272,7 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
  * La permission est vérifiée par l'appelant : cette tuile n'est rendue que si l'utilisateur peut s'en servir.
  */
 export function TimerTile({ tasks, onTaskPageChange, className = "" }) {
-  const { timer, elapsedSeconds, start, stop, saving, error } = useTimer();
+  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
   const list = (tasks.items ?? []).filter((t) => t.status !== "DONE" && t.status !== "CANCELLED");
 
   return (
@@ -281,18 +281,39 @@ export function TimerTile({ tasks, onTaskPageChange, className = "" }) {
         <GlowIcon tone={timer ? "mint" : "sky"}><Icon name={timer ? "clock" : "bolt"} /></GlowIcon>
         <div>
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Minuteur</h3>
-          <p className="cx-dashboard__muted">{timer ? "Enregistrement en cours" : "Aucun minuteur actif"}</p>
+          <p className="cx-dashboard__muted">
+            {!timer
+              ? "Aucun minuteur actif"
+              : timer.status === "PAUSED"
+                ? "En pause"
+                : "Enregistrement en cours"}
+          </p>
         </div>
       </div>
 
       {timer ? (
         <>
           <p className="cx-dashboard__timer-value">{formatElapsed(elapsedSeconds)}</p>
-          <p className="truncate text-[13.5px] text-[#526980]" title={timer.title}>{timer.title}</p>
-          <button type="button" onClick={() => stop()} disabled={saving} className="cx-dashboard__timer-stop">
-            <Icon name="stop" className="h-4 w-4" />
-            {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-          </button>
+          <p className="truncate text-[13.5px] text-[#526980]" title={timer.title}>
+            {timer.title}{timer.taskIsPersonal ? " · Personnel" : ""}
+          </p>
+          <div className="flex gap-2">
+            {timer.status === "PAUSED" ? (
+              <button type="button" onClick={() => resume()} disabled={saving} className="cx-dashboard__task-button">
+                <Icon name="play" className="h-3.5 w-3.5" />
+                Reprendre
+              </button>
+            ) : (
+              <button type="button" onClick={() => pause()} disabled={saving} className="cx-dashboard__task-button">
+                <Icon name="pause" className="h-3.5 w-3.5" />
+                Pause
+              </button>
+            )}
+            <button type="button" onClick={() => stop()} disabled={saving} className="cx-dashboard__timer-stop">
+              <Icon name="stop" className="h-4 w-4" />
+              {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
+            </button>
+          </div>
         </>
       ) : (
         <>
