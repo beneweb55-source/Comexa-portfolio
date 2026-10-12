@@ -247,9 +247,10 @@ export class AuthController {
   async register(
     @Body() dto: RegisterDto,
     @Session() meta: SessionMeta,
-  ): Promise<{ accepted: true }> {
+  ): Promise<{ accepted: true; verificationRequired: boolean }> {
     await this.auth.register(dto, meta);
-    return { accepted: true };
+    // Indicateur global (pas par compte) : le front choisit le bon message.
+    return { accepted: true, verificationRequired: this.auth.emailVerificationRequired };
   }
 
   @Public()

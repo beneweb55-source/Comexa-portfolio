@@ -347,6 +347,18 @@ export class AuthService {
    * derriere elle un lien encore valable une heure, et une boite mail
    * compromise offrirait autant de portes d'entree.
    */
+  /**
+   * Verification e-mail activee ? Lu a chaque appel (cout negligeable) pour
+   * qu'un changement de variable soit pris en compte au redemarrage.
+   * Valeur inconnue : on garde la verification (securite par defaut).
+   */
+  get emailVerificationRequired(): boolean {
+    const raw = (this.config.get<string>('EMAIL_VERIFICATION_REQUIRED') ?? 'true')
+      .trim()
+      .toLowerCase();
+    return !['false', '0', 'no', 'off'].includes(raw);
+  }
+
   private get emailVerificationTtlMs(): number {
     return parseDurationMs(
       this.config.get<string>('EMAIL_VERIFICATION_TTL') ?? '24h',
@@ -388,7 +400,16 @@ export class AuthService {
       // Pas de hachage utile ici, mais le meme cout que pour un compte nouveau.
       await hashPassword(generateOpaqueToken());
       if (existing.status === UserStatus.INVITED) {
-        await this.issueEmailVerification(existing.id, existing.email, existing.firstName);
+        if (this.emailVerificationRequired) {
+          await this.issueEmailVerification(existing.id, existing.email, existing.firstName);
+        } else {
+          // Veille : un compte reste bloque en INVITED apres une inscription
+          // faite pendant une panne d'envoi. On l'active pour de bon.
+          await this.prisma.user.updateMany({
+            where: { id: existing.id, status: UserStatus.INVITED },
+            data: { status: UserStatus.ACTIVE, isEmailVerified: true, emailVerifiedAt: new Date() },
+          });
+        }
       }
       return;
     }
@@ -404,7 +425,10 @@ export class AuthService {
           firstName: dto.firstName.trim(),
           lastName: dto.lastName.trim(),
           country,
-          status: UserStatus.INVITED,
+          // Veille de la verification : compte actif immediatement.
+          ...(this.emailVerificationRequired
+            ? { status: UserStatus.INVITED }
+            : { status: UserStatus.ACTIVE, isEmailVerified: true, emailVerifiedAt: new Date() }),
         },
         select: { id: true, email: true, firstName: true },
       });
@@ -415,14 +439,19 @@ export class AuthService {
       throw error;
     }
 
-    await this.issueEmailVerification(created.id, created.email, created.firstName);
+    if (this.emailVerificationRequired) {
+      await this.issueEmailVerification(created.id, created.email, created.firstName);
+    }
 
     await this.audit.record({
       actorId: created.id,
       action: 'USER_REGISTERED',
       entityType: 'User',
       entityId: created.id,
-      after: { status: UserStatus.INVITED, country },
+      after: {
+        status: this.emailVerificationRequired ? UserStatus.INVITED : UserStatus.ACTIVE,
+        country,
+      },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });

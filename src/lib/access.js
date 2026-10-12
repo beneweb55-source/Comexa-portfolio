@@ -59,7 +59,7 @@ const TEAM_ROUTE_ACCESS = [
   ["/espace-equipe/projets", ["project:read:any", "project:read:own", "project:read:assigned"]],
   ["/espace-equipe/clients", ["client:read:any"]],
   ["/espace-equipe/taches", ["task:read:any", "task:read:assigned", "task:read:own", "task:read:personal", "task:write:any", "task:write:own", "task:write:personal"]],
-  ["/espace-equipe/calendrier", ["task:read:any", "task:read:assigned", "task:read:own", "project:read:any", "project:read:assigned", "project:read:own"]],
+  ["/espace-equipe/calendrier", ["task:read:any", "task:read:assigned", "task:read:own", "project:read:any", "project:read:assigned", "project:read:own", "calendar:read:own", "calendar:read:team"]],
   ["/espace-equipe/rapports-journaliers", ["time:write:own", "time:read:any"]],
   ["/espace-equipe/analytique", ["report:read:any"]],
   ["/espace-equipe/temps", ["time:write:own", "time:read:own", "time:read:any"]],

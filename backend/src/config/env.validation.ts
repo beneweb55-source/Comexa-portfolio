@@ -157,6 +157,17 @@ export class EnvironmentVariables {
   EMAIL_VERIFICATION_TTL = '24h';
 
   /**
+   * Interrupteur de la verification d'adresse e-mail a l'inscription.
+   * `true` (defaut) : le compte reste INVITED tant que le lien n'est pas suivi.
+   * `false` : mise en veille. Le compte est cree ACTIF, aucun courriel n'est
+   * envoye, et le code de verification reste en place pour une reactivation.
+   * Chaine et non booleen : voir `ALLOW_BOOT_WITHOUT_MAIL`.
+   */
+  @IsOptional()
+  @IsString()
+  EMAIL_VERIFICATION_REQUIRED = 'true';
+
+  /**
    * Moyens de paiement COMPATIBLES avec chaque devise, separes par des virgules
    * (valeurs de l'enum PaymentMethod : BANK_TRANSFER, CARD, CASH...). Vide ou
    * absent = aucun moyen de paiement configure : les commandes dans cette devise

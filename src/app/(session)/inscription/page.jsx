@@ -29,6 +29,7 @@ export default function InscriptionPage() {
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState(null);
   const [resent, setResent] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(true);
 
   function update(field) {
     return (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
@@ -50,7 +51,7 @@ export default function InscriptionPage() {
 
     setPending(true);
     try {
-      await apiFetch("/auth/register", {
+      const result = await apiFetch("/auth/register", {
         method: "POST",
         body: {
           firstName: form.firstName.trim(),
@@ -62,6 +63,7 @@ export default function InscriptionPage() {
         },
       });
       setSentTo(form.email.trim());
+      setVerificationRequired(result?.data?.verificationRequired !== false);
       setForm(EMPTY);
     } catch (caught) {
       setError(caught);
@@ -78,6 +80,23 @@ export default function InscriptionPage() {
       // Reponse identique que le compte existe ou non : on n'informe pas sur l'adresse.
       setResent(true);
     }
+  }
+
+  if (sentTo && !verificationRequired) {
+    // Verification e-mail en veille : le compte est actif, pas besoin de lien.
+    return (
+      <AuthCard
+        title="Compte créé"
+        intro="Votre compte est prêt. Vous pouvez vous connecter."
+        footer={
+          <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
+            Se connecter
+          </Link>
+        }
+      >
+        <div />
+      </AuthCard>
+    );
   }
 
   if (sentTo) {
