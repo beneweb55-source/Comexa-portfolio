@@ -1,12 +1,19 @@
 "use client";
 
 /**
- * Alerte « backend périmé ».
+ * Alerte « version serveur incompatible ».
  *
- * Composant silencieux quand tout va bien. Dès que `checkApiContract` detecte
- * un serveur API plus ancien que l'interface (ou injoignable), il affiche une
- * bandeau explicite NOMMANT le probleme — exactement le diagnostic que la
- * console ne donnait pas (« 404 » et « 400 » seuls).
+ * Composant silencieux quand tout va bien. Trois diagnostics possibles (voir
+ * `src/lib/contract.js`) ; deux meritent l'alerte :
+ *
+ *  - `no-contract` : le backend est d'avant la poignee de main de contrat —
+ *    exactement la configuration qui a produit les 404/400 historiques ;
+ *  - `missing` : le backend declare son contrat mais n'a pas encore telle ou
+ *    telle fonctionnalite (le message les nomme).
+ *
+ * Une simple injoignabilite (`unreachable`) reste silencieuse : une coupure
+ * reseau passagere s'affiche deja par ailleurs, et une banniere qui pleure a
+ * chaque coupure finit ignoree — y compris quand elle dit vrai.
  *
  * Il est monte dans les deux espaces authentifies (`espace-equipe` et
  * `espace-client`).
@@ -25,13 +32,11 @@ export default function ApiContractBanner() {
     let cancelled = false;
     checkApiContract().then((result) => {
       if (cancelled) return;
-      if (result.ok) {
+      if (result.kind === "unreachable") {
         setState(STATE.ok);
         return;
       }
-      // Un navigateur ferme puis rouvert hors ligne ne doit pas crier au loup
-      // a chaque navigation : seule l'incompatibilite de build merite l'alerte.
-      if (result.contract === null) {
+      if (result.ok) {
         setState(STATE.ok);
         return;
       }
