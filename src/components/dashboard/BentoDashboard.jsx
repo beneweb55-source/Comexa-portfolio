@@ -12,6 +12,7 @@ import { TASK_STATUS } from "@/lib/labels";
 import ProspectBoard from "@/components/workspace/ProspectBoard";
 import { Pagination } from "@/components/workspace/ui";
 import GlassCard from "@/components/dashboard/GlassCard";
+import MeshBackground from "@/components/dashboard/MeshBackground";
 import Icon from "@/components/dashboard/icons";
 import {
   DistributionTile,
@@ -78,7 +79,8 @@ export default function BentoDashboard({ me, agency, canSeeAgency, agencyPeriod,
     : "Période en cours";
 
   return (
-    <section aria-label="Tableau de bord" className="cx-dashboard">
+    <section aria-label="Tableau de bord" className="cx-dashboard relative">
+      <MeshBackground />
       <header className={`cx-dashboard__welcome${canSeeAgency ? " is-agency" : " is-personal"}`}>
         <div className="cx-dashboard__welcome-copy">
           <div className="cx-dashboard__welcome-eyebrow">

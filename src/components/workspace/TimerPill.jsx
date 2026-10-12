@@ -78,7 +78,7 @@ function TimerPillContent({ pathname }) {
   if (!allowed || pathname === "/espace-equipe/tableau-de-bord") return null;
 
   return (
-    <div ref={rootRef} className="cx-timer-pill" data-theme="team-dark">
+    <div ref={rootRef} className="cx-timer-pill" data-theme="team-glass">
       {open ? (
         <section ref={panelRef} id={dialogId} role="dialog" aria-labelledby={`${dialogId}-title`} className="cx-timer-pill__panel">
           {timer ? (
