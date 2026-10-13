@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
@@ -18,6 +19,7 @@ import {
 } from '../decorators/auth.decorators.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { AppException, ErrorCode } from '../errors/app-error.js';
+import { looksLikeIntegrationToken } from '../auth/integration-token.js';
 import { AccessPolicy, type AuthenticatedUser } from '../auth/principal.js';
 
 /**
@@ -56,6 +58,27 @@ export interface PrincipalLoader {
 
 export const ACCESS_TOKEN_VERIFIER = Symbol('ACCESS_TOKEN_VERIFIER');
 export const PRINCIPAL_LOADER = Symbol('PRINCIPAL_LOADER');
+
+/**
+ * Contrat de resolution d'un JETON D'INTEGRATION (n8n, agent IA).
+ *
+ * Meme mecanisme que `AccessTokenVerifier` : le garde vit dans `src/common/`,
+ * qui ne doit RIEN importer de `src/modules/`. Il declare donc une interface, et
+ * `IntegrationsModule` la realise. Sans cette inversion, un test du garde
+ * obligerait a monter l'application entiere, et `common/` dependrait de tout.
+ *
+ * La resolution est OPTIONNELLE : un deploiment qui n'a pas active le module
+ * d'integration continue de fonctionner, sans garde cassé au demarrage.
+ */
+export interface IntegrationPrincipalResolver {
+  /**
+   * Leve `UNAUTHENTICATED` si le jeton est inconnu, revoque ou perime.
+   * Renvoie un porteur dont les permissions sont celles du JETON, pas d'un role.
+   */
+  resolve(token: string): Promise<AuthenticatedUser>;
+}
+
+export const INTEGRATION_PRINCIPAL_RESOLVER = Symbol('INTEGRATION_PRINCIPAL_RESOLVER');
 
 /**
  * Extrait le jeton d'acces.
@@ -105,6 +128,9 @@ export class JwtAuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(ACCESS_TOKEN_VERIFIER) private readonly verifier: AccessTokenVerifier,
     @Inject(PRINCIPAL_LOADER) private readonly principals: PrincipalLoader,
+    @Optional()
+    @Inject(INTEGRATION_PRINCIPAL_RESOLVER)
+    private readonly integrations?: IntegrationPrincipalResolver,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -130,7 +156,7 @@ export class JwtAuthGuard implements CanActivate {
       // route protegee ne se satisfait jamais d'une absence.
       if (token) {
         try {
-          const user = await this.resolveUser(token);
+          const user = await this.resolvePrincipal(token);
           (request as Request & Record<string, unknown>)[REQUEST_USER_KEY] = user;
         } catch {
           this.logger.debug('Jeton ignore sur une route publique');
@@ -143,8 +169,14 @@ export class JwtAuthGuard implements CanActivate {
       throw AppException.unauthenticated();
     }
 
-    const user = await this.resolveUser(token);
+    const user = await this.resolvePrincipal(token);
     (request as Request & Record<string, unknown>)[REQUEST_USER_KEY] = user;
+
+    // Une integration n'a pas de mot de passe a changer : le test ci-dessous la
+    // bloquerait des sa premiere requete, puisqu'elle ne peut pas en changer.
+    if (user.isIntegration) {
+      return true;
+    }
 
     // Mot de passe initial non change : tout est ferme sauf ce qui permet d'en
     // sortir. C'est le serveur qui decide, pas l'interface — un appel direct a
@@ -178,6 +210,33 @@ export class JwtAuthGuard implements CanActivate {
   private async resolveUser(token: string): Promise<AuthenticatedUser> {
     const payload = await this.verifier.verifyAccessToken(token);
     return this.principals.load(payload.sub);
+  }
+
+  /**
+   * Aiguille entre les DEUX sortes de porteurs.
+   *
+   * Le tri se fait sur la FORME du jeton, sans requete : un JWT commence par
+   * `eyJ` (l'en-tete JSON encode), un jeton d'integration par `cxi_`. Les deux
+   * mondes ne se melangent donc jamais — une session de navigateur ne devient pas
+   * un acces machine, et inversement.
+   *
+   * Sans resolveur d'integration enregistre (module absent), un jeton `cxi_`
+   * echoue proprement en 401 au lieu de partir dans la verification JWT : mieux
+   * vaut un refus net qu'une erreur obscure signee par le mauvais composant.
+   */
+  private async resolvePrincipal(token: string): Promise<AuthenticatedUser> {
+    if (!looksLikeIntegrationToken(token)) {
+      return this.resolveUser(token);
+    }
+
+    if (!this.integrations) {
+      throw AppException.unauthenticated(
+        'INTEGRATION_DISABLED',
+        "Les jetons d'integration ne sont pas actives sur ce serveur.",
+      );
+    }
+
+    return this.integrations.resolve(token);
   }
 }
 

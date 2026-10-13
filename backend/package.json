@@ -31,7 +31,8 @@
     "prisma:validate": "prisma validate",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "integration:token": "tsx scripts/create-integration-token.ts"
   },
   "engines": {
     "node": ">=20.0.0"

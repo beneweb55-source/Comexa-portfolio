@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -34,6 +34,7 @@ import { TimeEntriesModule } from './modules/time-entries/time-entries.module.js
 import { TimerModule } from './modules/timer/timer.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DailyReportsModule } from './modules/daily-reports/daily-reports.module.js';
+import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 import { UserModule } from './modules/users/user.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -103,7 +104,16 @@ const isProduction = process.env.NODE_ENV === 'production';
      * une limite de dix tentatives de connexion par minute qui n'existe pas est
      * pire qu'aucune limite, parce qu'elle rassure.
      */
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: Number(config.get<number>('RATE_LIMIT_TTL') ?? 60_000),
+          limit: Number(config.get<number>('RATE_LIMIT_LIMIT') ?? 120),
+        },
+      ],
+    }),
 
     /**
      * Bus d'evenements interne.
@@ -210,6 +220,20 @@ const isProduction = process.env.NODE_ENV === 'production';
     UserModule,
     RoleModule,
     AuditLogModule,
+
+    /**
+     * INTEGRATIONS SERVEUR-A-SERVEUR (n8n, agents IA).
+     *
+     * Place ici, a cote de l'identite, parce que c'est de l'identite : le module
+     * fournit le resolveur de jetons que le GARDE D'AUTHENTIFICATION appelle a
+     * chaque requete (sous le jeton `INTEGRATION_PRINCIPAL_RESOLVER`). Le garde
+     * declare une interface ; c'est ce module qui la realise — c'est ce qui
+     * evite a `src/common/` de dependre d'un module metier.
+     *
+     * Son ordre dans cette liste n'a pas d'importance technique : le garde le
+     * recoit par injection, pas par position.
+     */
+    IntegrationsModule,
 
     /**
      * CRM — pipeline commercial et dossiers clients.

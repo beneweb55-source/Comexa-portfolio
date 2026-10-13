@@ -62,6 +62,35 @@ export class EnvironmentVariables {
   @IsString()
   CORS_ORIGIN = 'http://localhost:3000';
 
+  /**
+   * Limitation de debit : nombre de requetes acceptees par fenetre, et duree de
+   * cette fenetre en millisecondes.
+   *
+   * Reglables plutot qu'ecrites en dur, parce que la bonne valeur depend de QUI
+   * appelle : une agence qui pilote n8n avec des workflows bavards touche le
+   * plafond bien avant un simple affichage. Et les valeurs par defaut restent
+   * celles d'avant ce reglage — personne ne voit son API changer en mettant a
+   * jour.
+   *
+   * CHAINES ET NOMBRES AVEC BORNES : une limite negative ou nulle viderait
+   * l'API de ses reponses (tout le monde en 429), et une fenetre de 0 la
+   * rendrait inutilisable. Les bornes transforment une faute de frappe en refus
+   * au demarrage, visible tout de suite, plutot qu'en panne diffuse.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000_000)
+  RATE_LIMIT_LIMIT = 120;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1_000)
+  @Max(3_600_000)
+  RATE_LIMIT_TTL = 60_000;
+
   @IsOptional()
   @IsString()
   FRONTEND_URL = 'http://localhost:3000';
