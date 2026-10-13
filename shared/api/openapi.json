@@ -1022,6 +1022,157 @@
         ]
       }
     },
+    "/api/integrations/tokens": {
+      "post": {
+        "operationId": "IntegrationsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIntegrationTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Creer un jeton d’integration (le secret est rendu une seule fois).",
+        "tags": [
+          "Integrations"
+        ]
+      },
+      "get": {
+        "operationId": "IntegrationsController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lister les jetons d’integration (jamais les secrets).",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/api/integrations/tokens/{id}/renew": {
+      "post": {
+        "operationId": "IntegrationsController_renew",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewIntegrationTokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Renouveler le secret d’un jeton (l’ancien cesse de fonctionner immediatement).",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/api/integrations/tokens/{id}/revoke": {
+      "post": {
+        "operationId": "IntegrationsController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Revoquer un jeton (effet immediat, a la requete suivante).",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
+    "/api/integrations/tokens/{id}": {
+      "delete": {
+        "operationId": "IntegrationsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer un jeton et son compte technique.",
+        "tags": [
+          "Integrations"
+        ]
+      }
+    },
     "/api/clients": {
       "get": {
         "operationId": "ClientsController_list",
@@ -2143,6 +2294,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Cle d'idempotence (8 a 128 caracteres, lettres, chiffres, tirets et soulignes). Renvoyez la MEME cle pour reessayer une creation, jamais pour en faire une autre : le serveur rejoue alors la reponse au lieu de recreer la ressource. Une cle rejouee avec un autre corps est refusee en 422.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "n8n-creation-tache-2026-10-13-001"
+            }
           }
         ],
         "requestBody": {
@@ -2316,7 +2477,18 @@
       },
       "post": {
         "operationId": "TasksController_createPersonal",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Cle d'idempotence (8 a 128 caracteres, lettres, chiffres, tirets et soulignes). Renvoyez la MEME cle pour reessayer une creation, jamais pour en faire une autre : le serveur rejoue alors la reponse au lieu de recreer la ressource. Une cle rejouee avec un autre corps est refusee en 422.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "n8n-creation-tache-2026-10-13-001"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -7525,7 +7697,7 @@
   },
   "info": {
     "title": "API Comexa",
-    "description": "API de l'agence : espace public, espace client et administration.\n\nToutes les reponses suivent le meme contrat :\n- succes : `{ \"success\": true, \"data\": ... }`\n- echec : `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\" } }`\n\nLe champ `error.code` est stable : c'est lui que le frontend teste, jamais le message.",
+    "description": "API de l'agence : espace public, espace client et administration.\n\nToutes les reponses suivent le meme contrat :\n- succes : `{ \"success\": true, \"data\": ... }`\n- echec : `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\" } }`\n\nLe champ `error.code` est stable : c'est lui que le frontend teste, jamais le message.\n\nAuthentification :\n- un humain presente le jeton d'acces obtenu par `/api/auth/login` ;\n- une machine (n8n, agent) presente un jeton d'integration `cxi_...`, aux droits limites a ceux de son `scopes`.\nLes deux voyagent dans le meme en-tete `Authorization: Bearer ...`.\n\nLes machines peuvent prefixer leurs appels par `/api/v1` (`/api/v1/tasks` et `/api/tasks` sont la meme route) ; le frontend reste sur `/api`.",
     "version": "1.0",
     "contact": {}
   },
@@ -7851,6 +8023,55 @@
         "required": [
           "permissionCodes"
         ]
+      },
+      "CreateIntegrationTokenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "n8n-production",
+            "description": "Nom unique de l’integration : minuscules, chiffres et tirets (3 a 40 caracteres)."
+          },
+          "scopes": {
+            "description": "Codes de permission accordes (sous-ensemble du catalogue).",
+            "example": [
+              "task:read:any",
+              "project:read:any"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresInDays": {
+            "type": "number",
+            "description": "Expiration en jours (1 a 3650).",
+            "minimum": 1,
+            "maximum": 3650
+          }
+        },
+        "required": [
+          "name",
+          "scopes"
+        ]
+      },
+      "RenewIntegrationTokenDto": {
+        "type": "object",
+        "properties": {
+          "scopes": {
+            "description": "Nouveaux codes de permission (remplacent les precedents).",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresInDays": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 3650,
+            "description": "Nouvelle expiration en jours (1 a 3650)."
+          }
+        }
       },
       "CreateClientDto": {
         "type": "object",
