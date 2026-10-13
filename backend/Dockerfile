@@ -40,6 +40,14 @@ ARG NODE_VERSION=24
 
 # --- 1. Dependances completes -------------------------------------------------
 FROM node:${NODE_VERSION}-bookworm-slim AS deps
+
+# Prisma doit detecter OpenSSL 3 AVANT l'installation des dependances et la
+# generation, sinon il choisit par defaut un moteur OpenSSL 1.1 incompatible
+# avec Debian Bookworm. `build` et `prod-deps` heritent de cette installation.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Le lockfile seul, AVANT le reste du code : tant que les dependances ne
@@ -83,8 +91,10 @@ FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 # delai de grace puis tue le conteneur — `app.enableShutdownHooks()` ne ferme
 # jamais proprement la connexion PostgreSQL, et des connexions restent ouvertes
 # cote base a chaque redeploiement.
+# OpenSSL est aussi necessaire ici : `prisma migrate deploy` s'execute dans
+# cette etape, qui ne descend pas de `deps`.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends dumb-init \
+    && apt-get install -y --no-install-recommends dumb-init openssl \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
