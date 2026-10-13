@@ -449,7 +449,7 @@ model User {
   assignedUserRoles       UserRole[]                @relation("UserRoleAssigner")
   integrationTokens       IntegrationToken[]        @relation("IntegrationTokenServiceAccount")
   createdIntegrationTokens IntegrationToken[]       @relation("IntegrationTokenCreator")
-  idempotencyRecords      IdempotencyRecord[]
+  idempotencyRecords      IdempotencyRecord[]       @relation("IdempotencyPrincipal")
   ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
   calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
