@@ -48,6 +48,16 @@ export const PERMISSIONS = {
   'role:manage:any': 'Creer et modifier les roles et leurs permissions',
   'permission:read:any': 'Consulter le catalogue des permissions',
   'audit:read:any': "Consulter le journal d'audit",
+  /**
+   * Integrations serveur-a-serveur (n8n, agents IA).
+   *
+   * `manage` est VOLONTAIREMENT le seul code qu'un jeton ne peut pas recevoir
+   * (voir `normalizeIntegrationScopes`) : une machine ne distribue pas des
+   * acces. Sinon un jeton vole permettrait d'en creer d'autres, et la
+   * revocation perdrait tout effet.
+   */
+  'integration:read:any': 'Consulter les jetons d’integration',
+  'integration:manage:any': 'Creer, renouveler et revoquer les jetons d’integration',
 
   // ---------------------------------------------------------------------------
   // CRM

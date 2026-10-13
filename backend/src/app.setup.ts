@@ -73,6 +73,35 @@ export function configureApp(app: INestApplication): AppSetupResult {
     next();
   });
 
+  /**
+   * PREFIXE DE VERSION : `/api/v1/...` est un ALIAS de `/api/...`.
+   *
+   * POURQUOI UN ALIAS ET PAS UNE VRAIE VERSION. L'API n'a qu'une version.
+   * Dupliquer les controleurs sous un prefixe `v1` donnerait deux routes pour
+   * chaque operation, donc deux endroits ou corriger un acces — et le jour ou
+   * une `v2` existerait vraiment, il faudrait de toute facon dupliquer. Ici, la
+   * machine externe (n8n) ecrit `/api/v1/tasks`, le frontend continue d'ecrire
+   * `/api/tasks`, et les deux tombent sur le MEME controleur : une seule
+   * implementation, un seul jeu de tests, aucune divergence possible.
+   *
+   * La reecriture touche `req.url` AVANT le routeur, et ce middleware est
+   * enregistre ici — donc avant l'enregistrement des routes, qui a lieu a
+   * l'initialisation de l'application (voir `configureApp`, appelee avant
+   * `listen` dans `main.ts`, et avant `init` dans les tests e2e).
+   *
+   * L'alias est Documente et NON remplace : retirer `/api` casserait le
+   * frontend, et le but n'est pas de migrer qui que ce soit.
+   */
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    const versioned = `/${apiPrefix}/v1`;
+    if (req.url === versioned) {
+      req.url = `/${apiPrefix}`;
+    } else if (req.url.startsWith(`${versioned}/`)) {
+      req.url = `/${apiPrefix}${req.url.slice(versioned.length)}`;
+    }
+    next();
+  });
+
   // Le refresh token voyage dans un cookie ; sans `credentials: true` le
   // navigateur ne l'enverrait pas, et sans liste blanche d'origines n'importe
   // quel site pourrait poser la question a la place de l'utilisateur.
@@ -183,7 +212,14 @@ export function configureApp(app: INestApplication): AppSetupResult {
           'Toutes les reponses suivent le meme contrat :\n' +
           '- succes : `{ "success": true, "data": ... }`\n' +
           '- echec : `{ "success": false, "error": { "code", "message", "details" } }`\n\n' +
-          "Le champ `error.code` est stable : c'est lui que le frontend teste, jamais le message.",
+          "Le champ `error.code` est stable : c'est lui que le frontend teste, jamais le message.\n\n" +
+          'Authentification :\n' +
+          "- un humain presente le jeton d'acces obtenu par `/api/auth/login` ;\n" +
+          "- une machine (n8n, agent) presente un jeton d'integration `cxi_...`, aux droits " +
+          'limites a ceux de son `scopes`.\n' +
+          'Les deux voyagent dans le meme en-tete `Authorization: Bearer ...`.\n\n' +
+          'Les machines peuvent prefixer leurs appels par `/api/v1` (`/api/v1/tasks` et ' +
+          '`/api/tasks` sont la meme route) ; le frontend reste sur `/api`.',
       )
       .setVersion('1.0')
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')

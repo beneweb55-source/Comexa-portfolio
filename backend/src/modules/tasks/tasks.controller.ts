@@ -1,5 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
+import { ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import {
   CurrentUser,
@@ -7,6 +17,11 @@ import {
   RequirePermissions,
 } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
+import {
+  IDEMPOTENCY_API_HEADER,
+  IdempotencyInterceptor,
+  IdempotencyScope,
+} from '../../common/idempotency/idempotency.interceptor.js';
 import {
   AssignTaskDto,
   CreatePersonalTaskDto,
@@ -73,6 +88,9 @@ export class TasksController {
 
   @Post('projects/:projectId/tasks')
   @RequireAnyPermission('task:write:any', 'task:write:own')
+  @UseInterceptors(IdempotencyInterceptor)
+  @IdempotencyScope('task:create:project')
+  @ApiHeader(IDEMPOTENCY_API_HEADER)
   @ApiOperation({ summary: 'Creer une tache (ou une sous-tache) dans un projet.' })
   async create(
     @Param('projectId') projectId: string,
@@ -113,6 +131,9 @@ export class TasksController {
    */
   @Post('me/tasks')
   @RequirePermissions('task:write:personal')
+  @UseInterceptors(IdempotencyInterceptor)
+  @IdempotencyScope('task:create:personal')
+  @ApiHeader(IDEMPOTENCY_API_HEADER)
   @ApiOperation({ summary: 'Creer une tache personnelle (sans projet ni client).' })
   async createPersonal(
     @Body() dto: CreatePersonalTaskDto,

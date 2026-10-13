@@ -111,6 +111,38 @@ Le **jeton d'acces** se place dans l'en-tete, et nulle part ailleurs :
 Authorization: Bearer <accessToken>
 ```
 
+#### Les jetons d'integration (n8n, agents IA) — `Authorization: Bearer cxi_...`
+
+Un serveur externe n'a ni navigateur, ni cookie, ni session : il presente un
+**jeton d'integration** dans le meme en-tete.
+
+```
+Authorization: Bearer cxi_<secret>
+```
+
+Ce que ce jeton est, et n'est pas :
+
+- **Un jeton par integration**, nomme (`n8n-production`), revocable et
+  renouvelable separement. Jamais un mot de passe partage, jamais une cle
+  codee en dur.
+- **Des droits propres**, listes dans `scopes` : un sous-ensemble du catalogue
+  de permissions. Une integration qui lit les taches ne recoit ni la
+  facturation, ni les devis, ni la gestion des utilisateurs. Le compte
+  technique qui la porte n'a AUCUN role : ses droits viennent du jeton, et de
+  rien d'autre.
+- **Jamais stocke en clair.** La base ne garde que son empreinte SHA-256 ; le
+  secret n'est rendu qu'une fois, a la creation ou au renouvellement.
+- **Revoque a la requete suivante** : le jeton est relu en base a chaque appel,
+  sans cache. Revoquer coupe l'acces immediatement — c'est le seul comportement
+  qui tient face a une fuite.
+- **Refuse sur l'administration des integrations** : `integration:manage:any`
+  ne peut pas figurer dans `scopes`. Une machine ne distribue pas d'acces,
+  sinon un jeton vole permettrait d'en fabriquer d'autres.
+
+Les routes d'administration (creer, renouveler, revoquer) sont reservees a un
+administrateur authentifie par session. La procedure complete, les exemples n8n
+et les codes d'erreur sont dans **`docs/API-N8N.md`** a la racine du depot.
+
 Le **jeton de rafraichissement** voyage dans un cookie `httpOnly` nomme
 `refresh_token`. Il est `httpOnly` volontairement : le JavaScript de la page ne
 peut pas le lire, donc une injection de script ne peut pas le voler. Vous n'avez
@@ -128,6 +160,30 @@ est configure avec `credentials: true` et une liste blanche d'origines
 (`CORS_ORIGIN`) : sans cette option, le navigateur n'envoie pas le cookie et
 `POST /auth/refresh` echoue avec un 401 que rien dans la requete n'explique.
 C'est le premier point a verifier devant un 401 inattendu.
+
+### Rejouer une creation sans la refaire (`Idempotency-Key`)
+
+Un client qui reessaie — timeout reseau, rejeu d'un workflow n8n — renvoie parfois
+une requete deja traitee. Sans precaution, la creation se produit deux fois.
+
+Deux routes l'acceptent aujourd'hui, `POST /projects/:projectId/tasks` et
+`POST /me/tasks`, via un en-tete optionnel :
+
+```
+Idempotency-Key: creation-tache-2026-10-13-001
+```
+
+| Situation | Reponse |
+|---|---|
+| Aucun en-tete | execution normale. **Le frontend n'en envoie jamais** : son comportement ne change pas d'un octet. |
+| Cle inconnue | execution, puis memorisation de la reponse pendant 24 h. |
+| Meme cle, meme corps | la reponse est REJOUEE, avec `Idempotency-Replayed: true`. Rien n'est reecrit. |
+| Meme cle, autre corps | 422 `IDEMPOTENCY_KEY_REUSED`. |
+| Cle mal formee | 400 `IDEMPOTENCY_KEY_INVALID` (8 a 128 caracteres, lettres, chiffres, tirets et soulignes). |
+
+La cle est propre au PORTEUR : deux integrations peuvent employer la meme chaine
+sans se marcher dessus. Seules les reponses 2xx sont memorisees — une 400 corrigee
+puis renvoyee avec la meme cle est exactement l'usage voulu.
 
 ### L'etat « mot de passe a changer »
 
@@ -163,6 +219,8 @@ traiter au cas par cas dans chaque ecran.
 | `INVALID_CREDENTIALS` | 401 | Identifiants incorrects. |
 | `TOKEN_EXPIRED` | 401 | Jeton d'acces expire : tenter `POST /auth/refresh`. |
 | `TOKEN_INVALID` | 401 | Jeton malforme ou signature invalide. |
+| `IDEMPOTENCY_KEY_INVALID` | 400 | Cle d'idempotence mal formee. |
+| `IDEMPOTENCY_KEY_REUSED` | 422 | Cle d'idempotence rejouee avec un autre corps. |
 | `REFRESH_TOKEN_REUSED` | 401 | Reutilisation d'un jeton de rafraichissement : session revoquee. |
 | `ACCOUNT_LOCKED` | 403 | Compte verrouille apres trop d'echecs. |
 | `ACCOUNT_SUSPENDED` | 403 | Compte suspendu par un administrateur. |
@@ -1376,6 +1434,26 @@ sans tâche rend `[]`.
 | `GET /time-entries` | `time:read:any` **ou** `time:read:own` | 200 |
 | `PATCH /time-entries/:id` | `time:write:any` **ou** `time:write:own` | 200 |
 | `DELETE /time-entries/:id` | `time:write:any` **ou** `time:write:own` | 200 |
+
+#### `integrations/integrations.controller.ts`
+
+| Route | Permission | Succes |
+|---|---|---|
+| `POST /integrations/tokens` | `integration:manage:any` | 201 |
+| `GET /integrations/tokens` | `integration:read:any` | 200 |
+| `POST /integrations/tokens/:id/renew` | `integration:manage:any` | 200 |
+| `POST /integrations/tokens/:id/revoke` | `integration:manage:any` | 200 |
+| `DELETE /integrations/tokens/:id` | `integration:manage:any` | 200 |
+
+**Le secret n'est rendu qu'une fois**, dans la reponse de `POST` et de `renew`
+(champ `secret`). `GET` ne peut pas le rendre : il n'existe plus nulle part, la
+base ne gardant que son empreinte (`tokenHash`, jamais selectionnee). Une liste
+n'affiche donc que `name`, `prefix` (fragment de reconnaissance), `scopes`,
+`lastUsedAt`, `expiresAt`, `revokedAt` et `active`.
+
+**Aucun jeton ne peut gerer les integrations** : `integration:manage:any` est
+refuse dans `scopes` (422 `INTEGRATION_SCOPE_FORBIDDEN`). C'est ce qui garantit
+qu'une machine ne s'attribue jamais de droits elle-meme.
 
 #### `users/user.controller.ts`
 

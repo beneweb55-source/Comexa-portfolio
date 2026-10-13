@@ -381,6 +381,22 @@ model User {
   emailVerifiedAt DateTime?
   lastLoginAt     DateTime?
 
+  /// Compte TECHNIQUE, pas une personne : le compte que porte un jeton
+  /// d'integration (n8n, agent IA...).
+  ///
+  /// Il existe en tant que `User` pour une raison precisse : des dizaines
+  /// d'ecritures portent une cle etrangere vers `users` (auteur d'une activite,
+  /// createur d'une tache, expediteur d'un message). Une integration sans ligne
+  /// ici ne pourrait RIEN ecrire sans casser ces contraintes, et il aurait fallu
+  /// rendre toutes ces colonnes nullables — au prix de la tracabilite.
+  ///
+  /// En contrepartie, ce compte ne doit jamais etre pris pour un membre : il
+  /// n'apparait pas dans les listes d'utilisateurs (voir `UsersService.list`),
+  /// n'a AUCUN role (ses droits viennent du jeton, pas d'un role), et son mot de
+  /// passe est un secret aleatoire que personne ne detient — il ne se connecte
+  /// donc jamais par le formulaire.
+  isServiceAccount Boolean   @default(false)
+
   /// Verrouillage apres N echecs : la reponse reste generique, mais on
   /// n'offre pas un oracle de force brute sur les mots de passe.
   failedLoginAttempts Int       @default(0)
@@ -431,6 +447,9 @@ model User {
   requestedModifs         ModificationRequest[]     @relation("ModificationRequester")
   decidedModifs           ModificationRequest[]     @relation("ModificationDecider")
   assignedUserRoles       UserRole[]                @relation("UserRoleAssigner")
+  integrationTokens       IntegrationToken[]        @relation("IntegrationTokenServiceAccount")
+  createdIntegrationTokens IntegrationToken[]       @relation("IntegrationTokenCreator")
+  idempotencyRecords      IdempotencyRecord[]
   ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
   calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
@@ -498,6 +517,96 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@index([permissionId])
   @@map("role_permissions")
+}
+
+/// JETON D'INTEGRATION — l'acces serveur-a-serveur (n8n, agents IA).
+///
+/// LE JETON EN CLAIR N'EST JAMAIS STOCKE. On garde son empreinte SHA-256 et un
+/// court prefixe d'affichage ; la verification se fait en hachant ce que
+/// l'appelant presente et en comparant les empreintes. La base peut donc fuir
+/// sans qu'un jeton utilisable ne s'y trouve — ce qui n'est pas vrai d'une
+/// colonne qui contiendrait le secret lui-meme.
+///
+/// SHA-256 plutot qu'Argon2/bcrypt, et ce n'est pas un relachement : ces
+/// fonctions servent a ralentir le cassage d'un secret DEVINABLE (un mot de
+/// passe). Ici le secret fait 32 octets tires d'un generateur cryptographique :
+/// il n'y a rien a deviner, et une fonction lente couterait son temps de calcul
+/// a CHAQUE requete pour un gain nul.
+///
+/// `scopes` est un SOUS-ENSEMBLE du catalogue de permissions, relu a chaque
+/// requete : une integration qui ne lit que les taches ne recoit pas, par le
+/// seul fait d'etre authentifiee, les devis ou la facturation. Les droits
+/// effectifs ne viennent donc pas du compte technique (qui n'a aucun role), mais
+/// du jeton.
+model IntegrationToken {
+  id        String  @id @default(cuid())
+  /// Nom lisible et unique de l'integration : « n8n-production ».
+  name      String  @unique
+  /// Debut du jeton, affichable : reconnaitre un jeton dans une liste sans
+  /// pouvoir le reconstituer.
+  prefix    String
+  /// Empreinte SHA-256 (hex) du jeton complet. Unique : deux jetons distincts
+  /// ne peuvent pas partager une empreinte.
+  tokenHash String  @unique
+  /// Codes de permission accordes, sous-ensemble de `PERMISSIONS`.
+  scopes    String[]
+
+  /// Compte technique sous lequel l'integration agit (cle etrangere, voir
+  /// `User.isServiceAccount`).
+  accountId String  @unique
+  account   User    @relation("IntegrationTokenServiceAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  /// Administrateur qui a cree le jeton. `SetNull` : le depart d'un
+  /// administrateur ne doit pas supprimer les integrations en production.
+  createdById String?
+  createdBy User?   @relation("IntegrationTokenCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@map("integration_tokens")
+}
+
+
+/// CLE D'IDEMPOTENCE — « cette creation a deja eu lieu, voici la reponse ».
+///
+/// n8n REJOUE : un noeud HTTP qui expire cote client renvoie la meme requete, et
+/// le serveur — qui l'a peut-etre deja traitee — creerait une deuxieme tache. La
+/// cle d'idempotence est le seul moyen de distinguer « reessayer » de « refaire ».
+///
+/// POURQUOI `(scope, key, principalId)` ET PAS `key` SEULE. Une cle n'a de sens
+/// que pour une operation, chez un appelant donne : deux workflows differents
+/// peuvent employer la meme chaine sans se marcher dessus, et une integration ne
+/// peut pas lire ni bloquer les cles d'une autre.
+///
+/// `requestHash` est l'empreinte du corps : rejouer une cle avec un AUTRE corps
+/// est un conflit (422), pas une occasion de rendre une reponse qui ne correspond
+/// pas a la demande. Sans cette colonne, la mecanique mentirait.
+///
+/// `expiresAt` borne la duree : au-dela, la cle est traitee comme neuve. Une
+/// reponse ressuscitee une semaine plus tard ne correspondrait plus a rien.
+model IdempotencyRecord {
+  id    String @id @default(cuid())
+  scope String
+  key   String
+
+  principalId String
+  principal   User   @relation("IdempotencyPrincipal", fields: [principalId], references: [id], onDelete: Cascade)
+
+  requestHash String
+  status      Int
+  body        Json
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@unique([scope, key, principalId])
+  @@index([expiresAt])
+  @@map("idempotency_records")
 }
 
 model UserRole {

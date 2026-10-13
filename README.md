@@ -41,6 +41,16 @@ BACKEND_URL=http://localhost:3001 npm run dev
 
 Les vérifications : `npm run lint` et `npm run build` à la racine, `npm test` et `npm run test:e2e` dans `backend/`.
 
+## API et intégrations (n8n, agents IA)
+
+L'API est aussi joignable par des serveurs externes, avec un **jeton
+d'intégration** : un jeton nommé par intégration, aux droits limités, révocable à
+tout moment. Les machines appellent `/api/v1/...` (alias de `/api/...`), jamais la
+session d'un utilisateur connecté.
+
+Procédure complète, recettes n8n, permissions minimales et dépannage :
+**[`docs/API-N8N.md`](docs/API-N8N.md)**.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

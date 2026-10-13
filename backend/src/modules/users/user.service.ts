@@ -115,6 +115,13 @@ export class UserService {
 
     const where: Prisma.UserWhereInput = {
       deletedAt: null,
+      // Les comptes techniques (integrations n8n, agents IA) sont des `User` en
+      // base — il le faut, des dizaines de colonnes pointent vers `users` — mais
+      // ce ne sont pas des membres : pas de role, pas de mot de passe connu, et
+      // surtout rien a montrer dans un annuaire d'equipe. Leurs droits viennent
+      // du jeton d'integration, pas d'un role, donc les lister ici laisserait
+      // croire qu'on peut leur en donner.
+      isServiceAccount: false,
       ...(query.status ? { status: query.status } : {}),
       ...(query.roleCode ? { roles: { some: { role: { code: query.roleCode } } } } : {}),
       ...(search

@@ -27,6 +27,16 @@ export interface AuthenticatedUser {
   /** Renseigne uniquement pour un compte de l'espace client. */
   readonly clientId: string | null;
   readonly mustChangePassword: boolean;
+  /**
+   * Vrai quand le porteur est une INTEGRATION (n8n, agent IA), pas une personne.
+   *
+   * Le compte technique est un `User` — il le faut, des dizaines de colonnes
+   * pointent vers `users` — mais il n'est pas un membre : aucun role, exclu des
+   * listes, et surtout ses droits viennent du JETON (`scopes`), jamais du compte.
+   * Sans ce drapeau, un service qui ecrit « qui a fait quoi » presenterait une
+   * machine comme un collegue dans le fil d'activite.
+   */
+  readonly isIntegration?: boolean;
 }
 
 export const SCOPE_ANY = 'any';
@@ -106,6 +116,19 @@ export class AccessPolicy {
    */
   isClient(): boolean {
     return this.hasRole('CLIENT' as RoleCode);
+  }
+
+  /**
+   * Vrai quand le porteur est une machine, pas une personne.
+   *
+   * Sert la ou une ecriture distingue les deux : un fil d'activite annonce
+   * « Nadia a cree une tache » pour un humain et « n8n-production a cree une
+   * tache » pour une integration, et un rapport de temps ne compte jamais la
+   * machine. C'est aussi ce qui permet d'ecarter les comptes techniques des
+   * listes de membres : ils existent en base, ils ne sont pas de l'equipe.
+   */
+  isIntegration(): boolean {
+    return this.user.isIntegration === true;
   }
 
   /**
