@@ -32,11 +32,15 @@ import { AppException } from '../errors/app-error.js';
 import {
   AllowPasswordChangeRequired,
   RequireAnyPermission,
+  REQUEST_USER_KEY,
 } from '../decorators/auth.decorators.js';
 import { Public } from '../decorators/public.decorator.js';
 import { AccessPolicy, type AuthenticatedUser } from '../auth/principal.js';
 import { generateIntegrationToken } from '../auth/integration-token.js';
 import { JwtAuthGuard, PermissionsGuard } from './access.guards.js';
+import { IntegrationTokenService } from '../../modules/integrations/integration-token.service.js';
+import type { PrismaService } from '../../prisma/prisma.service.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /** Le code HTTP porte par l'exception, seul temoin du refus cote appelant. */
 function statut(error: unknown): number {
@@ -126,6 +130,54 @@ function machine(scopes: readonly string[]) {
 }
 
 describe('JwtAuthGuard — l’aiguillage entre humains et machines', () => {
+  it('le vrai service expose resolve et délègue le jeton cxi_ à resolvePrincipal', async () => {
+    const token = generateIntegrationToken();
+    const principal = machine(['task:read:any']);
+    const service = new IntegrationTokenService({} as PrismaService, {} as AuditService);
+    const received: string[] = [];
+    service.resolvePrincipal = async (value) => {
+      received.push(value);
+      return principal;
+    };
+    const garde = new JwtAuthGuard(
+      new Reflector(),
+      {
+        verifyAccessToken: async () => {
+          throw new Error('JWT ne doit pas être appelé');
+        },
+      },
+      {
+        load: async () => {
+          throw new Error('Principal humain ne doit pas être chargé');
+        },
+      },
+      service,
+    );
+    const request = requete(`Bearer ${token}`);
+
+    assert.equal(typeof service.resolve, 'function');
+    assert.equal(await garde.canActivate(contexte(Cible.prototype.protegee, request)), true);
+    assert.deepEqual(received, [token]);
+    assert.equal(request[REQUEST_USER_KEY], principal);
+  });
+
+  it('resolve propage le refus métier sans le transformer en HTTP 500', async () => {
+    const service = new IntegrationTokenService({} as PrismaService, {} as AuditService);
+    const refusal = AppException.unauthenticated('INTEGRATION_TOKEN_REVOKED', 'Jeton révoqué.');
+    service.resolvePrincipal = async () => {
+      throw refusal;
+    };
+
+    await assert.rejects(
+      () => service.resolve(generateIntegrationToken()),
+      (error: unknown) => {
+        assert.equal(error, refusal);
+        assert.equal(statut(error), 401);
+        return true;
+      },
+    );
+  });
+
   it('sans jeton, une route protegee est refusee en 401', async () => {
     const garde = new JwtAuthGuard(
       new Reflector(),

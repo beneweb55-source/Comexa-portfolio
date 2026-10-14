@@ -13,6 +13,7 @@ import {
 } from '../../common/auth/integration-token.js';
 import { ALL_PERMISSION_CODES } from '../../common/auth/permissions.catalogue.js';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
+import type { IntegrationPrincipalResolver } from '../../common/guards/access.guards.js';
 import { AccessPolicy, SCOPE_ANY } from '../../common/auth/principal.js';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
@@ -56,7 +57,7 @@ import { toIntegrationTokenView } from './integration-token.presenter.js';
  *    valeur, ni le hachage.
  */
 @Injectable()
-export class IntegrationTokenService {
+export class IntegrationTokenService implements IntegrationPrincipalResolver {
   private readonly logger = new Logger(IntegrationTokenService.name);
 
   constructor(
@@ -261,6 +262,10 @@ export class IntegrationTokenService {
    * le journal, pas dans la reponse — elle ne doit rien apprendre a celui qui
    * presente un jeton qu'il n'a pas.
    */
+  async resolve(token: string): Promise<AuthenticatedUser> {
+    return this.resolvePrincipal(token);
+  }
+
   async resolvePrincipal(token: string): Promise<AuthenticatedUser> {
     if (!looksLikeIntegrationToken(token)) {
       throw AppException.unauthenticated(
