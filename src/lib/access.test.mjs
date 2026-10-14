@@ -37,3 +37,14 @@ test("integration readers can enter the API administration route", () => {
   assert.equal(allowedPath(integrationReader, "/espace-equipe/integrations"), true);
   assert.equal(allowedPath(integrationReader, "/espace-equipe/integrations/jeton-1"), true);
 });
+
+
+test("integration managers can enter, unrelated team members cannot", () => {
+  const manager = { roles: [], permissions: ["integration:manage:any"] };
+  const developer = { roles: ["DEVELOPER"], permissions: ["task:read:any"] };
+
+  assert.equal(hasTeamAccess(manager), true);
+  assert.equal(allowedPath(manager, "/espace-equipe/integrations"), true);
+  assert.equal(allowedPath(developer, "/espace-equipe/integrations"), false);
+  assert.equal(allowedPath(developer, "/espace-equipe/integrations/jeton-1"), false);
+});
