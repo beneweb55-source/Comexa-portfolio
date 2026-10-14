@@ -58,6 +58,7 @@ const NAV_GROUPS = [
       { href: "/espace-equipe/contenu", label: "Contenu du site", icon: "layout", any: ["service:read:any", "package:read:any", "testimonial:read:any", "partner:read:any", "faq:read:any", "casestudy:read:any"] },
       { href: "/espace-equipe/membres", label: "Membres et droits", icon: "users", any: ["user:read:any"] },
       { href: "/espace-equipe/roles", label: "Rôles et permissions", icon: "shield", any: ["role:read:any"] },
+      { href: "/espace-equipe/integrations", label: "API & Intégrations", icon: "shield", any: ["integration:read:any", "integration:manage:any"] },
       { href: "/espace-equipe/journal", label: "Journal d’audit", icon: "history", any: ["audit:read:any"] },
       { href: "/espace-equipe/parametres", label: "Paramètres", icon: "settings", any: ["setting:read:any"] },
     ],

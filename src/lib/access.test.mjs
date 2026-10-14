@@ -26,3 +26,14 @@ test("client project visibility does not grant access to the team calendar", () 
   assert.equal(hasTeamAccess(client), false);
   assert.equal(allowedPath(client, "/espace-equipe/calendrier"), false);
 });
+
+test("integration readers can enter the API administration route", () => {
+  const integrationReader = {
+    roles: [],
+    permissions: ["integration:read:any"],
+  };
+
+  assert.equal(hasTeamAccess(integrationReader), true);
+  assert.equal(allowedPath(integrationReader, "/espace-equipe/integrations"), true);
+  assert.equal(allowedPath(integrationReader, "/espace-equipe/integrations/jeton-1"), true);
+});
