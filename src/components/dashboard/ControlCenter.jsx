@@ -6,7 +6,7 @@
  *
  * La logique est strictement celle de l'ancien tableau de bord : mêmes appels
  * (`/dashboard`, `/dashboard/me`, `/projects`, `/me/tasks`, `/time-entries`,
- * `/invoices`, `/quotes`, `/prospects`, `/orders`, `/activity`, plus les tâches
+ * `/invoices`, `/quotes`, `/prospects`, `/orders`, plus les tâches
  * et jalons par projet), mêmes garde-fous `can(user, "…")`, même mémo de calcul.
  * Seule la couche visuelle change :
  *   1. quatre KPI pastel, dont une carte « fantôme » en pointillés pour ce qui
@@ -26,7 +26,6 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
-  Banknote,
   CalendarClock,
   CalendarDays,
   CheckSquare,
@@ -38,8 +37,6 @@ import {
   FileText,
   FolderKanban,
   Hourglass,
-  LifeBuoy,
-  Mail,
   Pause,
   Play,
   Radio,
@@ -56,7 +53,6 @@ import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { canReadOwnTasks, canUseTimer } from "@/lib/timer-access";
 import { useAllListing } from "@/lib/use-all-listing";
-import { useListing } from "@/lib/use-listing";
 import { useObject } from "@/lib/use-object";
 import { fetchAllPages } from "@/lib/pagination.mjs";
 import { formatElapsed, useTimer } from "@/lib/timer";
@@ -81,8 +77,7 @@ import {
   StatusPill,
   toneBackground,
 } from "@/components/softui";
-import { ActivityList, HealthList } from "@/components/softui/panels";
-import { relativeFr } from "@/components/softui/time";
+import { HealthList } from "@/components/softui/panels";
 import { Empty } from "@/components/workspace/ui";
 import { AgencyView, MyDayView } from "./TeamViews";
 
@@ -93,6 +88,9 @@ const UNPAID_INVOICE = ["SENT", "PARTIALLY_PAID", "OVERDUE"];
 const OPEN_QUOTE = ["DRAFT", "SENT", "VIEWED"];
 const MONTH_FMT = new Intl.DateTimeFormat("fr-FR", { month: "short" });
 const EMPTY = [];
+
+/** Journée métier au format AAAA-MM-JJ dans le fuseau local (bornes de l'API). */
+const isoDay = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 
 /* Santé des projets : mêmes clés que l'API, libellés français et ratios. */
 const HEALTH_LABEL = {
@@ -134,7 +132,6 @@ export default function ControlCenter() {
   const canReadInvoices = can(user, "invoice:read:any");
   const canReadQuotes = can(user, "quote:read:any");
   const canReadProspects = can(user, "prospect:read:any") || can(user, "prospect:read:own");
-  const canReadActivity = can(user, "activity:read:any") || can(user, "activity:read:client");
   const canReadOrders = can(user, "order:read:any");
 
   const agency = useObject("/dashboard", canAgency);
@@ -146,7 +143,6 @@ export default function ControlCenter() {
   const quotes = useAllListing("/quotes?perPage=100", canReadQuotes);
   const prospects = useAllListing("/prospects?perPage=100", canReadProspects);
   const orders = useAllListing("/orders?perPage=100", canReadOrders);
-  const activity = useListing(canReadActivity ? "/activity?page=1&perPage=25" : null);
   const [projectExtras, setProjectExtras] = useState({ tasks: EMPTY, milestones: EMPTY, error: null, projectKey: null });
 
   const [view, setView] = useState(null);
@@ -406,7 +402,6 @@ export default function ControlCenter() {
     invoices.error,
     quotes.error,
     prospects.error,
-    activity.error,
     extrasError,
   ].filter(Boolean))];
 
@@ -610,18 +605,6 @@ export default function ControlCenter() {
     })),
   ];
 
-  /* Activité récente : icône dans un cercle clair, phrase en gras, heure grise. */
-  const activityItems = (activity.items ?? []).slice(0, 6).map((entry) => {
-    const meta = ACTIVITY_META[entry.type] ?? { icon: Radio, tone: "blue" };
-    return {
-      id: entry.id,
-      icon: meta.icon,
-      tone: meta.tone,
-      sentence: entry.summary || ACTIVITY_LABEL[entry.type] || entry.type || "Mouvement enregistré",
-      time: relativeFr(entry.createdAt),
-    };
-  });
-
   /* Santé de l'espace : barre 4 px, piste claire, remplissage vert, ratio à droite. */
   const healthTotal = computed.projectHealth.reduce((sum, row) => sum + row.count, 0);
   const healthItems = computed.projectHealth.map((row) => ({
@@ -724,21 +707,17 @@ export default function ControlCenter() {
           <Panel
             title="Activité récente"
             action={
-              canReadActivity ? (
+              can(user, "audit:read:any") ? (
                 <Button href="/espace-equipe/journal" icon={FileText}>
                   Journal complet
                 </Button>
               ) : null
             }
           >
-            {canReadActivity ? (
-              <ActivityList
-                items={activityItems}
-                empty={activity.loading ? "Chargement de l’activité…" : "Aucune activité récente."}
-              />
-            ) : (
-              <p className="sui-card__desc">Votre périmètre ne donne pas accès au journal d’activité.</p>
-            )}
+            <p className="sui-card__desc">
+              Le fil d’activité transversal n’est pas exposé par l’API. Le journal d’audit conserve
+              l’historique des actions de l’espace.
+            </p>
           </Panel>
 
           <Panel
@@ -908,33 +887,6 @@ export default function ControlCenter() {
 /* -------------------------------------------------------------------------- */
 /* Blocs de présentation (aucune logique métier)                               */
 /* -------------------------------------------------------------------------- */
-
-/** Type d'activité → icône lucide et pastel. */
-const ACTIVITY_META = {
-  PROJECT_CREATED: { icon: FolderKanban, tone: "blue" },
-  PROJECT_UPDATED: { icon: FolderKanban, tone: "blue" },
-  PROJECT_STATUS_CHANGED: { icon: Radio, tone: "lilac" },
-  TASK_ASSIGNED: { icon: CheckSquare, tone: "yellow" },
-  TASK_UPDATED: { icon: CheckSquare, tone: "yellow" },
-  TASK_COMPLETED: { icon: BadgeCheck, tone: "green" },
-  QUOTE_SENT: { icon: FileText, tone: "blue" },
-  QUOTE_ACCEPTED: { icon: BadgeCheck, tone: "green" },
-  QUOTE_REJECTED: { icon: TriangleAlert, tone: "pink" },
-  INVOICE_ISSUED: { icon: ReceiptText, tone: "lilac" },
-  PAYMENT_RECEIVED: { icon: Banknote, tone: "green" },
-  PAYMENT_FAILED: { icon: TriangleAlert, tone: "pink" },
-  MESSAGE_SENT: { icon: Mail, tone: "blue" },
-  MESSAGE_RECEIVED: { icon: Mail, tone: "blue" },
-  MODIFICATION_REQUESTED: { icon: LifeBuoy, tone: "yellow" },
-  CLIENT_CREATED: { icon: Users, tone: "green" },
-  USER_CREATED: { icon: Users, tone: "green" },
-};
-
-const ACTIVITY_LABEL = {
-  PROJECT_CREATED: "Projet créé",
-  TASK_COMPLETED: "Tâche terminée",
-  PAYMENT_RECEIVED: "Paiement reçu",
-};
 
 /** Barres horizontales pastel en `div` : mêmes données, aucune librairie. */
 function BarList({ rows = [], empty = "Aucune donnée.", tone = "green" }) {

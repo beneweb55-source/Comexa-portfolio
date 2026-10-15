@@ -52,7 +52,6 @@ import {
   Megaphone,
   Plus,
   Search,
-  ScrollText,
   Settings2,
   ShoppingCart,
   Sparkles,
@@ -316,7 +315,6 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
   const unreadProbe = useListing("/notifications?read=false&page=1&perPage=1");
   const recentNotifications = useListing("/notifications?page=1&perPage=6");
   const canReadActivity = isTeam && (can(user, "activity:read:any") || can(user, "activity:read:client"));
-  const recentActivity = useListing(canReadActivity ? "/activity?page=1&perPage=5" : null);
   const canReadTasks = canReadOwnTasks(user);
   const myTasks = useListing(canReadTasks ? "/me/tasks?page=1&perPage=20" : null);
 
@@ -466,26 +464,6 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
       });
     });
 
-    if (canReadActivity) {
-      tabs.push({ id: "journal", label: "Historique" });
-      (recentActivity.items ?? []).slice(0, 6).forEach((entry) => {
-        items.push({
-          id: `activity-${entry.id}`,
-          tab: "journal",
-          tone: "lilac",
-          icon: ScrollText,
-          type: "Activité",
-          date: relativeFr(entry.createdAt),
-          lines: [
-            entry.summary || entry.type || "Mouvement enregistré",
-            entry.actor ? `${entry.actor.firstName ?? ""} ${entry.actor.lastName ?? ""}`.trim() || entry.actor.email : "Système",
-            entry.targetType ? `Cible : ${entry.targetType}` : "Journal d’activité",
-          ],
-          cta: { label: "Ouvrir le journal", icon: FileText, href: "/espace-equipe/journal" },
-        });
-      });
-    }
-
     const waiting = openTasks.length + unreadCount;
     const live = (recentNotifications.items ?? []).filter((n) => !n.read).length;
     const subtitleParts = [];
@@ -493,14 +471,14 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
     subtitleParts.push(`${unreadCount} notification${unreadCount > 1 ? "s" : ""} non lue${unreadCount > 1 ? "s" : ""}`);
     if (canReadActivity && live) subtitleParts.push(`${live} nouveauté${live > 1 ? "s" : ""}`);
 
-    const error = myTasks.error || recentNotifications.error || recentActivity.error;
+    const error = myTasks.error || recentNotifications.error;
     /* Tant qu'une source charge et que rien n'est encore arrivé, le panneau
        affiche « Chargement… » plutôt qu'un « Rien à traiter » mensonger. */
     const loading =
-      items.length === 0 && (myTasks.loading || recentNotifications.loading || (canReadActivity && recentActivity.loading));
+      items.length === 0 && (myTasks.loading || recentNotifications.loading);
 
     return { tabs, items, subtitle: subtitleParts.join(" · "), waiting, error: error ? messageOf(error) : null, loading };
-  }, [canReadActivity, canReadTasks, isTeam, myTasks, recentActivity, recentNotifications, unreadCount]);
+  }, [canReadActivity, canReadTasks, isTeam, myTasks, recentNotifications, unreadCount]);
 
   /* ---------------------------------------------------------------------- */
   /* Dock : cinq boutons pastel autorisés + le « + » noir cerclé             */
@@ -582,7 +560,6 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
       onRetry={() => {
         myTasks.reload();
         recentNotifications.reload();
-        recentActivity.reload();
       }}
       tabs={desk.tabs}
       items={desk.items}
