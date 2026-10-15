@@ -392,16 +392,20 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
   /* Recherche du bandeau : utile seulement si la page la consomme. */
   const searchWired = !isDashboard && Boolean(activeLink);
 
-  /* Action principale contextuelle (aucun bouton mort : droits vérifiés). */
+  /* Action principale contextuelle (aucun bouton mort : droits vérifiés).
+     Sur la page de création elle-même, le bouton pointerait sur la page
+     courante : on le masque. Sur la liste des devis, c'est CE bouton qui fait
+     office de CTA unique (la page ne le double plus dans ses filtres). */
   const primaryAction = useMemo(() => {
     if (isTeam) {
+      if (pathname === "/espace-equipe/devis/nouveau") return null;
       if (can(user, "quote:write:any")) {
         return { label: "Nouveau devis", href: "/espace-equipe/devis/nouveau", icon: FilePlus };
       }
       return null;
     }
     return { label: "Commander un pack", href: "/espace-client/commander", icon: ShoppingCart };
-  }, [isTeam, user]);
+  }, [isTeam, pathname, user]);
 
   /* ---------------------------------------------------------------------- */
   /* Admin Desk : onglets et cartes teintées issus de l'API                  */
@@ -490,8 +494,12 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
     if (canReadActivity && live) subtitleParts.push(`${live} nouveauté${live > 1 ? "s" : ""}`);
 
     const error = myTasks.error || recentNotifications.error || recentActivity.error;
+    /* Tant qu'une source charge et que rien n'est encore arrivé, le panneau
+       affiche « Chargement… » plutôt qu'un « Rien à traiter » mensonger. */
+    const loading =
+      items.length === 0 && (myTasks.loading || recentNotifications.loading || (canReadActivity && recentActivity.loading));
 
-    return { tabs, items, subtitle: subtitleParts.join(" · "), waiting, error: error ? messageOf(error) : null };
+    return { tabs, items, subtitle: subtitleParts.join(" · "), waiting, error: error ? messageOf(error) : null, loading };
   }, [canReadActivity, canReadTasks, isTeam, myTasks, recentActivity, recentNotifications, unreadCount]);
 
   /* ---------------------------------------------------------------------- */
@@ -568,7 +576,14 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
     <AdminDeskPanel
       key={desk.tabs.map((tab) => tab.id).join("-")}
       title="Admin Desk"
-      subtitle={desk.error ? desk.error : desk.subtitle}
+      subtitle={desk.subtitle}
+      error={desk.error}
+      loading={desk.loading}
+      onRetry={() => {
+        myTasks.reload();
+        recentNotifications.reload();
+        recentActivity.reload();
+      }}
       tabs={desk.tabs}
       items={desk.items}
       mode={isCompact ? "drawer" : "inline"}
@@ -645,7 +660,13 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
                       searchLabel={`Rechercher dans ${pageHeading}`}
                       actions={
                         isTeam ? (
-                          <Button icon={Search} onClick={() => setCmdkOpen(true)}>
+                          <Button
+                            icon={Search}
+                            className="sui-global-search"
+                            aria-label="Recherche globale (Ctrl+K)"
+                            title="Recherche globale (Ctrl+K)"
+                            onClick={() => setCmdkOpen(true)}
+                          >
                             Recherche globale
                           </Button>
                         ) : null

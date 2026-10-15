@@ -541,14 +541,19 @@
 
 .sui-notch__fillet--left {
   right: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 100% 0, #0000 99%, #000 100%);
-  mask-image: radial-gradient(circle var(--r-notch) at 100% 0, #0000 99%, #000 100%);
+  /* Congé concave : le disque transparent est centré sur le coin EXTÉRIEUR
+     (bas-gauche, opposé à la jonction languette/navbar). Le noir ne subsiste
+     qu'en croissant le long de la navbar et de la languette — centrer le disque
+     sur la jonction produisait un triangle noir isolé dans le panneau clair.
+     Le pas de 1 px adoucit l'arc (l'ancien seuil 99 %/100 % crénelait). */
+  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 0 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
+  mask-image: radial-gradient(circle var(--r-notch) at 0 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
 }
 
 .sui-notch__fillet--right {
   left: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 0 0, #0000 99%, #000 100%);
-  mask-image: radial-gradient(circle var(--r-notch) at 0 0, #0000 99%, #000 100%);
+  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 100% 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
+  mask-image: radial-gradient(circle var(--r-notch) at 100% 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
 }
 
 .sui-main__scroll {
@@ -560,7 +565,17 @@
   padding: 34px clamp(16px, 2vw, 28px) 132px;
   scrollbar-width: thin;
   scrollbar-color: rgba(17, 17, 17, 0.2) transparent;
-  font-size: calc(var(--fs-body) * var(--zoom));
+  /* Densité (+ / − du rail) : les jetons de taille sont réévalués ICI, pour ce
+     sous-arbre. L'ancien `font-size: calc(var(--fs-body) * var(--zoom))` ne
+     changeait que le texte hérité — or presque tous les composants fixent leur
+     taille via ces mêmes jetons, donc les boutons semblaient sans effet.
+     `--fs-micro` garde son plancher de 12 px, même réduit. */
+  --fs-hero: calc(clamp(26px, 2.2vw, 34px) * var(--zoom));
+  --fs-title: calc(17px * var(--zoom));
+  --fs-body: calc(14px * var(--zoom));
+  --fs-small: calc(13px * var(--zoom));
+  --fs-micro: max(12px, calc(12px * var(--zoom)));
+  font-size: var(--fs-body);
 }
 
 .sui-main__scroll::-webkit-scrollbar {
@@ -660,6 +675,7 @@
 
 .sui-head__left {
   display: flex;
+  flex: 1 1 300px;
   align-items: center;
   gap: 14px;
   min-width: 0;
@@ -706,15 +722,24 @@
 
 .sui-head__actions {
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  min-width: min(100%, 360px);
 }
 
 .sui-search {
+  /* La recherche locale s'étire dans l'espace restant au lieu d'être écrasée
+     par les boutons voisins (son libellé « Rechercher dans devis… » était
+     tronqué en « Rechercher dans dev »). */
   display: flex;
+  flex: 1 1 210px;
   align-items: center;
   gap: 9px;
+  min-width: 180px;
+  max-width: 340px;
   min-height: 44px;
   padding: 0 18px;
   border-radius: var(--r-pill);
@@ -797,7 +822,7 @@
 
 .sui-kpi__value {
   margin: 10px 0 0;
-  font-size: clamp(28px, 2.6vw, 38px);
+  font-size: calc(clamp(28px, 2.6vw, 38px) * var(--zoom, 1));
   font-weight: 800;
   line-height: 1.05;
   letter-spacing: var(--tracking-tight);
@@ -924,6 +949,7 @@
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
   text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
@@ -1118,7 +1144,10 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 0;
-  padding: 0;
+  /* Les pastilles de coin dépassent de 10 px au-dessus des cartes : sans ce
+     retrait, la première rangée les plaque contre le bloc précédent (et tout
+     conteneur à débordement masqué les rognerait). */
+  padding: 12px 0 0;
   list-style: none;
 }
 
@@ -1190,7 +1219,7 @@
 .sui-card__title {
   margin: 0;
   padding-right: 44px;
-  font-size: 16px;
+  font-size: calc(16px * var(--zoom, 1));
   font-weight: 800;
   line-height: 1.3;
   letter-spacing: var(--tracking-tight);
@@ -1225,19 +1254,26 @@
   overflow: hidden;
 }
 
-/* Pilule blanche d'information (montant, audience…) en haut de carte. */
+/* Pilule d'information (montant, audience…) en haut de carte. Sur une carte
+   blanche, un fond blanc ne se détache pas : fond de panneau + anneau fin.
+   Le blanc plein reste réservé à la carte mise en avant (lilas soutenu). */
 .sui-card__pill {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
   padding: 5px 12px;
   border-radius: var(--r-pill);
-  background: #ffffff;
-  box-shadow: var(--shadow-card);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
   font-size: var(--fs-micro);
   font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+
+.sui-card--highlight .sui-card__pill {
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
 }
 
 .sui-card__meta {
@@ -1278,6 +1314,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  /* L'action d'ouverture reste à droite, même sans pilule de statut à gauche. */
+  margin-left: auto;
 }
 
 /* Barre de progression : 4 px, piste grise claire, remplissage vert doux. */
@@ -1445,6 +1483,7 @@
 .sui-seg__tab {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 34px;
   padding: 0 10px;
   border: 0;
@@ -1454,6 +1493,9 @@
   font: inherit;
   font-size: var(--fs-micro);
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-out);
 }
@@ -1470,12 +1512,62 @@
   box-shadow: var(--shadow-card);
 }
 
+/* Erreur du panneau : pastel rose (jamais de rouge saturé), rôle d'alerte et
+   action de relance — l'ancien rendu la confondait avec le sous-titre gris et
+   laissait « Rien à traiter » contredire le message d'erreur. */
+.sui-desk__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--pink);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.sui-desk__alert svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.sui-desk__alert-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sui-desk__retry {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-desk__retry:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
 .sui-desk__scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  padding-right: 4px;
+  /* Le bas du panneau est survolé par les flottants Minuteur / Console
+     (espace équipe) : ce retrait laisse la dernière carte défiler au clair. */
+  padding: 0 4px 148px 0;
   scrollbar-width: thin;
   scrollbar-color: rgba(17, 17, 17, 0.18) transparent;
 }
@@ -1636,14 +1728,18 @@
 
 .sui-dock__fillet--left {
   right: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 100% 100%, #0000 99%, #000 100%);
-  mask-image: radial-gradient(circle var(--r-dock) at 100% 100%, #0000 99%, #000 100%);
+  /* Même géométrie que la languette : disque transparent centré sur le coin
+     extérieur (haut-gauche), croissant noir le long du dock et du bord bas.
+     L'ancien centre (jonction dock/bord) laissait un triangle noir détaché
+     flotter dans le panneau clair, de chaque côté du dock. */
+  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 0 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
+  mask-image: radial-gradient(circle var(--r-dock) at 0 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
 }
 
 .sui-dock__fillet--right {
   left: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 0 100%, #0000 99%, #000 100%);
-  mask-image: radial-gradient(circle var(--r-dock) at 0 100%, #0000 99%, #000 100%);
+  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 100% 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
+  mask-image: radial-gradient(circle var(--r-dock) at 100% 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
 }
 
 .sui-dock__btn {
@@ -2051,6 +2147,16 @@
   .sui-desk--inline {
     flex-basis: 300px;
     width: 300px;
+  }
+
+  /* La recherche globale devient icône seule (son `aria-label` la nomme) :
+     elle ne vole plus la place du champ de recherche locale, qui était
+     tronqué dès que l'en-tête affichait trois contrôles. */
+  .sui-global-search {
+    gap: 0;
+    min-width: 44px;
+    padding: 0 13px;
+    font-size: 0;
   }
 }
 
@@ -2505,4 +2611,57 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   20. HARMONISATION DES ÉTATS HÉRITÉS (`cx-*`) DANS LA COQUE
+   --------------------------------------------------------------------------
+   Les pages rendent encore leurs états vide / chargement / pagination avec
+   les composants historiques (`Empty`, `SkeletonList`, `Pagination` de
+   `workspace/ui.jsx`), pensés pour l'ancien thème bleu. Dans le panneau clair,
+   on les ramène à la charte pastel sans toucher à leur logique : mêmes
+   composants, même API, seul l'habillage suit la coque.
+   ========================================================================== */
+
+.sui-main .cx-empty {
+  border: 2px dashed rgba(17, 17, 17, 0.18);
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+/* Pastille d'icône de l'état vide : lilas de la charte, forme ronde des cartes. */
+.sui-main .cx-empty > span {
+  border-radius: 50%;
+  background: var(--lilac);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.sui-main .cx-skeleton {
+  border-radius: 12px;
+  background-color: #eceaec;
+  background-image: linear-gradient(100deg, #eceaec 20%, #f7f5f6 40%, #eceaec 60%);
+  background-size: 280% 100%;
+  animation: sui-shimmer 1.4s var(--ease-out) infinite;
+}
+
+/* Rangée de squelette : gabarit de carte (blanc, rayon 24, ombre douce). */
+.sui-main div[role="status"][aria-label="Chargement en cours"] > div {
+  border-color: var(--line-soft);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Pagination : séparateur et boutons reprennent la forme pilule de la coque. */
+.sui-main nav[aria-label^="Pagination"] {
+  border-top-color: var(--line-soft);
+  color: var(--muted);
+  font-family: var(--font-sans);
+}
+
+.sui-main nav[aria-label^="Pagination"] .cx-btn {
+  border-radius: var(--r-pill);
 }

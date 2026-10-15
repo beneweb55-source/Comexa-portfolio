@@ -13,7 +13,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { TriangleAlert, X } from "lucide-react";
 import { useState } from "react";
 import Tooltip from "./Tooltip";
 import { layoutSoft } from "./motion";
@@ -22,6 +22,9 @@ import { IconButton } from "./primitives";
 export default function AdminDeskPanel({
   title = "Admin Desk",
   subtitle,
+  error,
+  loading = false,
+  onRetry,
   tabs = [],
   items = [],
   mode = "inline",
@@ -69,13 +72,33 @@ export default function AdminDeskPanel({
         ) : null}
       </div>
 
+      {/* Erreur de chargement : alerte pastel dédiée + relance. Elle remplace
+          l'ancien sous-titre gris, indiscernable d'un compteur, qui laissait
+          ensuite « Rien à traiter » contredire l'échec. */}
+      {error ? (
+        <div className="sui-desk__alert" role="alert">
+          <TriangleAlert size={17} strokeWidth={1.75} aria-hidden="true" />
+          <span className="sui-desk__alert-text">{error}</span>
+          {onRetry ? (
+            <button type="button" className="sui-desk__retry" onClick={onRetry}>
+              Réessayer
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div
         className="sui-desk__scroll"
         role="tabpanel"
         id={`sui-desk-panel-${tab}`}
         aria-labelledby={tabs.length ? `sui-desk-tab-${tab}` : undefined}
       >
-        {visible.length === 0 ? <p className="sui-desk__sub">{emptyLabel}</p> : null}
+        {visible.length === 0 && loading && !error ? (
+          <p className="sui-desk__sub" role="status">
+            Chargement des éléments…
+          </p>
+        ) : null}
+        {visible.length === 0 && !loading && !error ? <p className="sui-desk__sub">{emptyLabel}</p> : null}
         <ul className="sui-deskcards">
           {visible.map((item) => (
             <li key={item.id} className="sui-deskcard" style={{ "--tone-bg": `var(--${item.tone ?? "blue"})` }}>

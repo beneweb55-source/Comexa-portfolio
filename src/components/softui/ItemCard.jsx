@@ -11,7 +11,7 @@
  */
 
 import { motion } from "framer-motion";
-import { cardHover, cardRest, staggerItem } from "./motion";
+import { cardHover, staggerItem } from "./motion";
 import { IconButton, StatusPill } from "./primitives";
 
 /*
@@ -78,13 +78,11 @@ export function ItemCard({
   const classes = ["sui-card", highlight ? "sui-card--highlight" : "", ghost ? "sui-card--ghost" : ""].join(" ").trim();
 
   return (
-    <motion.li
-      variants={staggerItem}
-      whileHover={ghost ? undefined : cardHover}
-      animate={cardRest}
-      className={classes}
-      style={{ listStyle: "none" }}
-    >
+    /* Pas de prop `animate` : elle court-circuitait la propagation des variantes
+       du parent (ItemGrid), donc l'apparition échelonnée — fondu compris —
+       n'était plus pilotée par `staggerItem`. Le retour au repos (y: 0) est
+       déjà la cible de la variante `visible`. */
+    <motion.li variants={staggerItem} whileHover={ghost ? undefined : cardHover} className={classes} style={{ listStyle: "none" }}>
       {corner || cornerLabel || CornerIcon ? (
         <span
           className="sui-card__corner"
@@ -121,7 +119,7 @@ export function ItemCard({
       {progress ? <ProgressBar value={progress.value} ratio={progress.ratio} /> : null}
 
       {status || actions || footer || play ? (
-        <div className="sui-card__foot" style={status && actions ? undefined : { justifyContent: "flex-start" }}>
+        <div className="sui-card__foot">
           {status ? (
             <StatusPill tone={statusTone} icon={statusIcon} label={status} variant={statusVariant} />
           ) : null}
