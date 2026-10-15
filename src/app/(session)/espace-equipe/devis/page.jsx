@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Plus, Users } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { Empty, Pagination, SkeletonList, primaryButton } from "@/components/workspace/ui";
-import { Alert, Button, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
+import { Alert, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
 
 const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
@@ -31,6 +31,9 @@ export default function DevisEquipePage() {
     <div className="flex flex-col gap-5">
       {quotes.error ? <Alert icon={CircleAlert}>{quotes.error}</Alert> : null}
 
+      {/* Pas d'action « Nouveau devis » ici : l'en-tête de la coque affiche déjà
+          ce CTA principal (même destination). Le doubler créait deux boutons
+          noirs identiques dans la même vue. */}
       <FilterPills
         label="Filtrer les devis par statut"
         value={filter}
@@ -39,13 +42,6 @@ export default function DevisEquipePage() {
           setPage(1);
         }}
         items={[{ id: "", label: "Tous" }, ...Object.entries(QUOTE_STATUS).map(([id, label]) => ({ id, label }))]}
-        actions={
-          canCreateQuote ? (
-            <Button variant="dark" icon={Plus} href="/espace-equipe/devis/nouveau">
-              Nouveau devis
-            </Button>
-          ) : null
-        }
       />
 
       <section className="sui-section" aria-label="Liste des devis">
@@ -81,7 +77,7 @@ export default function DevisEquipePage() {
                   title={quote.subject}
                   description={recipient}
                   meta={[
-                    { icon: Users, label: quote.reference },
+                    { icon: Hash, label: quote.reference },
                     { icon: CalendarDays, label: `Valable jusqu’au ${formatDate(quote.validUntil)}` },
                   ]}
                   info={formatMoney(quote.total, quote.currency)}

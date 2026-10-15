@@ -399,7 +399,10 @@
 .cx-dashboard__due-date.is-late { color: #b7312a; }
 .cx-dashboard__due-date.is-attention { color: #9b5b0b; }
 .cx-dashboard__due-status { margin-top: 3px; font-size: 10px; }
-.cx-timer-pill { position: fixed; right: 22px; bottom: 22px; z-index: 50; display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
+/* Ancré sur la coque (retrait `--shell-pad`), pas sur la fenêtre : le bouton ne
+   chevauche plus le coin arrondi du dashboard. z-index 40 : sous le voile et les
+   tiroirs de la coque (55/56), au-dessus du panneau clair. */
+.cx-timer-pill { position: fixed; right: calc(var(--shell-pad, 16px) + 14px); bottom: calc(var(--shell-pad, 16px) + 14px); z-index: 40; display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
 .cx-timer-pill__panel { width: min(330px, calc(100vw - 24px)); border: 1px solid rgba(255, 255, 255, 0.94); border-radius: 20px; background: rgba(255, 255, 255, 0.97); padding: 17px; color: #405b76; box-shadow: 0 18px 50px rgba(16, 39, 70, 0.18), inset 0 1px 0 #fff; }
 @supports (backdrop-filter: blur(12px)) { .cx-timer-pill__panel { background: rgba(255, 255, 255, 0.91); backdrop-filter: blur(16px) saturate(125%); } }
 .cx-timer-pill__eyebrow { margin: 0; color: #0f65a2; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -425,7 +428,12 @@
 .cx-timer-pill__trigger svg { width: 16px; height: 16px; }
 .cx-timer-pill__trigger-time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
 .cx-timer-pill__error { margin: 10px 0 0; color: #a32923; font-size: 11px; line-height: 1.4; }
-@media (max-width: 600px) { .cx-timer-pill { right: 12px; bottom: 12px; } }
+@media (max-width: 767px) {
+  /* Au-dessus de la barre d'icônes mobile (~60 px) et du dock flottant (~64 px). */
+  .cx-timer-pill { right: 12px; bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
+  .cx-console-launcher { right: 12px; bottom: calc(204px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 600px) { .cx-timer-pill { right: 12px; } }
 
 .cx-dashboard__timer-value { margin: 0; color: #173452; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 31px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
 .cx-dashboard__timer-stop { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 8px; padding: 0 13px; border: 1px solid #c7463d; border-radius: 12px; background: #c7463d; color: #fff; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; transition: background-color 140ms ease, transform 140ms ease; }
@@ -1299,11 +1307,12 @@
 
 .cx-console-launcher {
   position: fixed;
-  right: 22px;
-  /* Au-dessus du minuteur flottant (bas droite, 22 px) : deux commandes qui
-     se chevauchent sont deux commandes perdues. */
-  bottom: 92px;
-  z-index: 60;
+  /* Même ancrage coque que le minuteur, empilé au-dessus de lui (44 px de
+     bouton + 12 px d'écart) : les deux flottants restent dans le panneau et
+     passent SOUS le voile des tiroirs (z 55) au lieu de flotter par-dessus. */
+  right: calc(var(--shell-pad, 16px) + 14px);
+  bottom: calc(var(--shell-pad, 16px) + 70px);
+  z-index: 40;
   display: inline-flex;
   align-items: center;
   gap: 10px;
