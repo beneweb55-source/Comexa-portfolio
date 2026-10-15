@@ -11,6 +11,7 @@
 @import "../styles/workspace-team-glass.css";
 @import "../styles/softui.tokens.css";
 @import "../styles/softui.components.css";
+@import "../styles/workspace-liquid.css";
 
 :root {
   --background: #ffffff;

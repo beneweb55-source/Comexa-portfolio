@@ -62,8 +62,6 @@ import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import UserMenu from "@/components/workspace/UserMenu";
-import AiAgentDrawer from "@/components/workspace/AiAgentDrawer";
-import TimerPill from "@/components/workspace/TimerPill";
 import PageHeader from "./PageHeader";
 import AdminDeskPanel from "./AdminDeskPanel";
 import Tooltip from "./Tooltip";
@@ -272,6 +270,7 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
     return links[0] ? { ...links[0], group: ROUTE_META[links[0].href]?.group } : null;
   }, [links, pathname]);
 
+  const isDashboard = pathname === "/espace-equipe/tableau-de-bord";
   const pageHeading = activeLink?.label ?? title;
   const pageGroup = activeLink?.group ?? (isTeam ? "Espace équipe" : "Espace client");
 
@@ -535,7 +534,7 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
                     <ChevronRight size={11} strokeWidth={2.2} aria-hidden="true" />
                     <span>{pageGroup}</span>
                   </span>
-                  <h1 className="sui-topbar__title">{pageHeading}</h1>
+                  <p className="sui-topbar__title">{pageHeading}</p>
                 </div>
               </div>
 
@@ -547,14 +546,20 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
                     className="sui-topbar__search-icon"
                     aria-hidden="true"
                   />
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Filtrer la vue ou rechercher…"
-                    aria-label="Filtrer la vue courante"
-                    className="sui-topbar__search-input"
-                  />
+                  {isDashboard ? (
+                    <button type="button" className="sui-topbar__search-input sui-topbar__command" onClick={() => setCmdkOpen(true)}>
+                      Rechercher une rubrique ou une action…
+                    </button>
+                  ) : (
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Filtrer la vue…"
+                      aria-label="Filtrer la vue courante"
+                      className="sui-topbar__search-input"
+                    />
+                  )}
                   <button
                     type="button"
                     onClick={() => setCmdkOpen(true)}
@@ -568,16 +573,6 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
               </div>
 
               <div className="sui-topbar__right">
-                {primaryAction ? (
-                  <Link
-                    href={primaryAction.href}
-                    className="sui-pill-btn sui-pill-btn--dark hidden sm:inline-flex"
-                  >
-                    <primaryAction.icon size={15} strokeWidth={2} aria-hidden="true" />
-                    <span>{primaryAction.label}</span>
-                  </Link>
-                ) : null}
-
                 {isTeam ? (
                   <button
                     type="button"
@@ -626,9 +621,10 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
               <div className="sui-canvas-inner">
                 <PageHeader
                   title={pageHeading}
-                  subtitle={subtitle}
+                  subtitle={isDashboard ? "Une vue claire sur votre activité, vos projets et vos priorités." : subtitle}
+                  breadcrumb={isDashboard ? "Votre espace de pilotage" : undefined}
                   secondaryAction={
-                    isTeam
+                    isDashboard ? null : isTeam
                       ? { label: "Recherche globale (⌘K)", onClick: () => setCmdkOpen(true), icon: Search }
                       : { label: "Messagerie", href: "/espace-client/messagerie", icon: MessageSquare }
                   }
@@ -751,8 +747,6 @@ export function WorkspaceSoftShell({ area, title, subtitle, links = [], children
           />
         ) : null}
 
-        {isTeam ? <TimerPill /> : null}
-        {isTeam ? <AiAgentDrawer /> : null}
       </div>
     </ShellQueryContext.Provider>
   );

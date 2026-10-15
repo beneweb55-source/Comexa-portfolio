@@ -112,7 +112,7 @@ export function DistributionTile({ title, subtitle, rows = [], labels, icon = "c
 }
 
 /** Santé des projets (agence) : une barre par niveau, valeurs réelles. */
-export function HealthTile({ rows = [], className = "" }) {
+export function HealthTile({ rows = [], loading = false, error = null, className = "" }) {
   const total = rows.reduce((sum, row) => sum + row.count, 0);
   return (
     <GlassCard className={`flex flex-col gap-4 p-6 md:p-7 ${className}`}>
@@ -120,10 +120,10 @@ export function HealthTile({ rows = [], className = "" }) {
         <GlowIcon tone="mint"><Icon name="folder" /></GlowIcon>
         <div>
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Santé des projets</h3>
-          <p className="cx-dashboard__muted">{total} projet(s) suivis</p>
+          <p className="cx-dashboard__muted">{error ? "Données indisponibles" : loading ? "Chargement des projets…" : `${total} projet(s) suivis`}</p>
         </div>
       </div>
-      {rows.length === 0 ? <p className="cx-dashboard__muted">Aucun projet pour le moment.</p> : null}
+      {!loading && !error && rows.length === 0 ? <p className="cx-dashboard__muted">Aucun projet pour le moment.</p> : null}
       <ul className="flex flex-col gap-3">
         {rows.map((row) => {
           const color = HEALTH_COLOR[row.status] ?? "#4fb0f0";
@@ -159,7 +159,7 @@ export function FinanceTile({ open, overdue, collected, rate, className = "" }) 
           <GlowIcon tone="amber"><Icon name="money" /></GlowIcon>
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Facturation</h3>
         </div>
-        <span className="cx-dashboard__rate">{rate} % encaissé</span>
+        <span className="cx-dashboard__rate">{rate == null ? "—" : `${rate} % encaissé`}</span>
       </div>
       <dl className="flex flex-col divide-y divide-slate-100">
         {rows.map((row) => (
@@ -177,7 +177,7 @@ export function FinanceTile({ open, overdue, collected, rate, className = "" }) 
 }
 
 /** Échéances : tâches (et factures, pour l'agence) à venir. */
-export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, tasksHref, tasksLinkLabel = "Toutes les tâches", invoicesHref, className = "" }) {
+export function DueTile({ tasks = [], loading = false, error = null, invoices = null, taskHref, invoiceHref, tasksHref, tasksLinkLabel = "Toutes les tâches", invoicesHref, className = "" }) {
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -205,7 +205,7 @@ export function DueTile({ tasks = [], invoices = null, taskHref, invoiceHref, ta
         {!empty ? <span className="cx-dashboard__due-count" aria-label={`${tasks.length + invoiceRows.length} échéances`}>{tasks.length + invoiceRows.length}</span> : null}
       </div>
 
-      {empty ? (
+      {error ? <p className="cx-dashboard__muted">Les échéances sont momentanément indisponibles.</p> : loading ? <p role="status" className="cx-dashboard__muted">Chargement des échéances…</p> : empty ? (
         <div className="cx-dashboard__due-empty">
           <span className="cx-dashboard__due-empty-icon"><Icon name="check" /></span>
           <p>Aucune échéance à venir dans votre périmètre.</p>
