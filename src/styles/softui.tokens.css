@@ -1,39 +1,114 @@
 /*
- * Tokens Comexa Workspace & Soft Glass UI — unifiés avec l'ADN Comexa
- * (#0b2545 Deep Navy Ink + #1e86e0 Comexa Blue + Liquid Glass lumineux).
+ * Tokens du dashboard — « soft UI pastel dans une coque noire ».
+ *
+ * Ce fichier est la SOURCE DE VÉRITÉ du design system : les composants
+ * (`src/components/softui/*`) ne contiennent aucune couleur en dur et consomment
+ * toujours `var(--…)`. `src/components/softui/tokens.js` n'en est que le miroir
+ * JavaScript (nuanciers, table statut → tonalité, cadences).
+ *
+ * Règles de la charte :
+ *  - un seul accent noir pour les actions principales, le reste est pastel ;
+ *  - contraste AA minimum : `--ink #111` et `--muted #6B6B6B` sur les surfaces
+ *    claires (7,4:1 et 4,9:1), blanc sur `--shell` (19,4:1) ;
+ *  - plancher typographique : 12 px, corps à 14 px ;
+ *  - rayons : coque 32 px, cartes 24 px, KPI 28 px, pilules pleines,
+ *    boutons icône 36 px ronds (40 px pour les cibles tactiles isolées).
  */
 
 :root {
-  --shell-bg: #0b2545;
-  --canvas: #f3f7fc;
-  --surface: #ffffff;
-  --text: #0b2545;
-  --muted: #4a607a;
+  /* --- Coque et fonds ---------------------------------------------------- */
+  --shell: #0b0a0f;            /* navbar, rail, dock, languette : le noir unique */
+  --shell-raised: #17151d;     /* surfaces noires survolées (pilule d'onglet actif) */
+  --shell-line: rgba(255, 255, 255, 0.14);
+  --shell-ink: #ffffff;
+  --shell-muted: #b9b6c4;      /* 8,9:1 sur --shell : icônes et libellés secondaires */
 
-  /* Teintes sémantiques lumineuses Comexa (contraste WCAG AA garanti avec --text) */
-  --pastel-blue: #e8f3fe;
-  --pastel-green: #e6f7ef;
-  --pastel-yellow: #fef4e2;
-  --pastel-lilac: #f0edfe;
-  --pastel-pink: #fdeceb;
+  --backdrop: #dbe7ef;         /* halo bleu glacé derrière la coque */
+  --surface: #f6f4f5;          /* panneau clair */
+  --card: #fdfdfd;             /* cartes blanches */
 
-  /* Rayons Apple-grade */
-  --radius-shell: 28px;
-  --radius-card: 22px;
-  --radius-pill: 9999px;
+  /* --- Pastels (codage des catégories) ----------------------------------- */
+  --blue: #d7e8f9;
+  --green: #d8efbe;
+  --yellow: #f9e6b9;
+  --lilac: #edd5f8;
+  --lilac-strong: #eac1f1;     /* la seule carte « mise en avant » d'une vue */
+  --pink: #f9d5dd;
 
-  /* Ombres multicouches et bordures spéculaires */
-  --shadow-soft:
-    0 1px 2px rgba(11, 37, 69, 0.03),
-    0 6px 20px -4px rgba(11, 37, 69, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --shadow-hover:
-    0 4px 10px -2px rgba(11, 37, 69, 0.05),
-    0 18px 36px -6px rgba(18, 56, 99, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
-  --border-subtle: 1px solid rgba(15, 52, 96, 0.085);
+  /* --- Encre ------------------------------------------------------------- */
+  --ink: #111111;
+  /* #666 plutôt que le #6B6B6B de l'inspiration : à 13 px sur le panneau
+     #F6F4F5, #6B6B6B tombe à 4,44:1 (sous AA). #666 remonte à 5,04:1 sans
+     changer la couleur perçue. Sur --card (#FDFDFD) : 5,27:1. */
+  --muted: #666666;
+  --line: rgba(17, 17, 17, 0.1);
+  --line-soft: rgba(17, 17, 17, 0.06);
+  --track: #e9e6e8;            /* piste des barres de progression */
+  --fill: #9dc76a;             /* remplissage vert doux */
+  --focus: #1e86e0;            /* anneau de focus (clair) */
+  --focus-on-shell: #ffffff;   /* anneau de focus dans la coque noire */
 
-  /* Espacements */
+  /* --- Rayons ------------------------------------------------------------ */
+  --r-shell: 32px;
+  --r-card: 24px;
+  --r-kpi: 28px;
+  --r-pill: 999px;
+  --r-icon: 36px;              /* boutons icône ronds */
+  --r-notch: 14px;             /* rayon de la languette qui descend de la navbar */
+  --r-dock: 26px;              /* rayon du haut du dock */
+
+  /* --- Ombres ------------------------------------------------------------ */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 14px 32px rgba(0, 0, 0, 0.1);
+  --shadow-shell: 0 32px 80px rgba(11, 10, 15, 0.28);
+  --shadow-pop: 0 18px 44px rgba(11, 10, 15, 0.22);
+
+  /* --- Typographie ------------------------------------------------------- */
+  --font-sans: "Plus Jakarta Sans", "Manrope", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --tracking-tight: -0.02em;
+  --fs-hero: clamp(26px, 2.2vw, 34px);
+  --fs-title: 17px;
+  --fs-body: 14px;
+  --fs-small: 13px;
+  --fs-micro: 12px;            /* plancher absolu : jamais en dessous */
+
+  /* --- Cadences (150–300 ms, ease-out) ----------------------------------- */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 300ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* --- Gabarits ---------------------------------------------------------- */
+  --nav-h: 64px;
+  --rail-w: 56px;
+  --desk-w: 25%;
+  --desk-min: 292px;
+  --desk-max: 384px;
+  --zoom: 1;                   /* densité du panneau, pilotée par les boutons + / − */
+  --shell-pad: clamp(10px, 1.6vw, 22px);
+}
+
+/*
+ * Alias conservés pour les feuilles et composants historiques qui pointent
+ * encore vers les anciens noms. Ils reprennent les valeurs de la charte :
+ * aucune couleur divergente ne subsiste dans l'application.
+ */
+:root {
+  --shell-bg: var(--shell);
+  --canvas: var(--backdrop);
+  --text: var(--ink);
+  --pastel-blue: var(--blue);
+  --pastel-green: var(--green);
+  --pastel-yellow: var(--yellow);
+  --pastel-lilac: var(--lilac);
+  --pastel-pink: var(--pink);
+  --radius-shell: var(--r-shell);
+  --radius-card: var(--r-card);
+  --radius-pill: var(--r-pill);
+  --shadow-soft: var(--shadow-card);
+  --shadow-hover: var(--shadow-card-hover);
+  --border-subtle: 1px solid var(--line-soft);
   --sui-space-1: 4px;
   --sui-space-2: 8px;
   --sui-space-3: 12px;
@@ -41,10 +116,6 @@
   --sui-space-5: 20px;
   --sui-space-6: 24px;
   --sui-space-7: 32px;
-
-  /* Typographie unifiée Comexa */
-  --sui-font-sans: "Space Grotesk", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-
-  /* Courbe d'animation Spring */
-  --sui-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --sui-font-sans: var(--font-sans);
+  --sui-ease: var(--ease-out);
 }

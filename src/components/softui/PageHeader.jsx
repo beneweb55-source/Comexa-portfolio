@@ -1,26 +1,37 @@
 "use client";
 
-import Link from "next/link";
 import { Search } from "lucide-react";
+import { Button } from "./primitives";
 
+/** Action d'en-tête : bouton gris secondaire ou noir principal (soft UI). */
 function HeaderAction({ action, primary = false }) {
   if (!action) return null;
-  const Icon = action.icon;
-  const className = `cx-btn ${primary ? "cx-btn--primary" : "cx-btn--secondary"}`;
-  const content = <>{Icon ? <Icon size={16} aria-hidden="true" /> : null}{action.label}</>;
-  return action.href ? (
-    <Link href={action.href} className={className}>{content}</Link>
-  ) : (
-    <button type="button" className={className} onClick={action.onClick}>{content}</button>
+  return (
+    <Button
+      variant={primary ? "dark" : "ghost"}
+      icon={action.icon}
+      href={action.href}
+      onClick={action.onClick}
+    >
+      {action.label}
+    </Button>
   );
 }
 
 /** La recherche n'apparaît que si un filtre est réellement branché. */
-export default function PageHeader({ title, subtitle, icon: Icon, breadcrumb, query, onQueryChange, searchPlaceholder = "Rechercher dans cet espace…", actions, primaryAction, secondaryAction, searchLabel }) {
+export default function PageHeader({ title, subtitle, icon: Icon, iconTone, breadcrumb, query, onQueryChange, searchPlaceholder = "Rechercher dans cet espace…", actions, primaryAction, secondaryAction, searchLabel }) {
   return (
     <div className="sui-head">
       <div className="sui-head__left">
-        {Icon ? <span className="sui-head__icon" aria-hidden="true"><Icon size={24} strokeWidth={1.75} /></span> : null}
+        {Icon ? (
+          <span
+            className="sui-head__icon"
+            aria-hidden="true"
+            style={iconTone ? { "--tone-bg": `var(--${iconTone})` } : undefined}
+          >
+            <Icon size={24} strokeWidth={1.75} />
+          </span>
+        ) : null}
         <div className="min-w-0">
           {breadcrumb ? <p className="sui-head__crumb">{breadcrumb}</p> : null}
           <h1 className="sui-head__title">{title}</h1>

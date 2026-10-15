@@ -1,619 +1,238 @@
 /*
- * Comexa Full-Viewport Liquid Glass App-Shell & Soft UI Components (Elevated v2)
- * Harmonises `softui` primitives and the full-screen workspace shell with Comexa's DNA:
- * Deep Navy Ink (#0b2545) + Comexa Blue (#1e86e0) + Apple/Linear Liquid Glass.
+ * Feuille unique des composants du design system « soft UI pastel dans une
+ * coque noire ». Tout est préfixé `sui-` et ne consomme que les jetons de
+ * `softui.tokens.css` (aucune couleur en dur, sauf les blancs/noirs de la coque
+ * déjà tokenisés).
+ *
+ * Signature du design : les découpes à rayon inversé.
+ *  - `.sui-notch` : la languette noire qui descend de la navbar au centre du
+ *    panneau clair, avec deux congés concaves de part et d'autre ;
+ *  - `.sui-dock__fillet` : le dock noir qui « sort » du bord inférieur avec des
+ *    coins concaves.
+ * Les deux sont obtenus par `mask-image: radial-gradient(…)`, donc sans SVG ni
+ * image externe, et restent nets à n'importe quel zoom.
+ *
+ * Accessibilité : focus visible partout (anneau bleu sur le clair, blanc dans la
+ * coque noire), cibles tactiles ≥ 40 px (36 px pour les mini-actions internes
+ * d'une carte, calibre imposé par le brief), plancher typographique 12 px.
  */
 
 /* ==========================================================================
-   1. FULL-SCREEN APP SHELL (100vw x 100dvh, independent content scroll)
+   1. FOND ET COQUE
    ========================================================================== */
 
 .sui-viewport {
+  position: relative;
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   height: 100dvh;
-  width: 100%;
-  min-width: 0;
-  flex: 1 0 auto;
   overflow: hidden;
-  background-color: var(--comexa-bg, #f3f7fc);
-  background-image:
-    radial-gradient(1100px 620px at 4% -8%, rgba(30, 134, 224, 0.12), transparent 60%),
-    radial-gradient(920px 540px at 96% 2%, rgba(79, 176, 240, 0.10), transparent 58%),
-    radial-gradient(800px 500px at 50% 108%, rgba(21, 104, 180, 0.06), transparent 62%),
-    linear-gradient(180deg, #f5f9fe 0%, #edf4fc 100%);
-  color: var(--text);
-  font-family: var(--sui-font-sans);
+  padding: var(--shell-pad);
+  /* Halo bleu glacé : un seul dégradé, très doux, jamais saturé. */
+  background:
+    radial-gradient(1200px 720px at 12% -10%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(980px 620px at 92% 4%, rgba(186, 214, 232, 0.55), transparent 60%),
+    radial-gradient(900px 700px at 50% 116%, rgba(168, 199, 220, 0.5), transparent 62%),
+    var(--backdrop);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  display: flex;
-  flex-direction: column;
 }
 
-/* Mode aperçu / démo integrable */
-.sui-viewport--embedded {
-  height: auto;
-  min-height: 100vh;
-  overflow: visible;
-  padding: clamp(12px, 1.8vw, 24px);
-}
-
+/* Coque noire arrondie : navbar + panneau clair + dock, débordements masqués. */
 .sui-shell {
   position: relative;
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   width: 100%;
+  overflow: hidden;
+  background: var(--shell);
+  border-radius: var(--r-shell);
+  box-shadow: var(--shadow-shell);
+}
+
+/* Corps : rail (56 px) + zone principale + Admin Desk (~25 %).
+   `z-index: 0` crée un contexte d'empilement : le dock et les tiroirs, frères
+   postérieurs, passent donc toujours au-dessus du panneau clair. */
+.sui-shell__body {
+  position: relative;
+  z-index: 0;
   display: flex;
+  flex: 1;
   flex-direction: row;
-  overflow: hidden;
-}
-
-.sui-viewport--embedded .sui-shell {
-  max-width: 1640px;
-  margin: 0 auto;
-  border-radius: var(--radius-shell);
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: var(--comexa-shadow-lg);
-  background: rgba(246, 249, 253, 0.82);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  display: flex;
-  flex-direction: column;
-  padding: clamp(16px, 2vw, 28px);
-}
-
-/* ==========================================================================
-   2. COLLAPSIBLE LIQUID GLASS SIDEBAR (Desktop & Tablet)
-   ========================================================================== */
-
-.sui-sidebar {
-  position: relative;
-  z-index: 30;
-  width: 268px;
-  flex-shrink: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-right: 1px solid rgba(15, 52, 96, 0.085);
-  box-shadow:
-    inset -1px 0 0 rgba(255, 255, 255, 0.85),
-    4px 0 24px -8px rgba(11, 37, 69, 0.04);
-  transition: width 260ms var(--sui-ease);
-}
-
-.sui-sidebar--collapsed {
-  width: 78px;
-}
-
-.sui-sidebar__brand {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-height: 68px;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(15, 52, 96, 0.065);
-}
-
-.sui-sidebar--collapsed .sui-sidebar__brand {
-  justify-content: center;
-  padding: 14px 10px;
-}
-
-.sui-sidebar__logo-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  text-decoration: none;
-  color: var(--text);
-  min-width: 0;
-}
-
-.sui-sidebar__monogram {
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #1e86e0 0%, #0b2545 100%);
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 16px;
-  letter-spacing: -0.03em;
-  box-shadow:
-    0 4px 12px rgba(30, 134, 224, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  flex-shrink: 0;
-}
-
-.sui-sidebar__space-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(30, 134, 224, 0.11);
-  color: #0f4e8a;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.sui-sidebar__cmdk-btn {
-  margin: 12px 14px 4px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(15, 52, 96, 0.10);
-  background: rgba(243, 247, 252, 0.78);
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background-color 160ms var(--sui-ease),
-    border-color 160ms var(--sui-ease),
-    color 160ms var(--sui-ease),
-    box-shadow 160ms var(--sui-ease);
-}
-
-.sui-sidebar__cmdk-btn:hover {
-  background: #ffffff;
-  border-color: rgba(30, 134, 224, 0.35);
-  color: var(--text);
-  box-shadow: var(--comexa-shadow-xs);
-}
-
-.sui-sidebar--collapsed .sui-sidebar__cmdk-btn {
-  justify-content: center;
-  padding: 10px;
-  margin: 12px 14px 4px;
-}
-
-.sui-kbd {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(15, 52, 96, 0.12);
-  background: rgba(255, 255, 255, 0.9);
-  font-family: var(--comexa-font-sans);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  line-height: 1.2;
-}
-
-.sui-sidebar__nav {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 10px 12px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(15, 52, 96, 0.14) transparent;
-}
-
-.sui-sidebar__group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sui-sidebar__group-label {
-  padding: 0 10px 5px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: #6b8099;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sui-sidebar--collapsed .sui-sidebar__group-label {
-  text-align: center;
-  padding: 0 2px 4px;
-  font-size: 9px;
-}
-
-.sui-sidebar__link {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-height: 38px;
-  padding: 7px 11px;
-  border-radius: 12px;
-  color: var(--muted);
-  font-size: 13.5px;
-  font-weight: 550;
-  text-decoration: none;
-  transition:
-    background-color 160ms var(--sui-ease),
-    color 160ms var(--sui-ease),
-    transform 140ms var(--sui-ease),
-    box-shadow 160ms var(--sui-ease);
-}
-
-.sui-sidebar--collapsed .sui-sidebar__link {
-  justify-content: center;
-  padding: 9px;
-}
-
-.sui-sidebar__link:hover {
-  background: rgba(30, 134, 224, 0.075);
-  color: var(--text);
-}
-
-.sui-sidebar__link:active {
-  transform: scale(0.985);
-}
-
-.sui-sidebar__link--active {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-  font-weight: 600;
-  box-shadow:
-    0 4px 12px -2px rgba(11, 37, 69, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-.sui-sidebar__link--active:hover {
-  background: linear-gradient(135deg, #0f3058 0%, #195290 100%);
-  color: #ffffff;
-}
-
-.sui-sidebar__link-icon {
-  flex-shrink: 0;
-  opacity: 0.88;
-}
-
-.sui-sidebar__link--active .sui-sidebar__link-icon {
-  opacity: 1;
-  color: #7cc4fa;
-}
-
-.sui-sidebar__link-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sui-sidebar__link-badge {
-  padding: 1px 7px;
-  border-radius: var(--radius-pill);
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  background: rgba(30, 134, 224, 0.14);
-  color: #0f4e8a;
-}
-
-.sui-sidebar__link--active .sui-sidebar__link-badge {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
-
-.sui-sidebar__footer {
-  padding: 12px;
-  border-top: 1px solid rgba(15, 52, 96, 0.065);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sui-sidebar__collapse-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(15, 52, 96, 0.08);
-  background: rgba(255, 255, 255, 0.65);
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 160ms var(--sui-ease);
-}
-
-.sui-sidebar__collapse-btn:hover {
-  background: #ffffff;
-  color: var(--text);
-  border-color: rgba(30, 134, 224, 0.28);
-}
-
-/* ==========================================================================
-   3. WORKSPACE BODY, STICKY LIQUID GLASS TOPBAR & SCROLLABLE CANVAS
-   ========================================================================== */
-
-.sui-workspace-column {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sui-topbar {
-  position: relative;
-  z-index: 25;
-  min-height: 68px;
-  padding: 10px clamp(16px, 2.4vw, 32px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: rgba(255, 255, 255, 0.74);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-bottom: 1px solid rgba(15, 52, 96, 0.075);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
-}
-
-.sui-topbar__left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-
-.sui-topbar__breadcrumb {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.sui-topbar__eyebrow {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sui-topbar__title {
-  margin: 0;
-  font-size: clamp(16px, 1.5vw, 19px);
-  font-weight: 700;
-  letter-spacing: -0.022em;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.sui-topbar__center {
-  flex: 1;
-  max-width: 460px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sui-topbar__search {
-  position: relative;
-  width: 100%;
-  display: flex;
-  align-items: center;
-}
-
-.sui-topbar__search-icon {
-  position: absolute;
-  left: 13px;
-  color: var(--muted);
-  pointer-events: none;
-}
-
-.sui-topbar__search-input {
-  width: 100%;
-  height: 40px;
-  padding: 0 76px 0 38px;
-  border-radius: var(--radius-pill);
-  border: 1px solid rgba(15, 52, 96, 0.11);
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 13.5px;
-  box-shadow: inset 0 1px 2px rgba(11, 37, 69, 0.03);
-  transition: all 180ms var(--sui-ease);
-}
-
-.sui-topbar__search-input::placeholder {
-  color: #7c90a6;
-}
-
-.sui-topbar__search-input:focus {
-  outline: none;
-  background: #ffffff;
-  border-color: #1e86e0;
-  box-shadow: 0 0 0 3px rgba(30, 134, 224, 0.20);
-}
-
-.sui-topbar__search-kbd {
-  position: absolute;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(15, 52, 96, 0.10);
-  background: rgba(243, 247, 252, 0.9);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 150ms ease;
-}
-
-.sui-topbar__search-kbd:hover {
-  background: #0b2545;
-  color: #ffffff;
-  border-color: #0b2545;
-}
-
-.sui-topbar__right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.sui-canvas-scroll {
-  flex: 1;
+  align-items: stretch;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: clamp(20px, 2.5vw, 34px) clamp(16px, 2.8vw, 38px) 96px;
-  scroll-behavior: smooth;
+  background: var(--surface);
+  border-radius: 0 0 var(--r-shell) var(--r-shell);
 }
 
-.sui-canvas-inner {
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  margin: 0;
-  container-type: inline-size;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
+.sui-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Lien d'évitement : visible uniquement au focus clavier. */
+.sui-skip {
+  position: absolute;
+  z-index: 90;
+  top: 10px;
+  left: 50%;
+  padding: 10px 18px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  box-shadow: var(--shadow-pop);
+  transform: translate(-50%, -160%);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.sui-skip:focus-visible {
+  transform: translate(-50%, 0);
 }
 
 /* ==========================================================================
-   4. LEGACY / APERCU NAVBAR, RAIL & GRID (Preserved for /refonte-apercu)
+   2. NAVBAR NOIRE (64 px)
    ========================================================================== */
 
-.sui-navbar {
+.sui-nav {
+  position: relative;
+  z-index: 40;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 16px;
+  height: var(--nav-h);
+  padding: 0 18px;
+  background: var(--shell);
+  color: var(--shell-ink);
+}
+
+.sui-nav__brand {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sui-nav__logo {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+}
+
+.sui-nav__logo-img {
+  height: 24px;
+  width: auto;
+}
+
+/* Petit point jaune de l'inspiration : il sépare la marque du badge de rôle. */
+.sui-nav__logo-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--yellow);
+}
+
+.sui-nav__role {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.sui-nav__center {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.sui-nav__profile {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+}
+
+.sui-nav__links {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.sui-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  text-decoration: none;
-  color: var(--text);
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-}
-
-.sui-brand__mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #1e86e0 0%, #0b2545 100%);
-  color: #ffffff;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 16px;
-  box-shadow: 0 6px 16px rgba(30, 134, 224, 0.25);
-}
-
-.sui-brand__logo {
-  height: 30px;
-  width: auto;
-  display: block;
-}
-
-.sui-brand__sub {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  margin-left: 2px;
-}
-
-.sui-navpills {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-  border-radius: var(--radius-pill);
-  border: var(--border-subtle);
-  box-shadow: var(--shadow-soft);
-  max-width: 100%;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.sui-navpills::-webkit-scrollbar {
+.sui-nav__links::-webkit-scrollbar {
   display: none;
 }
 
-.sui-navpill {
+.sui-nav__item {
+  flex: 0 0 auto;
+}
+
+.sui-nav__link {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 14px;
-  border-radius: var(--radius-pill);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
+  justify-content: center;
+  height: 40px;
+  min-width: 40px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  color: var(--shell-muted);
   text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: color 180ms var(--sui-ease), background-color 180ms var(--sui-ease);
+  transition: color var(--dur-fast) var(--ease-out);
 }
 
-.sui-navpill:hover {
-  color: var(--text);
-  background: rgba(30, 134, 224, 0.07);
+.sui-nav__link:hover {
+  color: var(--shell-ink);
 }
 
-.sui-navpill--active {
-  color: #ffffff;
+.sui-nav__link[aria-current="page"] {
+  color: var(--shell-ink);
 }
 
-.sui-navpill--active:hover {
-  color: #ffffff;
-}
-
-.sui-navpill__bg {
+/* La pilule glisse d'un onglet à l'autre (framer-motion `layoutId`). */
+.sui-nav__pill {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  z-index: 0;
+  border-radius: var(--r-pill);
+  background: var(--shell-raised);
+  box-shadow: inset 0 0 0 1px var(--shell-line);
 }
 
-.sui-navpill__content {
+.sui-nav__link-inner {
   position: relative;
   z-index: 1;
   display: inline-flex;
@@ -621,969 +240,1738 @@
   gap: 8px;
 }
 
-.sui-navactions {
+.sui-nav__label {
+  max-width: 168px;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Profil : pastille d'initiales lilas, nom, courriel, chevron. */
+.sui-profile {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  margin-left: auto;
+}
+
+.sui-profile__trigger {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
+  padding: 4px 10px 4px 4px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
-.sui-search {
-  display: inline-flex;
+.sui-profile__trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sui-profile__avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--lilac);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sui-profile__id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.sui-profile__name {
+  max-width: 180px;
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--shell-ink);
+}
+
+.sui-profile__mail {
+  max-width: 200px;
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--shell-muted);
+}
+
+.sui-profile__chevron {
+  color: var(--shell-muted);
+  flex: 0 0 auto;
+}
+
+.sui-popover {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 10px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(320px, calc(100vw - 32px));
+  padding: 10px;
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+}
+
+.sui-popover__summary {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 14px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.9);
-  border: var(--border-subtle);
-  box-shadow: var(--shadow-soft);
+  gap: 10px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-popover__summary .sui-profile__avatar {
+  background: var(--lilac);
+}
+
+.sui-popover__summary strong {
+  display: block;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-popover__summary span span {
+  display: block;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.sui-popover__links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-popover__links a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-popover__links a:hover {
+  background: var(--surface);
+}
+
+.sui-popover__links a svg {
   color: var(--muted);
 }
 
-.sui-search:focus-within {
-  border-color: #1e86e0;
-  box-shadow: 0 0 0 3px rgba(30, 134, 224, 0.18);
-}
-
-.sui-search__input {
+.sui-popover__signout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
   border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 13.5px;
-  width: 170px;
-}
-
-.sui-icon-btn {
-  position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: var(--border-subtle);
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: var(--comexa-shadow-xs);
-  transition:
-    transform 160ms var(--sui-ease),
-    box-shadow 180ms var(--sui-ease),
-    background-color 160ms var(--sui-ease),
-    border-color 160ms var(--sui-ease);
-  text-decoration: none;
-}
-
-.sui-icon-btn:hover {
-  transform: translateY(-1px);
-  background: #ffffff;
-  border-color: rgba(30, 134, 224, 0.3);
-  box-shadow: var(--shadow-soft);
-}
-
-.sui-icon-btn:active {
-  transform: scale(0.97);
-}
-
-.sui-icon-btn--dark {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-  border-color: transparent;
-}
-
-.sui-icon-btn--dark:hover {
-  background: linear-gradient(135deg, #10315a 0%, #1b5696 100%);
-  color: #ffffff;
-}
-
-.sui-icon-btn__dot {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  min-width: 8px;
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: #e11d48;
-  border: 2px solid #ffffff;
-}
-
-.sui-icon-btn__badge {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: var(--radius-pill);
-  background: #1e86e0;
-  color: #ffffff;
-  font-size: 10.5px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #ffffff;
-  font-variant-numeric: tabular-nums;
+  cursor: pointer;
 }
 
-.sui-body {
-  margin-top: 22px;
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 310px;
-  gap: 22px;
-  align-items: start;
+.sui-popover__signout:hover {
+  background: var(--pink);
 }
 
-.sui-body--no-desk {
-  grid-template-columns: 56px minmax(0, 1fr);
-}
+/* ==========================================================================
+   3. RAIL GAUCHE (56 px)
+   ========================================================================== */
 
 .sui-rail {
   display: flex;
+  flex: 0 0 var(--rail-w);
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 6px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(18px);
-  border: var(--border-subtle);
-  box-shadow: var(--shadow-soft);
-  min-height: 420px;
-}
-
-.sui-rail__group {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  gap: 10px;
+  width: var(--rail-w);
+  padding: 16px 0;
+  background: var(--shell);
 }
 
 .sui-rail__btn {
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 40px;
   height: 40px;
-  border-radius: var(--radius-pill);
+  flex: 0 0 auto;
+  padding: 0;
   border: 0;
-  background: transparent;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--shell-ink);
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 180ms var(--sui-ease), color 180ms var(--sui-ease), transform 180ms var(--sui-ease);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .sui-rail__btn:hover {
-  background: rgba(30, 134, 224, 0.09);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
 }
 
-.sui-rail__btn--active {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
+.sui-rail__btn--ink {
+  background: var(--card);
+  color: var(--ink);
 }
 
-.sui-rail__btn--active:hover {
-  background: linear-gradient(135deg, #10315a 0%, #1b5696 100%);
-  color: #ffffff;
+.sui-rail__btn--ink:hover {
+  background: #ffffff;
 }
+
+.sui-rail__btn[aria-pressed="true"] {
+  background: var(--lilac);
+  color: var(--ink);
+}
+
+.sui-rail__badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: var(--r-pill);
+  border: 2px solid var(--shell);
+  background: var(--green);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sui-rail__spacer {
+  flex: 1 1 auto;
+}
+
+.sui-rail__zoom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ==========================================================================
+   4. ZONE PRINCIPALE (panneau clair scrollable)
+   ========================================================================== */
 
 .sui-main {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  background: var(--surface);
+}
+
+/* Languette noire centrée : elle descend de la navbar dans le panneau clair.
+   Les deux congés sont posés en HAUT de la languette (là où elle rejoint la
+   navbar) et leur rayon est égal au rayon bas de la languette : la courbe
+   concave est tangente au bord noir, donc la découpe se lit comme une seule
+   pièce, sans décrochement. */
+.sui-notch {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  left: 50%;
+  width: 116px;
+  height: var(--r-notch);
+  background: var(--shell);
+  border-radius: 0 0 var(--r-notch) var(--r-notch);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.sui-notch__fillet {
+  position: absolute;
+  top: 0;
+  width: var(--r-notch);
+  height: var(--r-notch);
+  background: var(--shell);
+  pointer-events: none;
+}
+
+.sui-notch__fillet--left {
+  right: 100%;
+  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 100% 0, #0000 99%, #000 100%);
+  mask-image: radial-gradient(circle var(--r-notch) at 100% 0, #0000 99%, #000 100%);
+}
+
+.sui-notch__fillet--right {
+  left: 100%;
+  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 0 0, #0000 99%, #000 100%);
+  mask-image: radial-gradient(circle var(--r-notch) at 0 0, #0000 99%, #000 100%);
+}
+
+.sui-main__scroll {
+  container-type: inline-size;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 34px clamp(16px, 2vw, 28px) 132px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 17, 17, 0.2) transparent;
+  font-size: calc(var(--fs-body) * var(--zoom));
+}
+
+.sui-main__scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.sui-main__scroll::-webkit-scrollbar-thumb {
+  border: 3px solid var(--surface);
+  border-radius: var(--r-pill);
+  background: rgba(17, 17, 17, 0.18);
+}
+
+.sui-canvas-inner {
   display: flex;
   flex-direction: column;
   gap: 22px;
-}
-
-/* ==========================================================================
-   5. PAGE HEADER & PILL BUTTONS
-   ========================================================================== */
-
-.sui-page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.sui-page-header__title {
-  margin: 0;
-  font-size: clamp(22px, 2.2vw, 28px);
-  font-weight: 700;
-  letter-spacing: -0.028em;
-  line-height: 1.15;
-  color: var(--text);
-}
-
-.sui-page-header__subtitle {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: var(--muted);
-  max-width: 65ch;
-}
-
-.sui-page-header__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.sui-pill-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 12px;
-  border: var(--border-subtle);
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: -0.008em;
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: var(--comexa-shadow-xs);
-  transition:
-    transform 150ms var(--sui-ease),
-    box-shadow 180ms var(--sui-ease),
-    background-color 160ms var(--sui-ease),
-    border-color 160ms var(--sui-ease);
-}
-
-.sui-pill-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: #ffffff;
-  border-color: rgba(30, 134, 224, 0.35);
-  box-shadow: var(--shadow-soft);
-}
-
-.sui-pill-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.sui-pill-btn:disabled {
-  opacity: 0.52;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.sui-pill-btn--dark {
-  background: linear-gradient(180deg, #12335c 0%, #0b2545 100%);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.14);
-  box-shadow:
-    0 2px 4px rgba(11, 37, 69, 0.14),
-    0 8px 20px -4px rgba(11, 37, 69, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-.sui-pill-btn--dark:hover:not(:disabled) {
-  background: linear-gradient(180deg, #184276 0%, #0f3159 100%);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 4px 10px rgba(11, 37, 69, 0.20),
-    0 14px 28px -4px rgba(18, 56, 99, 0.30),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-}
-
-.sui-pill-btn--ghost {
-  background: rgba(255, 255, 255, 0.72);
-}
-
-/* ==========================================================================
-   6. KPI BAND & CARDS (Bento KPI + Item Cards)
-   ========================================================================== */
-
-.sui-kpi-band {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.sui-kpi {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  padding: 20px 22px;
-  border-radius: var(--radius-card);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  outline: 1px solid rgba(15, 52, 96, 0.08);
-  background: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  box-shadow: var(--shadow-soft);
-  text-decoration: none;
-  color: var(--text);
-  transition:
-    transform 220ms var(--sui-ease),
-    box-shadow 220ms var(--sui-ease),
-    outline-color 220ms var(--sui-ease);
-}
-
-a.sui-kpi:hover,
-.sui-kpi:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-hover);
-  outline-color: rgba(30, 134, 224, 0.25);
-}
-
-.sui-kpi--blue {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #e8f3fe 100%);
-}
-.sui-kpi--green {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #e6f7ef 100%);
-}
-.sui-kpi--yellow {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #fef4e2 100%);
-}
-.sui-kpi--lilac {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #f0edfe 100%);
-}
-.sui-kpi--pink {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, #fdeceb 100%);
-}
-
-.sui-kpi__icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 52, 96, 0.08);
-  box-shadow: 0 4px 12px rgba(11, 37, 69, 0.06);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sui-kpi--blue .sui-kpi__icon { color: #1568b4; }
-.sui-kpi--green .sui-kpi__icon { color: #0d7a52; }
-.sui-kpi--yellow .sui-kpi__icon { color: #9a5406; }
-.sui-kpi--lilac .sui-kpi__icon { color: #5b3cc4; }
-.sui-kpi--pink .sui-kpi__icon { color: #b42318; }
-
-.sui-kpi__body {
-  min-width: 0;
-  flex: 1;
-}
-
-.sui-kpi__label {
-  margin: 0;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.sui-kpi__row {
-  margin-top: 3px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.sui-kpi__value {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.sui-kpi__delta {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(15, 52, 96, 0.08);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .sui-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .sui-section__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+  justify-content: space-between;
 }
 
 .sui-section__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin: 0;
-  font-size: 16.5px;
-  font-weight: 700;
-  letter-spacing: -0.018em;
-  color: var(--text);
+  font-size: var(--fs-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
 }
 
-.sui-section__meta {
-  font-size: 12.5px;
-  font-weight: 600;
+.sui-section__title svg {
   color: var(--muted);
 }
 
-.sui-grid {
+.sui-section__count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Deux grands panneaux côte à côte (activité + santé). */
+.sui-split {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@container (min-width: 860px) {
+  .sui-split {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.sui-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 20px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* En-tête de page : pastille + titre + sous-titre, recherche en pilule grise. */
+.sui-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 18px;
 }
 
-.sui-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px;
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  outline: 1px solid rgba(15, 52, 96, 0.08);
-  box-shadow: var(--shadow-soft);
-  color: var(--text);
-  transition:
-    box-shadow 220ms var(--sui-ease),
-    transform 220ms var(--sui-ease),
-    outline-color 220ms var(--sui-ease);
-}
-
-.sui-card:hover {
-  box-shadow: var(--shadow-hover);
-  outline-color: rgba(30, 134, 224, 0.28);
-  transform: translateY(-2px);
-}
-
-.sui-card--blue { background: linear-gradient(160deg, rgba(255, 255, 255, 0.96) 35%, #e8f3fe 100%); }
-.sui-card--green { background: linear-gradient(160deg, rgba(255, 255, 255, 0.96) 35%, #e6f7ef 100%); }
-.sui-card--yellow { background: linear-gradient(160deg, rgba(255, 255, 255, 0.96) 35%, #fef4e2 100%); }
-.sui-card--lilac { background: linear-gradient(160deg, rgba(255, 255, 255, 0.96) 35%, #f0edfe 100%); }
-.sui-card--pink { background: linear-gradient(160deg, rgba(255, 255, 255, 0.96) 35%, #fdeceb 100%); }
-
-.sui-card__top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sui-card__corner {
-  width: 42px;
-  height: 42px;
-  border-radius: 13px;
-  background: var(--pastel-blue);
-  border: 1px solid rgba(15, 52, 96, 0.07);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.sui-card__corner--blue { background: var(--pastel-blue); color: #0f4e8a; }
-.sui-card__corner--green { background: var(--pastel-green); color: #0d7a52; }
-.sui-card__corner--yellow { background: var(--pastel-yellow); color: #9a5406; }
-.sui-card__corner--lilac { background: var(--pastel-lilac); color: #5b3cc4; }
-.sui-card__corner--pink { background: var(--pastel-pink); color: #b42318; }
-
-.sui-card__title {
-  margin: 0;
-  font-size: 16.5px;
-  font-weight: 700;
-  letter-spacing: -0.018em;
-  line-height: 1.3;
-  color: var(--text);
-}
-
-.sui-card__desc {
-  margin: 4px 0 0;
-  font-size: 13.5px;
-  line-height: 1.52;
-  color: var(--muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.sui-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12.5px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.sui-card__meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sui-card__progress {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sui-card__progress-row {
+.sui-head__left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.sui-card__progress-track {
-  height: 6px;
-  width: 100%;
-  border-radius: var(--radius-pill);
-  background: rgba(15, 52, 96, 0.08);
-  overflow: hidden;
-}
-
-.sui-card__progress-bar {
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, #1e86e0 0%, #4fb0f0 100%);
-  transition: width 280ms var(--sui-ease);
-}
-
-.sui-card__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(15, 52, 96, 0.065);
-}
-
-.sui-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 27px;
-  padding: 0 11px;
-  border-radius: var(--radius-pill);
-  font-size: 12px;
-  font-weight: 600;
-  background: rgba(241, 245, 250, 0.9);
-  color: var(--text);
-  border: 1px solid rgba(15, 52, 96, 0.08);
-  font-variant-numeric: tabular-nums;
-}
-
-.sui-status__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-pill);
-  background: currentColor;
-}
-
-.sui-status--blue { background: var(--pastel-blue); color: #0f4e8a; border-color: #b9defa; }
-.sui-status--green { background: var(--pastel-green); color: #0d7a52; border-color: #b0e5cc; }
-.sui-status--yellow { background: var(--pastel-yellow); color: #9a5406; border-color: #f8d89c; }
-.sui-status--lilac { background: var(--pastel-lilac); color: #5b3cc4; border-color: #d6ccf9; }
-.sui-status--pink { background: var(--pastel-pink); color: #b42318; border-color: #f7c4c0; }
-.sui-status--plain { background: #f1f5fa; color: #334a63; }
-
-.sui-card__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sui-mini-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  border: var(--border-subtle);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    transform 150ms var(--sui-ease),
-    background-color 150ms var(--sui-ease),
-    box-shadow 150ms var(--sui-ease);
-}
-
-.sui-mini-btn:hover {
-  transform: translateY(-1px);
-  background: #ffffff;
-  box-shadow: var(--comexa-shadow-xs);
-}
-
-.sui-mini-btn--dark {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-  border-color: transparent;
-}
-
-.sui-mini-btn--dark:hover {
-  background: linear-gradient(135deg, #10325c 0%, #1d5ca1 100%);
-  color: #ffffff;
-}
-
-/* ==========================================================================
-   7. ADMIN DESK PANEL & SLIDE-OVER DRAWER
-   ========================================================================== */
-
-.sui-desk {
-  display: flex;
-  flex-direction: column;
   gap: 14px;
-}
-
-.sui-desk__block {
-  padding: 18px 20px;
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  outline: 1px solid rgba(15, 52, 96, 0.08);
-  box-shadow: var(--shadow-soft);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.sui-desk__block--blue { background: linear-gradient(155deg, #ffffff 30%, #e8f3fe 100%); }
-.sui-desk__block--lilac { background: linear-gradient(155deg, #ffffff 30%, #f0edfe 100%); }
-.sui-desk__block--yellow { background: linear-gradient(155deg, #ffffff 30%, #fef4e2 100%); }
-.sui-desk__block--green { background: linear-gradient(155deg, #ffffff 30%, #e6f7ef 100%); }
-
-.sui-desk__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.sui-desk__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  color: var(--text);
-}
-
-.sui-desk__tag {
-  padding: 2px 9px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(15, 52, 96, 0.08);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.sui-desk__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sui-desk__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 13px;
-  line-height: 1.42;
-}
-
-.sui-desk__avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: var(--pastel-blue);
-  color: #0f4e8a;
-  font-size: 11.5px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sui-desk__item-body {
   min-width: 0;
-  flex: 1;
 }
 
-.sui-desk__item-title {
-  margin: 0;
-  font-weight: 600;
-  color: var(--text);
+.sui-head__icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--lilac));
+  color: var(--ink);
 }
 
-.sui-desk__item-sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.sui-desk__empty {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-/* ==========================================================================
-   8. DOCK & MOBILE BOTTOM TAB BAR
-   ========================================================================== */
-
-.sui-dock-wrap {
-  margin-top: 24px;
-  display: flex;
-  justify-content: center;
-}
-
-.sui-dock {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  outline: 1px solid rgba(15, 52, 96, 0.08);
-  box-shadow: var(--comexa-shadow-md);
-}
-
-.sui-dock__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 13px;
-  border-radius: var(--radius-pill);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 180ms var(--sui-ease), color 180ms var(--sui-ease), transform 180ms var(--sui-ease);
-}
-
-.sui-dock__btn:hover {
-  background: rgba(30, 134, 224, 0.08);
-  color: var(--text);
-  transform: translateY(-1px);
-}
-
-.sui-dock__btn--primary {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-}
-
-.sui-dock__btn--primary:hover {
-  background: linear-gradient(135deg, #10325c 0%, #1b5696 100%);
-  color: #ffffff;
-}
-
-/* Barre d'onglets basse mobile (< 768px, cibles >= 44px, safe-area) */
-.sui-mobile-tabbar {
-  display: none;
-}
-
-@media (max-width: 767px) {
-  .sui-sidebar {
-    display: none;
-  }
-
-  .sui-topbar__center {
-    display: none;
-  }
-
-  .sui-canvas-scroll {
-    padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .sui-mobile-tabbar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 45;
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    align-items: center;
-    min-height: 62px;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: rgba(255, 255, 255, 0.86);
-    backdrop-filter: blur(28px) saturate(180%);
-    -webkit-backdrop-filter: blur(28px) saturate(180%);
-    border-top: 1px solid rgba(15, 52, 96, 0.09);
-    box-shadow: 0 -8px 28px rgba(11, 37, 69, 0.08);
-  }
-
-  .sui-mobile-tab {
-    position: relative;
-    min-height: 46px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    border-radius: 12px;
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    font-family: inherit;
-    font-size: 10.5px;
-    font-weight: 600;
-    text-decoration: none;
-    cursor: pointer;
-    transition: color 150ms ease, background-color 150ms ease;
-  }
-
-  .sui-mobile-tab--active {
-    color: #1e86e0;
-    font-weight: 700;
-  }
-}
-
-/* ==========================================================================
-   9. GLOBAL COMMAND PALETTE (⌘K / Ctrl+K)
-   ========================================================================== */
-
-.sui-cmdk-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 95;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: clamp(40px, 10vh, 110px) 16px 24px;
-  background: rgba(7, 25, 47, 0.42);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  animation: cx-fade-in 160ms ease-out;
-}
-
-.sui-cmdk {
-  width: min(640px, 100%);
-  max-height: min(560px, 78dvh);
-  display: flex;
-  flex-direction: column;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(32px) saturate(180%);
-  -webkit-backdrop-filter: blur(32px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: var(--comexa-shadow-xl);
-  overflow: hidden;
-  animation: cx-scale-in 200ms var(--sui-ease);
-}
-
-.sui-cmdk__header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(15, 52, 96, 0.08);
-}
-
-.sui-cmdk__input {
-  flex: 1;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 15.5px;
-  font-weight: 500;
-}
-
-.sui-cmdk__input::placeholder {
-  color: #8295ab;
-}
-
-.sui-cmdk__body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sui-cmdk__group-title {
-  padding: 4px 10px;
-  font-size: 11px;
+.sui-head__crumb {
+  margin: 0 0 6px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-.sui-cmdk__item {
+.sui-head__title {
+  margin: 0;
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sui-head__sub {
+  margin: 8px 0 0;
+  max-width: 68ch;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.sui-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--r-pill);
+  background: #eceaec;
+  color: var(--muted);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-search:focus-within {
+  box-shadow: 0 0 0 2px var(--focus);
+}
+
+.sui-search input {
   width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-small);
+  color: var(--ink);
+}
+
+.sui-search input::placeholder {
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   5. CARTES KPI
+   ========================================================================== */
+
+.sui-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@container (min-width: 900px) {
+  .sui-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.sui-kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 18px 20px 20px;
+  border-radius: var(--r-kpi);
+  background: var(--tone-bg, var(--blue));
+  overflow: hidden;
+}
+
+.sui-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.sui-kpi__badge {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.sui-kpi__deco {
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  opacity: 0.72;
+}
+
+.sui-kpi__value {
+  margin: 10px 0 0;
+  font-size: clamp(28px, 2.6vw, 38px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sui-kpi__label {
+  margin: 6px 0 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* La carte « fantôme » : pointillés, sans remplissage, pour ce qui reste à
+   traiter. Le ton pastel est neutralisé (`--tone-bg: transparent`) et la
+   bordure en pointillés se suffit à elle-même : aucune astuce de masque, donc
+   aucun risque de rogner un enfant. */
+.sui-kpi--ghost {
+  --tone-bg: transparent;
+  border: 2px dashed rgba(17, 17, 17, 0.22);
+  box-shadow: none;
+}
+
+.sui-kpi--ghost .sui-kpi__value {
+  color: var(--ink);
+}
+
+.sui-kpi--ghost .sui-kpi__label {
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   6. FILTRES, BOUTONS, PILULES
+   ========================================================================== */
+
+.sui-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sui-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-filters li {
+  display: inline-flex;
+}
+
+.sui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.sui-pill[aria-pressed="true"],
+.sui-pill[aria-current="page"] {
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.sui-pill__count {
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-pill[aria-pressed="true"] .sui-pill__count,
+.sui-pill[aria-current="page"] .sui-pill__count {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.sui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: #e7e4e6;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-btn:hover {
+  background: #dedade;
+  transform: translateY(-1px);
+}
+
+/* Un seul accent noir : l'action principale. */
+.sui-btn--dark {
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: var(--shadow-card);
+}
+
+.sui-btn--dark:hover {
+  background: #000000;
+  box-shadow: var(--shadow-card-hover);
+}
+
+.sui-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Bouton icône seul : `aria-label` + infobulle obligatoires (voir primitives). */
+.sui-iconbtn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-iconbtn:hover {
+  background: #e8e5e7;
+  transform: translateY(-1px);
+}
+
+.sui-iconbtn--dark {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-iconbtn--dark:hover {
+  background: #000000;
+}
+
+.sui-iconbtn--white {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sui-iconbtn--ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+.sui-iconbtn--ghost:hover {
+  background: rgba(17, 17, 17, 0.06);
+  color: var(--ink);
+}
+
+/* 36 px : calibre des mini-actions à l'intérieur d'une carte (jeton du brief). */
+.sui-iconbtn--sm {
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.sui-iconbtn--sm:hover {
+  background: #ffffff;
+}
+
+.sui-iconbtn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Alias historique utilisé par les feuilles modales (`workspace/ui.jsx`). */
+.sui-icon-btn {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sui-icon-btn:hover {
+  background: #e8e5e7;
+}
+
+.sui-spin {
+  animation: sui-spin 900ms linear infinite;
+}
+
+@keyframes sui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sui-kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   7. PILULES DE STATUT
+   ========================================================================== */
+
+.sui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: var(--tone-bg, var(--surface));
+  color: var(--ink);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* Statut neutre (brouillon, inactif, archivé) : gris clair, texte foncé. */
+.sui-status--plain {
+  background: #e9e6e8;
+  color: var(--ink);
+}
+
+/* Sur la carte mise en avant (lilas soutenu), la pilule passe en blanc. */
+.sui-status--white {
+  background: #ffffff;
+  color: var(--ink);
+}
+
+/* Point pulsant du statut « En direct » (icône lucide `Radio`). */
+.sui-status--live svg {
+  animation: sui-pulse 1.8s var(--ease-out) infinite;
+}
+
+@keyframes sui-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ==========================================================================
+   8. CARTES D'ÉLÉMENT
+   ========================================================================== */
+
+.sui-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@container (min-width: 620px) {
+  .sui-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1040px) {
+  .sui-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.sui-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 20px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--dur-base) var(--ease-out);
+}
+
+.sui-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Une seule carte mise en avant par vue : lilas soutenu + pilule blanche. */
+.sui-card--highlight {
+  background: var(--lilac-strong);
+}
+
+/* Carte fantôme : même traitement pointillé, bordure transparente pour garder
+   le gabarit (aucun décalage au survol). */
+.sui-card--ghost {
+  border: 2px dashed rgba(17, 17, 17, 0.18);
+  background: transparent;
+  box-shadow: none;
+}
+
+.sui-card--ghost:hover {
+  border-color: rgba(17, 17, 17, 0.3);
+  box-shadow: none;
+}
+
+/* Pastille qui chevauche le coin haut-droit (initiales ou icône). */
+.sui-card__corner {
+  position: absolute;
+  top: -10px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  color: var(--ink);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sui-card__title {
+  margin: 0;
+  padding-right: 44px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sui-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sui-card__title a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-card__desc {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Pilule blanche d'information (montant, audience…) en haut de carte. */
+.sui-card__pill {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  background: #ffffff;
+  box-shadow: var(--shadow-card);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-card__meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sui-card__meta svg {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.sui-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.sui-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Barre de progression : 4 px, piste grise claire, remplissage vert doux. */
+.sui-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.sui-progress__track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  overflow: hidden;
+}
+
+.sui-progress__bar {
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.sui-progress__value {
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   9. LISTES D'ACTIVITÉ ET DE SANTÉ
+   ========================================================================== */
+
+.sui-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-activity__row:last-child {
+  border-bottom: 0;
+}
+
+.sui-activity__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-activity__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.sui-activity__copy p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.sui-activity__time {
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sui-health {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-health__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 7px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sui-health__hint {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   10. ADMIN DESK (panneau droit, scroll indépendant)
+   ========================================================================== */
+
+.sui-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 22px 20px 24px;
+  background: var(--surface);
+}
+
+.sui-desk--inline {
+  flex: 0 0 clamp(var(--desk-min), var(--desk-w), var(--desk-max));
+  width: clamp(var(--desk-min), var(--desk-w), var(--desk-max));
+  border-left: 1px solid var(--line-soft);
+}
+
+.sui-desk__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.sui-desk__sub {
+  margin: 6px 0 0;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Contrôle segmenté : piste grise, onglet actif en blanc (pilule animée). */
+.sui-seg {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  margin-top: 14px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: #e9e6e8;
+}
+
+.sui-seg__tab {
+  position: relative;
+  flex: 1;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.sui-seg__tab[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.sui-seg__pill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-desk__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 17, 17, 0.18) transparent;
+}
+
+.sui-deskcards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Cartes teintées : les couleurs reprennent celles des KPI. */
+.sui-deskcard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--tone-bg, var(--blue));
+}
+
+.sui-deskcard__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sui-deskcard__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+}
+
+.sui-deskcard__type {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-deskcard__date {
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sui-deskcard__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sui-deskcard__lines p {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--ink);
+  opacity: 0.86;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sui-deskcard__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* Pilule blanche d'action, avec ses mini-icônes à droite. */
+.sui-deskcard__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: #ffffff;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-deskcard__cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-deskcard__mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ==========================================================================
+   11. DOCK NOIR FLOTTANT (découpe à rayon inversé)
+   ========================================================================== */
+
+.sui-dockwrap {
+  position: absolute;
+  z-index: 45;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.sui-dock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--r-dock) var(--r-dock) 0 0;
+  background: var(--shell);
+  box-shadow: 0 -10px 30px rgba(11, 10, 15, 0.18);
+  pointer-events: auto;
+}
+
+/* Congés concaves du dock : le carré noir est évidé d'un quart de disque dont
+   le centre est le point de contact avec le dock, au niveau du bord bas du
+   panneau. Le dock « sort » donc du bord inférieur sans angle rentrant. */
+.sui-dock__fillet {
+  position: absolute;
+  bottom: 0;
+  width: var(--r-dock);
+  height: var(--r-dock);
+  background: var(--shell);
+  pointer-events: none;
+}
+
+.sui-dock__fillet--left {
+  right: 100%;
+  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 100% 100%, #0000 99%, #000 100%);
+  mask-image: radial-gradient(circle var(--r-dock) at 100% 100%, #0000 99%, #000 100%);
+}
+
+.sui-dock__fillet--right {
+  left: 100%;
+  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 0 100%, #0000 99%, #000 100%);
+  mask-image: radial-gradient(circle var(--r-dock) at 0 100%, #0000 99%, #000 100%);
+}
+
+.sui-dock__btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+}
+
+.sui-dock__btn:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.04);
+}
+
+/* Le « + » : noir cerclé, seule action sombre du dock. */
+.sui-dock__btn--ink {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+}
+
+.sui-dock__btn--ink:hover {
+  box-shadow: inset 0 0 0 1.5px #ffffff;
+}
+
+/* ==========================================================================
+   12. INFOBULLES
+   ========================================================================== */
+
+.sui-tip {
+  position: fixed;
+  z-index: 9999;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: var(--shadow-pop);
+  font-family: var(--font-sans);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   13. TIROIRS (navigation, Admin Desk < 1024 px)
+   ========================================================================== */
+
+.sui-scrim {
+  position: absolute;
+  z-index: 55;
+  inset: 0;
+  background: rgba(11, 10, 15, 0.45);
+  border-radius: var(--r-shell);
+}
+
+.sui-drawer {
+  position: absolute;
+  z-index: 56;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(360px, 88%);
+  padding: 20px;
+  background: var(--card);
+  border-radius: var(--r-shell) 0 0 var(--r-shell);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+.sui-drawer--right {
+  left: auto;
+  right: 0;
+  width: min(400px, 92%);
+  border-radius: 0 var(--r-shell) var(--r-shell) 0;
+}
+
+.sui-drawer__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sui-drawer__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-drawer__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-right: 4px;
+}
+
+.sui-drawer__group {
+  margin-bottom: 16px;
+}
+
+.sui-drawer__group-label {
+  display: block;
+  margin: 0 0 6px;
+  padding: 0 6px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-drawer__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-drawer__link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 16px;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-drawer__link:hover {
+  background: var(--surface);
+}
+
+.sui-drawer__link svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.sui-drawer__link--active {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-drawer__link--active svg {
+  color: #ffffff;
+}
+
+.sui-drawer__link--active:hover {
+  background: var(--shell);
+}
+
+.sui-drawer__badge {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sui-drawer__link--active .sui-drawer__badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   14. BARRE D'ICÔNES MOBILE (la navbar descend en bas)
+   ========================================================================== */
+
+.sui-mobile-tabbar {
+  display: none;
+  position: absolute;
+  z-index: 48;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--shell);
+  border-radius: 0 0 var(--r-shell) var(--r-shell);
+}
+
+.sui-mobile-tab {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 48px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--shell-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sui-mobile-tab span {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-mobile-tab--active {
+  background: var(--shell-raised);
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   15. PALETTE DE COMMANDES (⌘K)
+   ========================================================================== */
+
+.sui-cmdk-backdrop {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(16px, 12vh, 120px) 16px 16px;
+  background: rgba(11, 10, 15, 0.5);
+}
+
+.sui-cmdk {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  max-height: min(70vh, 620px);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+
+.sui-cmdk__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-cmdk__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+
+.sui-cmdk__input::placeholder {
+  color: var(--muted);
+}
+
+.sui-cmdk__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.sui-cmdk__group-title {
+  padding: 0 6px 6px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-cmdk__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: 14px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 10px;
   border: 0;
+  border-radius: 16px;
   background: transparent;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 550;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
   text-align: left;
-  text-decoration: none;
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease;
 }
 
-.sui-cmdk__item:hover,
 .sui-cmdk__item--active {
-  background: rgba(30, 134, 224, 0.10);
-  color: #0b2545;
+  background: var(--surface);
 }
 
 .sui-cmdk__item-left {
@@ -1594,21 +1982,14 @@ a.sui-kpi:hover,
 }
 
 .sui-cmdk__item-icon {
+  display: grid;
+  place-items: center;
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  background: rgba(15, 52, 96, 0.055);
-  color: #1568b4;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sui-cmdk__item--active .sui-cmdk__item-icon,
-.sui-cmdk__item:hover .sui-cmdk__item-icon {
-  background: #1e86e0;
-  color: #ffffff;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--ink);
 }
 
 .sui-cmdk__footer {
@@ -1616,277 +1997,512 @@ a.sui-kpi:hover,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 18px;
-  border-top: 1px solid rgba(15, 52, 96, 0.075);
-  background: rgba(243, 247, 252, 0.8);
-  font-size: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: 600;
   color: var(--muted);
+}
+
+.sui-cmdk__footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ==========================================================================
-   10. PANELS, FILTER PILLS, ALERTS, TOOLTIPS & DRAWERS
+   16. FOCUS VISIBLE
    ========================================================================== */
 
-.sui-panel {
-  padding: 22px 24px;
-  border-radius: var(--radius-card);
-  background: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.88);
-  outline: 1px solid rgba(15, 52, 96, 0.08);
-  box-shadow: var(--shadow-soft);
-  color: var(--text);
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.sui-panel--blue { background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 35%, #e8f3fe 100%); }
-.sui-panel--green { background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 35%, #e6f7ef 100%); }
-.sui-panel--yellow { background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 35%, #fef4e2 100%); }
-.sui-panel--lilac { background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 35%, #f0edfe 100%); }
-.sui-panel--pink { background: linear-gradient(155deg, rgba(255, 255, 255, 0.96) 35%, #fdeceb 100%); }
-
-.sui-panel__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.sui-panel__title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.018em;
-  color: var(--text);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sui-panel__sub {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.sui-filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.sui-filter-pills {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px;
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(14px);
-  border: var(--border-subtle);
-  box-shadow: var(--comexa-shadow-xs);
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.sui-filter-pill {
-  height: 33px;
-  padding: 0 14px;
-  border-radius: var(--radius-pill);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 160ms var(--sui-ease);
-}
-
-.sui-filter-pill:hover {
-  color: var(--text);
-  background: rgba(30, 134, 224, 0.08);
-}
-
-.sui-filter-pill--active {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-  box-shadow: 0 2px 8px rgba(11, 37, 69, 0.20);
-}
-
-.sui-filter-pill--active:hover {
-  color: #ffffff;
-}
-
-.sui-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 13px 16px;
-  border-radius: 16px;
-  border: var(--border-subtle);
-  background: var(--pastel-pink);
-  color: #9a1d14;
-  font-size: 13.5px;
-  font-weight: 500;
-  line-height: 1.48;
-}
-
-.sui-alert--info { background: var(--pastel-blue); color: #0f4e8a; border-color: #b9defa; }
-.sui-alert--success { background: var(--pastel-green); color: #0d7a52; border-color: #b0e5cc; }
-.sui-alert--warning { background: var(--pastel-yellow); color: #9a5406; border-color: #f8d89c; }
-
-.sui-demo-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 11px 16px;
-  border-radius: 16px;
-  background: var(--pastel-yellow);
-  border: 1px solid #f8d89c;
-  font-size: 13px;
-  font-weight: 600;
-  color: #7c4203;
-}
-
-.sui-tooltip-anchor {
-  position: relative;
-  display: inline-flex;
-}
-
-.sui-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 5px 10px;
+.sui-viewport :focus-visible,
+.sui-tip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
   border-radius: 8px;
-  background: #0b2545;
-  color: #ffffff;
-  font-size: 11.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 8px 20px rgba(11, 37, 69, 0.24);
-  z-index: 60;
 }
 
-.sui-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  background: rgba(7, 25, 47, 0.38);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  justify-content: flex-end;
-  padding: 12px;
+/* Dans la coque noire, l'anneau bleu se perd : il passe en blanc. */
+.sui-nav :focus-visible,
+.sui-rail :focus-visible,
+.sui-dock :focus-visible,
+.sui-mobile-tabbar :focus-visible,
+.sui-profile__trigger:focus-visible,
+.sui-popover :focus-visible {
+  outline-color: var(--focus-on-shell);
 }
 
-.sui-drawer {
-  width: min(440px, 100%);
-  height: 100%;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: var(--comexa-shadow-xl);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
+.sui-nav__link:focus-visible,
+.sui-rail__btn:focus-visible,
+.sui-dock__btn:focus-visible,
+.sui-iconbtn:focus-visible,
+.sui-pill:focus-visible,
+.sui-btn:focus-visible,
+.sui-mobile-tab:focus-visible {
+  outline-offset: 3px;
 }
 
-.sui-drawer__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(15, 52, 96, 0.08);
-}
+/* ==========================================================================
+   17. RESPONSIVE
+   ========================================================================== */
 
-.sui-drawer__title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--text);
-}
-
-.sui-drawer__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 8px;
-}
-
-.sui-drawer__link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.85);
-  border: var(--border-subtle);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: transform 150ms var(--sui-ease), background-color 150ms var(--sui-ease);
-}
-
-.sui-drawer__link:hover {
-  transform: translateY(-1px);
-  background: var(--pastel-blue);
-}
-
-.sui-drawer__link--active {
-  background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff;
-}
-
-.sui-drawer__link--active:hover {
-  background: linear-gradient(135deg, #10325c 0%, #1b5696 100%);
-  color: #ffffff;
-}
-
-@media (max-width: 1180px) {
-  .sui-body {
-    grid-template-columns: 56px minmax(0, 1fr);
-  }
+/* < 1280 px : l'Admin Desk se resserre, les cartes passent à 2 colonnes. */
+@media (max-width: 1279px) {
   .sui-desk--inline {
-    grid-column: 1 / -1;
+    flex-basis: 300px;
+    width: 300px;
   }
 }
 
-@media (max-width: 720px) {
-  .sui-body,
-  .sui-body--no-desk {
+/* < 1024 px : le panneau droit devient un tiroir, le rail disparaît. */
+@media (max-width: 1023px) {
+  .sui-rail {
+    display: none;
+  }
+
+  .sui-desk--inline {
+    display: none;
+  }
+
+  .sui-desk--drawer {
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .sui-nav__label {
+    max-width: 120px;
+  }
+
+  .sui-profile__id {
+    display: none;
+  }
+
+  .sui-profile__trigger {
+    padding: 4px;
+  }
+}
+
+/* < 768 px : navbar → barre d'icônes en bas, grilles à une colonne,
+   dock → barre d'actions flottante compacte. */
+@media (max-width: 767px) {
+  :root {
+    --shell-pad: 0px;
+    --r-shell: 0px;
+  }
+
+  .sui-nav {
+    display: none;
+  }
+
+  .sui-mobile-tabbar {
+    display: flex;
+  }
+
+  .sui-shell__body {
+    border-radius: 0;
+  }
+
+  .sui-main__scroll {
+    padding: 26px 14px calc(190px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sui-notch {
+    display: none;
+  }
+
+  .sui-head {
+    gap: 14px;
+  }
+
+  .sui-head__actions {
+    width: 100%;
+  }
+
+  .sui-head__actions .sui-search {
+    flex: 1;
+  }
+
+  .sui-grid,
+  .sui-kpis,
+  .sui-split {
     grid-template-columns: minmax(0, 1fr);
   }
-  .sui-rail {
-    flex-direction: row;
-    min-height: 0;
-    padding: 6px 10px;
-    overflow-x: auto;
+
+  .sui-dockwrap {
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
-  .sui-rail__group {
-    flex-direction: row;
+
+  /* Le tiroir occupe toute la coque : navbar masquée, barre d'icônes en bas. */
+  .sui-drawer {
+    width: 100%;
+    border-radius: 0;
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sui-drawer--right {
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .sui-dock {
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 22px;
+  }
+
+  .sui-dock__btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sui-dock__fillet {
+    display: none;
+  }
+
+  .sui-card__corner {
+    top: -8px;
+    right: 14px;
+    width: 36px;
+    height: 36px;
   }
 }
 
-.sui-shell :focus-visible {
-  outline: 2px solid #1e86e0;
-  outline-offset: 2px;
+/* ==========================================================================
+   18. MOUVEMENT RÉDUIT
+   ========================================================================== */
+
+/* `MotionConfig reducedMotion="user"` retire déjà les transformations côté
+   framer-motion (il ne reste que les fondus). On neutralise ici les transitions
+   et animations CSS, ainsi que les effets de survol qui déplacent un élément. */
+@media (prefers-reduced-motion: reduce) {
+  .sui-viewport *,
+  .sui-viewport *::before,
+  .sui-viewport *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .sui-pill:hover,
+  .sui-btn:hover,
+  .sui-iconbtn:hover,
+  .sui-rail__btn:hover,
+  .sui-dock__btn:hover,
+  .sui-deskcard__cta:hover,
+  .sui-card:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .sui-scrim {
+    background: rgba(11, 10, 15, 0.72);
+  }
+}
+
+/* Impression : la coque noire coûte cher et n'apporte rien sur papier. */
+@media print {
+  .sui-viewport {
+    height: auto;
+    overflow: visible;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  .sui-shell {
+    border-radius: 0;
+    box-shadow: none;
+    background: #ffffff;
+  }
+
+  .sui-nav,
+  .sui-rail,
+  .sui-dockwrap,
+  .sui-mobile-tabbar,
+  .sui-notch {
+    display: none;
+  }
+
+  .sui-main__scroll {
+    overflow: visible;
+    padding: 0;
+  }
+}
+
+/* ==========================================================================
+   19. DIVERS (squelettes, lien de KPI, volets repliés, listes chiffrées)
+   ========================================================================== */
+
+/* Chiffre d'un KPI cliquable : le lien hérite du style du chiffre. */
+.sui-kpi__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sui-kpi__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+
+/* Squelette de chargement, même gabarit que la carte qu'il remplace. */
+.sui-skeleton {
+  background-color: #eceaec;
+  background-image: linear-gradient(100deg, #eceaec 20%, #f7f5f6 40%, #eceaec 60%);
+  background-size: 280% 100%;
+  box-shadow: none;
+  animation: sui-shimmer 1.4s var(--ease-out) infinite;
+}
+
+@keyframes sui-shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+/* Volet replié « Explorer les données détaillées ». */
+.sui-details {
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-details__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 14px 20px;
+  border-radius: var(--r-card);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.sui-details__summary::-webkit-details-marker {
+  display: none;
+}
+
+.sui-details__summary:hover {
+  background: var(--surface);
+}
+
+.sui-details[open] .sui-details__summary svg {
+  transform: rotate(180deg);
+}
+
+.sui-details__summary svg {
+  color: var(--muted);
+  transition: transform var(--dur-base) var(--ease-out);
+}
+
+.sui-details__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 20px 20px;
+}
+
+/* Montants : libellé gris, chiffre tabulaire à droite. */
+.sui-money {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.sui-money > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-money > div:last-child {
+  border-bottom: 0;
+}
+
+.sui-money dt {
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sui-money dd {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-money__big {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Liste de lignes liées (échéances) : pastille + texte + valeur à droite. */
+.sui-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-lines > li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sui-lines a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sui-lines a:hover .sui-lines__copy strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-lines__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-lines__copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.sui-lines__copy strong {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-lines__copy > span {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-lines__end {
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-lines__end--late {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--pink);
+  color: var(--ink);
+}
+
+/* Barres comparatives (encaissements, pipeline) : pastel, ratio à droite. */
+.sui-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-bars li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-bars__label {
+  flex: 0 0 92px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-bars__track {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--track);
+  overflow: hidden;
+}
+
+.sui-bars__fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-pill);
+  background: var(--tone-bg, var(--fill));
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.sui-bars__value {
+  flex: 0 0 auto;
+  min-width: 76px;
+  text-align: right;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rangée de pilules d'action (démarrer le minuteur sur une tâche). */
+.sui-pills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-pills-list .sui-pill {
+  max-width: 100%;
+}
+
+.sui-pills-list .sui-pill {
+  max-width: 260px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

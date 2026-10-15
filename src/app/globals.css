@@ -10,8 +10,10 @@
 @import "../styles/workspace-shell.css";
 @import "../styles/workspace-team-glass.css";
 @import "../styles/softui.tokens.css";
+/* La feuille du dashboard « soft UI pastel dans une coque noire » est chargée en
+   dernier : elle a le dernier mot sur les classes `sui-*` partagées avec les
+   anciennes feuilles de l'espace de travail. */
 @import "../styles/softui.components.css";
-@import "../styles/workspace-liquid.css";
 
 :root {
   --background: #ffffff;

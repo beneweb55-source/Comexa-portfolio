@@ -253,7 +253,7 @@ export default function ApercuClient() {
   return (
     <SoftMotionProvider>
       <div className="sui-viewport">
-        <p className="sui-head__sub" style={{ maxWidth: 900, margin: "0 auto 14px", textAlign: "center" }}>
+        <p className="sui-head__sub" style={{ maxWidth: 900, margin: "0 auto 14px", textAlign: "center", color: "#3d4a54" }}>
           Aperçu du design system — données de démonstration, page disponible en développement uniquement.
         </p>
 
