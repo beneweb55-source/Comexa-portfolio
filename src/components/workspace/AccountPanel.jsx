@@ -3,11 +3,29 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatDate, messageOf } from "@/lib/api";
+import { hasTeamAccess } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 
 const MIN_PASSWORD = 12;
+const BOT_USERNAME = "@ComexaWork_bot";
+
+async function copyToClipboardText(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
 
 /**
  * Mon compte : identité, changement de mot de passe, sessions ouvertes.
@@ -24,12 +42,67 @@ export default function AccountPanel() {
   const [pwSuccess, setPwSuccess] = useState(null);
   const [pwBusy, setPwBusy] = useState(false);
   const [me, setMe] = useState(null);
+  const [telegramState, setTelegramState] = useState({ status: "loading", data: null, error: null });
+  const [telegramCode, setTelegramCode] = useState(null);
+  const [telegramBusy, setTelegramBusy] = useState(false);
+  const [telegramCopied, setTelegramCopied] = useState(false);
+  const teamUser = hasTeamAccess(user);
 
   useEffect(() => {
     request("/auth/me")
       .then(({ data }) => setMe(data?.user ?? data ?? null))
       .catch(() => setMe(null));
   }, [request]);
+
+  useEffect(() => {
+    if (!teamUser) return;
+    setTelegramState((s) => ({ ...s, status: "loading" }));
+    request("/me/telegram-link")
+      .then(({ data }) => setTelegramState({ status: "ready", data, error: null }))
+      .catch((err) => setTelegramState({ status: "error", data: null, error: messageOf(err) }));
+  }, [request, teamUser]);
+
+  async function generateTelegramCode() {
+    setTelegramBusy(true);
+    setTelegramState((s) => ({ ...s, error: null }));
+    try {
+      const { data } = await request("/me/telegram-link/code", { method: "POST" });
+      setTelegramCode(data);
+      // Refresh state
+      const state = await request("/me/telegram-link");
+      setTelegramState({ status: "ready", data: state.data, error: null });
+    } catch (err) {
+      setTelegramState((s) => ({ ...s, error: messageOf(err) }));
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function disconnectTelegram() {
+    setTelegramBusy(true);
+    setTelegramState((s) => ({ ...s, error: null }));
+    try {
+      await request("/me/telegram-link", { method: "DELETE" });
+      setTelegramCode(null);
+      const state = await request("/me/telegram-link");
+      setTelegramState({ status: "ready", data: state.data, error: null });
+    } catch (err) {
+      setTelegramState((s) => ({ ...s, error: messageOf(err) }));
+    } finally {
+      setTelegramBusy(false);
+    }
+  }
+
+  async function copyCommand() {
+    if (!telegramCode?.code) return;
+    try {
+      await copyToClipboardText(`/lier ${telegramCode.code}`);
+      setTelegramCopied(true);
+      setTimeout(() => setTelegramCopied(false), 2000);
+    } catch {
+      // ignore copy errors
+    }
+  }
 
   async function changePassword(event) {
     event.preventDefault();
@@ -71,6 +144,65 @@ export default function AccountPanel() {
 
   return (
     <div className="flex flex-col gap-6">
+      {teamUser ? (
+        <Card
+          title={`Bot Telegram Comexa (${BOT_USERNAME})`}
+          action={
+            telegramState.data?.linked ? <Badge tone="success">Lié</Badge> : <Badge tone="neutral">Non lié</Badge>
+          }
+        >
+          {telegramState.error ? <Notice>{telegramState.error}</Notice> : null}
+          {telegramState.status === "loading" ? <p className="cx-small">Chargement de l’état de liaison…</p> : null}
+
+          {telegramState.data?.linked ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-[14.5px]">
+                Votre compte Comexa est lié au compte Telegram{" "}
+                <strong>{telegramState.data.telegramUsername ? `@${telegramState.data.telegramUsername}` : (telegramState.data.telegramUserId ?? "")}</strong>
+                {telegramState.data.pairedAt ? <> depuis le {formatDate(telegramState.data.pairedAt)}</> : null}.
+              </p>
+              <div>
+                <button type="button" className={secondaryButton} onClick={disconnectTelegram} disabled={telegramBusy}>
+                  {telegramBusy ? "Déconnexion…" : "Déconnecter mon Telegram"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {!telegramState.data?.linked ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-[14.5px]">
+                Liez votre compte Telegram au bot {BOT_USERNAME} pour recevoir des notifications et piloter Comexa directement depuis une conversation Telegram, avec vos droits d’équipe.
+              </p>
+              {telegramCode ? (
+                <div className="rounded-lg border-2 border-[var(--comexa-accent-strong)] bg-[var(--comexa-accent-soft)] p-4">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--comexa-ink-muted)]">Code d’appairage</p>
+                  <p className="mt-1 text-[28px] font-bold tracking-[0.3em] text-[var(--comexa-ink)]">{telegramCode.code}</p>
+                  <p className="mt-2 text-[13px] text-[var(--comexa-ink-soft)]">
+                    Envoyez la commande suivante à {BOT_USERNAME} sur Telegram dans les 10 minutes :
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    <code className="rounded-md bg-[var(--comexa-surface)] px-3 py-2 font-mono text-[15px] font-semibold">
+                      /lier {telegramCode.code}
+                    </code>
+                    <button type="button" className={secondaryButton} onClick={copyCommand}>
+                      {telegramCopied ? "Commande copiée" : "Copier la commande"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[12px] text-[var(--comexa-ink-muted)]">
+                    Expire le {new Date(telegramCode.expiresAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.
+                  </p>
+                </div>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={primaryButton} onClick={generateTelegramCode} disabled={telegramBusy}>
+                  {telegramBusy ? "Génération…" : telegramCode ? "Générer un nouveau code" : "Générer un code de liaison"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
       <Card title="Mon profil">
         {profile ? (
           <dl className="grid gap-3 text-[14.5px] md:grid-cols-2">

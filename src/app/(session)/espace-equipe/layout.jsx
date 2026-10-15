@@ -7,6 +7,7 @@ import { canAny } from "@/lib/access";
 import { TimerProvider } from "@/lib/timer";
 import TimerPill from "@/components/workspace/TimerPill";
 import ApiContractBanner from "@/components/ApiContractBanner";
+import AiAgentDrawer from "@/components/workspace/AiAgentDrawer";
 
 const NAV_GROUPS = [
   {
@@ -81,6 +82,7 @@ export default function EspaceEquipeLayout({ children }) {
           {children}
         </WorkspaceShell>
         <TimerPill />
+        <AiAgentDrawer />
       </TimerProvider>
     </RequireSession>
   );
