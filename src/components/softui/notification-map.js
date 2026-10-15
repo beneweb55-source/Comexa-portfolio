@@ -1,5 +1,9 @@
 /*
  * Correspondances notification → présentation (libellé, icône lucide, pastel).
+ *
+ * Les types sont ceux de l'API (`NotificationType`) : aucune invention côté front.
+ * Une seule table, utilisée par le panneau « Admin Desk » et la cloche du rail,
+ * pour que le même événement n'ait jamais deux habillages différents.
  */
 
 import {
@@ -39,9 +43,4 @@ export const NOTIFICATION_META = {
 
 export function notificationMeta(type) {
   return NOTIFICATION_META[type] ?? { label: "Notification", icon: Bell, tone: "plain", group: "system" };
-}
-
-export function resolveNotificationHref(link, isTeam = true) {
-  if (typeof link === "string" && link.startsWith("/")) return link;
-  return isTeam ? "/espace-equipe/notifications" : "/espace-client/notifications";
 }

@@ -1,28 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { KeyRound, Plus, Shield, UserCheck, UserX, Users } from "lucide-react";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
-import {
-  Badge,
-  Card,
-  ConfirmDialog,
-  Empty,
-  Field,
-  Notice,
-  Pagination,
-  SideSheet,
-  SkeletonList,
-  inputClass,
-  primaryButton,
-  secondaryButton,
-  selectClass,
-} from "@/components/workspace/ui";
-import { UserAvatar } from "@/components/workspace/UserAvatar";
-import { useShellQuery } from "@/components/softui/Shell";
+import { Badge, Card, ConfirmDialog, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 
 const USER_STATUS = { INVITED: "Invité", ACTIVE: "Actif", SUSPENDED: "Suspendu", ARCHIVED: "Archivé" };
 const USER_STATUS_TONE = { INVITED: "info", ACTIVE: "success", SUSPENDED: "warning", ARCHIVED: "neutral" };
@@ -36,24 +19,26 @@ const ROLE_LABEL = {
   CLIENT: "Client",
 };
 
+/** Un rôle peut arriver sous forme de code (liste des comptes) ou d'objet. */
 function roleCode(role) {
   return typeof role === "string" ? role : role?.code;
 }
 
+/**
+ * Membres de l'équipe : création, rôles, réinitialisation du mot de passe, suspension.
+ * Les mots de passe générés ne sont affichés qu'une fois, à la création ou à la réinitialisation.
+ * Réservé aux comptes avec `user:manage:any` : sinon l'API refuse et la page l'indique.
+ */
 export default function MembresPage() {
   const { user, request } = useAuth();
-  const { query: shellQuery } = useShellQuery();
   const canManageMembers = can(user, "user:manage:any");
   const canReadRoles = can(user, "role:read:any");
-
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [page, setPage] = useState(1);
-
-  const effectiveQuery = (shellQuery || query).trim();
-  const path = `/users?page=${page}&perPage=100${effectiveQuery ? `&search=${encodeURIComponent(effectiveQuery)}` : ""}${status ? `&status=${status}` : ""}${roleFilter ? `&roleCode=${roleFilter}` : ""}`;
+  const path = `/users?page=${page}&perPage=100${query ? `&search=${encodeURIComponent(query)}` : ""}${status ? `&status=${status}` : ""}${roleFilter ? `&roleCode=${roleFilter}` : ""}`;
   const users = useListing(path);
   const action = useAction(users.reload);
   const [roles, setRoles] = useState([]);
@@ -61,7 +46,7 @@ export default function MembresPage() {
   const [editingRoles, setEditingRoles] = useState(null);
   const [pendingSuspend, setPendingSuspend] = useState(null);
   const [pendingReset, setPendingReset] = useState(null);
-  const [revealed, setRevealed] = useState(null);
+  const [revealed, setRevealed] = useState(null); // { title, email, password }
   const forbidden = users.errorStatus === 403;
 
   useEffect(() => {
@@ -81,18 +66,18 @@ export default function MembresPage() {
   }
 
   const items = users.items ?? [];
-  const name = (member) => `${member.firstName} ${member.lastName}`;
+  const name = (user) => `${user.firstName} ${user.lastName}`;
 
-  async function suspend(member) {
-    const result = await action.run(`suspend:${member.id}`, `/users/${member.id}/suspend`, { method: "POST" }, `${name(member)} est suspendu.`);
+  async function suspend(user) {
+    const result = await action.run(`suspend:${user.id}`, `/users/${user.id}/suspend`, { method: "POST" }, `${name(user)} est suspendu.`);
     if (result !== null) setPendingSuspend(null);
   }
 
-  async function reset(member) {
-    const result = await action.run(`reset:${member.id}`, `/users/${member.id}/reset-password`, { method: "POST" }, null);
+  async function reset(user) {
+    const result = await action.run(`reset:${user.id}`, `/users/${user.id}/reset-password`, { method: "POST" }, null);
     if (result !== null) {
       setPendingReset(null);
-      setRevealed({ title: "Mot de passe réinitialisé", email: member.email, password: result?.data?.temporaryPassword ?? result?.temporaryPassword ?? "" });
+      setRevealed({ title: "Mot de passe réinitialisé", email: user.email, password: result?.data?.temporaryPassword ?? result?.temporaryPassword ?? "" });
     }
   }
 
@@ -103,8 +88,7 @@ export default function MembresPage() {
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
       {revealed ? (
         <Notice tone="warning">
-          <strong>{revealed.title} pour {revealed.email}.</strong> Mot de passe provisoire, affiché une seule fois :{" "}
-          <code className="rounded bg-white px-2 py-0.5 font-mono text-sm font-bold">{revealed.password || "(non renvoyé)"}</code>
+          <strong>{revealed.title} pour {revealed.email}.</strong> Mot de passe provisoire, affiché une seule fois : {revealed.password || "(non renvoyé)"}.
           <span className="mt-2 block">
             <button type="button" className={secondaryButton} onClick={() => setRevealed(null)}>Fermer</button>
           </span>
@@ -113,15 +97,28 @@ export default function MembresPage() {
 
       <Card
         title="Membres et droits"
-        subtitle="Gérez les comptes de l’équipe, leurs rôles RBAC et leurs accès."
         action={
           canManageMembers ? (
-            <button type="button" className={primaryButton} onClick={() => setCreating(true)}>
-              <Plus size={15} /> Ajouter un membre
+            <button type="button" className={primaryButton} onClick={() => setCreating((value) => !value)}>
+              {creating ? "Fermer" : "Ajouter un membre"}
             </button>
           ) : null
         }
       >
+        {creating && canManageMembers ? (
+          canReadRoles ? (
+            <CreateMember
+              roles={roles}
+              onCreated={(password, email) => {
+                setCreating(false);
+                setPage(1);
+                setRevealed({ title: "Compte créé", email, password });
+                users.reload();
+              }}
+            />
+          ) : <Notice>Votre rôle ne permet pas de consulter les rôles nécessaires pour créer un compte.</Notice>
+        ) : null}
+
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -152,53 +149,44 @@ export default function MembresPage() {
           <button type="submit" className={secondaryButton}>Filtrer</button>
         </form>
 
-        {users.items === null && !users.error ? <SkeletonList rows={4} /> : null}
-        {users.items !== null && items.length === 0 ? <Empty icon={Users}>Aucun membre pour ces critères.</Empty> : null}
+        {users.items === null && !users.error ? <p className="cx-small">Chargement…</p> : null}
+        {users.items !== null && items.length === 0 ? <Empty>Aucun membre pour ces critères.</Empty> : null}
 
         <ul className="flex flex-col gap-3">
-          {items.map((member) => (
-            <li key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--comexa-border-soft)] bg-white p-4 transition hover:border-[rgba(30,134,224,0.25)]">
-              <div className="flex min-w-0 items-start gap-3">
-                <UserAvatar user={member} size={40} />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-[15.5px] font-bold text-[var(--comexa-ink)]">{name(member)}</h3>
-                    <Badge tone={USER_STATUS_TONE[member.status] ?? "neutral"}>{USER_STATUS[member.status] ?? member.status}</Badge>
-                  </div>
-                  <p className="text-[13px] text-[var(--comexa-ink-soft)]">{member.email}</p>
-                  <p className="mt-1.5 flex flex-wrap gap-1.5">
-                    {(member.roles ?? []).map((role) => (
-                      <Badge key={roleCode(role)} tone="info">{ROLE_LABEL[roleCode(role)] ?? roleCode(role)}</Badge>
-                    ))}
-                    {member.mustChangePassword ? <Badge tone="warning">Mot de passe à changer</Badge> : null}
-                  </p>
-                  {member.lastLoginAt ? <p className="mt-1 text-[12px] text-[var(--comexa-ink-muted)]">Dernière connexion : {formatDate(member.lastLoginAt)}</p> : null}
-                </div>
+          {items.map((user) => (
+            <li key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
+              <div className="min-w-0">
+                <h3 className="text-[16px] font-semibold text-[var(--comexa-ink)]">{name(user)}</h3>
+                <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">{user.email}</p>
+                <p className="mt-1 flex flex-wrap gap-1.5">
+                  {(user.roles ?? []).map((role) => (
+                    <Badge key={roleCode(role)} tone="info">{ROLE_LABEL[roleCode(role)] ?? roleCode(role)}</Badge>
+                  ))}
+                  {user.mustChangePassword ? <Badge tone="warning">Mot de passe à changer</Badge> : null}
+                </p>
+                {user.lastLoginAt ? <p className="text-[13px] text-[var(--comexa-ink-muted)]">Dernière connexion : {formatDate(user.lastLoginAt)}</p> : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={USER_STATUS_TONE[user.status] ?? "neutral"}>{USER_STATUS[user.status] ?? user.status}</Badge>
                 {canManageMembers ? (
                   <>
-                    {canReadRoles ? (
-                      <button type="button" className={secondaryButton} onClick={() => setEditingRoles(member)}>
-                        <Shield size={14} /> Rôles
-                      </button>
-                    ) : null}
-                    <button type="button" className={secondaryButton} onClick={() => setPendingReset(member)} disabled={Boolean(action.busy)}>
-                      <KeyRound size={14} /> Réinitialiser MDP
+                    {canReadRoles ? <button type="button" className={secondaryButton} onClick={() => setEditingRoles(user)}>Rôles</button> : null}
+                    <button type="button" className={secondaryButton} onClick={() => setPendingReset(user)} disabled={Boolean(action.busy)}>
+                      Réinitialiser le mot de passe
                     </button>
-                    {member.status === "ACTIVE" ? (
-                      <button type="button" className={secondaryButton} onClick={() => setPendingSuspend(member)} disabled={Boolean(action.busy)}>
-                        <UserX size={14} /> Suspendre
+                    {user.status === "ACTIVE" ? (
+                      <button type="button" className={secondaryButton} onClick={() => setPendingSuspend(user)} disabled={Boolean(action.busy)}>
+                        Suspendre
                       </button>
                     ) : null}
-                    {member.status === "SUSPENDED" ? (
+                    {user.status === "SUSPENDED" ? (
                       <button
                         type="button"
                         className={secondaryButton}
-                        onClick={() => action.run(`reactivate:${member.id}`, `/users/${member.id}/reactivate`, { method: "POST" }, `${name(member)} est réactivé.`)}
+                        onClick={() => action.run(`reactivate:${user.id}`, `/users/${user.id}/reactivate`, { method: "POST" }, `${name(user)} est réactivé.`)}
                         disabled={Boolean(action.busy)}
                       >
-                        <UserCheck size={14} /> Réactiver
+                        Réactiver
                       </button>
                     ) : null}
                   </>
@@ -210,47 +198,18 @@ export default function MembresPage() {
         <Pagination meta={users.meta} onPageChange={setPage} loading={users.loading} />
       </Card>
 
-      <SideSheet
-        open={creating && canManageMembers}
-        onClose={() => setCreating(false)}
-        title="Nouveau membre de l’équipe"
-        subtitle="Un mot de passe provisoire sera généré automatiquement."
-      >
-        {canReadRoles ? (
-          <CreateMember
-            roles={roles}
-            onCancel={() => setCreating(false)}
-            onCreated={(password, email) => {
-              setCreating(false);
-              setPage(1);
-              setRevealed({ title: "Compte créé", email, password });
-              users.reload();
-            }}
-          />
-        ) : (
-          <Notice>Votre rôle ne permet pas de consulter les rôles nécessaires pour créer un compte.</Notice>
-        )}
-      </SideSheet>
-
-      <SideSheet
-        open={Boolean(editingRoles && canManageMembers && canReadRoles)}
-        onClose={() => setEditingRoles(null)}
-        title={editingRoles ? `Rôles de ${editingRoles.firstName} ${editingRoles.lastName}` : "Rôles"}
-        subtitle="Sélectionnez les rôles accordés à ce collaborateur."
-      >
-        {editingRoles ? (
-          <EditRoles
-            key={editingRoles.id}
-            user={editingRoles}
-            roles={roles}
-            onClose={() => setEditingRoles(null)}
-            onSaved={async () => {
-              setEditingRoles(null);
-              await users.reload();
-            }}
-          />
-        ) : null}
-      </SideSheet>
+      {editingRoles && canManageMembers && canReadRoles ? (
+        <EditRoles
+          key={editingRoles.id}
+          user={editingRoles}
+          roles={roles}
+          onClose={() => setEditingRoles(null)}
+          onSaved={async () => {
+            setEditingRoles(null);
+            await users.reload();
+          }}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={pendingSuspend !== null}
@@ -278,7 +237,7 @@ export default function MembresPage() {
   );
 }
 
-function CreateMember({ roles, onCancel, onCreated }) {
+function CreateMember({ roles, onCreated }) {
   const { request } = useAuth();
   const [form, setForm] = useState({ email: "", firstName: "", lastName: "", phone: "" });
   const [roleCodes, setRoleCodes] = useState([]);
@@ -311,37 +270,32 @@ function CreateMember({ roles, onCancel, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      {error ? <div className="sm:col-span-2"><Notice>{error}</Notice></div> : null}
+    <form onSubmit={submit} className="mb-6 grid gap-4 rounded-lg border border-[var(--comexa-border-soft)] p-5 md:grid-cols-2">
+      {error ? <div className="md:col-span-2"><Notice>{error}</Notice></div> : null}
+      <Field id="new-email" label="E-mail *">
+        <input id="new-email" type="email" required className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </Field>
+      <Field id="new-phone" label="Téléphone">
+        <input id="new-phone" className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+      </Field>
       <Field id="new-first" label="Prénom *">
         <input id="new-first" required className={inputClass} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
       </Field>
       <Field id="new-last" label="Nom *">
         <input id="new-last" required className={inputClass} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
       </Field>
-      <div className="sm:col-span-2">
-        <Field id="new-email" label="E-mail professionnel *">
-          <input id="new-email" type="email" required className={inputClass} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-        </Field>
-      </div>
-      <div className="sm:col-span-2">
-        <Field id="new-phone" label="Téléphone">
-          <input id="new-phone" className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        </Field>
-      </div>
-      <fieldset className="flex flex-col gap-2 sm:col-span-2">
-        <legend className="cx-label">Rôles attribués *</legend>
-        <div className="flex flex-wrap gap-2">
+      <fieldset className="flex flex-col gap-2 md:col-span-2">
+        <legend className="cx-label">Rôles *</legend>
+        <div className="flex flex-wrap gap-4">
           {roles.map((role) => (
-            <label key={role.code} className="flex cursor-pointer items-center gap-2 rounded-xl border border-[var(--comexa-border)] bg-white px-3 py-2 text-[13.5px] font-medium">
+            <label key={role.code} className="flex items-center gap-2 text-[14px]">
               <input type="checkbox" checked={roleCodes.includes(role.code)} onChange={() => toggleRole(role.code)} />
               {ROLE_LABEL[role.code] ?? role.name ?? role.code}
             </label>
           ))}
         </div>
       </fieldset>
-      <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
-        <button type="button" onClick={onCancel} className={secondaryButton}>Annuler</button>
+      <div className="md:col-span-2">
         <button type="submit" disabled={busy} className={primaryButton}>{busy ? "Création…" : "Créer le compte"}</button>
       </div>
     </form>
@@ -376,20 +330,20 @@ function EditRoles({ user, roles, onClose, onSaved }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <Card title={`Rôles de ${user.firstName} ${user.lastName}`}>
       {error ? <Notice>{error}</Notice> : null}
-      <div className="flex flex-col gap-2">
+      <div className="mb-5 flex flex-wrap gap-4">
         {roles.map((role) => (
-          <label key={role.code} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--comexa-border)] bg-white p-3 text-[14px] font-medium">
+          <label key={role.code} className="flex items-center gap-2 text-[14px]">
             <input type="checkbox" checked={selected.includes(role.code)} onChange={() => toggle(role.code)} />
-            <span>{ROLE_LABEL[role.code] ?? role.name ?? role.code}</span>
+            {ROLE_LABEL[role.code] ?? role.name ?? role.code}
           </label>
         ))}
       </div>
-      <div className="flex justify-end gap-2 pt-2">
-        <button type="button" className={secondaryButton} onClick={onClose}>Annuler</button>
+      <div className="flex gap-3">
         <button type="button" className={primaryButton} onClick={save} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer les rôles"}</button>
+        <button type="button" className={secondaryButton} onClick={onClose}>Annuler</button>
       </div>
-    </div>
+    </Card>
   );
 }

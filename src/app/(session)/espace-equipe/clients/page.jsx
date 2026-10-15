@@ -1,9 +1,16 @@
 "use client";
 
+/*
+ * Clients (espace équipe) — même logique d'appel qu'avant (`useListing` sur
+ * `/clients`), présentation en grille de cartes « soft UI » : filtres en pilules
+ * par statut, recherche branchée sur celle du bandeau (`useShellQuery`), cartes
+ * avec pastille d'initiales, méta et action principale noire.
+ */
+
 import { useState } from "react";
 import { ArrowUpRight, CircleAlert, Eye, Users } from "lucide-react";
 import { useListing } from "@/lib/use-listing";
-import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
+import { Pagination } from "@/components/workspace/ui";
 import { Alert, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
 
@@ -36,7 +43,7 @@ export default function ClientsEquipePage() {
   const items = clients.items ?? [];
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col">
       {clients.error ? <Alert icon={CircleAlert}>{clients.error}</Alert> : null}
 
       <FilterPills
@@ -50,46 +57,30 @@ export default function ClientsEquipePage() {
       />
 
       <section className="sui-section" aria-label="Liste des clients">
-        {clients.items === null && !clients.error ? <SkeletonList rows={4} /> : null}
-        {clients.items !== null && items.length === 0 ? (
-          <Empty icon={Users}>Aucun client ne correspond à ces critères.</Empty>
-        ) : null}
+        {clients.items === null && !clients.error ? <p className="sui-card__desc" role="status">Chargement des clients…</p> : null}
+        {clients.items !== null && items.length === 0 ? <p className="sui-card__desc">Aucun client pour ces critères.</p> : null}
 
-        {items.length > 0 ? (
-          <ItemGrid label="Clients">
-            {items.map((client) => (
-              <ItemCard
-                key={client.id}
-                corner={initialsOf(client.companyName)}
-                cornerTone="blue"
-                title={client.companyName}
-                description={
-                  [client.sector, client.city, client.country].filter(Boolean).join(" · ") ||
-                  "Coordonnées à compléter"
-                }
-                meta={[
-                  { icon: Users, label: client.reference },
-                  { icon: Eye, label: CLIENT_STATUS[client.status] ?? client.status },
-                ]}
-                status={CLIENT_STATUS[client.status] ?? client.status}
-                statusTone={client.status === "ACTIVE" ? "green" : "plain"}
-                actions={[
-                  {
-                    icon: Eye,
-                    label: `Voir la fiche de ${client.companyName}`,
-                    href: `/espace-equipe/clients/${client.id}`,
-                  },
-                  {
-                    icon: ArrowUpRight,
-                    label: `Ouvrir la fiche de ${client.companyName}`,
-                    href: `/espace-equipe/clients/${client.id}`,
-                    variant: "dark",
-                  },
-                ]}
-              />
-            ))}
-          </ItemGrid>
-        ) : null}
+        <ItemGrid label="Clients">
+          {items.map((client) => (
+            <ItemCard
+              key={client.id}
+              corner={initialsOf(client.companyName)}
+              cornerTone="blue"
+              title={client.companyName}
+              description={[client.sector, client.city, client.country].filter(Boolean).join(" · ") || "Coordonnées à compléter"}
+              meta={[
+                { icon: Users, label: client.reference },
+                { icon: Eye, label: CLIENT_STATUS[client.status] ?? client.status },
+              ]}
+              status={CLIENT_STATUS[client.status] ?? client.status}
+              statusTone={client.status === "ACTIVE" ? "green" : "plain"}
+              actions={[
+                { icon: Eye, label: `Voir la fiche de ${client.companyName}`, href: `/espace-equipe/clients/${client.id}` },
+                { icon: ArrowUpRight, label: `Ouvrir la fiche de ${client.companyName}`, href: `/espace-equipe/clients/${client.id}`, variant: "dark" },
+              ]}
+            />
+          ))}
+        </ItemGrid>
 
         <Pagination meta={clients.meta} onPageChange={setPage} loading={clients.loading} />
       </section>
