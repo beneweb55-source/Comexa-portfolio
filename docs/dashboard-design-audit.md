@@ -3,6 +3,16 @@
 Date : 15 octobre 2026.
 Périmètre principal : `/espace-equipe/tableau-de-bord`, dans la coque partagée des espaces authentifiés.
 
+> **Document historique.** L'audit ci-dessous a été mené pour la direction
+> « verre liquide » qui a suivi la première refonte. Cette direction a depuis été
+> **remplacée** par la charte « soft UI pastel dans une coque noire », décrite
+> dans [`REFONTE-SOFTUI.md`](REFONTE-SOFTUI.md) : la feuille
+> `workspace-liquid.css` a été supprimée, la coque est redevenue une coque noire
+> à panneau clair, et le tableau de bord est désormais
+> `dashboard/ControlCenter.jsx`. Les défauts listés ici restent utiles : ils
+> expliquent les garde-fous conservés (adaptateur `WorkspaceShell`, container
+> queries, recherche branchée, un seul `h1`, permissions `dashboard:read:any`).
+
 ## Défauts identifiés et corrections
 
 | Défaut observé dans le code | Impact | Correction |
@@ -21,7 +31,10 @@ Périmètre principal : `/espace-equipe/tableau-de-bord`, dans la coque partagé
 | Couleur blanche forcée sur la rubrique active. | Texte illisible sur le nouveau verre clair. | Suppression du `!important` et état actif à texte bleu dense. |
 | Erreurs répétées et chargement confondu avec l'échec ou l'absence de données. | Empilement d'alertes et messages trompeurs. | Déduplication des messages ; distinction du chargement, des listes vides et des données indisponibles pour les widgets concernés. |
 
-## Direction visuelle
+## Direction visuelle (remplacée)
+
+Direction « verre liquide » appliquée à l'époque de cet audit, depuis remplacée
+par la charte pastel sur coque noire :
 
 - Fond lumineux bleu glacier, avec touches lavande et cyan, sans image ni téléchargement externe.
 - Verre dépoli inspiré de macOS/iOS : transparence modérée, saturation, reflets en dégradé, arêtes claires et ombres douces.
@@ -30,6 +43,12 @@ Périmètre principal : `/espace-equipe/tableau-de-bord`, dans la coque partagé
 - Rayons et espacements homogènes ; micro-interaction de survol réservée aux cartes interactives.
 - Suppression des boutons « Nouveau devis » redondants : une action principale dans l'en-tête.
 - Barre de navigation mobile flottante, cibles principales de 44 px et prise en compte des zones de sécurité.
+
+Direction actuelle (voir `REFONTE-SOFTUI.md`) : coque noire `#0B0A0F` arrondie à
+32 px posée sur un halo `#DBE7EF`, panneau clair `#F6F4F5`, cartes blanches
+`#FDFDFD` à 24 px, six pastels pour coder les catégories, un seul accent noir
+pour les actions principales, découpes à rayon inversé (languette sous la
+navbar, congés du dock), Plus Jakarta Sans.
 
 ## Plein écran
 
@@ -45,9 +64,24 @@ La coque occupe la fenêtre (`100dvh`, avec repli `100vh`), sans cadre extérieu
 
 ## Vérifications réalisées
 
-- `npm run lint` : réussi.
+### Refonte soft UI (état actuel du dépôt)
+
+- `npm run lint` : réussi (règles React Compiler incluses).
 - `npm run test:unit` : 33 tests réussis.
-- `npm run build` : compilation de production réussie.
+- `npm run build` : compilation de production réussie (Next 16, Turbopack).
+- Contrôle statique des classes : toute classe `sui-*` utilisée par un composant
+  est définie dans `softui.components.css`, et inversement (hors identifiants
+  `layoutId` et gabarits d'`id` ARIA).
+- Contrôle « aucun emoji » sur `src/` : aucun pictogramme emoji dans les
+  composants du dashboard (seul subsiste un `✓` typographique dans une puce de
+  liste du site public, hors périmètre).
+- Rendu serveur vérifié sur `/refonte-apercu` (tous les composants du brief sont
+  présents dans le HTML servi) et sur les routes d'espace (200, aucune erreur de
+  compilation). Les vérifications navigateur multi-résolutions ci-dessous
+  datent de la direction précédente et sont à rejouer sur la coque noire.
+
+### Audit initial (direction « verre liquide »)
+
 - Vérifications Chromium avec API interceptée pour tester l'interface sans compte réel :
   - 320 × 740, 390 × 844, 768 × 1 024, 1 024 × 768, 1 440 × 1 000, 1 920 × 1 080 ;
   - pas de débordement horizontal du document ; hauteur de coque égale à celle de la fenêtre ;

@@ -33,7 +33,7 @@ export default function Navbar({ items, activeHref, roleLabel, homeHref = "/", p
         {roleLabel ? <span className="sui-nav__role">{roleLabel}</span> : null}
       </div>
 
-      <nav aria-label={`Navigation ${roleLabel ?? "principale"}`} style={{ margin: "0 auto", minWidth: 0 }}>
+      <nav className="sui-nav__center" aria-label={`Navigation ${roleLabel ?? "principale"}`}>
         <LayoutGroup id="sui-nav">
           <ul className="sui-nav__links">
             {items.map((item) => {

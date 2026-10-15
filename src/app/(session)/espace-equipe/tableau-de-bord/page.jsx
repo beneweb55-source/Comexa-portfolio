@@ -1,7 +1,7 @@
 "use client";
 
-import BentoDashboard from "@/components/dashboard/BentoDashboard";
+import ControlCenter from "@/components/dashboard/ControlCenter";
 
 export default function TableauDeBordEquipePage() {
-  return <BentoDashboard />;
+  return <ControlCenter />;
 }

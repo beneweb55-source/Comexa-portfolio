@@ -74,9 +74,17 @@ export function IconButton({
  * Pilule de statut : texte foncé sur pastel, jamais l'inverse.
  * `variant="white"` pour une pilule blanche posée sur une carte mise en avant.
  */
-export function StatusPill({ tone = "plain", icon: Icon, label, variant, className = "" }) {
+export function StatusPill({ tone = "plain", icon: Icon, label, variant, live, className = "" }) {
   const flat = !TONE_BG[tone] || tone === "plain" || tone === "ghost";
-  const classes = ["sui-status", flat ? "sui-status--plain" : "", variant === "white" ? "sui-status--white" : "", className]
+  /* `live` pulse l'icône (statut « En direct ») ; à défaut, le libellé suffit. */
+  const isLive = Boolean(live ?? /\blive\b|direct/i.test(String(label ?? "")));
+  const classes = [
+    "sui-status",
+    flat ? "sui-status--plain" : "",
+    variant === "white" ? "sui-status--white" : "",
+    isLive ? "sui-status--live" : "",
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
   return (
@@ -104,6 +112,7 @@ export function Pill({ active = false, onClick, children, count, href, className
 
   if (href) {
     return (
+      /* Un lien n'a pas d'état « pressé » : seul `aria-current` s'applique. */
       <Link href={href} className={classes} aria-current={active ? "page" : undefined} {...rest}>
         {content}
       </Link>
@@ -127,7 +136,14 @@ export function FilterPills({ items, value, onChange, label = "Filtres", actions
       <ul className="sui-filters" aria-label={label} role="list">
         {items.map((item) => (
           <li key={item.id}>
-            <Pill active={item.id === value} onClick={() => onChange?.(item.id)} count={item.count}>
+            {/* Une pilule de filtre est soit un état local (`onClick`), soit un
+                lien de navigation (`href`) : les deux sont des cibles réelles. */}
+            <Pill
+              active={item.id === value}
+              href={item.href}
+              onClick={item.href ? undefined : () => onChange?.(item.id)}
+              count={item.count}
+            >
               {item.icon ? <item.icon size={16} strokeWidth={1.75} aria-hidden="true" /> : null}
               {item.label}
             </Pill>

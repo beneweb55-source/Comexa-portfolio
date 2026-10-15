@@ -101,7 +101,8 @@ export function ItemCard({
         </h3>
       ) : null}
 
-      {info ? <span className="sui-card__pill">{info}</span> : null}
+      {/* `info` peut contenir un bloc (bouton, pilule) : élément de type bloc. */}
+      {info ? <div className="sui-card__pill">{info}</div> : null}
       {description ? <p className="sui-card__desc">{description}</p> : null}
 
       {meta.length ? (
