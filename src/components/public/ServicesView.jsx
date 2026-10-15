@@ -160,12 +160,12 @@ export default function ServicesView({ apiServices }) {
                 <Link href="/realisations" className="cx-pub-link">
                   Voir nos réalisations <span aria-hidden="true">→</span>
                 </Link>
-                <a
-                  href={`mailto:bonjour@comexa.fr?subject=${encodeURIComponent(`Demande de devis - ${active.title}`)}`}
+                <Link
+                  href={`/contact?pack=${encodeURIComponent(active.title)}`}
                   className="cx-btn cx-btn--primary"
                 >
                   Demander un devis
-                </a>
+                </Link>
               </div>
             </article>
           </div>

@@ -1,7 +1,5 @@
 /*
  * Horodatage court et lisible (« il y a 12 min », « hier », « 3 mars »).
- * Volontairement sans dépendance : `date-fns` est déjà là, mais une seule
- * fonction suffit et reste testable d'un coup d'œil.
  */
 
 export function formatRelativeTime(value, now = Date.now()) {
@@ -21,3 +19,5 @@ export function formatRelativeTime(value, now = Date.now()) {
   if (days < 7) return `il y a ${days} j`;
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(date);
 }
+
+export const relativeFr = formatRelativeTime;

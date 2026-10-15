@@ -1,640 +1,1168 @@
 "use client";
 
 /*
- * Shell — la coque noire arrondie qui porte tout le dashboard.
+ * Comexa Full-Viewport App-Shell (10x Workspace Shell — Apple / Linear / Vercel Grade)
  *
- * Assemblage : navbar noire, languette à rayon inversé, rail gauche, panneau clair
- * scrollable, panneau droit « Admin Desk » (défilement indépendant) et dock
- * flottant. Le Shell ne connaît que trois choses : l'espace (`space`), les
- * rubriques autorisées (`groups`, déjà filtrées par les permissions dans le
- * layout) et les enfants rendus par la page.
- *
- * Les données affichées dans le chrome — compteur de la cloche, cartes de l'Admin
- * Desk — viennent de deux ressources déjà exposées par l'API, `/notifications` et
- * `/me/tasks`, et seulement si le porteur détient la permission correspondante :
- * aucun appel inutile pour un utilisateur qui n'y a pas droit.
- *
- * Le contenu de page reçoit la recherche du bandeau via `useShellQuery()`.
+ * Architecture :
+ *  - Plein écran 100vw × 100dvh, défilement indépendant de la zone de contenu (`.sui-canvas-scroll`).
+ *  - Barre latérale Liquid Glass rétractable (268 px ouverte / 78 px réduite, persistée dans localStorage)
+ *    organisant toutes les rubriques autorisées par pôles métiers clairs (aucune rubrique cachée).
+ *  - Bandeau supérieur Liquid Glass avec fil d'Ariane, filtre instantané de vue (`useShellQuery`),
+ *    déclencheur de Palette de Commandes Globale (`⌘K` / `Ctrl+K`), bouton Console IA (`Alt+C`),
+ *    tiroir latéral Activité & Notifications (`AdminDeskPanel`) et menu compte (`UserMenu`).
+ *  - Barre d'onglets basse mobile (< 768 px) avec cibles tactiles >= 44 px et gestion de `safe-area`.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
+  ArrowRight,
+  BarChart3,
   Bell,
-  BookPlus,
+  Briefcase,
+  Building2,
   CalendarDays,
-  ChartNoAxesColumn,
-  Check,
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
   Clock,
-  CreditCard,
-  Download,
-  Eye,
-  FilePlus,
+  Command,
+  Compass,
+  FileCheck2,
+  FileSpreadsheet,
   FileText,
-  FolderKanban,
-  History,
+  Folder,
+  Globe,
+  Home,
   Inbox,
-  LayoutDashboard,
-  LayoutTemplate,
-  ListChecks,
-  Megaphone,
+  KeyRound,
+  Layers,
+  LayoutGrid,
+  Menu,
   MessageSquare,
-  Pencil,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ReceiptText,
-  Settings2,
-  ShieldCheck,
+  ScrollText,
+  Search,
+  Settings,
+  Shield,
   ShoppingCart,
-  SquareKanban,
-  Target,
-  Trash2,
-  UserPlus,
+  Sparkles,
+  Terminal,
+  User,
   Users,
+  Wrench,
   X,
 } from "lucide-react";
-import { can, canAny, hasTeamAccess } from "@/lib/access";
+import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
-import { resolveLink } from "@/components/workspace/NotificationsPanel";
-import AdminDeskPanel from "./AdminDeskPanel";
-import Dock from "./Dock";
-import Navbar from "./Navbar";
+import UserMenu from "@/components/workspace/UserMenu";
+import AiAgentDrawer from "@/components/workspace/AiAgentDrawer";
+import TimerPill from "@/components/workspace/TimerPill";
 import PageHeader from "./PageHeader";
-import SideRail from "./SideRail";
+import AdminDeskPanel from "./AdminDeskPanel";
 import Tooltip from "./Tooltip";
-import { SoftMotionProvider, motion as softMotion, pageTransition } from "./motion";
-import { StatusPill } from "./primitives";
-import { notificationMeta } from "./notification-map";
-import { formatRelativeTime } from "./time";
+import { resolveNotificationHref } from "./notification-map";
+import { relativeFr } from "./time";
 
-const ShellQueryContext = createContext({ query: "", setQuery: () => {} });
+const ShellQueryContext = createContext({
+  query: "",
+  setQuery: () => {},
+  openCommandPalette: () => {},
+  openAiConsole: () => {},
+});
 
-/** Recherche du bandeau, consommée par les pages qui filtrent côté API. */
+/**
+ * Permet à une page enfant de lire (et modifier) la recherche du bandeau
+ * ou d'ouvrir la palette de commandes / console IA.
+ */
 export function useShellQuery() {
   return useContext(ShellQueryContext);
 }
 
-/* ------------------------------------------------------------------ */
-/* Navigation                                                          */
-/* ------------------------------------------------------------------ */
+const ROUTE_META = {
+  // Espace équipe
+  "/espace-equipe/tableau-de-bord": { icon: Home, group: "Pilotage", shortLabel: "Tableau de bord" },
+  "/espace-equipe/analytique": { icon: BarChart3, group: "Pilotage", shortLabel: "Analytique" },
+  "/espace-equipe/calendrier": { icon: CalendarDays, group: "Pilotage", shortLabel: "Calendrier" },
+  "/espace-equipe/rapports": { icon: FileSpreadsheet, group: "Pilotage", shortLabel: "Rapports" },
+  "/espace-equipe/rapports-journaliers": { icon: FileCheck2, group: "Pilotage", shortLabel: "Rapports journaliers" },
 
-/*
- * Rubrique → icône lucide. Les icônes de l'ancienne barre latérale étaient
- * incohérentes (camembert pour les cours, boîte de réception pour les
- * événements) : chaque rubrique porte désormais l'icône qui décrit son contenu.
- */
-const NAV_ICONS = {
-  home: LayoutDashboard,
-  bell: Bell,
-  contact: Inbox,
-  target: Target,
-  quote: FileText,
-  invoice: ReceiptText,
-  cart: ShoppingCart,
-  inbox: Inbox,
-  users: Users,
-  folder: FolderKanban,
-  kanban: SquareKanban,
-  calendar: CalendarDays,
-  clock: Clock,
-  doc: FileText,
-  message: MessageSquare,
-  chart: ChartNoAxesColumn,
-  layout: LayoutTemplate,
-  shield: ShieldCheck,
-  history: History,
-  edit: Pencil,
-  settings: Settings2,
+  "/espace-equipe/contacts": { icon: Inbox, group: "Commercial & CRM", shortLabel: "Demandes de contact" },
+  "/espace-equipe/demandes": { icon: Layers, group: "Commercial & CRM", shortLabel: "Demandes de projet" },
+  "/espace-equipe/prospects": { icon: Compass, group: "Commercial & CRM", shortLabel: "Prospects (Pipeline)" },
+  "/espace-equipe/clients": { icon: Users, group: "Commercial & CRM", shortLabel: "Clients" },
+  "/espace-equipe/commandes": { icon: ShoppingCart, group: "Commercial & CRM", shortLabel: "Commandes" },
+
+  "/espace-equipe/projets": { icon: Folder, group: "Production", shortLabel: "Projets" },
+  "/espace-equipe/taches": { icon: CheckSquare, group: "Production", shortLabel: "Tâches & Kanban" },
+  "/espace-equipe/modifications": { icon: Wrench, group: "Production", shortLabel: "Modifications" },
+  "/espace-equipe/temps": { icon: Clock, group: "Production", shortLabel: "Feuille de temps" },
+
+  "/espace-equipe/devis": { icon: FileText, group: "Facturation", shortLabel: "Devis" },
+  "/espace-equipe/factures": { icon: ReceiptText, group: "Facturation", shortLabel: "Factures" },
+
+  "/espace-equipe/messagerie": { icon: MessageSquare, group: "Communication", shortLabel: "Messagerie" },
+  "/espace-equipe/notifications": { icon: Bell, group: "Communication", shortLabel: "Notifications" },
+  "/espace-equipe/contenu": { icon: Globe, group: "Communication", shortLabel: "Contenu du site" },
+
+  "/espace-equipe/membres": { icon: Users, group: "Administration", shortLabel: "Membres" },
+  "/espace-equipe/roles": { icon: Shield, group: "Administration", shortLabel: "Rôles & droits" },
+  "/espace-equipe/parametres": { icon: Settings, group: "Administration", shortLabel: "Paramètres" },
+  "/espace-equipe/integrations": { icon: KeyRound, group: "Administration", shortLabel: "API & Intégrations" },
+  "/espace-equipe/journal": { icon: ScrollText, group: "Administration", shortLabel: "Journal d’audit" },
+  "/espace-equipe/compte": { icon: User, group: "Administration", shortLabel: "Mon compte" },
+
+  // Espace client
+  "/espace-client": { icon: Home, group: "Mon espace", shortLabel: "Vue d’ensemble" },
+  "/espace-client/tableau-de-bord": { icon: BarChart3, group: "Mon espace", shortLabel: "Tableau de bord" },
+  "/espace-client/commander": { icon: ShoppingCart, group: "Mon espace", shortLabel: "Commander un pack" },
+  "/espace-client/modifications": { icon: Wrench, group: "Suivi & Échanges", shortLabel: "Modifications" },
+  "/espace-client/messagerie": { icon: MessageSquare, group: "Suivi & Échanges", shortLabel: "Messagerie" },
+  "/espace-client/notifications": { icon: Bell, group: "Suivi & Échanges", shortLabel: "Notifications" },
+  "/espace-client/compte": { icon: User, group: "Suivi & Échanges", shortLabel: "Mon compte" },
 };
 
-/** Ordre de priorité des onglets de la navbar (les rubriques absentes sont ignorées). */
-const NAV_PRIORITY = [
-  "/espace-equipe/tableau-de-bord",
-  "/espace-client/tableau-de-bord",
-  "/espace-client",
-  "/espace-equipe/clients",
-  "/espace-equipe/projets",
-  "/espace-equipe/commandes",
-  "/espace-equipe/devis",
-  "/espace-equipe/taches",
-  "/espace-equipe/factures",
-  "/espace-equipe/calendrier",
-  "/espace-equipe/messagerie",
-  "/espace-equipe/analytique",
-  "/espace-equipe/membres",
-  "/espace-equipe/contenu",
-  "/espace-equipe/parametres",
-  "/espace-client/projets",
-  "/espace-client/devis",
-  "/espace-client/commandes",
-  "/espace-client/messagerie",
-  "/espace-client/notifications",
+const GROUP_ORDER_TEAM = [
+  "Pilotage",
+  "Commercial & CRM",
+  "Production",
+  "Facturation",
+  "Communication",
+  "Administration",
 ];
 
-const FALLBACK_ICON = LayoutDashboard;
+const GROUP_ORDER_CLIENT = ["Mon espace", "Suivi & Échanges"];
 
-/** 6 à 8 onglets visibles : les rubriques les plus utilisées du porteur. */
-function buildNavItems(groups, max = 8) {
-  const flat = groups.flatMap((group) => group.items);
-  const unique = [];
-  for (const item of flat) {
-    if (!unique.some((entry) => entry.href === item.href)) unique.push(item);
-  }
-  return unique
-    .sort((a, b) => {
-      const rankA = NAV_PRIORITY.indexOf(a.href);
-      const rankB = NAV_PRIORITY.indexOf(b.href);
-      return (rankA === -1 ? 999 : rankA) - (rankB === -1 ? 999 : rankB);
-    })
-    .slice(0, max)
-    .map((item) => ({ href: item.href, label: item.label, icon: NAV_ICONS[item.icon] ?? FALLBACK_ICON }));
+function iconForHref(href) {
+  return ROUTE_META[href]?.icon ?? Briefcase;
 }
 
-function isActiveHref(pathname, href) {
+function isActivePath(pathname, href) {
+  if (!pathname || !href) return false;
+  if (href === "/espace-client" || href === "/espace-equipe") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function activeEntry(pathname, groups) {
-  const items = groups.flatMap((group) => group.items);
-  const direct = items.find((item) => pathname === item.href);
-  if (direct) return direct;
-  return items.find((item) => item.nested && pathname.startsWith(`${item.href}/`)) ?? null;
+function initialsOf(person) {
+  if (!person) return "CX";
+  const a = person.firstName?.[0] ?? "";
+  const b = person.lastName?.[0] ?? "";
+  const pair = `${a}${b}`.trim();
+  if (pair) return pair.toLocaleUpperCase("fr-FR");
+  return (person.email?.slice(0, 2) ?? "CX").toLocaleUpperCase("fr-FR");
 }
 
-/** Titres des écrans de détail, qui n'ont pas de rubrique propre. */
-const DETAIL_TITLES = [
-  ["/espace-equipe/devis/nouveau", "Nouveau devis"],
-  ["/espace-equipe/devis/", "Détail du devis"],
-  ["/espace-equipe/factures/", "Détail de la facture"],
-  ["/espace-equipe/prospects/", "Fiche prospect"],
-  ["/espace-equipe/clients/", "Fiche client"],
-  ["/espace-equipe/commandes/", "Détail de la commande"],
-  ["/espace-equipe/projets/", "Fiche projet"],
-  ["/espace-client/devis/", "Détail du devis"],
-  ["/espace-client/projets/", "Détail du projet"],
-];
-
-const PAGE_ICONS = {
-  "/espace-equipe/tableau-de-bord": LayoutDashboard,
-  "/espace-client/tableau-de-bord": LayoutDashboard,
-  "/espace-equipe/clients": Users,
-  "/espace-equipe/projets": FolderKanban,
-  "/espace-equipe/taches": SquareKanban,
-  "/espace-equipe/commandes": CreditCard,
-  "/espace-equipe/devis": ReceiptText,
-  "/espace-equipe/factures": ReceiptText,
-  "/espace-equipe/calendrier": CalendarDays,
-  "/espace-equipe/analytique": ChartNoAxesColumn,
-  "/espace-equipe/membres": Users,
-  "/espace-equipe/parametres": Settings2,
-};
-
-/* ------------------------------------------------------------------ */
-/* Préférence locale : densité du panneau                              */
-/* ------------------------------------------------------------------ */
-
-const ZOOM_KEY = "comexa-shell-zoom";
-const ZOOM_CHANGE_EVENT = "comexa-shell-zoom-change";
-const ZOOM_STEPS = [0.9, 1, 1.1, 1.2];
-let volatileZoom = 1;
-
-/*
- * La densité est une préférence locale lue hors de React (`useSyncExternalStore`) :
- * pas d'effet, pas de rendu en cascade, et l'onglet reste synchronisé avec le
- * stockage si l'utilisateur change la valeur dans une autre fenêtre.
- */
-function getZoomPreference() {
-  try {
-    const stored = Number(window.localStorage.getItem(ZOOM_KEY));
-    return ZOOM_STEPS.includes(stored) ? stored : 1;
-  } catch {
-    return volatileZoom;
+function triggerAiConsole() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("comexa:open-ai-console"));
   }
 }
 
-function getServerZoomPreference() {
-  return 1;
-}
-
-function subscribeToZoom(onChange) {
-  if (typeof window === "undefined") return () => {};
-  window.addEventListener("storage", onChange);
-  window.addEventListener(ZOOM_CHANGE_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(ZOOM_CHANGE_EVENT, onChange);
-  };
-}
-
-function saveZoomPreference(value) {
-  volatileZoom = value;
-  try {
-    window.localStorage.setItem(ZOOM_KEY, String(value));
-  } catch {
-    /* préférence non persistée : la densité reste active pour la session */
-  }
-  window.dispatchEvent(new Event(ZOOM_CHANGE_EVENT));
-}
-
-/* ------------------------------------------------------------------ */
-
-export default function Shell({ space, groups, children }) {
+export function WorkspaceSoftShell({ area, title, subtitle, links = [], children }) {
+  const pathname = usePathname() ?? "";
+  const router = useRouter();
   const { user, request } = useAuth();
-  const pathname = usePathname() ?? "/";
-  const team = hasTeamAccess(user);
-  const base = team ? "/espace-equipe" : "/espace-client";
+  const isTeam = area === "equipe";
 
-  const navItems = useMemo(() => buildNavItems(groups), [groups]);
-  const entry = useMemo(() => activeEntry(pathname, groups), [groups, pathname]);
-  const activeHref = useMemo(() => {
-    const exact = navItems.find((item) => isActiveHref(pathname, item.href));
-    if (exact) return exact.href;
-    return navItems.find((item) => entry?.href?.startsWith(item.href))?.href ?? null;
-  }, [entry, navItems, pathname]);
-
-  const title = useMemo(() => {
-    const detail = DETAIL_TITLES.find(([prefix]) => pathname.startsWith(prefix));
-    return detail ? detail[1] : entry?.label ?? space;
-  }, [entry, pathname, space]);
-
-  const subtitle = useMemo(() => {
-    const group = groups.find((item) => item.items.some((navItem) => navItem.href === entry?.href));
-    return group?.description ?? "Votre espace de travail Comexa.";
-  }, [entry, groups]);
-
-  const PageIcon = PAGE_ICONS[entry?.href] ?? NAV_ICONS[entry?.icon] ?? LayoutDashboard;
-
-  /* --- Recherche du bandeau -------------------------------------------- */
   const [query, setQuery] = useState("");
-  const shellContext = useMemo(() => ({ query, setQuery }), [query]);
-
-  /* --- Densité --------------------------------------------------------- */
-  const zoom = useSyncExternalStore(subscribeToZoom, getZoomPreference, getServerZoomPreference);
-  const changeZoom = useCallback((direction) => {
-    const index = ZOOM_STEPS.indexOf(getZoomPreference());
-    const next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, (index === -1 ? 1 : index) + direction))];
-    saveZoomPreference(next);
-  }, []);
-
-  /* --- Données du chrome ------------------------------------------------ */
-  const canReadNotifications = canAny(user, ["notification:read:own"]);
-  const canReadTasks = canAny(user, ["task:read:personal", "task:read:own", "task:read:any", "task:read:assigned"]);
-
-  const unread = useListing(canReadNotifications ? "/notifications?read=false&page=1&perPage=1" : null);
-  const recent = useListing(canReadNotifications ? "/notifications?page=1&perPage=6" : null);
-  const personalTasks = useListing(canReadTasks ? "/me/tasks?personalOnly=true&page=1&perPage=3" : null);
-
-  const reloadUnread = unread.reload;
-  const reloadRecent = recent.reload;
-  const reloadTasks = personalTasks.reload;
-  const unreadCount = Number.isFinite(Number(unread.meta?.total)) ? Number(unread.meta.total) : 0;
-
-  const [busyNotification, setBusyNotification] = useState(null);
-  const [notice, setNotice] = useState(null);
-
-  const refreshChrome = useCallback(async () => {
-    await Promise.all([reloadUnread(), reloadRecent(), reloadTasks()]);
-  }, [reloadRecent, reloadTasks, reloadUnread]);
-
-  const markRead = useCallback(
-    async (id) => {
-      setBusyNotification(id);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
       try {
-        await request(`/notifications/${id}/read`, { method: "POST" });
-        await refreshChrome();
-      } finally {
-        setBusyNotification(null);
-      }
-    },
-    [refreshChrome, request],
-  );
-
-  const removeNotification = useCallback(
-    async (id) => {
-      setBusyNotification(id);
-      try {
-        await request(`/notifications/${id}`, { method: "DELETE" });
-        await refreshChrome();
-      } finally {
-        setBusyNotification(null);
-      }
-    },
-    [refreshChrome, request],
-  );
-
-  const recentItems = recent.items;
-  const taskItems = personalTasks.items;
-
-  const deskItems = useMemo(() => {
-    const notifications = (recentItems ?? []).map((item) => {
-      const meta = notificationMeta(item.type);
-      const href = resolveLink(item.link, team) ?? `${base}/notifications`;
-      return {
-        id: `notification-${item.id}`,
-        tab: item.readAt ? "history" : "queue",
-        tone: meta.tone,
-        icon: meta.icon,
-        type: meta.label,
-        date: formatRelativeTime(item.createdAt),
-        lines: [item.title, item.body ?? "Aucun détail fourni.", item.readAt ? "Déjà lue" : "Non lue"],
-        cta: { label: "Ouvrir", href, icon: Eye },
-        actions: [
-          { label: "Marquer comme lue", icon: Check, onClick: () => markRead(item.id) },
-          { label: "Supprimer", icon: Trash2, onClick: () => removeNotification(item.id) },
-        ],
-      };
-    });
-
-    const tasks = (taskItems ?? []).map((task) => ({
-      id: `task-${task.id}`,
-      tab: "tasks",
-      tone: "lilac",
-      icon: ListChecks,
-      type: "Tâche",
-      date: formatRelativeTime(task.dueDate ?? task.createdAt),
-      lines: [task.title, task.description ?? "Sans description.", task.project?.name ?? "Tâche personnelle"],
-      cta: { label: "Ouvrir la liste", href: `${base}/taches`, icon: SquareKanban },
-      actions: [{ label: "Voir la tâche", icon: Eye, href: `${base}/taches` }],
-    }));
-
-    return [...tasks, ...notifications];
-  }, [base, markRead, recentItems, removeNotification, taskItems, team]);
-
-  const waitingCount = deskItems.filter((item) => item.tab === "queue").length;
-  const taskCount = deskItems.filter((item) => item.tab === "tasks").length;
-
-  const deskTabs = useMemo(() => {
-    const tabs = [];
-    if (taskCount) tabs.push({ id: "tasks", label: "Mes tâches" });
-    if (waitingCount) tabs.push({ id: "queue", label: "À traiter" });
-    if (deskItems.some((item) => item.tab === "history")) tabs.push({ id: "history", label: "Historique" });
-    return tabs;
-  }, [deskItems, taskCount, waitingCount]);
-
-  /* --- Tiroirs ---------------------------------------------------------- */
-  const [navOpen, setNavOpen] = useState(false);
-  const [deskVisible, setDeskVisible] = useState(true);
-  const [deskDrawerOpen, setDeskDrawerOpen] = useState(false);
-  const [compactViewport, setCompactViewport] = useState(false);
-  const navDrawerRef = useRef(null);
-  const navButtonRef = useRef(null);
-  const deskTriggerRef = useRef(null);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 1023px)");
-    const sync = () => setCompactViewport(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
-    if (!navOpen) return undefined;
-    const trigger = navButtonRef.current;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    const focusables = () => Array.from(navDrawerRef.current?.querySelectorAll("a[href], button:not(:disabled)") ?? []);
-    focusables()[0]?.focus();
-
-    function onKeyDown(event) {
-      if (event.key === "Escape") {
-        setNavOpen(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const list = focusables();
-      if (!list.length) return;
-      const first = list[0];
-      const last = list[list.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
+        return window.localStorage.getItem("comexa:sidebar-collapsed") === "1";
+      } catch {
+        // ignore storage errors
       }
     }
+    return false;
+  });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [deskOpen, setDeskOpen] = useState(false);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKeyDown);
-      if (trigger?.isConnected) trigger.focus();
-    };
-  }, [navOpen]);
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem("comexa:sidebar-collapsed", next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
 
+  // Fermeture automatique des tiroirs au changement de route
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setMobileMenuOpen(false);
+    setCmdkOpen(false);
+    setQuery("");
+  }
+
+  // Raccourcis clavier globaux : ⌘K / Ctrl+K (Palette de commandes), Alt+B (Barre latérale)
   useEffect(() => {
-    if (!deskDrawerOpen) return undefined;
     function onKeyDown(event) {
-      if (event.key === "Escape") setDeskDrawerOpen(false);
+      const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
+      const meta = event.metaKey || event.ctrlKey;
+      if (meta && !event.shiftKey && !event.altKey && key === "k") {
+        event.preventDefault();
+        setCmdkOpen((open) => !open);
+        return;
+      }
+      if (event.altKey && key === "b") {
+        event.preventDefault();
+        toggleSidebar();
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [deskDrawerOpen]);
+  }, [toggleSidebar]);
 
-  async function handleShare() {
-    const url = window.location.href;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: `Comexa — ${title}`, url });
-        return;
-      }
-      await navigator.clipboard.writeText(url);
-      setNotice("Lien de la page copié dans le presse-papiers.");
-    } catch {
-      setNotice("Partage annulé.");
+  // Compteur de notifications non lues + données du tiroir Activité
+  const unreadProbe = useListing("/notifications?read=false&page=1&perPage=1");
+  const recentNotifications = useListing("/notifications?page=1&perPage=5");
+  const canReadActivity = isTeam && (can(user, "activity:read:any") || can(user, "activity:read:client"));
+  const canReadMembers = isTeam && can(user, "user:read:any");
+  const recentActivity = useListing(canReadActivity ? "/activity?page=1&perPage=4" : null);
+  const activeMembers = useListing(canReadMembers ? "/users?status=ACTIVE&page=1&perPage=5" : null);
+
+  const unreadCount = Number.isFinite(Number(unreadProbe.meta?.total))
+    ? Number(unreadProbe.meta.total)
+    : 0;
+
+  // Groupement des liens dans la barre latérale (aucune rubrique cachée !)
+  const groupedLinks = useMemo(() => {
+    const order = isTeam ? GROUP_ORDER_TEAM : GROUP_ORDER_CLIENT;
+    const buckets = new Map(order.map((g) => [g, []]));
+    buckets.set("Autres", []);
+
+    for (const link of links) {
+      const meta = ROUTE_META[link.href];
+      const groupName = meta?.group && buckets.has(meta.group) ? meta.group : order[0];
+      const IconComponent = meta?.icon ?? iconForHref(link.href);
+      buckets.get(groupName).push({
+        ...link,
+        icon: IconComponent,
+        shortLabel: meta?.shortLabel ?? link.label,
+        active: isActivePath(pathname, link.href),
+        badge: link.href.endsWith("/notifications") && unreadCount > 0 ? unreadCount : null,
+      });
     }
-  }
 
-  useEffect(() => {
-    if (!notice) return undefined;
-    const timer = window.setTimeout(() => setNotice(null), 3600);
-    return () => window.clearTimeout(timer);
-  }, [notice]);
+    return [...buckets.entries()]
+      .filter(([, groupItems]) => groupItems.length > 0)
+      .map(([group, items]) => ({ group, items }));
+  }, [isTeam, links, pathname, unreadCount]);
 
-  /* --- Dock : actions rapides réellement autorisées -------------------- */
-  const dockItems = useMemo(() => {
-    const known = new Set(groups.flatMap((group) => group.items.map((item) => item.href)));
-    const candidates = [
-      { label: "Nouvel utilisateur", href: "/espace-equipe/membres", icon: UserPlus, tone: "blue", any: ["user:read:any"], teamOnly: true },
-      { label: "Nouveau contenu", href: "/espace-equipe/contenu", icon: BookPlus, tone: "lilac", any: ["service:read:any", "package:read:any", "casestudy:read:any"], teamOnly: true },
-      { label: "Nouveau devis", href: "/espace-equipe/devis/nouveau", icon: FilePlus, tone: "yellow", any: ["quote:read:any"], teamOnly: true },
-      { label: "Nouvelle demande", href: "/espace-equipe/demandes", icon: Megaphone, tone: "pink", any: ["project_request:read:any"], teamOnly: true },
-      { label: "Nouveau projet", href: "/espace-equipe/projets", icon: FolderKanban, tone: "green", any: ["project:read:any", "project:read:own", "project:read:assigned"], teamOnly: true },
-      { label: "Voir les rapports", href: "/espace-equipe/analytique", icon: Download, tone: "blue", any: ["report:read:any"], teamOnly: true },
-      { label: "Mes commandes", href: "/espace-client/commander", icon: CreditCard, tone: "green", any: ["order:read:own", "dashboard:read:own"], teamOnly: false },
-      { label: "Mon espace", href: "/espace-client", icon: Users, tone: "lilac", any: ["user:read:own", "dashboard:read:own"], teamOnly: false },
-    ];
+  // Rubrique courante pour le fil d'Ariane et l'en-tête
+  const activeLink = useMemo(() => {
+    const exact = links.find((link) => link.href === pathname);
+    if (exact) return { ...exact, group: ROUTE_META[exact.href]?.group };
+    const prefix = links
+      .filter((link) => link.href !== "/espace-client" && link.href !== "/espace-equipe")
+      .find((link) => pathname.startsWith(`${link.href}/`));
+    if (prefix) return { ...prefix, group: ROUTE_META[prefix.href]?.group };
+    return links[0] ? { ...links[0], group: ROUTE_META[links[0].href]?.group } : null;
+  }, [links, pathname]);
 
-    return candidates
-      .filter((item) => (item.teamOnly ? team : !team))
-      .filter((item) => item.any.some((permission) => can(user, permission)))
-      .filter((item) => item.href === "/espace-client" || item.href === "/espace-client/commander" || known.has(item.href))
-      .slice(0, 5)
-      .map(({ label, href, icon, tone }) => ({ label, href, icon, tone }))
-      .concat([{ label: "Plus d’actions", icon: Plus, tone: "ink", onClick: () => setNavOpen(true) }]);
-  }, [groups, team, user]);
+  const pageHeading = activeLink?.label ?? title;
+  const pageGroup = activeLink?.group ?? (isTeam ? "Espace équipe" : "Espace client");
 
-  const notificationsHref = canReadNotifications ? `${base}/notifications` : null;
-  const homeHref = team ? "/espace-equipe" : "/espace-client";
-  const showDesk = deskItems.length > 0;
-  const deskSubtitleText = deskSubtitle(waitingCount, taskCount, unreadCount);
+  // Action principale contextuelle
+  const canCreateQuote = isTeam && can(user, "quote:write:any");
+  const primaryAction = useMemo(() => {
+    if (isTeam) {
+      if (canCreateQuote) {
+        return { label: "Nouveau devis", href: "/espace-equipe/devis/nouveau", icon: Plus };
+      }
+      return null;
+    }
+    return { label: "Commander un pack", href: "/espace-client/commander", icon: ShoppingCart };
+  }, [canCreateQuote, isTeam]);
+
+  // Sections du tiroir Activité & Notifications (AdminDeskPanel)
+  const deskSections = useMemo(() => {
+    const out = [];
+    const notifItems = (recentNotifications.items ?? []).slice(0, 4).map((n) => ({
+      id: n.id,
+      avatar: "!",
+      title: n.title || "Notification",
+      subtitle: [n.body, relativeFr(n.createdAt)].filter(Boolean).join(" · "),
+      href: resolveNotificationHref(n.link, isTeam),
+    }));
+    out.push({
+      id: "notifications",
+      tone: "blue",
+      title: "Notifications",
+      tag: unreadCount > 0 ? `${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "À jour",
+      items: notifItems,
+      emptyText: recentNotifications.loading ? "Chargement…" : "Aucune notification récente.",
+    });
+
+    if (canReadActivity) {
+      const actItems = (recentActivity.items ?? []).slice(0, 4).map((a) => ({
+        id: a.id,
+        avatar: initialsOf(a.actor),
+        title: a.summary || a.type || "Activité",
+        subtitle: relativeFr(a.createdAt),
+      }));
+      out.push({
+        id: "activite",
+        tone: "lilac",
+        title: "Activité récente",
+        tag: actItems.length ? `${actItems.length}` : undefined,
+        items: actItems,
+        emptyText: recentActivity.loading ? "Chargement…" : "Aucune activité récente.",
+      });
+    }
+
+    if (canReadMembers) {
+      const memberItems = (activeMembers.items ?? []).slice(0, 4).map((m) => ({
+        id: m.id,
+        avatar: initialsOf(m),
+        title: `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() || m.email,
+        subtitle: m.email,
+      }));
+      out.push({
+        id: "equipe",
+        tone: "yellow",
+        title: "Équipe active",
+        tag: activeMembers.meta?.total ? `${activeMembers.meta.total}` : undefined,
+        items: memberItems,
+        emptyText: activeMembers.loading ? "Chargement…" : "Aucun membre actif.",
+      });
+    }
+    return out;
+  }, [
+    activeMembers.items,
+    activeMembers.loading,
+    activeMembers.meta,
+    canReadActivity,
+    canReadMembers,
+    isTeam,
+    recentActivity.items,
+    recentActivity.loading,
+    recentNotifications.items,
+    recentNotifications.loading,
+    unreadCount,
+  ]);
+
+  // Onglets rapides pour la barre mobile (< 768 px)
+  const mobileTabs = useMemo(() => {
+    const preferred = isTeam
+      ? [
+          { href: "/espace-equipe/tableau-de-bord", label: "Accueil", icon: Home },
+          { href: "/espace-equipe/projets", label: "Projets", icon: Folder },
+          { href: "/espace-equipe/taches", label: "Tâches", icon: CheckSquare },
+          { href: "/espace-equipe/messagerie", label: "Messages", icon: MessageSquare },
+        ]
+      : [
+          { href: "/espace-client", label: "Accueil", icon: Home },
+          { href: "/espace-client/tableau-de-bord", label: "Tableau", icon: BarChart3 },
+          { href: "/espace-client/commander", label: "Commander", icon: ShoppingCart },
+          { href: "/espace-client/messagerie", label: "Messages", icon: MessageSquare },
+        ];
+    const allowedHrefs = new Set(links.map((l) => l.href));
+    const filtered = preferred.filter((item) => allowedHrefs.has(item.href));
+    return filtered.slice(0, 4);
+  }, [isTeam, links]);
+
+  const contextValue = useMemo(
+    () => ({
+      query,
+      setQuery,
+      openCommandPalette: () => setCmdkOpen(true),
+      openAiConsole: triggerAiConsole,
+    }),
+    [query],
+  );
 
   return (
-    <SoftMotionProvider>
-      <ShellQueryContext.Provider value={shellContext}>
-        <div className="sui-viewport">
-          <a className="sui-skip" href="#sui-main">
-            Passer à la zone de travail
-          </a>
-
-          <div className="sui-shell">
-            <Navbar items={navItems} activeHref={activeHref} roleLabel={team ? "admin" : "client"} homeHref={homeHref} />
-
-            <div className="sui-shell__body">
-              <SideRail
-                navigationButtonRef={navButtonRef}
-                onOpenNavigation={() => setNavOpen(true)}
-                onToggleDesk={() => (compactViewport ? setDeskDrawerOpen(true) : setDeskVisible((value) => !value))}
-                deskOpen={compactViewport ? deskDrawerOpen : deskVisible}
-                onShare={handleShare}
-                unreadCount={unreadCount}
-                notificationsHref={notificationsHref}
-                onZoomIn={() => changeZoom(1)}
-                onZoomOut={() => changeZoom(-1)}
-                zoom={zoom}
-                canZoomIn={zoom < ZOOM_STEPS[ZOOM_STEPS.length - 1]}
-                canZoomOut={zoom > ZOOM_STEPS[0]}
-              />
-
-              <main
-                className="sui-main"
-                id="sui-main"
-                tabIndex={-1}
-                style={{ "--sui-zoom": zoom }}
+    <ShellQueryContext.Provider value={contextValue}>
+      <div className="sui-viewport">
+        <div className="sui-shell">
+          {/* ================================================================
+              1. BARRE LATÉRALE LIQUID GLASS (Desktop & Tablette >= 768px)
+             ================================================================ */}
+          <aside
+            className={`sui-sidebar ${sidebarCollapsed ? "sui-sidebar--collapsed" : ""}`}
+            aria-label={title}
+          >
+            <div className="sui-sidebar__brand">
+              <Link
+                href={isTeam ? "/espace-equipe/tableau-de-bord" : "/espace-client"}
+                className="sui-sidebar__logo-link"
+                title="Retour à l’accueil de l’espace"
               >
-                <span className="sui-notch" aria-hidden="true">
-                  <span className="sui-notch__fillet sui-notch__fillet--left" />
-                  <span className="sui-notch__fillet sui-notch__fillet--right" />
+                <span className="sui-sidebar__monogram" aria-hidden="true">
+                  CX
                 </span>
-
-                <div className="sui-main__scroll">
-                  {compactViewport && showDesk ? (
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-                      <button
-                        ref={deskTriggerRef}
-                        type="button"
-                        className="sui-btn sui-btn--dark"
-                        onClick={() => setDeskDrawerOpen(true)}
-                        aria-label={`Ouvrir l’Admin Desk (${deskSubtitleText})`}
-                      >
-                        <ListChecks size={17} strokeWidth={1.75} aria-hidden="true" />
-                        Admin Desk
-                        {waitingCount ? <StatusPill tone="green" label={waitingCount} /> : null}
-                      </button>
-                    </div>
-                  ) : null}
-
-                  <PageHeader
-                    title={title}
-                    subtitle={subtitle}
-                    icon={PageIcon}
-                    breadcrumb={`${space}${entry && entry.label !== title ? ` · ${entry.label}` : ""}`}
-                    query={query}
-                    onQueryChange={setQuery}
-                    searchLabel={`Rechercher — ${title}`}
-                  />
-
-                  <AnimatePresence mode="wait" initial={false}>
-                    <softMotion.div key={pathname} variants={pageTransition} initial="hidden" animate="visible" exit="exit">
-                      {children}
-                    </softMotion.div>
-                  </AnimatePresence>
-                </div>
-              </main>
-
-              {!compactViewport && showDesk && deskVisible ? (
-                <AdminDeskPanel
-                  subtitle={deskSubtitleText}
-                  tabs={deskTabs}
-                  items={deskItems}
-                  onClose={() => setDeskVisible(false)}
-                />
+                {!sidebarCollapsed ? (
+                  <div className="flex min-w-0 flex-col">
+                    <span className="truncate text-[16px] font-bold tracking-tight text-[#0b2545]">
+                      Comexa
+                    </span>
+                    <span className="sui-sidebar__space-badge">
+                      {isTeam ? "Espace Équipe" : "Espace Client"}
+                    </span>
+                  </div>
+                ) : null}
+              </Link>
+              {!sidebarCollapsed ? (
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="sui-icon-btn !h-8 !w-8 !rounded-lg"
+                  aria-label="Réduire la barre latérale"
+                  title="Réduire la barre latérale (Alt+B)"
+                >
+                  <PanelLeftClose size={16} strokeWidth={1.75} aria-hidden="true" />
+                </button>
               ) : null}
             </div>
 
-            {compactViewport && deskDrawerOpen ? (
-              <>
-                <button type="button" className="sui-scrim" aria-label="Fermer le panneau Admin Desk" onClick={() => setDeskDrawerOpen(false)} />
-                <div className="sui-drawer">
-                  <AdminDeskPanel
-                    mode="drawer"
-                    subtitle={deskSubtitleText}
-                    tabs={deskTabs}
-                    items={deskItems}
-                    onClose={() => {
-                      setDeskDrawerOpen(false);
-                      deskTriggerRef.current?.focus();
-                    }}
+            <button
+              type="button"
+              onClick={() => setCmdkOpen(true)}
+              className="sui-sidebar__cmdk-btn"
+              aria-label="Ouvrir la recherche rapide et palette de commandes"
+              title="Recherche globale & commandes (⌘K)"
+            >
+              <span className="inline-flex items-center gap-2 truncate">
+                <Search size={15} strokeWidth={1.9} aria-hidden="true" />
+                {!sidebarCollapsed ? <span>Rechercher…</span> : null}
+              </span>
+              {!sidebarCollapsed ? <kbd className="sui-kbd">⌘K</kbd> : null}
+            </button>
+
+            <nav className="sui-sidebar__nav" aria-label={`Navigation ${title}`}>
+              {groupedLinks.map(({ group, items }) => (
+                <div key={group} className="sui-sidebar__group">
+                  {!sidebarCollapsed ? (
+                    <span className="sui-sidebar__group-label">{group}</span>
+                  ) : (
+                    <span className="sui-sidebar__group-label" aria-hidden="true">
+                      •••
+                    </span>
+                  )}
+                  {items.map((item) => {
+                    const Icon = item.icon;
+                    const linkNode = (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-current={item.active ? "page" : undefined}
+                        className={`sui-sidebar__link ${item.active ? "sui-sidebar__link--active" : ""}`}
+                      >
+                        <Icon
+                          size={18}
+                          strokeWidth={1.85}
+                          className="sui-sidebar__link-icon"
+                          aria-hidden="true"
+                        />
+                        {!sidebarCollapsed ? (
+                          <>
+                            <span className="sui-sidebar__link-text">{item.shortLabel}</span>
+                            {item.badge ? (
+                              <span className="sui-sidebar__link-badge">{item.badge}</span>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </Link>
+                    );
+
+                    return sidebarCollapsed ? (
+                      <Tooltip key={item.href} label={item.label}>
+                        {linkNode}
+                      </Tooltip>
+                    ) : (
+                      linkNode
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+
+            <div className="sui-sidebar__footer">
+              <Link
+                href="/"
+                className="sui-sidebar__link !min-h-[34px] !text-[12.5px]"
+                title="Voir le site public Comexa"
+              >
+                <Globe size={16} strokeWidth={1.75} className="sui-sidebar__link-icon" aria-hidden="true" />
+                {!sidebarCollapsed ? <span className="sui-sidebar__link-text">Site public Comexa</span> : null}
+              </Link>
+              {sidebarCollapsed ? (
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="sui-sidebar__collapse-btn"
+                  aria-label="Déployer la barre latérale"
+                  title="Déployer la barre latérale (Alt+B)"
+                >
+                  <PanelLeftOpen size={16} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </aside>
+
+          {/* ================================================================
+              2. COLONNE PRINCIPALE : TOPBAR LIQUID GLASS + ZONE SCROLLABLE
+             ================================================================ */}
+          <div className="sui-workspace-column">
+            <header className="sui-topbar">
+              <div className="sui-topbar__left">
+                {/* Bouton menu sur mobile */}
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(true)}
+                  className="sui-icon-btn md:!hidden"
+                  aria-label="Ouvrir le menu des rubriques"
+                >
+                  <Menu size={18} strokeWidth={1.85} aria-hidden="true" />
+                </button>
+
+                <div className="sui-topbar__breadcrumb">
+                  <span className="sui-topbar__eyebrow">
+                    <span>{isTeam ? "Comexa Équipe" : "Comexa Client"}</span>
+                    <ChevronRight size={11} strokeWidth={2.2} aria-hidden="true" />
+                    <span>{pageGroup}</span>
+                  </span>
+                  <h1 className="sui-topbar__title">{pageHeading}</h1>
+                </div>
+              </div>
+
+              <div className="sui-topbar__center">
+                <div className="sui-topbar__search" role="search">
+                  <Search
+                    size={15}
+                    strokeWidth={1.9}
+                    className="sui-topbar__search-icon"
+                    aria-hidden="true"
                   />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Filtrer la vue ou rechercher…"
+                    aria-label="Filtrer la vue courante"
+                    className="sui-topbar__search-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCmdkOpen(true)}
+                    className="sui-topbar__search-kbd"
+                    title="Ouvrir la palette de commandes globale (⌘K)"
+                  >
+                    <Command size={11} strokeWidth={2} aria-hidden="true" />
+                    <span>K</span>
+                  </button>
                 </div>
-              </>
-            ) : null}
+              </div>
 
-            {navOpen ? (
-              <>
-                <button type="button" className="sui-scrim" aria-label="Fermer la navigation" onClick={() => setNavOpen(false)} />
-                <div className="sui-drawer sui-drawer--nav" ref={navDrawerRef} role="dialog" aria-modal="true" aria-label={`Toutes les rubriques — ${space}`}>
-                  <div className="sui-drawer__head">
-                    <h2 className="sui-drawer__title">Toutes les rubriques</h2>
-                    <button type="button" className="sui-iconbtn" aria-label="Fermer la navigation" onClick={() => setNavOpen(false)}>
-                      <X size={18} strokeWidth={1.75} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="sui-drawer__scroll">
-                    {groups.map((group) => (
-                      <section className="sui-navgroup" key={group.label} aria-label={group.label}>
-                        <h3 className="sui-navgroup__title">{group.label}</h3>
-                        <ul>
-                          {group.items.map((item) => {
-                            const ItemIcon = NAV_ICONS[item.icon] ?? FALLBACK_ICON;
-                            const active = isActiveHref(pathname, item.href);
-                            return (
-                              <li key={item.href}>
-                                <Link href={item.href} className="sui-navgroup__link" aria-current={active ? "page" : undefined} onClick={() => setNavOpen(false)}>
-                                  <ItemIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-                                  {item.label}
-                                </Link>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </section>
-                    ))}
-                  </div>
-                </div>
-              </>
-            ) : null}
+              <div className="sui-topbar__right">
+                {primaryAction ? (
+                  <Link
+                    href={primaryAction.href}
+                    className="sui-pill-btn sui-pill-btn--dark hidden sm:inline-flex"
+                  >
+                    <primaryAction.icon size={15} strokeWidth={2} aria-hidden="true" />
+                    <span>{primaryAction.label}</span>
+                  </Link>
+                ) : null}
 
-            <Dock items={dockItems} />
+                {isTeam ? (
+                  <button
+                    type="button"
+                    onClick={triggerAiConsole}
+                    className="sui-pill-btn hidden lg:inline-flex"
+                    title="Ouvrir la Console IA Comexa (Alt+C)"
+                  >
+                    <Terminal size={15} strokeWidth={1.85} className="text-[#1e86e0]" aria-hidden="true" />
+                    <span>Console IA</span>
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => setCmdkOpen(true)}
+                  className="sui-icon-btn md:!hidden"
+                  aria-label="Recherche globale"
+                >
+                  <Search size={17} strokeWidth={1.85} aria-hidden="true" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeskOpen(true)}
+                  className="sui-icon-btn"
+                  aria-label={
+                    unreadCount > 0
+                      ? `Activité et notifications (${unreadCount} non lues)`
+                      : "Activité et notifications"
+                  }
+                  title="Ouvrir le centre d’activité et notifications"
+                >
+                  <Bell size={17} strokeWidth={1.85} aria-hidden="true" />
+                  {unreadCount > 0 ? (
+                    <span className="sui-icon-btn__badge" aria-hidden="true">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                <UserMenu area={area} />
+              </div>
+            </header>
+
+            <main className="sui-canvas-scroll" aria-label={pageHeading}>
+              <div className="sui-canvas-inner">
+                <PageHeader
+                  title={pageHeading}
+                  subtitle={subtitle}
+                  secondaryAction={
+                    isTeam
+                      ? { label: "Recherche globale (⌘K)", onClick: () => setCmdkOpen(true), icon: Search }
+                      : { label: "Messagerie", href: "/espace-client/messagerie", icon: MessageSquare }
+                  }
+                  primaryAction={primaryAction}
+                />
+                {children}
+              </div>
+            </main>
           </div>
-
-          {notice ? (
-            <p className="sui-tip" role="status" style={{ left: "50%", bottom: 28, top: "auto", transform: "translateX(-50%)" }}>
-              {notice}
-            </p>
-          ) : null}
         </div>
-      </ShellQueryContext.Provider>
-    </SoftMotionProvider>
+
+        {/* ================================================================
+            3. BARRE D'ONGLETS BASSE MOBILE (< 768px)
+           ================================================================ */}
+        <nav className="sui-mobile-tabbar" aria-label="Navigation rapide mobile">
+          {mobileTabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = isActivePath(pathname, tab.href);
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                aria-current={active ? "page" : undefined}
+                className={`sui-mobile-tab ${active ? "sui-mobile-tab--active" : ""}`}
+              >
+                <Icon size={20} strokeWidth={active ? 2.1 : 1.75} aria-hidden="true" />
+                <span>{tab.label}</span>
+              </Link>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-expanded={mobileMenuOpen}
+            className={`sui-mobile-tab ${mobileMenuOpen ? "sui-mobile-tab--active" : ""}`}
+          >
+            <LayoutGrid size={20} strokeWidth={1.8} aria-hidden="true" />
+            <span>Rubriques</span>
+          </button>
+        </nav>
+
+        {/* ================================================================
+            4. TIROIR LATÉRAL ACTIVITÉ & NOTIFICATIONS (Slide-Over Sheet)
+           ================================================================ */}
+        {deskOpen ? (
+          <div
+            className="cx-sheet-backdrop"
+            role="presentation"
+            onClick={() => setDeskOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Centre d’activité et notifications"
+              className="cx-sheet !w-[min(420px,100vw)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="cx-sheet__header">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#1e86e0]">
+                    En direct
+                  </p>
+                  <h2 className="cx-sheet__title">Activité &amp; Notifications</h2>
+                </div>
+                <button
+                  type="button"
+                  className="sui-icon-btn !h-9 !w-9"
+                  aria-label="Fermer le panneau"
+                  onClick={() => setDeskOpen(false)}
+                >
+                  <X size={16} strokeWidth={1.85} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="cx-sheet__body flex flex-col gap-4">
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={isTeam ? "/espace-equipe/notifications" : "/espace-client/notifications"}
+                    onClick={() => setDeskOpen(false)}
+                    className="cx-btn cx-btn--secondary cx-btn--sm w-full justify-between"
+                  >
+                    <span>Voir toutes les notifications</span>
+                    <ArrowRight size={14} aria-hidden="true" />
+                  </Link>
+                </div>
+                <AdminDeskPanel label="Centre d’activité" sections={deskSections} />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* ================================================================
+            5. TIROIR DE NAVIGATION MOBILE (Toutes les rubriques)
+           ================================================================ */}
+        {mobileMenuOpen ? (
+          <MobileNavDrawer
+            title={title}
+            groupedLinks={groupedLinks}
+            onClose={() => setMobileMenuOpen(false)}
+            onOpenCmdk={() => {
+              setMobileMenuOpen(false);
+              setCmdkOpen(true);
+            }}
+          />
+        ) : null}
+
+        {/* ================================================================
+            6. PALETTE DE COMMANDES GLOBALE (⌘K / Ctrl+K)
+           ================================================================ */}
+        {cmdkOpen ? (
+          <CommandPaletteModal
+            isTeam={isTeam}
+            groupedLinks={groupedLinks}
+            request={request}
+            user={user}
+            onClose={() => setCmdkOpen(false)}
+            onNavigate={(href) => {
+              setCmdkOpen(false);
+              router.push(href);
+            }}
+          />
+        ) : null}
+
+        {isTeam ? <TimerPill /> : null}
+        {isTeam ? <AiAgentDrawer /> : null}
+      </div>
+    </ShellQueryContext.Provider>
   );
 }
 
-function deskSubtitle(waitingCount, taskCount, unreadCount) {
-  const parts = [`${waitingCount} à traiter`];
-  if (taskCount) parts.push(`${taskCount} tâche${taskCount > 1 ? "s" : ""} en cours`);
-  if (unreadCount) parts.push(`${unreadCount} non lue${unreadCount > 1 ? "s" : ""}`);
-  return parts.join(" · ");
+function MobileNavDrawer({ title, groupedLinks, onClose, onOpenCmdk }) {
+  const titleId = useId();
+
+  useEffect(() => {
+    function onKey(event) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="cx-sheet-backdrop" role="presentation" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="cx-sheet"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="cx-sheet__header">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#1e86e0]">
+              Navigation
+            </p>
+            <h2 id={titleId} className="cx-sheet__title">
+              {title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            className="sui-icon-btn !h-9 !w-9"
+            aria-label="Fermer"
+            onClick={onClose}
+          >
+            <X size={16} strokeWidth={1.85} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="cx-sheet__body flex flex-col gap-5">
+          <button
+            type="button"
+            onClick={onOpenCmdk}
+            className="sui-sidebar__cmdk-btn !m-0 w-full"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Search size={16} strokeWidth={1.85} aria-hidden="true" />
+              <span>Rechercher une page ou un dossier…</span>
+            </span>
+            <kbd className="sui-kbd">⌘K</kbd>
+          </button>
+
+          {groupedLinks.map(({ group, items }) => (
+            <div key={group} className="flex flex-col gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#6b8099]">
+                {group}
+              </p>
+              <div className="sui-drawer__grid">
+                {items.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={onClose}
+                      aria-current={link.active ? "page" : undefined}
+                      className={`sui-drawer__link ${link.active ? "sui-drawer__link--active" : ""}`}
+                    >
+                      <Icon size={16} strokeWidth={1.8} aria-hidden="true" />
+                      <span className="truncate">{link.shortLabel}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
+
+function CommandPaletteModal({ isTeam, groupedLinks, request, user, onClose, onNavigate }) {
+  const [search, setSearch] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [liveResults, setLiveResults] = useState([]);
+  const [searchingLive, setSearchingLive] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const id = setTimeout(() => inputRef.current?.focus(), 30);
+    return () => clearTimeout(id);
+  }, []);
+
+  // Recherche en direct sur l'API (Clients, Projets, Devis, Factures) dès 2 caractères
+  useEffect(() => {
+    const term = search.trim();
+    if (!isTeam || term.length < 2) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearchingLive(true);
+      try {
+        const queries = [];
+        if (can(user, "client:read:any")) {
+          queries.push(
+            request(`/clients?search=${encodeURIComponent(term)}&perPage=3`, { signal: controller.signal })
+              .then((res) =>
+                (res?.data ?? []).map((c) => ({
+                  id: `client-${c.id}`,
+                  group: "Résultats directs",
+                  label: c.companyName,
+                  sub: `Client · ${c.reference ?? ""}`,
+                  href: `/espace-equipe/clients/${c.id}`,
+                  icon: Building2,
+                })),
+              )
+              .catch(() => []),
+          );
+        }
+        if (can(user, "project:read:any") || can(user, "project:read:assigned") || can(user, "project:read:own")) {
+          queries.push(
+            request(`/projects?search=${encodeURIComponent(term)}&perPage=3`, { signal: controller.signal })
+              .then((res) =>
+                (res?.data ?? []).map((p) => ({
+                  id: `project-${p.id}`,
+                  group: "Résultats directs",
+                  label: p.name,
+                  sub: `Projet · ${p.reference ?? ""}`,
+                  href: `/espace-equipe/projets/${p.id}`,
+                  icon: Folder,
+                })),
+              )
+              .catch(() => []),
+          );
+        }
+        if (can(user, "quote:read:any")) {
+          queries.push(
+            request(`/quotes?search=${encodeURIComponent(term)}&perPage=3`, { signal: controller.signal })
+              .then((res) =>
+                (res?.data ?? []).map((q) => ({
+                  id: `quote-${q.id}`,
+                  group: "Résultats directs",
+                  label: q.subject || q.reference,
+                  sub: `Devis · ${q.reference ?? ""}`,
+                  href: `/espace-equipe/devis/${q.id}`,
+                  icon: FileText,
+                })),
+              )
+              .catch(() => []),
+          );
+        }
+        const lists = await Promise.all(queries);
+        if (!controller.signal.aborted) {
+          setLiveResults(lists.flat());
+          setSearchingLive(false);
+        }
+      } catch {
+        if (!controller.signal.aborted) setSearchingLive(false);
+      }
+    }, 220);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isTeam, request, search, user]);
+
+  // Construction de la liste unifiée d'actions et de rubriques
+  const quickActions = useMemo(() => {
+    const actions = [];
+    if (isTeam) {
+      actions.push({
+        id: "act-ai-console",
+        group: "Actions rapides",
+        label: "Ouvrir la Console IA Comexa",
+        sub: "Pilotage en langage naturel · Alt+C",
+        icon: Sparkles,
+        onSelect: () => {
+          onClose();
+          triggerAiConsole();
+        },
+      });
+      if (can(user, "quote:write:any")) {
+        actions.push({
+          id: "act-new-quote",
+          group: "Actions rapides",
+          label: "Créer un nouveau devis",
+          sub: "Facturation",
+          href: "/espace-equipe/devis/nouveau",
+          icon: Plus,
+        });
+      }
+      if (can(user, "time:write:own") || can(user, "time:write:any")) {
+        actions.push({
+          id: "act-log-time",
+          group: "Actions rapides",
+          label: "Saisir du temps ou consulter ma feuille",
+          sub: "Production",
+          href: "/espace-equipe/temps",
+          icon: Clock,
+        });
+      }
+    } else {
+      actions.push({
+        id: "act-order-pack",
+        group: "Actions rapides",
+        label: "Commander un pack Comexa",
+        sub: "Nouveau projet",
+        href: "/espace-client/commander",
+        icon: ShoppingCart,
+      });
+      actions.push({
+        id: "act-mod-req",
+        group: "Actions rapides",
+        label: "Déposer une demande de modification",
+        sub: "Suivi projet",
+        href: "/espace-client/modifications",
+        icon: Wrench,
+      });
+    }
+    actions.push({
+      id: "act-public-site",
+      group: "Actions rapides",
+      label: "Aller sur le site public Comexa",
+      sub: "Vitrine publique",
+      href: "/",
+      icon: Globe,
+    });
+    return actions;
+  }, [isTeam, onClose, user]);
+
+  const flatEntries = useMemo(() => {
+    const normalized = search.trim().toLowerCase();
+    const match = (text) => !normalized || String(text ?? "").toLowerCase().includes(normalized);
+
+    const out = [];
+    if (normalized.length >= 2) {
+      for (const item of liveResults) {
+        out.push(item);
+      }
+    }
+    for (const action of quickActions) {
+      if (match(action.label) || match(action.sub)) {
+        out.push(action);
+      }
+    }
+    for (const { group, items } of groupedLinks) {
+      for (const link of items) {
+        if (match(link.label) || match(link.shortLabel) || match(group)) {
+          out.push({
+            id: `nav-${link.href}`,
+            group: `Rubriques · ${group}`,
+            label: link.label,
+            sub: link.href,
+            href: link.href,
+            icon: link.icon,
+          });
+        }
+      }
+    }
+    return out;
+  }, [groupedLinks, liveResults, quickActions, search]);
+
+  const clampedActiveIndex = flatEntries.length > 0 ? Math.min(activeIndex, flatEntries.length - 1) : 0;
+
+  function executeEntry(entry) {
+    if (!entry) return;
+    if (entry.onSelect) {
+      entry.onSelect();
+    } else if (entry.href) {
+      onNavigate(entry.href);
+    }
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (flatEntries.length > 0) {
+        setActiveIndex((i) => (i + 1) % flatEntries.length);
+      }
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (flatEntries.length > 0) {
+        setActiveIndex((i) => (i - 1 + flatEntries.length) % flatEntries.length);
+      }
+      return;
+    }
+    if (event.key === "Enter" && flatEntries[clampedActiveIndex]) {
+      event.preventDefault();
+      executeEntry(flatEntries[clampedActiveIndex]);
+    }
+  }
+
+  // Regroupement pour l'affichage
+  const sections = useMemo(() => {
+    const map = new Map();
+    flatEntries.forEach((entry, index) => {
+      if (!map.has(entry.group)) map.set(entry.group, []);
+      map.get(entry.group).push({ ...entry, globalIndex: index });
+    });
+    return [...map.entries()];
+  }, [flatEntries]);
+
+  return (
+    <div className="sui-cmdk-backdrop" role="presentation" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Palette de commandes et recherche globale"
+        className="sui-cmdk"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="sui-cmdk__header">
+          <Search size={18} strokeWidth={2} className="text-[#1e86e0]" aria-hidden="true" />
+          <input
+            ref={inputRef}
+            type="search"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setActiveIndex(0);
+            }}
+            placeholder="Aller à une rubrique, chercher un client, un projet, un devis…"
+            className="sui-cmdk__input"
+            aria-label="Rechercher une rubrique ou une action"
+          />
+          {searchingLive ? (
+            <span className="text-[12px] font-medium text-[#6b8099]">Recherche…</span>
+          ) : null}
+          <button
+            type="button"
+            onClick={onClose}
+            className="sui-kbd cursor-pointer hover:bg-[#0b2545] hover:text-white"
+          >
+            Échap
+          </button>
+        </div>
+
+        <div className="sui-cmdk__body" role="listbox" aria-label="Résultats">
+          {sections.length === 0 ? (
+            <div className="py-10 text-center text-[13.5px] text-[#6b8099]">
+              Aucun résultat pour « {search} ».
+            </div>
+          ) : (
+            sections.map(([groupTitle, entries]) => (
+              <div key={groupTitle} className="flex flex-col gap-1">
+                <div className="sui-cmdk__group-title">{groupTitle}</div>
+                {entries.map((entry) => {
+                  const Icon = entry.icon ?? ArrowRight;
+                  const isSelected = entry.globalIndex === clampedActiveIndex;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseEnter={() => setActiveIndex(entry.globalIndex)}
+                      onClick={() => executeEntry(entry)}
+                      className={`sui-cmdk__item ${isSelected ? "sui-cmdk__item--active" : ""}`}
+                    >
+                      <div className="sui-cmdk__item-left">
+                        <span className="sui-cmdk__item-icon" aria-hidden="true">
+                          <Icon size={16} strokeWidth={1.85} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold">{entry.label}</div>
+                          {entry.sub ? (
+                            <div className="truncate text-[12px] text-[#6b8099]">{entry.sub}</div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <ArrowRight size={14} className="shrink-0 opacity-60" aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="sui-cmdk__footer">
+          <div className="flex items-center gap-3">
+            <span>
+              <kbd className="sui-kbd">↑</kbd> <kbd className="sui-kbd">↓</kbd> Naviguer
+            </span>
+            <span>
+              <kbd className="sui-kbd">Entrée</kbd> Ouvrir
+            </span>
+          </div>
+          <span>Comexa Command · ⌘K</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default WorkspaceSoftShell;

@@ -7,12 +7,13 @@ import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
+import { Badge, Card, Empty, Field, Notice, Pagination, SkeletonList, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
 import { useTimer } from "@/lib/timer";
 import { canUseTimer } from "@/lib/timer-access";
 import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath, tasksPayloadIsOutdated } from "@/lib/tasks";
 import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
 import { UserAvatar } from "@/components/workspace/UserAvatar";
+import { useShellQuery } from "@/components/softui/Shell";
 
 const COLUMNS = [
   { id: "TODO", label: "À faire" },
@@ -21,7 +22,6 @@ const COLUMNS = [
   { id: "DONE", label: "Terminé" },
 ];
 
-/** BLOCKED reste visible dans « En cours » (avec un badge) ; CANCELLED n'apparaît pas. */
 function columnOf(status) {
   if (status === "BLOCKED") return "IN_PROGRESS";
   return COLUMNS.some((c) => c.id === status) ? status : null;
@@ -44,7 +44,8 @@ export default function TachesPage() {
       <PersonalTasks />
 
       <Card
-        title="Projet"
+        title="Tableau Kanban par projet"
+        subtitle="Glissez une tâche d’une colonne à l’autre pour mettre à jour son statut."
         action={
           <Field id="kanban-project" label="Choisir le projet">
             <select id="kanban-project" className={`${selectClass} !w-[320px]`} value={current} onChange={(e) => setProjectId(e.target.value)} disabled={list.length === 0}>
@@ -78,16 +79,13 @@ export default function TachesPage() {
 
 function Board({ projectId }) {
   const { user, request } = useAuth();
+  const { query: shellQuery } = useShellQuery();
   const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((permission) => can(user, permission));
   const canWriteAny = can(user, "task:write:any");
   const canWriteOwn = can(user, "task:write:own");
   const canWrite = canWriteAny || canWriteOwn;
   const canWriteTask = (task) => canWriteAny || (canWriteOwn && task.assigneeId === user?.id);
   const [taskPage, setTaskPage] = useState(1);
-  // « Tous » par défaut, puis un identifiant de compte : le filtre est un
-  // `reporterId`, jamais un nom. Le serveur le combine en `AND` avec ce projet,
-  // donc un profil sélectionné ici ne peut pas faire remonter les tâches d'un
-  // autre projet.
   const [creatorId, setCreatorId] = useState(EVERY_CREATOR);
   const tasks = useListing(canReadTasks ? taskListPath(projectId, { page: taskPage, perPage: 100, reporterId: creatorId }) : null);
   const creators = useListing(canReadTasks ? taskCreatorsPath(projectId) : null);
@@ -100,7 +98,11 @@ function Board({ projectId }) {
     useSensor(KeyboardSensor),
   );
 
-  const all = (tasks.items ?? []).map((t) => ({ ...t, status: overrides[t.id] ?? t.status }));
+  const q = shellQuery.trim().toLowerCase();
+  const all = (tasks.items ?? [])
+    .map((t) => ({ ...t, status: overrides[t.id] ?? t.status }))
+    .filter((t) => !q || String(t.title ?? "").toLowerCase().includes(q));
+
   const byColumn = Object.fromEntries(COLUMNS.map((c) => [c.id, []]));
   for (const task of all) {
     const col = columnOf(task.status);
@@ -133,9 +135,6 @@ function Board({ projectId }) {
   }
 
   async function onTaskCreated() {
-    // La tâche créée est signée par le porteur : on revient sur « Tous » pour
-    // qu'elle soit visible, et on recharge les profils pour que son créateur
-    // apparaisse dans le filtre.
     setCreatorId(EVERY_CREATOR);
     if (taskPage === 1) await tasks.reload();
     else setTaskPage(1);
@@ -143,8 +142,6 @@ function Board({ projectId }) {
   }
 
   function onCreatorChange(nextCreatorId) {
-    // Un changement de filtre repart de la première page : rester en page 3 d'une
-    // liste qui vient de se réduire afficherait un vide trompeur.
     setCreatorId(nextCreatorId);
     setTaskPage(1);
   }
@@ -154,7 +151,7 @@ function Board({ projectId }) {
       {canWrite ? <NewTask projectId={projectId} onCreated={onTaskCreated} /> : null}
       {canReadTasks && tasks.error ? <Notice>{tasks.error}</Notice> : null}
       {error ? <Notice>{error}</Notice> : null}
-      {canReadTasks && tasks.items === null && !tasks.error ? <p className="cx-small">Chargement des tâches…</p> : null}
+      {canReadTasks && tasks.items === null && !tasks.error ? <SkeletonList rows={3} /> : null}
       {!canReadTasks ? <Notice>Votre rôle ne permet pas de consulter la liste des tâches de ce projet.</Notice> : null}
 
       {canReadTasks ? (
@@ -203,11 +200,11 @@ function Column({ column, tasks, canWrite, canWriteTask }) {
       ref={setNodeRef}
       role="listitem"
       aria-label={`${column.label} (${tasks.length})`}
-      className={`flex min-h-[260px] flex-col gap-3 rounded-2xl border p-3 transition ${isOver ? "border-[var(--comexa-accent)] bg-[var(--comexa-accent-soft)]" : "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)]"}`}
+      className={`flex min-h-[260px] flex-col gap-3 rounded-2xl border p-3.5 transition ${isOver ? "border-[var(--comexa-accent)] bg-[var(--comexa-accent-soft)]" : "border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)]"}`}
     >
       <header className="flex items-center justify-between px-1 pt-1">
-        <h3 className="text-[14px] font-semibold text-[var(--comexa-ink)]">{column.label}</h3>
-        <span className="rounded-full bg-[var(--comexa-surface)] px-2 py-0.5 text-[12.5px] text-[var(--comexa-ink-soft)]">{tasks.length}</span>
+        <h3 className="text-[14px] font-bold text-[var(--comexa-ink)]">{column.label}</h3>
+        <span className="cx-tabular rounded-full bg-[var(--comexa-surface)] px-2.5 py-0.5 text-[12px] font-semibold text-[var(--comexa-ink-soft)] shadow-2xs">{tasks.length}</span>
       </header>
       {tasks.map((task) => (
         <DraggableTask key={task.id} task={task} canWrite={canWriteTask(task)} />
@@ -229,17 +226,17 @@ function DraggableTask({ task, canWrite }) {
 function TaskCard({ task, canWrite = false, overlay = false }) {
   return (
     <article
-      className={`rounded-xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3 shadow-sm ${overlay ? "rotate-1 shadow-lg" : ""} ${canWrite ? "cursor-grab touch-none" : "cursor-default"}`}
+      className={`rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3.5 shadow-xs transition hover:border-[rgba(30,134,224,0.28)] ${overlay ? "rotate-1 shadow-lg" : ""} ${canWrite ? "cursor-grab touch-none" : "cursor-default"}`}
       aria-roledescription={canWrite ? "tâche déplaçable" : undefined}
     >
-      <p className="text-[14px] font-medium text-[var(--comexa-ink)]">{task.title}</p>
+      <p className="text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</p>
       {task.project?.name ? <p className="mt-0.5 text-[12px] text-[var(--comexa-ink-muted)]">Projet {task.project.name}</p> : null}
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
         <Badge tone={PRIORITY_TONE[task.priority] ?? "neutral"}>{PRIORITY_LABEL[task.priority] ?? task.priority}</Badge>
         {task.status === "BLOCKED" ? <Badge tone="danger">Bloquée</Badge> : null}
         {task.dueDate ? <span className="text-[var(--comexa-ink-muted)]">Échéance {formatDate(task.dueDate)}</span> : null}
       </div>
-      <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--comexa-ink-soft)]">
+      <div className="mt-2.5 flex items-center gap-2 text-[12px] text-[var(--comexa-ink-soft)]">
         <UserAvatar profile={task.reporter} size={22} />
         <span>{creatorNameOf(task.reporter)}</span>
       </div>
@@ -280,11 +277,6 @@ function NewTask({ projectId, onCreated }) {
   );
 }
 
-
-// -----------------------------------------------------------------------------
-// Tâches personnelles
-// -----------------------------------------------------------------------------
-
 const PERSONAL_STATUS_LABEL = {
   TODO: "À faire",
   IN_PROGRESS: "En cours",
@@ -295,18 +287,9 @@ const PERSONAL_STATUS_LABEL = {
 };
 const PERSONAL_STATUSES = ["TODO", "IN_PROGRESS", "IN_REVIEW", "BLOCKED", "DONE", "CANCELLED"];
 
-/**
- * « Mes tâches personnelles » — l'espace de travail privé de chaque membre.
- *
- * SÉPARATION STRICTE des deux espaces : ces tâches n'ont ni projet, ni client,
- * ni assignation (elles appartiennent à leur créateur), et n'apparaissent ni
- * dans le kanban d'un projet ni dans la vue d'un chef de projet. Le filtre
- * `?personalOnly=true` et le périmètre serveur (`task-read/WriteWhereFor`)
- * garantissent la même chose côté API : personne ne lit les tâches
- * personnelles d'un autre, quel que soit son rôle.
- */
 function PersonalTasks() {
   const { user, request } = useAuth();
+  const { query: shellQuery } = useShellQuery();
   const { start, timer } = useTimer();
   const canRead =
     ["task:read:any", "task:read:assigned", "task:read:own", "task:read:personal"].some((permission) =>
@@ -378,7 +361,10 @@ function PersonalTasks() {
     }
   }
 
-  const items = tasks.items ?? [];
+  const q = shellQuery.trim().toLowerCase();
+  const items = (tasks.items ?? []).filter(
+    (t) => !q || String(t.title ?? "").toLowerCase().includes(q),
+  );
 
   return (
     <Card
@@ -453,7 +439,7 @@ function PersonalTasks() {
             return (
               <li
                 key={task.id}
-                className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--comexa-border-soft)] bg-white/70 px-4 py-3"
+                className="flex flex-wrap items-center gap-3 rounded-[14px] border border-[var(--comexa-border-soft)] bg-white/85 px-4 py-3"
               >
                 <div className="flex min-w-[220px] flex-1 flex-col">
                   <span className="text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</span>

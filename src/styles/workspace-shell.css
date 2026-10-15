@@ -1766,11 +1766,14 @@
 @keyframes cx-console-blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
 @keyframes cx-console-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 
+@media (max-width: 900px) {
+  .cx-timer-pill { right: 16px; bottom: 86px; }
+  .cx-console-launcher { right: 16px; bottom: 140px; padding: 0 12px; }
+  .cx-console-launcher__label { display: none; }
+  .cx-console-launcher__kbd { display: none; }
+}
 @media (max-width: 640px) {
   .cx-console__panel { width: 100vw; border-left: 0; }
-  .cx-console-launcher__label { display: none; }
-  .cx-console-launcher { right: 16px; bottom: 88px; padding: 0 10px 0 12px; }
-  .cx-console-launcher__kbd { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,140 +1,134 @@
 /*
- * COMEXA — tokens de design (charte graphique v1.0, 28 septembre 2026).
- *
- * Source : la charte rédigée. Chaque valeur reprend le texte de la charte.
- * Les valeurs marquées « choix documenté » ne sont pas tranchées par la charte :
- * elles sont dérivées des valeurs officielles et doivent être validées.
- *
- * Ne pas ajouter de couleur ici sans l'inscrire dans la charte.
+ * Comexa — Official Design Tokens (Elevated v2 — Apple / Linear / Vercel Grade)
+ * Identity preserved: Deep Navy Ink (#0b2545) + Comexa Blue (#1e86e0) + Luminous Cool Surfaces.
  */
 
 :root {
-  /* ---------- Typographie ---------- */
-  --comexa-font: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-
-  /* ---------- Palette primaire : Comexa Blue ---------- */
-  --comexa-blue-50: #f1f7fe;
-  --comexa-blue-100: #e2effd;
-  --comexa-blue-200: #c3dffa;
-  --comexa-blue-300: #93c7f5;
+  /* Palette primaire Comexa (ADN préservé) */
+  --comexa-blue-950: #07192f;
+  --comexa-blue-900: #0b2545;
+  --comexa-blue-800: #123863;
+  --comexa-blue-700: #0f4e8a;
+  --comexa-blue-600: #1568b4;
+  --comexa-blue-500: #1e86e0;
   --comexa-blue-400: #4fb0f0;
-  --comexa-blue-500: #2e92e6;
-  --comexa-blue-600: #1e86e0;
-  --comexa-blue-700: #1568b4;
-  --comexa-blue-800: #0f4e8a;
-  --comexa-blue-900: #0e3a66;
-  --comexa-blue-950: #0b2545;
-  --comexa-blue-1000: #071a33;
+  --comexa-blue-200: #b9defa;
+  --comexa-blue-100: #e3f2fd;
+  --comexa-blue-50: #f1f8fe;
 
-  /* ---------- Neutres (teintés vers le bleu) ---------- */
-  --comexa-neutral-0: #ffffff;
-  --comexa-neutral-50: #f7fafd;
-  --comexa-neutral-100: #f4f7fb;
-  --comexa-neutral-200: #e6edf6;
-  --comexa-neutral-300: #d6e2f0;
-  --comexa-neutral-400: #afc3d9;
-  --comexa-neutral-500: #8098b2;
-  --comexa-neutral-600: #5a7189;
-  --comexa-neutral-700: #3b5170;
-  --comexa-neutral-800: #1b3a5f;
-  --comexa-neutral-900: #0b2545;
+  /* Neutres teintés de bleu (jamais de gris pur terne) */
+  --comexa-neutral-950: #0b1624;
+  --comexa-neutral-900: #0f1f33;
+  --comexa-neutral-800: #1e3148;
+  --comexa-neutral-700: #334a63;
+  --comexa-neutral-600: #4a607a;
+  --comexa-neutral-500: #5c738e;
+  --comexa-neutral-400: #879ab0;
+  --comexa-neutral-300: #c4d0de;
+  --comexa-neutral-200: #dfe7f1;
+  --comexa-neutral-150: #eaeff7;
+  --comexa-neutral-100: #f1f5fa;
+  --comexa-neutral-50: #f6f9fc;
+  --comexa-white: #ffffff;
 
-  /* ---------- Sémantiques ---------- */
-  --comexa-ink: #0b2545;
-  --comexa-ink-soft: rgba(11, 37, 69, 0.72);
-  --comexa-ink-muted: rgba(11, 37, 69, 0.64);
-  --comexa-ink-inverse: #ffffff;
+  /* Sémantique fonctionnelle — contraste WCAG AA garanti (>= 4.5:1) */
+  --comexa-success: #0d7a52;
+  --comexa-success-bg: #e6f7ef;
+  --comexa-success-border: #b0e5cc;
+  --comexa-warning: #9a5406;
+  --comexa-warning-bg: #fef4e2;
+  --comexa-warning-border: #f8d89c;
+  --comexa-error: #b42318;
+  --comexa-error-bg: #fdeceb;
+  --comexa-error-border: #f7c4c0;
+  --comexa-info: #0f4e8a;
+  --comexa-info-bg: #e8f3fe;
+  --comexa-info-border: #b9defa;
+
+  /* Rôles de surface et d'encre */
+  --comexa-bg: #f3f7fc;
   --comexa-surface: #ffffff;
-  --comexa-surface-alt: #f4f7fb;
-  --comexa-surface-sunken: #e6edf6;
-  --comexa-surface-ink: #0b2545;
-  --comexa-border: #0b2545;
-  --comexa-border-soft: #d6e2f0;
-  /* Bordure de composant (champ, case) : 3:1 minimum (WCAG 1.4.11). Choix documenté. */
-  --comexa-border-control: #5a7189;
-  --comexa-accent: #1e86e0;
-  --comexa-accent-strong: #1568b4;
-  --comexa-accent-text: #0f4e8a;
-  --comexa-accent-soft: #e2effd;
-  --comexa-accent-sky: #4fb0f0;
-  --comexa-on-accent: #071a33;
+  --comexa-surface-alt: #f7f9fd;
+  --comexa-surface-elevated: rgba(255, 255, 255, 0.92);
+  --comexa-ink: var(--comexa-blue-900);
+  --comexa-ink-soft: var(--comexa-neutral-700);
+  --comexa-ink-muted: var(--comexa-neutral-600);
+  --comexa-ink-subtle: var(--comexa-neutral-500);
+  --comexa-accent: var(--comexa-blue-500);
+  --comexa-accent-hover: var(--comexa-blue-600);
+  --comexa-accent-strong: var(--comexa-blue-700);
+  --comexa-accent-soft: var(--comexa-blue-100);
+  --comexa-border: rgba(15, 52, 96, 0.12);
+  --comexa-border-soft: rgba(15, 52, 96, 0.08);
+  --comexa-border-strong: rgba(15, 52, 96, 0.20);
+  --comexa-focus-ring: 0 0 0 3px rgba(30, 134, 224, 0.24);
 
-  /* ---------- Statuts (thème clair) ---------- */
-  --comexa-success: #0e7a4a;
-  --comexa-warning: #a85b0a;
-  --comexa-error: #c0271f;
-  --comexa-info: #1568b4;
-  /* Fonds doux : 8 % de la couleur officielle sur blanc. Choix documenté (contraste vérifié). */
-  --comexa-success-soft: color-mix(in srgb, #0e7a4a 8%, #ffffff);
-  --comexa-warning-soft: color-mix(in srgb, #a85b0a 8%, #ffffff);
-  --comexa-error-soft: color-mix(in srgb, #c0271f 8%, #ffffff);
-  --comexa-info-soft: color-mix(in srgb, #1568b4 8%, #ffffff);
+  /* Liquid Glass (Apple / Linear Grade — toujours lisible) */
+  --comexa-glass-bg: rgba(255, 255, 255, 0.76);
+  --comexa-glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --comexa-glass-bg-subtle: rgba(255, 255, 255, 0.62);
+  --comexa-glass-dark-bg: rgba(11, 37, 69, 0.86);
+  --comexa-glass-border: rgba(255, 255, 255, 0.78);
+  --comexa-glass-outline: rgba(15, 52, 96, 0.085);
+  --comexa-glass-blur: blur(28px) saturate(180%);
+  --comexa-glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.92);
 
-  /* ---------- Dégradés officiels ---------- */
-  /* Angle : choix documenté (135deg), non précisé par la charte. */
-  --comexa-gradient-brand: linear-gradient(135deg, #0b2545 0%, #0f4e8a 50%, #1568b4 100%);
-  --comexa-gradient-deco: linear-gradient(135deg, #0b2545 0%, #1e86e0 60%, #4fb0f0 100%);
-  --comexa-gradient-sheen: linear-gradient(135deg, #1e86e0 0%, #2e92e6 50%, #4fb0f0 100%);
-  --comexa-gradient-soft: linear-gradient(135deg, #e2effd 0%, #f1f7fe 100%);
-  /* Halo : position et opacité choisies (non précisées). */
-  --comexa-glow-sky: radial-gradient(circle at 85% 10%, rgba(79, 176, 240, 0.45), transparent 60%);
+  /* Typographie */
+  --comexa-font-sans: "Space Grotesk", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --comexa-font-display: "Space Grotesk", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --comexa-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
-  /* ---------- Rayons ---------- */
-  --comexa-radius-xs: 6px;
-  --comexa-radius-sm: 8px;
-  --comexa-radius-md: 14px;
-  --comexa-radius-lg: 24px;
-  --comexa-radius-xl: 34px;
-  --comexa-radius-2xl: 45px;
-  --comexa-radius-pill: 999px;
-
-  /* ---------- Ombres ---------- */
-  --comexa-shadow-hard-sm: 0 3px 0 var(--comexa-ink);
-  --comexa-shadow-hard: 0 5px 0 var(--comexa-ink);
-  --comexa-shadow-hard-lg: 0 8px 0 var(--comexa-ink);
-  --comexa-shadow-hard-accent: 0 5px 0 var(--comexa-accent-strong);
-  --comexa-shadow-soft: 0 4px 16px rgba(11, 37, 69, 0.08);
-  --comexa-shadow-lift: 0 10px 30px rgba(11, 37, 69, 0.12);
-  --comexa-shadow-overlay: 0 24px 60px rgba(11, 37, 69, 0.24);
-  --comexa-shadow-focus: 0 0 0 3px rgba(30, 134, 224, 0.38);
-
-  /* ---------- Espacements (base 4 px) ---------- */
+  /* Échelle d'espacement (grille 4/8px) */
   --comexa-space-1: 4px;
   --comexa-space-2: 8px;
   --comexa-space-3: 12px;
   --comexa-space-4: 16px;
   --comexa-space-5: 20px;
   --comexa-space-6: 24px;
-  --comexa-space-8: 32px;
-  --comexa-space-10: 40px;
-  --comexa-space-12: 48px;
-  --comexa-space-16: 64px;
-  --comexa-space-20: 80px;
-  --comexa-space-30: 120px;
+  --comexa-space-7: 32px;
+  --comexa-space-8: 40px;
+  --comexa-space-9: 56px;
+  --comexa-space-10: 72px;
+  --comexa-space-11: 96px;
 
-  /* ---------- Mise en page ---------- */
-  --comexa-container: 1240px;
-  --comexa-gutter: 40px;
-  --comexa-margin-mobile: 24px;
-  --comexa-margin-desktop: 32px;
-  --comexa-breakpoint: 900px;
-  --comexa-control-height: 48px;
-  --comexa-control-height-sm: 40px;
-  --comexa-control-height-lg: 56px;
+  /* Rayons (Style Apple — courbes généreuses et continues) */
+  --comexa-radius-xs: 8px;
+  --comexa-radius-sm: 12px;
+  --comexa-radius-md: 14px;
+  --comexa-radius-lg: 20px;
+  --comexa-radius-xl: 24px;
+  --comexa-radius-2xl: 28px;
+  --comexa-radius-pill: 9999px;
 
-  /* ---------- Mouvement ---------- */
-  --comexa-duration-fast: 140ms;
-  --comexa-duration: 200ms;
-  --comexa-duration-slow: 320ms;
-  --comexa-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Système d'élévation multicouche (4 niveaux de profondeur) */
+  --comexa-shadow-xs:
+    0 1px 2px rgba(11, 37, 69, 0.03),
+    0 2px 6px rgba(11, 37, 69, 0.03);
+  --comexa-shadow-sm:
+    0 1px 2px rgba(11, 37, 69, 0.03),
+    0 4px 16px -2px rgba(11, 37, 69, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --comexa-shadow-md:
+    0 4px 8px -2px rgba(11, 37, 69, 0.05),
+    0 14px 32px -4px rgba(18, 56, 99, 0.095),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --comexa-shadow-lg:
+    0 12px 24px -6px rgba(11, 37, 69, 0.09),
+    0 28px 56px -12px rgba(11, 37, 69, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --comexa-shadow-xl:
+    0 20px 40px -12px rgba(11, 37, 69, 0.16),
+    0 40px 80px -16px rgba(11, 37, 69, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  /* Courbes d'animation (Spring & Smooth Ease) */
+  --comexa-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --comexa-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --comexa-lift: translateY(-3px);
+  --comexa-duration-fast: 160ms;
+  --comexa-duration-normal: 240ms;
+  --comexa-duration-slow: 360ms;
 
-  /* ---------- Profondeur ---------- */
-  --comexa-z-content: 0;
-  --comexa-z-header: 100;
-  --comexa-z-drawer: 200;
-  --comexa-z-overlay: 300;
-  --comexa-z-modal: 400;
-  --comexa-z-toast: 500;
+  /* Gabarit public */
+  --comexa-container: 1240px;
+  --comexa-gutter: clamp(18px, 4vw, 40px);
 }
