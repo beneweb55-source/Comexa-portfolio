@@ -1,113 +1,171 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import AuthCard, { Field } from "@/components/auth/AuthCard";
-import { Notice, inputClass, primaryButton } from "@/components/workspace/ui";
-import { useAuth } from "@/lib/session";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff, LogIn } from "lucide-react";
+import { AuthCard } from "@/components/auth/AuthCard";
 import { ApiError, messageOf } from "@/lib/api";
-import { allowedPath, homeFor } from "@/lib/access";
+import { homeFor } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 
-/** Accepte uniquement un chemin interne (pas d'URL externe ni de `//`). */
-function safeNext(value, user) {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return null;
-  return allowedPath(user, value) ? value : null;
+function safeNext(candidate, fallback) {
+  if (!candidate || typeof candidate !== "string") return fallback;
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) return fallback;
+  return candidate;
 }
 
-export default function ConnexionPage() {
-  const { status, user, login } = useAuth();
+function Form() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login, resendVerification } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [pending, setPending] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resent, setResent] = useState(false);
 
-  // Deja connecte : on renvoie vers l'espace adapte aux droits.
-  useEffect(() => {
-    if (status === "authenticated" && !pending) router.replace(homeFor(user));
-  }, [status, user, pending, router]);
-
-  async function handleSubmit(event) {
+  async function onSubmit(event) {
     event.preventDefault();
+    setBusy(true);
     setError(null);
-    setPending(true);
+    setNeedsVerification(false);
+    setResent(false);
+
     try {
-      const signedIn = await login(email.trim(), password);
-      const next = safeNext(new URLSearchParams(window.location.search).get("next"), signedIn);
-      router.replace(next ?? homeFor(signedIn));
+      const user = await login(email.trim(), password);
+      const destination = safeNext(searchParams.get("next"), homeFor(user));
+      router.replace(destination);
     } catch (caught) {
-      setError(caught);
-      setPassword("");
-      setPending(false);
+      setError(messageOf(caught));
+      if (caught instanceof ApiError && caught.code === "AUTH_EMAIL_NOT_VERIFIED") {
+        setNeedsVerification(true);
+      }
+    } finally {
+      setBusy(false);
     }
   }
 
-  const notVerified = error instanceof ApiError && error.code === "ACCOUNT_INVITED";
+  async function onResend() {
+    if (!email.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await resendVerification(email.trim());
+      setResent(true);
+    } catch (caught) {
+      setError(messageOf(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <AuthCard
       title="Connexion"
-      intro="Accédez à votre espace client Comexa pour suivre vos commandes et vos projets."
+      subtitle="Accédez à votre espace client ou à l’espace de votre équipe."
       footer={
-        <>
-          Pas encore de compte ?{" "}
-          <Link href="/inscription" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
-            Créer un compte
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>Nouveau client ?</span>
+          <Link href="/inscription" className="font-semibold text-[var(--comexa-accent-strong)] hover:underline">
+            Créer un compte client →
           </Link>
-        </>
+        </div>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         {error ? (
-          <Notice>
-            <p>{messageOf(error)}</p>
-            {notVerified ? (
-              <p className="mt-2">
-                <Link href="/verify-email" className="font-medium underline">
-                  Renvoyer le lien de vérification
-                </Link>
-              </p>
+          <div role="alert" className="cx-alert cx-alert--error flex-col items-start">
+            <span>{error}</span>
+            {needsVerification ? (
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={onResend}
+                  disabled={busy}
+                  className="font-semibold underline"
+                >
+                  Renvoyer le lien de confirmation
+                </button>
+              </div>
             ) : null}
-          </Notice>
+          </div>
         ) : null}
 
-        <Field id="email" label="Adresse e-mail">
+        {resent ? (
+          <p role="status" className="cx-alert cx-alert--success">
+            Si un compte correspond à cette adresse, un nouveau lien vient d’être envoyé.
+          </p>
+        ) : null}
+
+        <div className="cx-field">
+          <label htmlFor="login-email" className="cx-label">
+            Adresse e-mail
+          </label>
           <input
-            id="email"
-            name="email"
+            id="login-email"
             type="email"
             autoComplete="email"
             required
+            placeholder="vous@entreprise.com"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className={inputClass}
+            className="cx-input"
           />
-        </Field>
+        </div>
 
-        <Field id="password" label="Mot de passe">
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
+        <div className="cx-field">
+          <div className="flex items-center justify-between">
+            <label htmlFor="login-password" className="cx-label">
+              Mot de passe
+            </label>
+            <Link
+              href="/mot-de-passe-oublie"
+              className="text-[12.5px] font-medium text-[var(--comexa-accent-strong)] hover:underline"
+            >
+              Mot de passe oublié ?
+            </Link>
+          </div>
+          <div className="relative flex items-center">
+            <input
+              id="login-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              className="cx-input !pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--comexa-ink-muted)] hover:bg-[var(--comexa-neutral-100)] hover:text-[var(--comexa-ink)]"
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </div>
 
-        <button type="submit" disabled={pending} className={primaryButton}>
-          {pending ? "Connexion…" : "Se connecter"}
+        <button
+          type="submit"
+          disabled={busy || !email.trim() || !password}
+          className="cx-btn cx-btn--primary mt-1 w-full"
+        >
+          <LogIn size={16} aria-hidden="true" />
+          <span>{busy ? "Connexion…" : "Se connecter"}</span>
         </button>
-
-        <p className="text-center text-[14px]">
-          <Link href="/mot-de-passe-oublie" className="text-[var(--comexa-accent-strong)] hover:underline">
-            Mot de passe oublié ?
-          </Link>
-        </p>
       </form>
     </AuthCard>
+  );
+}
+
+export default function ConnexionPage() {
+  return (
+    <Suspense fallback={<div className="p-10 text-center text-sm text-[var(--comexa-ink-muted)]">Chargement…</div>}>
+      <Form />
+    </Suspense>
   );
 }
