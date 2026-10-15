@@ -1,61 +1,89 @@
 "use client";
 
-import Link from "next/link";
+/*
+ * Clients (espace équipe) — même logique d'appel qu'avant (`useListing` sur
+ * `/clients`), présentation en grille de cartes « soft UI » : filtres en pilules
+ * par statut, recherche branchée sur celle du bandeau (`useShellQuery`), cartes
+ * avec pastille d'initiales, méta et action principale noire.
+ */
+
 import { useState } from "react";
+import { ArrowUpRight, CircleAlert, Eye, Users } from "lucide-react";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, Pagination, inputClass } from "@/components/workspace/ui";
+import { Pagination } from "@/components/workspace/ui";
+import { Alert, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
+import { useShellQuery } from "@/components/softui/Shell";
 
 const CLIENT_STATUS = { ACTIVE: "Actif", INACTIVE: "Inactif", ARCHIVED: "Archivé" };
+const STATUS_FILTERS = [
+  { id: "", label: "Tous" },
+  { id: "ACTIVE", label: "Actifs" },
+  { id: "INACTIVE", label: "Inactifs" },
+  { id: "ARCHIVED", label: "Archivés" },
+];
+
+function initialsOf(value) {
+  const letters = String(value ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("");
+  return letters.toLocaleUpperCase("fr-FR") || "—";
+}
 
 export default function ClientsEquipePage() {
-  const [search, setSearch] = useState("");
+  const { query } = useShellQuery();
+  const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
-  const query = new URLSearchParams({ page: String(page), perPage: "50" });
-  if (search.trim()) query.set("search", search.trim());
-  const clients = useListing(`/clients?${query.toString()}`);
+  const params = new URLSearchParams({ page: String(page), perPage: "50" });
+  if (query.trim()) params.set("search", query.trim());
+  if (status) params.set("status", status);
+  const clients = useListing(`/clients?${params.toString()}`);
   const items = clients.items ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
-      {clients.error ? <Notice>{clients.error}</Notice> : null}
-      <Card
-        title="Clients"
-        action={
-          <label className="flex items-center gap-2">
-            <span className="sr-only">Rechercher un client</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              className={`${inputClass} h-10 w-[min(280px,60vw)]`}
-              placeholder="Rechercher une entreprise…"
-            />
-          </label>
-        }
-      >
-        {clients.items === null && !clients.error ? <p className="cx-small" role="status">Chargement des clients…</p> : null}
-        {clients.items !== null && items.length === 0 ? <Empty>Aucun client pour cette recherche.</Empty> : null}
-        <ul className="flex flex-col gap-3">
+    <div className="flex flex-col">
+      {clients.error ? <Alert icon={CircleAlert}>{clients.error}</Alert> : null}
+
+      <FilterPills
+        label="Filtrer les clients par statut"
+        value={status}
+        onChange={(value) => {
+          setStatus(value);
+          setPage(1);
+        }}
+        items={STATUS_FILTERS}
+      />
+
+      <section className="sui-section" aria-label="Liste des clients">
+        {clients.items === null && !clients.error ? <p className="sui-card__desc" role="status">Chargement des clients…</p> : null}
+        {clients.items !== null && items.length === 0 ? <p className="sui-card__desc">Aucun client pour ces critères.</p> : null}
+
+        <ItemGrid label="Clients">
           {items.map((client) => (
-            <li key={client.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--comexa-border-soft)] p-4 transition-colors hover:bg-[var(--comexa-neutral-50)]">
-              <div className="min-w-0">
-                <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">{client.reference}</p>
-                <Link href={`/espace-equipe/clients/${client.id}`} className="font-semibold text-[var(--comexa-ink)] hover:text-[var(--comexa-accent-strong)] hover:underline">
-                  {client.companyName}
-                </Link>
-                <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">
-                  {[client.sector, client.city, client.country].filter(Boolean).join(" · ") || "Coordonnées à compléter"}
-                </p>
-              </div>
-              <Badge tone={client.status === "ACTIVE" ? "success" : "neutral"}>{CLIENT_STATUS[client.status] ?? client.status}</Badge>
-            </li>
+            <ItemCard
+              key={client.id}
+              corner={initialsOf(client.companyName)}
+              cornerTone="blue"
+              title={client.companyName}
+              description={[client.sector, client.city, client.country].filter(Boolean).join(" · ") || "Coordonnées à compléter"}
+              meta={[
+                { icon: Users, label: client.reference },
+                { icon: Eye, label: CLIENT_STATUS[client.status] ?? client.status },
+              ]}
+              status={CLIENT_STATUS[client.status] ?? client.status}
+              statusTone={client.status === "ACTIVE" ? "green" : "plain"}
+              actions={[
+                { icon: Eye, label: `Voir la fiche de ${client.companyName}`, href: `/espace-equipe/clients/${client.id}` },
+                { icon: ArrowUpRight, label: `Ouvrir la fiche de ${client.companyName}`, href: `/espace-equipe/clients/${client.id}`, variant: "dark" },
+              ]}
+            />
           ))}
-        </ul>
+        </ItemGrid>
+
         <Pagination meta={clients.meta} onPageChange={setPage} loading={clients.loading} />
-      </Card>
+      </section>
     </div>
   );
 }

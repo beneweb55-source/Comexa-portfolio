@@ -1,13 +1,22 @@
 "use client";
 
+/*
+ * Devis (espace équipe) — même appel `/quotes`, filtres convertis en pilules
+ * (statut actif = noir plein) et cartes de grille. Le bouton principal noir
+ * n'apparaît que si le porteur peut créer un devis : aucune action fantôme.
+ */
+
 import { useState } from "react";
-import Link from "next/link";
+import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Plus, Users } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
-import { useListing } from "@/lib/use-listing";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
-import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton } from "@/components/workspace/ui";
+import { useListing } from "@/lib/use-listing";
+import { Pagination } from "@/components/workspace/ui";
+import { Alert, Button, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
+
+const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
 
 export default function DevisEquipePage() {
   const { user } = useAuth();
@@ -20,58 +29,58 @@ export default function DevisEquipePage() {
   const items = quotes.items ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
-      {quotes.error ? <Notice>{quotes.error}</Notice> : null}
-      <Card
-        title="Devis"
-        action={
-          <div className="flex items-center gap-3">
-            <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer par statut">
-              <option value="">Tous les statuts</option>
-              {Object.entries(QUOTE_STATUS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            {canCreateQuote ? (
-              <Link href="/espace-equipe/devis/nouveau" className={primaryButton}>
-                Nouveau devis
-              </Link>
-            ) : null}
-          </div>
-        }
-      >
-        {quotes.items === null && !quotes.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
-        {quotes.items !== null && items.length === 0 ? <Empty>Aucun devis pour ces critères.</Empty> : null}
+    <div className="flex flex-col">
+      {quotes.error ? <Alert icon={CircleAlert}>{quotes.error}</Alert> : null}
 
-        <ul className="flex flex-col gap-3">
-          {items.map((quote) => (
-            <li key={quote.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
-              <div className="min-w-0">
-                <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">
-                  {quote.reference} · {formatDate(quote.issueDate)}
-                </p>
-                <h3 className="text-[16px] font-semibold text-[var(--comexa-ink)]">
-                  <Link href={`/espace-equipe/devis/${quote.id}`} className="hover:underline">
-                    {quote.subject}
-                  </Link>
-                </h3>
-                <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">
-                  {quote.client ? `${quote.client.companyName}` : quote.prospect ? `${quote.prospect.companyName || quote.prospect.email} (prospect)` : "Destinataire non renseigné"}
-                  {" · "}
-                  Valable jusqu&apos;au {formatDate(quote.validUntil)}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-[15px] font-medium text-[var(--comexa-ink)]">{formatMoney(quote.total, quote.currency)}</span>
-                <Badge tone={QUOTE_STATUS_TONE[quote.status] ?? "neutral"}>{QUOTE_STATUS[quote.status] ?? quote.status}</Badge>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <FilterPills
+        label="Filtrer les devis par statut"
+        value={filter}
+        onChange={(value) => {
+          setFilter(value);
+          setPage(1);
+        }}
+        items={[{ id: "", label: "Tous" }, ...Object.entries(QUOTE_STATUS).map(([id, label]) => ({ id, label }))]}
+        actions={
+          canCreateQuote ? (
+            <Button variant="dark" icon={Plus} href="/espace-equipe/devis/nouveau">
+              Nouveau devis
+            </Button>
+          ) : null
+        }
+      />
+
+      <section className="sui-section" aria-label="Liste des devis">
+        {quotes.items === null && !quotes.error ? <p className="sui-card__desc" role="status">Chargement des devis…</p> : null}
+        {quotes.items !== null && items.length === 0 ? <p className="sui-card__desc">Aucun devis pour ces critères.</p> : null}
+
+        <ItemGrid label="Devis">
+          {items.map((quote) => {
+            const recipient = quote.client?.companyName
+              ?? (quote.prospect ? `${quote.prospect.companyName || quote.prospect.email} (prospect)` : "Destinataire non renseigné");
+            return (
+              <ItemCard
+                key={quote.id}
+                cornerIcon={FileText}
+                cornerTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "lilac"}
+                title={quote.subject}
+                description={recipient}
+                meta={[
+                  { icon: Users, label: quote.reference },
+                  { icon: CalendarDays, label: `Valable jusqu’au ${formatDate(quote.validUntil)}` },
+                ]}
+                info={formatMoney(quote.total, quote.currency)}
+                status={QUOTE_STATUS[quote.status] ?? quote.status}
+                statusTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain"}
+                actions={[
+                  { icon: ArrowUpRight, label: `Ouvrir le devis ${quote.reference}`, href: `/espace-equipe/devis/${quote.id}`, variant: "dark" },
+                ]}
+              />
+            );
+          })}
+        </ItemGrid>
+
         <Pagination meta={quotes.meta} onPageChange={setPage} loading={quotes.loading} />
-      </Card>
+      </section>
     </div>
   );
 }

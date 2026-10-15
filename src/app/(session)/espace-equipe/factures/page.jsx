@@ -1,11 +1,21 @@
 "use client";
 
+/*
+ * Factures (espace équipe) — même appel `/invoices`, filtres en pilules,
+ * grille de cartes avec montant total, reste à payer, pilule de statut et action
+ * principale noire. Aucune règle métier ne bouge : `remainingDue` reste la source
+ * du « reste à payer ».
+ */
+
 import { useState } from "react";
-import Link from "next/link";
+import { ArrowUpRight, CalendarDays, CircleAlert, ReceiptText, Users } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, remainingDue } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Notice, Pagination, inputClass } from "@/components/workspace/ui";
+import { Pagination } from "@/components/workspace/ui";
+import { Alert, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
+
+const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
 
 export default function FacturesEquipePage() {
   const [filter, setFilter] = useState("");
@@ -16,50 +26,51 @@ export default function FacturesEquipePage() {
   const items = invoices.items ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
-      {invoices.error ? <Notice>{invoices.error}</Notice> : null}
-      <Card
-        title="Factures"
-        action={
-          <select value={filter} onChange={(event) => { setFilter(event.target.value); setPage(1); }} className={`${inputClass} h-10 w-auto text-[13px]`} aria-label="Filtrer par statut">
-            <option value="">Tous les statuts</option>
-            {Object.entries(INVOICE_STATUS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        }
-      >
-        {invoices.items === null && !invoices.error ? <p className="text-[14px] text-[var(--comexa-ink-soft)]">Chargement…</p> : null}
-        {invoices.items !== null && items.length === 0 ? <Empty>Aucune facture pour ces critères.</Empty> : null}
+    <div className="flex flex-col">
+      {invoices.error ? <Alert icon={CircleAlert}>{invoices.error}</Alert> : null}
 
-        <ul className="flex flex-col gap-3">
-          {items.map((invoice) => (
-            <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
-              <div className="min-w-0">
-                <p className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">
-                  {invoice.reference} · émise le {formatDate(invoice.issueDate)} · échéance {formatDate(invoice.dueDate)}
-                </p>
-                <h3 className="text-[16px] font-semibold text-[var(--comexa-ink)]">
-                  <Link href={`/espace-equipe/factures/${invoice.id}`} className="hover:underline">
-                    {invoice.subject || invoice.reference}
-                  </Link>
-                </h3>
-                <p className="text-[13.5px] text-[var(--comexa-ink-soft)]">
-                  {invoice.client?.companyName ?? "Client non renseigné"}
-                  {" · "}Reste à payer : {formatMoney(remainingDue(invoice), invoice.currency)}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-[15px] font-medium text-[var(--comexa-ink)]">{formatMoney(invoice.total, invoice.currency)}</span>
-                <Badge tone={INVOICE_STATUS_TONE[invoice.status] ?? "neutral"}>{INVOICE_STATUS[invoice.status] ?? invoice.status}</Badge>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <FilterPills
+        label="Filtrer les factures par statut"
+        value={filter}
+        onChange={(value) => {
+          setFilter(value);
+          setPage(1);
+        }}
+        items={[{ id: "", label: "Tous" }, ...Object.entries(INVOICE_STATUS).map(([id, label]) => ({ id, label }))]}
+      />
+
+      <section className="sui-section" aria-label="Liste des factures">
+        {invoices.items === null && !invoices.error ? <p className="sui-card__desc" role="status">Chargement des factures…</p> : null}
+        {invoices.items !== null && items.length === 0 ? <p className="sui-card__desc">Aucune facture pour ces critères.</p> : null}
+
+        <ItemGrid label="Factures">
+          {items.map((invoice) => {
+            const tone = TONE_MAP[INVOICE_STATUS_TONE[invoice.status]] ?? "plain";
+            return (
+              <ItemCard
+                key={invoice.id}
+                cornerIcon={ReceiptText}
+                cornerTone={tone === "plain" ? "lilac" : tone}
+                title={invoice.subject || invoice.reference}
+                description={invoice.client?.companyName ?? "Client non renseigné"}
+                meta={[
+                  { icon: Users, label: invoice.reference },
+                  { icon: CalendarDays, label: `Émise le ${formatDate(invoice.issueDate)}` },
+                  { icon: CalendarDays, label: `Échéance ${formatDate(invoice.dueDate)}` },
+                ]}
+                info={`${formatMoney(invoice.total, invoice.currency)} · reste ${formatMoney(remainingDue(invoice), invoice.currency)}`}
+                status={INVOICE_STATUS[invoice.status] ?? invoice.status}
+                statusTone={tone}
+                actions={[
+                  { icon: ArrowUpRight, label: `Ouvrir la facture ${invoice.reference}`, href: `/espace-equipe/factures/${invoice.id}`, variant: "dark" },
+                ]}
+              />
+            );
+          })}
+        </ItemGrid>
+
         <Pagination meta={invoices.meta} onPageChange={setPage} loading={invoices.loading} />
-      </Card>
+      </section>
     </div>
   );
 }

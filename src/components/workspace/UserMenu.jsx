@@ -19,8 +19,15 @@ function nameOf(user) {
   return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email || "Votre compte";
 }
 
-/** Menu de compte alimenté uniquement par le profil réellement renvoyé par l'API. */
+/**
+ * Menu de compte alimenté uniquement par le profil réellement renvoyé par l'API.
+ *
+ * `variant="softui"` adapte uniquement l'habillage (navbar noire de la coque :
+ * avatar lilas, nom, courriel, chevron) — l'état, les liens et la déconnexion
+ * restent identiques quel que soit le variant.
+ */
 export default function UserMenu({ variant = "workspace", compact = false, redirectTo }) {
+  const soft = variant === "softui";
   const { status, user, logout } = useAuth();
   const router = useRouter();
   const menuId = useId();
@@ -52,7 +59,11 @@ export default function UserMenu({ variant = "workspace", compact = false, redir
   }, [open]);
 
   if (status === "loading") {
-    return <span className={`cx-user-menu cx-user-menu--${variant} cx-user-menu__loading`} role="status" aria-label="Chargement du compte" />;
+    return soft ? (
+      <span className="sui-profile__avatar" role="status" aria-label="Chargement du compte" />
+    ) : (
+      <span className={`cx-user-menu cx-user-menu--${variant} cx-user-menu__loading`} role="status" aria-label="Chargement du compte" />
+    );
   }
   if (status !== "authenticated" || !user) return null;
 
@@ -67,6 +78,61 @@ export default function UserMenu({ variant = "workspace", compact = false, redir
     await logout();
     router.replace(redirectTo ?? (variant === "public" ? "/" : "/connexion"));
     router.refresh();
+  }
+
+  if (soft) {
+    return (
+      <div ref={rootRef} className="sui-profile">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="sui-profile__trigger"
+          aria-expanded={open}
+          aria-controls={menuId}
+          aria-label={`Compte de ${name}`}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="sui-profile__avatar" aria-hidden="true">{initialsOf(user)}</span>
+          <span className="sui-profile__id">
+            <span className="sui-profile__name">{name}</span>
+            <span className="sui-profile__mail">{user.email}</span>
+          </span>
+          <Icon name="chevron-down" className="sui-profile__chevron" />
+        </button>
+
+        {open ? (
+          <div id={menuId} className="sui-popover" aria-label="Menu du compte">
+            <div className="sui-popover__summary">
+              <span className="sui-profile__avatar" aria-hidden="true">{initialsOf(user)}</span>
+              <span>
+                <strong>{name}</strong>
+                <span>{user.email}</span>
+              </span>
+            </div>
+            <div className="sui-popover__links">
+              <Link href={accountHref} onClick={() => setOpen(false)}>
+                <Icon name="user" />
+                Mon compte
+              </Link>
+              {canOpenSettings ? (
+                <Link href="/espace-equipe/parametres" onClick={() => setOpen(false)}>
+                  <Icon name="settings" />
+                  Paramètres
+                </Link>
+              ) : null}
+              <Link href={workspaceHref} onClick={() => setOpen(false)}>
+                <Icon name={team ? "home" : "briefcase"} />
+                {team ? "Espace équipe" : "Espace client"}
+              </Link>
+            </div>
+            <button type="button" className="sui-popover__signout" onClick={signOut}>
+              <Icon name="logout" />
+              Se déconnecter
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
   }
 
   return (

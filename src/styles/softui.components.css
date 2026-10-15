@@ -1,0 +1,1734 @@
+/*
+ * COMEXA — Refonte « soft UI pastel dans une coque noire ».
+ * Feuille unique des composants du dashboard. Elle ne touche ni aux jetons de la
+ * charte (comexa.tokens.css) ni aux pages publiques : tout est préfixé `sui-`.
+ *
+ * Repères de structure :
+ *   .sui-viewport  → halogène glacé (--backdrop)
+ *   .sui-shell     → coque noire arrondie (32 px)
+ *   .sui-nav       → navbar noire 64 px (barre d'icônes en bas sur mobile)
+ *   .sui-rail      → rail gauche 56 px (masqué < 1024 px)
+ *   .sui-main      → panneau clair scrollable + languette à rayon inversé
+ *   .sui-desk      → panneau droit Admin Desk (~25 %, scroll indépendant)
+ *   .sui-dock      → dock noir flottant (découpe inversée)
+ */
+
+/* ------------------------------------------------------------------ */
+/* 1. Vue d'ensemble                                                   */
+/* ------------------------------------------------------------------ */
+
+.sui-viewport {
+  min-height: 100dvh;
+  padding: 18px;
+  background:
+    radial-gradient(120% 90% at 12% 0%, #eef5fa 0%, transparent 55%),
+    radial-gradient(90% 70% at 100% 100%, #d3e3ee 0%, transparent 60%),
+    var(--backdrop);
+  color: var(--ink);
+  font-family: var(--font-soft);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sui-viewport *,
+.sui-viewport *::before,
+.sui-viewport *::after {
+  box-sizing: border-box;
+}
+
+.sui-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 60;
+  padding: 10px 16px;
+  border-radius: 0 0 14px 0;
+  background: var(--shell);
+  color: #fff;
+  font-weight: 700;
+}
+
+.sui-skip:focus-visible {
+  left: 18px;
+}
+
+.sui-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 36px);
+  max-width: 1680px;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--shell);
+  border-radius: var(--radius-shell);
+  box-shadow: 0 30px 70px rgba(11, 10, 15, 0.28);
+}
+
+.sui-shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* 2. Navbar noire                                                     */
+/* ------------------------------------------------------------------ */
+
+.sui-nav {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 0 0 64px;
+  min-height: 64px;
+  padding: 0 18px;
+  background: var(--shell);
+}
+
+.sui-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sui-nav__logo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.sui-nav__logo-img {
+  height: 22px;
+  width: auto;
+}
+
+.sui-nav__logo-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--yellow);
+  transform: translateY(-7px);
+}
+
+.sui-nav__role {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+}
+
+.sui-nav__links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-nav__item {
+  position: relative;
+}
+
+.sui-nav__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: auto;
+  min-width: 44px;
+  padding: 0 12px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 160ms ease-out, background-color 160ms ease-out;
+}
+
+.sui-nav__link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sui-nav__link[aria-current="page"] {
+  color: #fff;
+  background: transparent;
+}
+
+.sui-nav__pill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sui-nav__link-inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.sui-nav__link[aria-current="page"] {
+  padding: 0 16px 0 13px;
+}
+
+.sui-nav__label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sui-nav__profile {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Profil de la navbar : avatar à initiales, nom, courriel, chevron */
+.sui-profile {
+  position: relative;
+}
+
+.sui-profile__trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 10px 4px 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 160ms ease-out;
+}
+
+.sui-profile__trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sui-profile__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--lilac);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sui-profile__id {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.sui-profile__name {
+  max-width: 18ch;
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-profile__mail {
+  max-width: 22ch;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-profile__chevron {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.sui-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: 268px;
+  padding: 10px;
+  border-radius: 22px;
+  background: #17161c;
+  box-shadow: 0 24px 50px rgba(11, 10, 15, 0.45);
+  color: #fff;
+}
+
+.sui-popover__summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+}
+
+.sui-popover__summary strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+.sui-popover__summary span {
+  display: block;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+.sui-popover__links {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-popover__links a,
+.sui-popover__signout {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sui-popover__links a:hover,
+.sui-popover__signout:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sui-popover__signout {
+  width: 100%;
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 14px 14px;
+  color: var(--pink);
+}
+
+.sui-spin {
+  animation: sui-spin 900ms linear infinite;
+}
+
+@keyframes sui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-spin {
+    animation: sui-spin 1600ms linear infinite;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 3. Languette noire à rayon inversé                                  */
+/* ------------------------------------------------------------------ */
+
+.sui-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 5;
+  width: 132px;
+  height: 26px;
+  margin-left: -66px;
+  border-radius: 0 0 16px 16px;
+  background: var(--shell);
+  pointer-events: none;
+}
+
+.sui-notch__fillet {
+  position: absolute;
+  top: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.sui-notch__fillet--left {
+  left: -22px;
+  background: radial-gradient(circle at 100% 100%, transparent 0 21px, var(--shell) 22px);
+}
+
+.sui-notch__fillet--right {
+  right: -22px;
+  background: radial-gradient(circle at 0 100%, transparent 0 21px, var(--shell) 22px);
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. Rail gauche                                                      */
+/* ------------------------------------------------------------------ */
+
+.sui-rail {
+  display: flex;
+  flex: 0 0 56px;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 16px;
+  background: var(--shell);
+}
+
+.sui-rail__spacer {
+  flex: 1;
+}
+
+.sui-rail__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sui-rail__btn:hover {
+  transform: translateY(-1px);
+}
+
+.sui-rail__btn--ink {
+  background: #17161c;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.sui-rail__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border: 2px solid var(--shell);
+  border-radius: 999px;
+  background: var(--green);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+}
+
+.sui-rail__zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------ */
+/* 5. Panneau principal clair                                          */
+/* ------------------------------------------------------------------ */
+
+.sui-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 28px 0 0 0;
+  box-shadow: inset 0 0 0 1px rgba(11, 10, 15, 0.06);
+}
+
+.sui-main.is-desk-open {
+  border-radius: 28px 0 0 0;
+}
+
+.sui-main__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 26px 28px 120px;
+  font-size: calc(14px * var(--sui-zoom, 1));
+  scrollbar-width: thin;
+}
+
+.sui-main__scroll:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
+/* Bandeau d'en-tête */
+.sui-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.sui-head__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sui-head__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: var(--lilac);
+  color: var(--ink);
+}
+
+.sui-head__crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sui-head__title {
+  margin: 0;
+  font-size: calc(26px * var(--sui-zoom, 1));
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.sui-head__sub {
+  margin: 6px 0 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.sui-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(340px, 100%);
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #eceaeb;
+  color: var(--muted);
+}
+
+.sui-search:focus-within {
+  border-color: var(--ink);
+  background: #fff;
+}
+
+.sui-search input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+
+.sui-search input::placeholder {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* 6. Cartes KPI                                                       */
+/* ------------------------------------------------------------------ */
+
+.sui-section {
+  margin-top: 26px;
+}
+
+.sui-section__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sui-section__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sui-section__count {
+  padding: 1px 9px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sui-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sui-kpi {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 132px;
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-kpi);
+  background: var(--tone-bg, var(--surface));
+  color: var(--ink);
+  text-align: left;
+}
+
+.sui-kpi__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sui-kpi__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sui-kpi__value {
+  margin: 0;
+  font-size: calc(34px * var(--sui-zoom, 1));
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.sui-kpi__label {
+  margin: 8px 0 0;
+  color: rgba(17, 17, 17, 0.72);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.sui-kpi__deco {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink);
+}
+
+.sui-kpi--ghost {
+  border: 1.5px dashed rgba(17, 17, 17, 0.28);
+  background: transparent;
+  box-shadow: none;
+}
+
+.sui-kpi--ghost .sui-kpi__label {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* 7. Pilules de filtre et boutons                                     */
+/* ------------------------------------------------------------------ */
+
+.sui-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sui-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.sui-pill[aria-pressed="true"] {
+  background: var(--ink);
+  color: #fff;
+}
+
+.sui-pill__count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sui-pill[aria-pressed="true"] .sui-pill__count {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.sui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #e9e7e8;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out, background-color 160ms ease-out;
+}
+
+.sui-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sui-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sui-btn--dark {
+  background: var(--ink);
+  color: #fff;
+}
+
+.sui-btn--dark:hover:not(:disabled) {
+  box-shadow: 0 10px 22px rgba(17, 17, 17, 0.22);
+}
+
+/* ------------------------------------------------------------------ */
+/* 8. Grille de cartes                                                 */
+/* ------------------------------------------------------------------ */
+
+.sui-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 20px 18px 16px;
+  border: 1px solid rgba(17, 17, 17, 0.06);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 200ms ease-out;
+}
+
+.sui-card--highlight {
+  background: var(--lilac-strong);
+  border-color: rgba(17, 17, 17, 0.08);
+}
+
+.sui-card--ghost {
+  border: 1.5px dashed rgba(17, 17, 17, 0.24);
+  background: transparent;
+  box-shadow: none;
+}
+
+.sui-card__corner {
+  position: absolute;
+  top: -12px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--tone-bg, var(--blue));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sui-card__title {
+  margin: 0;
+  padding-right: 34px;
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.sui-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sui-card__title a:hover {
+  text-decoration: underline;
+}
+
+.sui-card__desc {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sui-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.sui-card__meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sui-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.sui-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sui-card__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  text-decoration: none;
+}
+
+.sui-card__pill--ink {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* 9. Pilule de statut, bouton icône, progression                      */
+/* ------------------------------------------------------------------ */
+
+.sui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--tone-bg, var(--surface));
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.sui-status--white {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.sui-status--plain {
+  background: #eceded;
+  color: #4a4a4a;
+}
+
+.sui-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: #f0eeef;
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
+}
+
+.sui-iconbtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #e6e3e5;
+}
+
+.sui-iconbtn--dark {
+  background: var(--ink);
+  color: #fff;
+}
+
+.sui-iconbtn--dark:hover:not(:disabled) {
+  background: #000;
+}
+
+.sui-iconbtn--white {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.sui-iconbtn--ghost {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.14);
+}
+
+.sui-iconbtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 36 px : la taille d'un bouton icône secondaire demandée par la charte. */
+.sui-iconbtn--sm {
+  width: 36px;
+  height: 36px;
+}
+
+.sui-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.sui-progress__track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #e7e5e6;
+  overflow: hidden;
+}
+
+.sui-progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: #a9d16f;
+}
+
+.sui-progress__value {
+  min-width: 38px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* ------------------------------------------------------------------ */
+/* 10. Listes d'activité et santé de l'espace                          */
+/* ------------------------------------------------------------------ */
+
+.sui-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 4px;
+  border-bottom: 1px solid rgba(17, 17, 17, 0.06);
+}
+
+.sui-activity__row:last-child {
+  border-bottom: 0;
+}
+
+.sui-activity__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-activity__copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.sui-activity__copy p {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.sui-activity__time {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sui-health {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-health__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sui-health__hint {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Panneaux larges (bento bas de page) */
+.sui-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sui-panel {
+  padding: 20px;
+  border: 1px solid rgba(17, 17, 17, 0.06);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* ------------------------------------------------------------------ */
+/* 11. Admin Desk (panneau droit)                                      */
+/* ------------------------------------------------------------------ */
+
+.sui-desk {
+  display: flex;
+  flex: 0 0 25%;
+  max-width: 400px;
+  min-width: 300px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 20px 22px 22px;
+  background: var(--surface);
+  border-left: 1px solid rgba(17, 17, 17, 0.08);
+}
+
+.sui-desk__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.sui-desk__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sui-desk__sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sui-desk--drawer {
+  display: flex;
+  flex: 1;
+  max-width: none;
+  min-width: 0;
+  border-left: 0;
+  padding: 22px 20px;
+}
+
+.sui-desk__close {
+  display: none;
+}
+
+.sui-seg {
+  display: flex;
+  gap: 4px;
+  margin: 14px 0 16px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #e9e7e8;
+}
+
+.sui-seg__tab {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 160ms ease-out, background-color 160ms ease-out;
+}
+
+.sui-seg__tab {
+  position: relative;
+  z-index: 0;
+}
+
+.sui-seg__pill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.sui-seg__tab[aria-selected="true"] {
+  color: var(--ink);
+}
+
+.sui-deskcards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-deskcard {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px;
+  border-radius: 20px;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-deskcard__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-deskcard__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.sui-deskcard__type {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sui-deskcard__date {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.sui-deskcard__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sui-deskcard__lines p {
+  margin: 0;
+  font-size: 12.8px;
+  font-weight: 600;
+  line-height: 1.42;
+}
+
+.sui-deskcard__lines p + p {
+  color: rgba(17, 17, 17, 0.68);
+  font-weight: 500;
+}
+
+.sui-deskcard__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sui-deskcard__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.sui-deskcard__mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.sui-deskcard__mini .sui-iconbtn {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.sui-deskcard__mini .sui-iconbtn:hover:not(:disabled) {
+  background: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* 12. Dock flottant                                                   */
+/* ------------------------------------------------------------------ */
+
+.sui-dockwrap {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 30;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.sui-dock {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 999px;
+  background: var(--shell);
+  box-shadow: 0 18px 40px rgba(11, 10, 15, 0.34);
+  pointer-events: auto;
+}
+
+.sui-dock__fillet {
+  position: absolute;
+  bottom: 100%;
+  width: 22px;
+  height: 22px;
+}
+
+.sui-dock__fillet--left {
+  left: 0;
+  background: radial-gradient(circle at 100% 100%, transparent 0 21px, var(--shell) 22px);
+}
+
+.sui-dock__fillet--right {
+  right: 0;
+  background: radial-gradient(circle at 0 100%, transparent 0 21px, var(--shell) 22px);
+}
+
+.sui-dock__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 160ms ease-out;
+}
+
+.sui-dock__btn:hover {
+  transform: translateY(-3px);
+}
+
+.sui-dock__btn--ink {
+  background: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+}
+
+.sui-dock__btn--ink:hover {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* 13. Tiroirs, infobulles, écrans                                      */
+/* ------------------------------------------------------------------ */
+
+.sui-tip {
+  position: fixed;
+  z-index: 80;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--shell);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(11, 10, 15, 0.3);
+}
+
+.sui-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: rgba(11, 10, 15, 0.44);
+  cursor: pointer;
+}
+
+.sui-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  width: min(420px, 92vw);
+  height: 100%;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 28px 0 0 28px;
+  box-shadow: -20px 0 50px rgba(11, 10, 15, 0.3);
+}
+
+.sui-drawer--nav {
+  left: 0;
+  right: auto;
+  width: min(360px, 90vw);
+  border-radius: 0 28px 28px 0;
+  background: var(--shell);
+  color: #fff;
+}
+
+.sui-drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 18px 12px;
+}
+
+.sui-drawer__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sui-drawer__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 18px;
+}
+
+.sui-navgroup {
+  margin-top: 14px;
+}
+
+.sui-navgroup__title {
+  margin: 0 8px 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sui-navgroup ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-navgroup__link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 42px;
+  padding: 0 12px;
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sui-navgroup__link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.sui-navgroup__link[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.sui-drawer--nav .sui-drawer__head .sui-iconbtn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------ */
+/* 14. Focus visible et accessibilité                                  */
+/* ------------------------------------------------------------------ */
+
+.sui-viewport :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
+.sui-nav :where(a, button):focus-visible,
+.sui-rail :where(a, button):focus-visible,
+.sui-dock :where(a, button):focus-visible,
+.sui-drawer--nav :where(a, button):focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.sui-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* 15. Responsive                                                      */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 1280px) {
+  .sui-desk {
+    flex: 0 0 300px;
+    min-width: 0;
+  }
+
+  .sui-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .sui-viewport {
+    padding: 0;
+  }
+
+  .sui-shell {
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .sui-shell__body {
+    flex-direction: column;
+  }
+
+  .sui-rail,
+  .sui-desk--inline {
+    display: none;
+  }
+
+  /* La navbar devient une barre d'icônes en bas de l'écran. */
+  .sui-nav {
+    order: 2;
+    flex: 0 0 auto;
+    min-height: 62px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .sui-shell__body {
+    order: 1;
+  }
+
+  .sui-nav__brand,
+  .sui-nav__role,
+  .sui-nav__profile {
+    display: none;
+  }
+
+  .sui-nav__links {
+    margin: 0;
+    justify-content: space-between;
+    gap: 2px;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .sui-nav__link {
+    flex-direction: column;
+    width: auto;
+    min-width: 56px;
+    height: 48px;
+    gap: 3px;
+    padding: 0 8px;
+  }
+
+  .sui-nav__label {
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .sui-nav__link:not([aria-current="page"]) .sui-nav__label {
+    display: none;
+  }
+
+  .sui-nav__link-inner {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+
+  .sui-main {
+    border-radius: 0;
+  }
+
+  .sui-head__title {
+    font-size: 22px;
+  }
+
+  .sui-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sui-main__scroll {
+    padding: 20px 16px 110px;
+  }
+
+  .sui-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sui-dockwrap {
+    bottom: 84px;
+  }
+
+  .sui-dock {
+    gap: 6px;
+    padding: 9px 11px;
+  }
+
+  .sui-dock__btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (max-width: 720px) {
+  .sui-rail,
+  .sui-desk__close {
+    display: none;
+  }
+
+  .sui-head {
+    gap: 14px;
+  }
+
+  .sui-search {
+    width: 100%;
+  }
+
+  .sui-grid,
+  .sui-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sui-section__head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* 16. Mouvement réduit                                                */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-viewport *,
+  .sui-viewport *::before,
+  .sui-viewport *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .sui-rail__btn:hover,
+  .sui-pill:hover,
+  .sui-btn:hover:not(:disabled),
+  .sui-iconbtn:hover:not(:disabled),
+  .sui-dock__btn:hover {
+    transform: none;
+  }
+}

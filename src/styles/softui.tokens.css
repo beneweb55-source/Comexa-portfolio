@@ -1,0 +1,55 @@
+/*
+ * COMEXA — tokens de la refonte « soft UI pastel dans une coque noire ».
+ *
+ * Ce fichier ne remplace pas `comexa.tokens.css` (charte officielle) : il s'y
+ * ajoute pour la coque du dashboard. Les valeurs sont celles du brief de refonte
+ * et sont ajustables ici, en un seul endroit.
+ *
+ * Consommation : `var(--shell)`, `var(--card)`, `var(--radius-kpi)`…
+ */
+
+:root {
+  /* ---------- Coque et surfaces ---------- */
+  --shell: #0b0a0f;
+  --backdrop: #dbe7ef;
+  --surface: #f6f4f5;
+  --card: #fdfdfd;
+
+  /* ---------- Pastels (catégories, KPI, pastilles) ---------- */
+  --blue: #d7e8f9;
+  --green: #d8efbe;
+  --yellow: #f9e6b9;
+  --lilac: #edd5f8;
+  --lilac-strong: #eac1f1;
+  --pink: #f9d5dd;
+
+  /* ---------- Texte (contraste AA minimum) ---------- */
+  --ink: #111111;
+  --muted: #6b6b6b;
+
+  /* ---------- Rayons ---------- */
+  --radius-shell: 32px;
+  --radius-card: 24px;
+  --radius-kpi: 28px;
+  --radius-button: 999px;
+  --radius-icon-button: 999px;
+  --size-icon-button: 36px;
+  --size-icon-button-lg: 40px;
+
+  /* ---------- Ombres ---------- */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 14px 32px rgba(0, 0, 0, 0.1);
+
+  /* ---------- Typographie ---------- */
+  /* Corps 14 px minimum, jamais en dessous de 12 px (plancher des tailles). */
+  --font-soft: "Plus Jakarta Sans", "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-body: 14px;
+  --text-floor: 12px;
+
+  /* ---------- Mouvement ---------- */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 300ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-stagger: 40ms;
+}
