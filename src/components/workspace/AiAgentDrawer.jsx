@@ -70,7 +70,7 @@ const CATEGORIES = [
   },
 ];
 
-const SHORTCUT_LABEL = "Alt+C";
+const SHORTCUT_LABEL = "Ctrl+K";
 
 /**
  * References metier et montants : on les reconnait pour les afficher en
@@ -479,13 +479,12 @@ export default function AiAgentDrawer() {
     return () => clearTimeout(timer);
   }, [open]);
 
-  // Raccourcis : Alt+C ou Ctrl/Cmd+J pour ouvrir ou fermer, Échap pour fermer,
-  // ainsi que l'événement personnalisé `comexa:open-ai-console` depuis la barre ou la palette ⌘K.
+  // Raccourcis : Ctrl/Cmd+K, Alt+C pour ouvrir ou fermer, Échap pour fermer.
   useEffect(() => {
     function onKeyDown(event) {
       const key = typeof event.key === "string" ? event.key.toLowerCase() : "";
       const meta = event.ctrlKey || event.metaKey;
-      if (meta && key === "j") {
+      if (meta && key === "k") {
         event.preventDefault();
         setOpen((value) => !value);
         return;
@@ -498,16 +497,8 @@ export default function AiAgentDrawer() {
       if (event.key === "Escape") setOpen(false);
     }
 
-    function onOpenEvent() {
-      setOpen(true);
-    }
-
     window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("comexa:open-ai-console", onOpenEvent);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("comexa:open-ai-console", onOpenEvent);
-    };
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
   // Le panneau descend toujours sur le dernier message : sans cela, une

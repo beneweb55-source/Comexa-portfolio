@@ -1,50 +1,55 @@
 /*
- * Tokens Comexa Workspace & Soft Glass UI — unifiés avec l'ADN Comexa
- * (#0b2545 Deep Navy Ink + #1e86e0 Comexa Blue + Liquid Glass lumineux).
+ * COMEXA — tokens de la refonte « soft UI pastel dans une coque noire ».
+ *
+ * Ce fichier ne remplace pas `comexa.tokens.css` (charte officielle) : il s'y
+ * ajoute pour la coque du dashboard. Les valeurs sont celles du brief de refonte
+ * et sont ajustables ici, en un seul endroit.
+ *
+ * Consommation : `var(--shell)`, `var(--card)`, `var(--radius-kpi)`…
  */
 
 :root {
-  --shell-bg: #0b2545;
-  --canvas: #f3f7fc;
-  --surface: #ffffff;
-  --text: #0b2545;
-  --muted: #4a607a;
+  /* ---------- Coque et surfaces ---------- */
+  --shell: #0b0a0f;
+  --backdrop: #dbe7ef;
+  --surface: #f6f4f5;
+  --card: #fdfdfd;
 
-  /* Teintes sémantiques lumineuses Comexa (contraste WCAG AA garanti avec --text) */
-  --pastel-blue: #e8f3fe;
-  --pastel-green: #e6f7ef;
-  --pastel-yellow: #fef4e2;
-  --pastel-lilac: #f0edfe;
-  --pastel-pink: #fdeceb;
+  /* ---------- Pastels (catégories, KPI, pastilles) ---------- */
+  --blue: #d7e8f9;
+  --green: #d8efbe;
+  --yellow: #f9e6b9;
+  --lilac: #edd5f8;
+  --lilac-strong: #eac1f1;
+  --pink: #f9d5dd;
 
-  /* Rayons Apple-grade */
-  --radius-shell: 28px;
-  --radius-card: 22px;
-  --radius-pill: 9999px;
+  /* ---------- Texte (contraste AA minimum) ---------- */
+  --ink: #111111;
+  --muted: #6b6b6b;
 
-  /* Ombres multicouches et bordures spéculaires */
-  --shadow-soft:
-    0 1px 2px rgba(11, 37, 69, 0.03),
-    0 6px 20px -4px rgba(11, 37, 69, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  --shadow-hover:
-    0 4px 10px -2px rgba(11, 37, 69, 0.05),
-    0 18px 36px -6px rgba(18, 56, 99, 0.11),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98);
-  --border-subtle: 1px solid rgba(15, 52, 96, 0.085);
+  /* ---------- Rayons ---------- */
+  --radius-shell: 32px;
+  --radius-card: 24px;
+  --radius-kpi: 28px;
+  --radius-button: 999px;
+  --radius-icon-button: 999px;
+  --size-icon-button: 36px;
+  --size-icon-button-lg: 40px;
 
-  /* Espacements */
-  --sui-space-1: 4px;
-  --sui-space-2: 8px;
-  --sui-space-3: 12px;
-  --sui-space-4: 16px;
-  --sui-space-5: 20px;
-  --sui-space-6: 24px;
-  --sui-space-7: 32px;
+  /* ---------- Ombres ---------- */
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 14px 32px rgba(0, 0, 0, 0.1);
 
-  /* Typographie unifiée Comexa */
-  --sui-font-sans: "Space Grotesk", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* ---------- Typographie ---------- */
+  /* Corps 14 px minimum, jamais en dessous de 12 px (plancher des tailles). */
+  --font-soft: "Plus Jakarta Sans", "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-body: 14px;
+  --text-floor: 12px;
 
-  /* Courbe d'animation Spring */
-  --sui-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* ---------- Mouvement ---------- */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --motion-slow: 300ms;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-stagger: 40ms;
 }

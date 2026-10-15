@@ -2,127 +2,129 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, Eye, EyeOff, UserPlus } from "lucide-react";
-import { AuthCard } from "@/components/auth/AuthCard";
-import { messageOf } from "@/lib/api";
-import { useAuth } from "@/lib/session";
+import AuthCard, { Field } from "@/components/auth/AuthCard";
+import { Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { apiFetch, messageOf } from "@/lib/api";
 
-const MIN_PASSWORD = 12;
+/**
+ * Pays proposes a l'inscription. Le code ISO envoye au serveur determine la devise
+ * (cote serveur uniquement). Un pays absent de la liste se saisit a part.
+ */
+const COUNTRIES = [
+  { code: "DZ", label: "Algérie" },
+  { code: "FR", label: "France" },
+  { code: "MA", label: "Maroc" },
+  { code: "TN", label: "Tunisie" },
+  { code: "BE", label: "Belgique" },
+  { code: "CA", label: "Canada" },
+  { code: "CH", label: "Suisse" },
+  { code: "OTHER", label: "Autre pays" },
+];
 
-function validate(form) {
-  const errors = {};
-  if (form.firstName.trim().length < 2) errors.firstName = "Indiquez votre prénom (2 caractères minimum).";
-  if (form.lastName.trim().length < 2) errors.lastName = "Indiquez votre nom (2 caractères minimum).";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = "Indiquez une adresse e-mail valide.";
-  if (form.companyName.trim().length < 2) errors.companyName = "Indiquez le nom de votre entreprise.";
-  if (form.password.length < MIN_PASSWORD) {
-    errors.password = `Choisissez un mot de passe d’au moins ${MIN_PASSWORD} caractères.`;
-  } else if (!/[a-z]/.test(form.password) || !/[A-Z]/.test(form.password) || !/\d/.test(form.password)) {
-    errors.password = "Le mot de passe doit contenir une minuscule, une majuscule et un chiffre.";
-  }
-  return errors;
-}
+const EMPTY = { firstName: "", lastName: "", email: "", country: "DZ", otherCountry: "", password: "", confirmPassword: "" };
 
 export default function InscriptionPage() {
-  const { register, resendVerification } = useAuth();
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    companyName: "",
-    sector: "",
-    password: "",
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({});
+  const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [sentTo, setSentTo] = useState(null);
   const [resent, setResent] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(true);
 
   function update(field) {
-    return (event) => {
-      const value = event.target.value;
-      setForm((current) => ({ ...current, [field]: value }));
-      setFieldErrors((current) => {
-        if (!current[field]) return current;
-        const next = { ...current };
-        delete next[field];
-        return next;
-      });
-    };
+    return (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
   }
 
-  async function onSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
-    const errors = validate(form);
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
+    setError(null);
+
+    const country = form.country === "OTHER" ? form.otherCountry.trim().toUpperCase() : form.country;
+    if (!/^[A-Z]{2}$/.test(country)) {
+      setError(new Error("Indiquez un pays avec son code à deux lettres (ex. BE)."));
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError(new Error("La confirmation ne correspond pas au mot de passe."));
       return;
     }
 
-    setBusy(true);
-    setError(null);
+    setPending(true);
     try {
-      await register({
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim() || undefined,
-        companyName: form.companyName.trim(),
-        sector: form.sector.trim() || undefined,
-        password: form.password,
+      const result = await apiFetch("/auth/register", {
+        method: "POST",
+        body: {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          email: form.email.trim(),
+          country,
+          password: form.password,
+          confirmPassword: form.confirmPassword,
+        },
       });
-      setDone(true);
+      setSentTo(form.email.trim());
+      setVerificationRequired(result?.data?.verificationRequired !== false);
+      setForm(EMPTY);
     } catch (caught) {
-      setError(messageOf(caught));
+      setError(caught);
+      setForm((current) => ({ ...current, password: "", confirmPassword: "" }));
     } finally {
-      setBusy(false);
+      setPending(false);
     }
   }
 
-  async function onResend() {
-    setBusy(true);
-    setError(null);
+  async function resend() {
     try {
-      await resendVerification(form.email.trim());
-      setResent(true);
-    } catch (caught) {
-      setError(messageOf(caught));
+      await apiFetch("/auth/resend-verification", { method: "POST", body: { email: sentTo } });
     } finally {
-      setBusy(false);
+      // Reponse identique que le compte existe ou non : on n'informe pas sur l'adresse.
+      setResent(true);
     }
   }
 
-  const pwChecks = [
-    { label: "12+ caractères", ok: form.password.length >= MIN_PASSWORD },
-    { label: "1 majuscule", ok: /[A-Z]/.test(form.password) },
-    { label: "1 minuscule", ok: /[a-z]/.test(form.password) },
-    { label: "1 chiffre", ok: /\d/.test(form.password) },
-  ];
-
-  if (done) {
+  if (sentTo && !verificationRequired) {
+    // Verification e-mail en veille : le compte est actif, pas besoin de lien.
     return (
       <AuthCard
-        title="Vérifiez votre boîte e-mail"
-        subtitle={`Un lien de confirmation vient d’être envoyé à ${form.email.trim()}.`}
+        title="Compte créé"
+        intro="Votre compte est prêt. Vous pouvez vous connecter."
         footer={
-          <Link href="/connexion" className="font-semibold text-[var(--comexa-accent-strong)] hover:underline">
-            Aller à la connexion →
+          <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
+            Se connecter
           </Link>
         }
       >
-        <div className="flex flex-col gap-4 text-[14.5px] leading-relaxed text-[var(--comexa-ink-soft)]">
-          <p>
-            Cliquez sur le lien reçu pour activer votre espace client. Une fois l’adresse confirmée,
-            vous pourrez vous connecter et commander un pack ou déposer une demande de projet.
-          </p>
-          {error ? <p role="alert" className="cx-alert cx-alert--error">{error}</p> : null}
-          {resent ? <p role="status" className="cx-alert cx-alert--success">Un nouveau lien vient d’être envoyé.</p> : null}
-          <button type="button" onClick={onResend} disabled={busy} className="cx-btn cx-btn--secondary self-start">
-            Renvoyer l’e-mail de confirmation
-          </button>
+        <div />
+      </AuthCard>
+    );
+  }
+
+  if (sentTo) {
+    return (
+      <AuthCard
+        title="Vérifiez votre e-mail"
+        intro={`Un lien de vérification vient d'être envoyé à ${sentTo}.`}
+        footer={
+          <>
+            Déjà vérifié ?{" "}
+            <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
+              Se connecter
+            </Link>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <Notice tone="info">
+            Ouvrez le message et cliquez sur le lien pour activer votre compte. Vous pourrez vous connecter
+            ensuite. Le lien est valable 24 heures.
+          </Notice>
+          {resent ? (
+            <Notice tone="info">Si cette adresse est enregistrée, un nouveau lien vient d’être envoyé.</Notice>
+          ) : (
+            <button type="button" onClick={resend} className={secondaryButton}>
+              Je n’ai rien reçu : renvoyer le lien
+            </button>
+          )}
         </div>
       </AuthCard>
     );
@@ -130,108 +132,65 @@ export default function InscriptionPage() {
 
   return (
     <AuthCard
-      title="Créer un compte client"
-      subtitle="Votre espace permet de commander un pack, déposer un besoin sur mesure et suivre vos projets."
+      title="Créer votre compte"
+      intro="Votre espace client vous permet de commander un pack et de suivre votre projet. Vérifiez votre adresse e-mail pour l'activer."
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span>Vous avez déjà un compte ?</span>
-          <Link href="/connexion" className="font-semibold text-[var(--comexa-accent-strong)] hover:underline">
-            Se connecter →
+        <>
+          Vous avez déjà un compte ?{" "}
+          <Link href="/connexion" className="font-medium text-[var(--comexa-accent-strong)] hover:underline">
+            Se connecter
           </Link>
-        </div>
+        </>
       }
     >
-      <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
-        {error ? <p role="alert" className="cx-alert cx-alert--error">{error}</p> : null}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
+        {error ? <Notice>{messageOf(error)}</Notice> : null}
 
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-          <Field id="firstName" label="Prénom" error={fieldErrors.firstName}>
-            <input id="firstName" autoComplete="given-name" required value={form.firstName} onChange={update("firstName")} aria-invalid={Boolean(fieldErrors.firstName)} className="cx-input" />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field id="firstName" label="Prénom">
+            <input id="firstName" name="firstName" autoComplete="given-name" required value={form.firstName} onChange={update("firstName")} className={inputClass} />
           </Field>
-          <Field id="lastName" label="Nom" error={fieldErrors.lastName}>
-            <input id="lastName" autoComplete="family-name" required value={form.lastName} onChange={update("lastName")} aria-invalid={Boolean(fieldErrors.lastName)} className="cx-input" />
-          </Field>
-        </div>
-
-        <Field id="email" label="E-mail professionnel" error={fieldErrors.email}>
-          <input id="email" type="email" autoComplete="email" required value={form.email} onChange={update("email")} aria-invalid={Boolean(fieldErrors.email)} className="cx-input" placeholder="vous@entreprise.com" />
-        </Field>
-
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-          <Field id="companyName" label="Entreprise" error={fieldErrors.companyName}>
-            <input id="companyName" autoComplete="organization" required value={form.companyName} onChange={update("companyName")} aria-invalid={Boolean(fieldErrors.companyName)} className="cx-input" />
-          </Field>
-          <Field id="sector" label="Secteur (facultatif)">
-            <input id="sector" value={form.sector} onChange={update("sector")} className="cx-input" />
+          <Field id="lastName" label="Nom">
+            <input id="lastName" name="lastName" autoComplete="family-name" required value={form.lastName} onChange={update("lastName")} className={inputClass} />
           </Field>
         </div>
 
-        <Field id="phone" label="Téléphone (facultatif)">
-          <input id="phone" type="tel" autoComplete="tel" value={form.phone} onChange={update("phone")} className="cx-input" />
+        <Field id="email" label="Adresse e-mail">
+          <input id="email" name="email" type="email" autoComplete="email" required value={form.email} onChange={update("email")} className={inputClass} />
         </Field>
+
+        <Field id="country" label="Pays de résidence" hint="Il détermine la devise et les moyens de paiement proposés.">
+          <select id="country" name="country" value={form.country} onChange={update("country")} className={inputClass}>
+            {COUNTRIES.map((country) => (
+              <option key={country.code} value={country.code}>
+                {country.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        {form.country === "OTHER" ? (
+          <Field id="otherCountry" label="Code pays à deux lettres" hint="Ex. BE, CA, SN.">
+            <input id="otherCountry" name="otherCountry" maxLength={2} value={form.otherCountry} onChange={update("otherCountry")} className={inputClass} />
+          </Field>
+        ) : null}
 
         <Field
           id="password"
           label="Mot de passe"
-          error={fieldErrors.password}
+          hint="12 caractères minimum, avec une majuscule, une minuscule et un chiffre."
         >
-          <div className="relative flex items-center">
-            <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              autoComplete="new-password"
-              required
-              value={form.password}
-              onChange={update("password")}
-              aria-invalid={Boolean(fieldErrors.password)}
-              className="cx-input !pr-11"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-2.5 inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--comexa-ink-muted)] hover:bg-[var(--comexa-neutral-100)] hover:text-[var(--comexa-ink)]"
-              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-            >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[12px]">
-            {pwChecks.map((check) => (
-              <span
-                key={check.label}
-                className={`inline-flex items-center gap-1.5 font-medium ${
-                  check.ok ? "text-[var(--comexa-success)]" : "text-[var(--comexa-ink-muted)]"
-                }`}
-              >
-                {check.ok ? <CheckCircle2 size={13} /> : <Circle size={12} />}
-                {check.label}
-              </span>
-            ))}
-          </div>
+          <input id="password" name="password" type="password" autoComplete="new-password" required value={form.password} onChange={update("password")} className={inputClass} />
         </Field>
 
-        <button type="submit" disabled={busy} className="cx-btn cx-btn--primary mt-1 w-full">
-          <UserPlus size={16} aria-hidden="true" />
-          <span>{busy ? "Création en cours…" : "Créer mon compte"}</span>
+        <Field id="confirmPassword" label="Confirmez le mot de passe">
+          <input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required value={form.confirmPassword} onChange={update("confirmPassword")} className={inputClass} />
+        </Field>
+
+        <button type="submit" disabled={pending} className={primaryButton}>
+          {pending ? "Création du compte…" : "Créer mon compte"}
         </button>
       </form>
     </AuthCard>
-  );
-}
-
-function Field({ id, label, hint, error, children }) {
-  return (
-    <div className="cx-field">
-      <label htmlFor={id} className="cx-label">
-        {label}
-      </label>
-      {children}
-      {hint && !error ? <p className="cx-hint">{hint}</p> : null}
-      {error ? (
-        <p role="alert" className="cx-field-error">
-          {error}
-        </p>
-      ) : null}
-    </div>
   );
 }

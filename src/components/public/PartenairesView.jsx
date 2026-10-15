@@ -1,421 +1,562 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { initialsOf } from "@/lib/public-api";
+import { usePreviousPage } from "@/lib/previous-page";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Award,
-  Building2,
-  CheckCircle2,
-  ChevronDown,
-  Globe,
-  Handshake,
-  HelpCircle,
-  Layers,
-  ShieldCheck,
-  Sparkles,
-  Zap,
-} from "lucide-react";
+export default function PartenairesView({ apiTestimonials, apiPartners }) {
+  useEffect(() => {
+    const sections = document.querySelectorAll(".scroll-reveal");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8%" },
+    );
 
-const PARTNER_PILLARS = [
-  {
-    title: "Complémentarité métier",
-    text: "Design, développement, cloud, paiement ou conseil : chaque partenaire renforce une brique précise des projets que nous livrons.",
-    icon: Layers,
-    badge: "Synergie",
-  },
-  {
-    title: "Exigence de qualité",
-    text: "Méthodes documentées, délais tenus, sécurité des données et interlocuteur identifié tout au long de la mission.",
-    icon: ShieldCheck,
-    badge: "Fiabilité",
-  },
-  {
-    title: "Engagement dans la durée",
-    text: "Nous privilégions des alliances durables plutôt que de la sous-traitance ponctuelle, pour assurer un suivi stable.",
-    icon: Handshake,
-    badge: "Continuité",
-  },
-];
+    sections.forEach((section) => observer.observe(section));
 
-const COLLABORATION_MODELS = [
-  {
-    step: "01",
-    title: "Partenaire technologique",
-    description:
-      "Intégration de solutions d’hébergement, de paiement, de CRM ou d’outils métiers au cœur des plateformes que nous concevons.",
-    points: [
-      "Intégrations API testées et documentées",
-      "Support technique conjoint",
-      "Architecture évolutive et sécurisée",
-    ],
-  },
-  {
-    step: "02",
-    title: "Partenaire d’expertise",
-    description:
-      "Intervention coordonnée sur des volets spécialisés : production audiovisuelle, juridique, cybersécurité ou stratégie média.",
-    points: [
-      "Un seul chef de projet côté Comexa",
-      "Livrables harmonisés à votre charte",
-      "Planning et jalons partagés",
-    ],
-  },
-  {
-    step: "03",
-    title: "Apporteur & réseau",
-    description:
-      "Accompagnement croisé des entreprises qui cherchent un partenaire digital fiable en Algérie et à l’international.",
-    points: [
-      "Qualification rapide des besoins",
-      "Proposition claire sous 48 h",
-      "Suivi transparent dans l’espace dédié",
-    ],
-  },
-];
+    return () => observer.disconnect();
+  }, []);
+ const pathname = usePathname();
+  const pageLabels = {
+    "/": "Accueil",
+    "/services": "Nos services",
+    "/realisations": "Réalisations",
+    "/partenaires": "Partenaires",
+    "/contact": "Contact",
+  };
+  const currentPageLabel = pageLabels[pathname] ?? "Partenaires";
+  const previousPage = usePreviousPage(pathname, pageLabels, { path: "/", label: "Accueil" });
+    const technologies = [
+    {
+      name: "Vercel",
+      category: "DÉPLOIEMENT WEB",
+      description:
+        "Une plateforme pour déployer et héberger des applications web.",
+      website: "vercel.com",
+    },
+    {
+      name: "Strapi",
+      category: "GESTION DE CONTENU",
+      description:
+        "Un CMS headless pour structurer les contenus et les diffuser via API.",
+      website: "strapi.io",
+    },
+    {
+      name: "Shopify",
+      category: "E-COMMERCE",
+      description:
+        "Une plateforme de commerce pour créer et gérer une boutique en ligne.",
+      website: "shopify.com",
+    },
+    {
+      name: "PostgreSQL",
+      category: "BASE DE DONNÉES",
+      description:
+        "Un système de base de données relationnelle open source.",
+      website: "postgresql.org",
+    },
+    {
+      name: "Scalingo",
+      category: "HÉBERGEMENT CLOUD",
+      description:
+        "Une plateforme cloud pour héberger et faire évoluer des applications.",
+      website: "scalingo.com",
+    },
+    {
+      name: "Figma",
+      category: "CONCEPTION D’INTERFACES",
+      description:
+        "Un outil collaboratif pour concevoir des interfaces et des prototypes.",
+      website: "figma.com",
+    },
+  ];
 
-const FALLBACK_FAQS = [
-  {
-    id: "faq-1",
-    question: "Comment devenir partenaire de l’agence Comexa ?",
-    answer:
-      "Présentez-nous votre structure et vos domaines d’intervention via le formulaire de contact (objet « Partenariat »). Nous organisons un premier échange pour identifier les synergies concrètes.",
-  },
-  {
-    id: "faq-2",
-    question: "Qui reste l’interlocuteur du client lors d’un projet commun ?",
-    answer:
-      "Comexa assure la direction de projet, le contrôle qualité et le suivi dans l’espace client afin de garantir un interlocuteur unique et une livraison fluide.",
-  },
-  {
-    id: "faq-3",
-    question: "Intervenez-vous en marque blanche pour d’autres agences ?",
-    answer:
-      "Oui, notre pôle design et développement accompagne régulièrement des agences et cabinets de conseil sur des projets web, applicatifs ou d’identité visuelle.",
-  },
-];
 
-function initialsOf(name) {
+ 
+ // Témoignages publiés depuis l'espace équipe. Repli sur la liste ci-dessous si l'API est vide.
+  const testimonialFallback = [
+    {
+      project: "Atelier Noroît",
+      text: "Comexa a su challenger nos idées sans jamais perdre de vue nos contraintes. Le nouveau site ressemble enfin à notre cabinet.",
+      initials: "CR",
+      name: "Claire Renaud",
+      role: "Associée, Atelier Noroît",
+    },
+    {
+      project: "Comptoir Local",
+      text: "Nous avons gagné en autonomie sur le catalogue et le parcours d’achat est beaucoup plus cohérent avec notre façon de vendre.",
+      initials: "LM",
+      name: "Lucie Morel",
+      role: "Fondatrice, Comptoir Local",
+    },
+    {
+      project: "Oryon Pilot",
+      text: "Une équipe disponible, très claire sur les arbitrages techniques, et un outil adopté naturellement par nos collaborateurs.",
+      initials: "ML",
+      name: "Mehdi Laurent",
+      role: "Responsable opérations, Oryon",
+    },
+  ];
+  const testimonials = apiTestimonials.items?.length
+    ? apiTestimonials.items.map((item) => ({
+        project: item.caseStudy?.title ?? item.authorCompany ?? "Témoignage",
+        text: item.quote,
+        initials: initialsOf(item.authorName),
+        name: item.authorName,
+        role: [item.authorRole, item.authorCompany].filter(Boolean).join(", "),
+      }))
+    : testimonialFallback;
   return (
-    String(name ?? "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase() || "CX"
-  );
-}
+    <main className="w-full overflow-hidden">
+       
+          
+      
+          <section className="scroll-reveal w-full bg-[#f5f7fa] px-5 py-10 sm:px-6 md:px-8 lg:px-[45px]">
+      <div className="mx-auto max-w-[1240px]">
 
-function PartnerCard({ partner }) {
-  const [logoFailed, setLogoFailed] = useState(false);
-  const hasLogo = Boolean(partner.logoUrl) && !logoFailed;
-
-  return (
-    <article className="cx-card cx-card--interactive flex flex-col justify-between gap-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex h-16 w-28 items-center justify-center overflow-hidden rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)] p-3">
-          {hasLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={partner.logoUrl}
-              alt={`Logo ${partner.name}`}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              onError={() => setLogoFailed(true)}
-              className="max-h-10 w-auto max-w-full object-contain"
-            />
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-[var(--comexa-ink)]">
-              <Building2 size={17} className="text-[var(--comexa-accent)]" aria-hidden="true" />
-              {initialsOf(partner.name)}
+        <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
+            <Link
+              href={previousPage.path}
+              className="transition hover:text-[#10294a]"
+            >
+              {previousPage.label}
+            </Link>
+            <span className="text-[18px] text-[#10294a]">›</span>
+            <span className="font-medium text-[#10294a]">
+              {currentPageLabel}
             </span>
-          )}
-        </div>
-        <span className="cx-badge cx-badge--info">Partenaire</span>
-      </div>
-
-      <div>
-        <h3 className="cx-h3">{partner.name}</h3>
-        <p className="cx-small mt-1.5">
-          Membre de l’écosystème de partenaires sélectionnés par Comexa.
-        </p>
-      </div>
-
-      <div className="border-t border-[var(--comexa-border-soft)] pt-3.5">
-        {partner.websiteUrl ? (
-          <a
-            href={partner.websiteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[var(--comexa-accent-strong)] hover:underline"
-          >
-            <Globe size={14} aria-hidden="true" />
-            <span>Visiter le site officiel</span>
-            <ArrowUpRight size={14} aria-hidden="true" />
-          </a>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-[var(--comexa-ink-muted)]">
-            <Award size={14} className="text-[var(--comexa-accent)]" aria-hidden="true" />
-            Partenaire référencé Comexa
-          </span>
-        )}
-      </div>
-    </article>
-  );
-}
-
-export default function PartenairesView({ partners = [], faqs = [] }) {
-  const faqList = faqs.length > 0 ? faqs : FALLBACK_FAQS;
-  const [openFaq, setOpenFaq] = useState(faqList[0]?.id ?? null);
-
-  return (
-    <div>
-      {/* ====================================================================
-          1. HERO — ÉCOSYSTÈME & ALLIANCES
-         ==================================================================== */}
-      <section className="cx-pub-hero">
-        <div className="cx-container">
-          <div className="cx-pub-split">
-            <div className="flex flex-col items-start gap-5">
-              <span className="cx-eyebrow">Écosystème &amp; Alliances</span>
-              <h1 className="cx-h1">
-                Des partenaires choisis pour la qualité de leurs livrables.
-              </h1>
-              <p className="cx-lead">
-                Pour garantir des projets fiables de bout en bout, Comexa s’entoure d’acteurs
-                technologiques et métiers partageant la même rigueur d’exécution.
-              </p>
-              <div className="flex flex-wrap gap-3 pt-1">
-                <Link href="/contact?sujet=Partenariat" className="cx-btn cx-btn--primary">
-                  Proposer un partenariat
-                  <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-                <Link href="/realisations" className="cx-btn cx-btn--secondary">
-                  Découvrir nos réalisations
-                </Link>
-              </div>
-            </div>
-
-            <aside className="cx-card cx-card--accent flex flex-col gap-5">
-              <div className="flex items-center justify-between gap-3">
-                <span className="cx-badge cx-badge--info">Réseau Comexa</span>
-                <Sparkles size={18} className="text-[var(--comexa-accent)]" aria-hidden="true" />
-              </div>
-              <h2 className="cx-h3">
-                Une direction de projet unique, des compétences démultipliées.
-              </h2>
-              <p className="cx-body">
-                Vous conservez un interlocuteur unique chez Comexa, tout en bénéficiant
-                d’intégrations certifiées et d’expertises pointues lorsque votre projet l’exige.
-              </p>
-              <ul className="cx-pub-checks">
-                <li>Sélection sur critères techniques et méthodologiques</li>
-                <li>Suivi centralisé dans votre espace client Comexa</li>
-                <li>Confidentialité et respect des engagements contractuels</li>
-              </ul>
-            </aside>
           </div>
-        </div>
-      </section>
 
-      {/* ====================================================================
-          2. LISTE DES PARTENAIRES ACTIFS
-         ==================================================================== */}
-      <section className="cx-pub-section">
-        <div className="cx-container">
-          <div className="cx-pub-section__head">
-            <div>
-              <span className="cx-eyebrow">Ils collaborent avec nous</span>
-              <h2 className="cx-h2 mt-3">Nos partenaires référencés</h2>
-            </div>
-            <p className="cx-body">
-              Chaque structure référencée ci-dessous intervient en synergie avec nos équipes.
+        {/* Hero */}
+        <div className="relative mt-5 min-h-[250px] sm:min-h-[290px] lg:min-h-[350px]">
+
+          {/* LEFT CONTENT */}
+          <div className="relative z-10 w-full max-w-[720px]">
+
+            {/* Label */}
+            <span className="inline-flex rounded-[8px] bg-[#168fe5] px-3 py-[7px] text-[10px] font-medium text-[#08203e]">
+              NAVIGUER LE DIGITAL ENSEMBLE
+            </span>
+
+            {/* Title */}
+            <h1 className="mt-6 text-[clamp(2.35rem,8vw,3.75rem)] font-medium leading-[1.03] tracking-[-2px] text-[#10294a]">
+              Le bon cap se construit
+              <br />
+              ensemble.
+            </h1>
+
+            {/* Description */}
+            <p className="mt-5 w-full max-w-[650px] text-[14px] leading-[1.7] text-[#69758a]">
+              Partenaires, technologies et collaborations : découvrez
+              l’écosystème qui accompagne notre expertise en développement
+              web.
             </p>
+
+            {/* Button */}
+            <button className="mt-5 flex min-h-[46px] w-full items-center justify-center gap-4 rounded-[14px] bg-[#168fe5] px-5 py-3.5 text-[13px] font-medium text-[#08203e] transition duration-200 hover:bg-[#0c82d2] sm:w-fit">
+              <span>Découvrir notre écosystème</span>
+              <span className="text-[18px]">↗</span>
+            </button>
           </div>
 
-          {partners.length > 0 ? (
-            <div className="cx-pub-grid-3">
-              {partners.map((partner) => (
-                <PartnerCard key={partner.id ?? partner.name} partner={partner} />
-              ))}
+          {/* RIGHT ILLUSTRATION */}
+          <div className="absolute right-0 top-0 hidden h-[330px] w-[430px] lg:block">
+
+            {/* Grand cercle */}
+            <div className="absolute left-[80px] top-[5px] h-[255px] w-[255px] rounded-full border-[1.5px] border-[#4aaef0]" />
+
+            {/* Cercle intérieur pointillé */}
+            <div className="absolute left-[116px] top-[41px] h-[185px] w-[185px] rounded-full border-[1.5px] border-dashed border-[#4aaef0]" />
+
+            {/* COMEXA */}
+            <div className="absolute left-[147px] top-[80px] flex h-[105px] w-[135px] items-center justify-center rounded-[24px] border border-[#10294a] bg-[#10294a] text-[20px] font-bold lowercase text-white shadow-[6px_7px_0_#10294a]">
+              comexa
             </div>
-          ) : (
-            <div className="cx-card flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-              <div className="flex items-start gap-4">
-                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--comexa-blue-50)] text-[var(--comexa-accent)]">
-                  <Handshake size={22} strokeWidth={1.8} aria-hidden="true" />
-                </span>
-                <div>
-                  <h3 className="cx-h3">Vous souhaitez rejoindre notre réseau de partenaires ?</h3>
-                  <p className="cx-body mt-1">
-                    Nous développons activement notre réseau d’experts techniques, d’éditeurs et d’agences partenaires.
+
+            {/* Concevoir */}
+            <div className="absolute left-[23px] top-[13px] flex h-[58px] w-[115px] items-center justify-center rounded-[16px] border-[1.5px] border-[#10294a] bg-white text-[14px] font-medium text-[#10294a] shadow-[5px_7px_0_#10294a]">
+              Concevoir
+            </div>
+
+            {/* Développer */}
+            <div className="absolute right-[8px] top-[37px] flex h-[58px] w-[123px] items-center justify-center rounded-[15px] border-[1.5px] border-[#10294a] bg-[#168fe5] text-[14px] font-medium text-[#08203e] shadow-[5px_7px_0_#10294a]">
+              Développer
+            </div>
+
+            {/* Faire évoluer */}
+            <div className="absolute bottom-[8px] left-[138px] flex h-[57px] w-[135px] items-center justify-center rounded-[15px] border-[1.5px] border-[#10294a] bg-white text-[14px] font-medium text-[#10294a] shadow-[5px_7px_0_#10294a]">
+              Faire évoluer
+            </div>
+
+            {/* Petit point */}
+            <div className="absolute bottom-[76px] left-[48px] h-[11px] w-[11px] rounded-full bg-[#10294a]" />
+
+            {/* Losange */}
+            <div className="absolute bottom-[64px] right-[17px] h-[27px] w-[27px] rotate-45 rounded-[5px] bg-[#4aaef0]" />
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+
+   
+      <section className="scroll-reveal section-reveal-delay-1 w-full bg-white px-5 py-12 sm:px-6 md:px-10 lg:px-12">
+      <div className="mx-auto max-w-[1180px]">
+
+      
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+
+          <div>
+            <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[6px] text-[11px] font-medium uppercase text-[#08203e]">
+              NOTRE ÉCOSYSTÈME
+            </span>
+
+            <h2 className="mt-4 max-w-[520px] text-[30px] font-medium leading-[1.08] tracking-[-1px] text-[#10294a] md:text-[38px]">
+              Partenaires & technologies
+              <br />
+              de confiance
+            </h2>
+          </div>
+
+          <p className="max-w-[280px] text-[13px] leading-[1.55] text-[#69758a]">
+            Les noms présents sur notre accueil, réunis ici pour mieux
+            comprendre leur domaine d’expertise.
+          </p>
+        </div>
+
+       
+        <div className="mt-7 flex items-center gap-3 rounded-[13px] bg-[#e7f2fc] px-4 py-3">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#10294a] text-[10px]">
+            i
+          </div>
+
+          <p className="text-[11px] leading-[1.5] text-[#10294a] md:text-[14px]">
+            Ces références technologiques ne constituent pas une annonce de
+            partenariat officiel. La nature des relations avec Comexa reste à
+            compléter.
+          </p>
+        </div>
+
+        {/* PARTENAIRES (API) : affiché seulement s'il existe des partenaires publiés */}
+        {apiPartners?.items?.length ? (
+          <div className="mt-7">
+            <h3 className="text-[18px] font-medium text-[#10294a]">Nos partenaires</h3>
+            <ul className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+              {apiPartners.items.map((partner) => (
+                <PartnerCard key={partner.id} partner={partner} />
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {/* TECHNOLOGIES */}
+        <div className="mt-7 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {technologies.map((technology) => (
+            <article
+              key={technology.name}
+              className="flex min-h-[255px] flex-col rounded-[18px] border-[1.5px] border-[#10294a] bg-white p-[19px] shadow-[0_7px_0_#10294a]"
+            >
+
+              {/* LOGO PLACEHOLDER */}
+              <div className="flex h-[73px] items-center justify-center rounded-[7px] border border-dashed border-[#cbd8e7] bg-[#e7f2fc]">
+                <div className="text-center">
+                  <p className="text-[22px] font-medium text-[#10294a]">
+                    {technology.name}
+                  </p>
+
+                  <p className="mt-1 text-[13px] text-[#69758a]">
+                    Logo officiel à fournir
                   </p>
                 </div>
               </div>
-              <Link href="/contact?sujet=Partenariat" className="cx-btn cx-btn--primary shrink-0">
-                Prendre contact
-                <ArrowRight size={15} aria-hidden="true" />
-              </Link>
-            </div>
-          )}
-        </div>
-      </section>
 
-      {/* ====================================================================
-          3. CRITÈRES DE SÉLECTION (3 Piliers)
-         ==================================================================== */}
-      <section className="cx-pub-section cx-pub-section--tint">
-        <div className="cx-container">
-          <div className="cx-pub-section__head">
-            <div>
-              <span className="cx-eyebrow">Nos engagements</span>
-              <h2 className="cx-h2 mt-3">Sur quelles bases travaillons-nous ensemble ?</h2>
-            </div>
-            <p className="cx-body">
-              Un partenariat utile repose sur des processus clairs et une responsabilité partagée.
-            </p>
-          </div>
+              {/* CONTENT */}
+              <div className="mt-4">
 
-          <div className="cx-pub-grid-3">
-            {PARTNER_PILLARS.map((pillar) => {
-              const Icon = pillar.icon;
-              return (
-                <article key={pillar.title} className="cx-card flex flex-col gap-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--comexa-blue-50)] text-[var(--comexa-accent-strong)]">
-                      <Icon size={20} strokeWidth={1.8} aria-hidden="true" />
-                    </span>
-                    <span className="cx-badge cx-badge--info">{pillar.badge}</span>
-                  </div>
-                  <h3 className="cx-h3">{pillar.title}</h3>
-                  <p className="cx-body">{pillar.text}</p>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+                <p className="text-[12px] uppercase text-[#69758a]">
+                  {technology.category}
+                </p>
 
-      {/* ====================================================================
-          4. MODÈLES DE COLLABORATION
-         ==================================================================== */}
-      <section className="cx-pub-section">
-        <div className="cx-container">
-          <div className="cx-pub-section__head">
-            <div>
-              <span className="cx-eyebrow">Formats d’alliance</span>
-              <h2 className="cx-h2 mt-3">Trois façons de collaborer avec Comexa</h2>
-            </div>
-          </div>
+                <h3 className="mt-2 text-[20px] font-medium leading-none text-[#10294a]">
+                  {technology.name}
+                </h3>
 
-          <div className="cx-pub-grid-3">
-            {COLLABORATION_MODELS.map((model) => (
-              <article key={model.step} className="cx-card cx-card--interactive flex flex-col justify-between gap-5">
-                <div className="flex flex-col gap-3">
-                  <span className="cx-tabular inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--comexa-ink)] text-[13px] font-bold text-white">
-                    {model.step}
+                <p className="mt-2 min-h-[38px] text-[15px] leading-[1.5] text-[#69758a]">
+                  {technology.description}
+                </p>
+
+              </div>
+
+              {/* WEBSITE */}
+              <div className="mt-auto border-t border-[#d9e0e8] pt-3">
+                <a
+                  href={`https://${technology.website}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between text-[14px] font-medium text-[#10294a] underline underline-offset-2"
+                >
+                  <span>{technology.website}</span>
+                  <span className="text-[13px] no-underline">
+                    ↗
                   </span>
-                  <h3 className="cx-h3">{model.title}</h3>
-                  <p className="cx-body">{model.description}</p>
-                </div>
-                <ul className="cx-pub-checks border-t border-[var(--comexa-border-soft)] pt-4">
-                  {model.points.map((pt) => (
-                    <li key={pt}>{pt}</li>
-                  ))}
-                </ul>
-              </article>
-            ))}
-          </div>
+                </a>
+              </div>
+
+            </article>
+          ))}
         </div>
-      </section>
 
-      {/* ====================================================================
-          5. FAQ PARTENAIRES (Accordéon fluide)
-         ==================================================================== */}
-      <section className="cx-pub-section cx-pub-section--tint">
-        <div className="cx-container">
-          <div className="cx-pub-split">
-            <div className="flex flex-col items-start gap-4">
-              <span className="cx-eyebrow">Questions fréquentes</span>
-              <h2 className="cx-h2">Tout savoir sur nos partenariats</h2>
-              <p className="cx-body">
-                Une question spécifique sur un appel d’offres conjoint ou une intervention en
-                sous-traitance ? Écrivez-nous directement.
+        {/* FOOTNOTE */}
+        <p className="mt-7 text-[15px] leading-[1.5] text-[#69758a]">
+          Descriptions et sites éditeurs proposés à titre informatif, à
+          valider avant publication. Relations avec Comexa à compléter ;
+          logos officiels à fournir.
+        </p>
+
+      </div>
+    </section>
+ 
+
+      <section className="scroll-reveal section-reveal-delay-2 w-full border-b-2 border-[#168fe5] bg-[#0d2b4d] px-5 py-14 text-white md:px-10 lg:px-[54px]">
+      <div className="mx-auto max-w-[1100px]">
+
+        {/* HEADER */}
+        <div className="flex flex-col justify-between gap-7 md:flex-row md:items-end">
+
+          <div>
+            <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[7px] text-[11px] font-medium uppercase text-[#08203e]">
+              ILS EN PARLENT
+            </span>
+
+            <h2 className="mt-5 max-w-[650px] text-[clamp(1.8rem,5vw,2.375rem)] font-medium leading-[1.08] tracking-[-1px]">
+              Des collaborations qui restent
+              <br />
+              simples et humaines.
+            </h2>
+          </div>
+
+          <p className="max-w-[310px] text-[11px] leading-[1.6] text-[#b9c8d9]">
+            Les témoignages de notre accueil, associés aux projets
+            correspondants. La relation compte autant que le résultat.
+          </p>
+
+        </div>
+
+        {/* CARDS */}
+        <div className="mt-9 grid grid-cols-1 gap-5 md:grid-cols-3">
+
+          {testimonials.map((testimonial) => (
+            <article
+              key={`${testimonial.name}-${testimonial.project}`}
+              className="flex min-h-[310px] flex-col rounded-[22px] border border-[#91b1cf] bg-[#163958] p-6"
+            >
+
+              {/* PROJECT + QUOTE */}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[#c4d2e1]">
+                  {testimonial.project}
+                </span>
+
+                <span className="text-[23px] font-bold leading-none text-[#168fe5]">
+                  “
+                </span>
+              </div>
+
+              {/* TEXT */}
+              <p className="mt-8 text-[15px] font-normal leading-[1.55] text-white">
+                {testimonial.text}
               </p>
-              <Link href="/contact?sujet=Partenariat" className="cx-btn cx-btn--secondary mt-2">
-                Poser une question à l’équipe
-              </Link>
-            </div>
 
-            <div className="flex flex-col gap-3">
-              {faqList.map((item) => {
-                const isOpen = openFaq === item.id;
-                return (
-                  <div
-                    key={item.id ?? item.question}
-                    className="cx-card !p-0 overflow-hidden transition-all"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setOpenFaq(isOpen ? null : item.id)}
-                      aria-expanded={isOpen}
-                      className="flex w-full items-center justify-between gap-4 px-6 py-4 text-left font-semibold text-[var(--comexa-ink)] hover:bg-[var(--comexa-blue-50)]/40 transition-colors"
-                    >
-                      <span className="flex items-center gap-3 text-[15.5px]">
-                        <HelpCircle size={18} className="shrink-0 text-[var(--comexa-accent)]" aria-hidden="true" />
-                        <span>{item.question}</span>
-                      </span>
-                      <ChevronDown
-                        size={18}
-                        className={`shrink-0 text-[var(--comexa-ink-muted)] transition-transform duration-200 ${
-                          isOpen ? "rotate-180 text-[var(--comexa-accent)]" : ""
-                        }`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                    {isOpen ? (
-                      <div className="border-t border-[var(--comexa-border-soft)] px-6 py-4 text-[14.5px] leading-relaxed text-[var(--comexa-ink-soft)]">
-                        {item.answer}
-                      </div>
-                    ) : null}
+              {/* AUTHOR */}
+              <div className="mt-auto border-t border-[#55748f] pt-5">
+
+                <div className="flex items-center gap-3">
+
+                  <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-full bg-[#edf4fa] text-[9px] font-medium text-[#163958]">
+                    {testimonial.initials}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* ====================================================================
-          6. CTA BANNER
-         ==================================================================== */}
-      <section className="cx-pub-section">
-        <div className="cx-container">
-          <div className="cx-pub-cta">
-            <div>
-              <h2>Construisons votre prochain projet ensemble.</h2>
-              <p className="mt-2">
-                Que vous soyez une entreprise porteuse d’un projet ou un partenaire potentiel,
-                notre équipe vous répond sous 24 à 48 heures ouvrées.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/contact?sujet=Partenariat" className="cx-btn cx-btn--accent">
-                Initier un échange
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-              <Link
-                href="/services"
-                className="cx-btn cx-btn--secondary !bg-white/10 !text-white !border-white/25 hover:!bg-white/20"
+                  <div>
+                    <p className="text-[11px] font-medium text-white">
+                      {testimonial.name}
+                    </p>
+
+                    <p className="mt-[2px] text-[8px] text-[#9db4c9]">
+                      {testimonial.role}
+                    </p>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </article>
+          ))}
+
+        </div>
+
+        {/* FOOTNOTE */}
+        <p className="mt-8 text-[9px] text-[#9db4c9]">
+          Témoignages repris de l’accueil Comexa.
+        </p>
+
+      </div>
+    </section>
+
+      <section className="scroll-reveal section-reveal-delay-3 w-full bg-[#f5f7fa] px-5 py-14 md:px-10 lg:px-[54px]">
+      <div className="mx-auto max-w-[1110px]">
+
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_395px]">
+
+          {/* LEFT */}
+          <div>
+
+            <span className="inline-flex rounded-[7px] bg-[#168fe5] px-3 py-[7px] text-[10px] font-medium uppercase text-[#08203e]">
+              DEVENIR PARTENAIRE
+            </span>
+
+            <h2 className="mt-5 max-w-[550px] text-[clamp(1.9rem,5vw,2.6875rem)] font-medium leading-[1.08] tracking-[-1.5px] text-[#10294a]">
+              Et si nous prenions
+              <br />
+              le même cap ?
+            </h2>
+
+            <p className="mt-5 max-w-[540px] text-[15px] leading-[1.7] text-[#69758a]">
+              Vous souhaitez associer votre expertise à notre savoir-faire web ?
+              Présentez-nous votre activité et ce que nous pourrions construire
+              ensemble.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-5">
+
+              <a
+                href="#contact"
+                className="flex items-center gap-4 rounded-[14px] bg-[#10294a] px-5 py-3.5 text-[16px] font-medium text-white transition hover:bg-[#173b64]"
               >
-                Voir nos expertises
-              </Link>
+                <span>Proposer une collaboration</span>
+                <span className="text-[17px]">↗</span>
+              </a>
+
+              <a
+                href="mailto:bonjour@comexa.dz"
+                className="text-[15px] font-medium text-[#10294a] underline underline-offset-4"
+              >
+                bonjour@comexa.dz
+              </a>
+
             </div>
           </div>
+
+          <div className="relative overflow-hidden rounded-[22px] border-[1.5px] border-[#10294a] bg-[#238dde] p-6 shadow-[0_8px_0_#10294a] md:p-7">
+
+            <div className="absolute left-6 top-6 flex">
+              <div className="h-[43px] w-[43px] rounded-full border-[1.5px] border-[#10294a]" />
+              <div className="-ml-[10px] h-[43px] w-[43px] rounded-full border-[1.5px] border-[#10294a]" />
+            </div>
+
+           
+            <div className="absolute right-7 top-7 h-[22px] w-[22px] rotate-45 rounded-[4px] bg-[#10294a]" />
+
+            <div className="relative z-10 mt-[65px]">
+
+              <h3 className="text-[23px] font-medium text-[#08203e]">
+                Pour commencer, simplement.
+              </h3>
+
+              <div className="mt-5 space-y-4">
+
+                <div className="flex gap-3">
+                  <span className="text-[15px] font-medium text-[#08203e]">
+                    01
+                  </span>
+
+
+                  <p className="text-[15px] text-[#08203e]">
+                    Votre activité et votre expertise.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[15px] font-medium text-[#08203e]">
+                    02
+                  </span>
+
+                  <p className="text-[15px] text-[#08203e]">
+                    Votre idée de collaboration.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[15px] font-medium text-[#08203e]">
+                    03
+                  </span>
+
+                  <p className="text-[15px] text-[#08203e]">
+                    Vos attentes et vos disponibilités.
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+
         </div>
-      </section>
-    </div>
+
+      </div>
+    </section>
+
+    </main>
+  );
+}
+
+/**
+ * Carte partenaire : logo (URL externe, https) puis nom. Si l'image ne charge pas,
+ * on retombe sur le nom seul : un logo cassé ne doit jamais laisser une case vide.
+ */
+function PartnerCard({ partner }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const logoRef = useRef(null);
+  // Le HTML est rendu côté serveur : une image cassée peut échouer avant l'hydratation,
+  // auquel cas onError ne se déclenche jamais. On contrôle donc l'état au montage.
+  useEffect(() => {
+    const img = logoRef.current;
+    if (img && img.complete && img.naturalWidth === 0) setLogoFailed(true);
+  }, []);
+  const showLogo = Boolean(partner.logoUrl) && !logoFailed;
+  const label = partner.websiteUrl ? (
+    <a href={partner.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+      {partner.name}
+    </a>
+  ) : (
+    partner.name
+  );
+
+  return (
+    <li className="rounded-[13px] border border-[#10294a]/15 bg-white p-4 text-center text-[14px] font-medium text-[#10294a]">
+      {showLogo ? (
+        // Logo hébergé hors du site : balise <img> simple, sans optimisation Next (domaine non déclaré).
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          ref={logoRef}
+          src={partner.logoUrl}
+          alt={`Logo ${partner.name}`}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setLogoFailed(true)}
+          className="mx-auto mb-3 h-12 max-w-full object-contain"
+        />
+      ) : null}
+      {label}
+    </li>
   );
 }

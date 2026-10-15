@@ -1,640 +1,640 @@
-"use client";
-
-import { Suspense, useEffect, useMemo, useState } from "react";
+'use client';
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import {
-  ArrowRight,
-  Building2,
-  CheckCircle2,
-  Clock,
-  HelpCircle,
-  Mail,
-  MapPin,
-  MessageSquare,
-  Phone,
-  Send,
-  ShieldCheck,
-  Sparkles,
-  UserCheck,
-} from "lucide-react";
 import { apiFetch, messageOf } from "@/lib/api";
+import { usePreviousPage } from "@/lib/previous-page";
 
-const STORAGE_KEY = "comexa_contact_draft_v1";
+const EMPTY_FORM = { firstName: "", lastName: "", email: "", companyName: "", message: "" };
 
-const SUBJECT_PRESETS = [
-  "Création ou refonte de site web",
-  "Identité visuelle & Branding",
-  "Application web ou mobile sur mesure",
-  "Stratégie digitale & Acquisition",
-  "Partenariat",
-  "Autre projet",
-];
-
-const CONTACT_CHANNELS = [
-  {
-    icon: Mail,
-    title: "Courriel direct",
-    value: "contact@comexa.dz",
-    sub: "Réponse sous 24 à 48 h ouvrées",
-    href: "mailto:contact@comexa.dz",
-  },
-  {
-    icon: Clock,
-    title: "Horaires de l’équipe",
-    value: "Dimanche – Jeudi · 9h00 – 18h00",
-    sub: "Fuseau d’Alger (UTC+1) & accompagnement international",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Confidentialité garantie",
-    value: "Échanges protégés & chiffrés",
-    sub: "Possibilité de signer un accord de confidentialité (NDA) dès le 1er échange",
-  },
-];
-
-const PROCESS_STEPS = [
-  {
-    step: "01",
-    title: "Qualification sous 48 h",
-    text: "Un chef de projet analyse votre demande et vérifie l’adéquation technique et budgétaire.",
-  },
-  {
-    step: "02",
-    title: "Échange de cadrage",
-    text: "Un point court de 30 minutes en visioconférence pour clarifier vos objectifs et vos délais.",
-  },
-  {
-    step: "03",
-    title: "Proposition & Espace client",
-    text: "Vous recevez un devis détaillé et suivez l’ensemble du projet dans votre espace Comexa.",
-  },
-];
-
-const EMPTY_FORM = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  companyName: "",
-  subject: "",
-  message: "",
-  consent: false,
-};
-
-function ContactFormContent({ faqs = [] }) {
-  const searchParams = useSearchParams();
-  const packParam = searchParams.get("pack");
-  const subjectParam = searchParams.get("sujet");
-
-  const [form, setForm] = useState(() => {
-    const defaultSubject = packParam ? `Pack ${packParam}` : subjectParam ?? "";
-    if (typeof window !== "undefined") {
-      try {
-        const saved = window.sessionStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          return {
-            ...EMPTY_FORM,
-            ...parsed,
-            subject: packParam ? `Pack ${packParam}` : subjectParam || parsed.subject || defaultSubject,
-          };
-        }
-      } catch {
-        // ignore storage errors
-      }
-    }
-    return {
-      ...EMPTY_FORM,
-      subject: defaultSubject,
-    };
-  });
-  const [touched, setTouched] = useState({});
-  const [busy, setBusy] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
-  const [confirmation, setConfirmation] = useState(null);
-
-  // Sauvegarde automatique du brouillon
+export default function ContactView({ apiFaqs }) {
   useEffect(() => {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(form));
-    } catch {
-      // ignore
-    }
-  }, [form]);
+    const sections = document.querySelectorAll(".scroll-reveal");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -8%" },
+    );
 
-  const errors = useMemo(() => {
-    const out = {};
-    if (form.firstName.trim().length < 2) {
-      out.firstName = "Indiquez votre prénom (2 caractères minimum).";
-    }
-    if (form.lastName.trim().length < 2) {
-      out.lastName = "Indiquez votre nom (2 caractères minimum).";
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      out.email = "Indiquez une adresse e-mail valide (ex. nom@entreprise.com).";
-    }
-    if (form.message.trim().length < 10) {
-      out.message = "Décrivez brièvement votre besoin (10 caractères minimum).";
-    }
-    if (!form.consent) {
-      out.consent = "Veuillez accepter d’être recontacté par l’équipe Comexa.";
-    }
-    return out;
-  }, [form]);
+    sections.forEach((section) => observer.observe(section));
 
-  const isValid = Object.keys(errors).length === 0;
+    return () => observer.disconnect();
+  }, []);
+   const pathname = usePathname();
+    const pageLabels = {
+      "/": "Accueil",
+      "/services": "Nos services",
+      "/realisations": "Réalisations",
+      "/partenaires": "Partenaires",
+      "/contact": "Contact",
+    };
+    const currentPageLabel = pageLabels[pathname] ?? "Contact";
+    const previousPage = usePreviousPage(pathname, pageLabels, { path: "/", label: "Accueil" });
 
-  function updateField(name, value) {
-    setForm((current) => ({ ...current, [name]: value }));
-  }
+     const [projectType, setProjectType] = useState("Site vitrine");
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [consent, setConsent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
-  function markTouched(name) {
-    setTouched((current) => ({ ...current, [name]: true }));
-  }
+  const updateField = (field) => (event) =>
+    setForm((current) => ({ ...current, [field]: event.target.value }));
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setTouched({
-      firstName: true,
-      lastName: true,
-      email: true,
-      message: true,
-      consent: true,
-    });
-    if (!isValid || busy) return;
+    if (sending) return;
 
-    setBusy(true);
-    setSubmitError(null);
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+    const email = form.email.trim();
+    const message = form.message.trim();
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      setFeedback({ tone: "error", text: "Indiquez votre prénom et votre nom (2 caractères minimum)." });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFeedback({ tone: "error", text: "Indiquez une adresse e-mail valide." });
+      return;
+    }
+    if (message.length < 10) {
+      setFeedback({ tone: "error", text: "Décrivez votre projet en quelques phrases (10 caractères minimum)." });
+      return;
+    }
+    if (!consent) {
+      setFeedback({ tone: "error", text: "Merci d'accepter que Comexa utilise vos informations pour répondre à votre demande." });
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setSending(true);
+    setFeedback(null);
     try {
-      const payload = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
-        ...(form.companyName.trim() ? { companyName: form.companyName.trim() } : {}),
-        ...(form.subject.trim() ? { subject: form.subject.trim() } : {}),
-        message: form.message.trim(),
-        source: "site-contact",
-        consent: true,
-      };
-      const { data } = await apiFetch("/public/contact-requests", {
+      await apiFetch("/public/contact-requests", {
         method: "POST",
-        body: payload,
-      });
-      setConfirmation({
-        reference: data?.reference ?? null,
-        firstName: form.firstName.trim(),
-        email: form.email.trim(),
+        body: {
+          firstName,
+          lastName,
+          email,
+          companyName: form.companyName.trim() || undefined,
+          subject: projectType,
+          message,
+          source: pathname,
+          utmSource: params.get("utm_source") || undefined,
+          utmMedium: params.get("utm_medium") || undefined,
+          utmCampaign: params.get("utm_campaign") || undefined,
+        },
       });
       setForm(EMPTY_FORM);
-      setTouched({});
-      try {
-        sessionStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // ignore
-      }
-    } catch (caught) {
-      setSubmitError(messageOf(caught));
+      setConsent(false);
+      setFeedback({ tone: "success", text: "Merci ! Votre demande est bien enregistrée. Nous revenons vers vous rapidement." });
+    } catch (error) {
+      setFeedback({ tone: "error", text: messageOf(error) });
     } finally {
-      setBusy(false);
+      setSending(false);
     }
   }
 
+  const projectTypes = [
+    "Site vitrine",
+    "E-commerce",
+    "Application web",
+    "Refonte",
+    "Autre",
+  ];
+  const [openIndex, setOpenIndex] = useState(0);
+
+  const fallbackQuestions = [
+    {
+      number: "01",
+      question: "Quels types de sites développez-vous ?",
+      answer:
+        "Sites vitrines, boutiques e-commerce et applications web sur mesure : nous concevons des outils adaptés à vos usages. Nous intervenons aussi sur la refonte ou l’évolution d’un site existant.",
+    },
+    {
+      number: "02",
+      question: "Comment obtenir un devis pour mon projet ?",
+      answer:
+        "Décrivez votre besoin dans le formulaire. Après un premier échange pour cadrer les objectifs, les fonctionnalités et les contraintes, nous vous proposons un devis détaillé. Le coût dépend du périmètre, pas d’un forfait imposé.",
+    },
+    {
+      number: "03",
+      question: "Quels sont les délais de réalisation ?",
+      answer:
+        "Ils varient selon la taille du projet, les fonctionnalités et la disponibilité des contenus. Nous définissons ensemble un calendrier réaliste avant de démarrer, avec des étapes de validation et une date de mise en ligne partagée.",
+    },
+    {
+      number: "04",
+      question: "Que dois-je fournir pour démarrer ?",
+      answer:
+        "Vos objectifs, votre identité visuelle, vos textes et vos images sont un bon point de départ. Si tout n’est pas prêt, nous vous aidons à organiser les éléments manquants et à prioriser ce qui est nécessaire.",
+    },
+    {
+      number: "05",
+      question: "Proposez-vous un suivi après la mise en ligne ?",
+      answer:
+        "Oui, nous pouvons assurer la maintenance, les mises à jour de sécurité et l’optimisation des performances. Un accompagnement adapté à votre site permet aussi d’ajouter de nouvelles fonctionnalités au fil de vos besoins.",
+    },
+  ];
+  // FAQ publiée (API) ; sans données, le contenu de repli reste affiché.
+  const questions = apiFaqs?.items?.length
+    ? apiFaqs.items.map((faq, index) => ({ number: String(index + 1).padStart(2, "0"), question: faq.question, answer: faq.answer }))
+    : fallbackQuestions;
+
+  const toggleQuestion = (index) => {
+    setOpenIndex(openIndex === index ? -1 : index);
+  };
+
   return (
-    <div>
-      {/* ====================================================================
-          1. HERO & FORMULAIRE INTERACTIF
-         ==================================================================== */}
-      <section className="cx-pub-hero">
-        <div className="cx-container">
-          <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:items-start">
-            {/* Colonne gauche : contexte, canaux et étapes */}
-            <div className="flex flex-col gap-6 lg:col-span-5">
-              <div className="flex flex-col items-start gap-4">
-                <span className="cx-eyebrow">Parlons de votre projet</span>
-                <h1 className="cx-h1 !text-[clamp(2rem,3.4vw,2.85rem)]">
-                  Un interlocuteur dédié pour cadrer votre besoin.
-                </h1>
-                <p className="cx-lead">
-                  Décrivez-nous votre contexte, vos objectifs ou le pack qui vous intéresse. Notre
-                  équipe revient vers vous sous 24 à 48 heures ouvrées avec une réponse structurée.
-                </p>
-              </div>
+    <main className="min-h-screen bg-[#f5f7fa] text-[#10294a]">
 
-              <div className="flex flex-col gap-3">
-                {CONTACT_CHANNELS.map((channel) => {
-                  const Icon = channel.icon;
-                  return (
-                    <div
-                      key={channel.title}
-                      className="cx-card flex items-start gap-4 !p-4"
-                    >
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--comexa-blue-50)] text-[var(--comexa-accent-strong)]">
-                        <Icon size={19} strokeWidth={1.8} aria-hidden="true" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-bold uppercase tracking-[0.06em] text-[var(--comexa-ink-muted)]">
-                          {channel.title}
-                        </p>
-                        {channel.href ? (
-                          <a
-                            href={channel.href}
-                            className="mt-0.5 block text-[15px] font-bold text-[var(--comexa-ink)] hover:text-[var(--comexa-accent)] hover:underline"
-                          >
-                            {channel.value}
-                          </a>
-                        ) : (
-                          <p className="mt-0.5 text-[15px] font-bold text-[var(--comexa-ink)]">
-                            {channel.value}
-                          </p>
-                        )}
-                        <p className="cx-small mt-0.5">{channel.sub}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+      <section className="scroll-reveal">
+        <div className="mx-auto max-w-[1300px] px-5 pb-10 pt-8 sm:px-6 md:px-10 md:pt-10">
 
-              <div className="cx-card cx-card--muted !p-5">
-                <p className="text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--comexa-accent-strong)]">
-                  Vous préférez commander en ligne ?
-                </p>
-                <p className="cx-small mt-1.5">
-                  Créez votre espace client en 1 minute pour commander directement un pack tarifé et
-                  suivre l’avancement de votre projet.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Link href="/inscription" className="cx-btn cx-btn--secondary cx-btn--sm">
-                    Créer mon espace client
-                  </Link>
-                  <Link href="/services" className="cx-btn cx-btn--ghost cx-btn--sm">
-                    Comparer les packs →
-                  </Link>
-                </div>
-              </div>
+       
+           <div className="flex items-center gap-3 text-[14px] text-[#66758c]">
+                   <Link
+                     href={previousPage.path}
+                     className="transition hover:text-[#10294a]"
+                   >
+                     {previousPage.label}
+                   </Link>
+                   <span className="text-[18px] text-[#10294a]">›</span>
+                   <span className="font-medium text-[#10294a]">
+                     {currentPageLabel}
+                   </span>
+                 </div>
+          <div className="mt-8 flex flex-col items-start justify-between gap-8 md:flex-row md:items-center md:gap-10">
+
+            <div className="scroll-slide-left w-full max-w-[650px]">
+              <span className="inline-flex rounded-lg bg-[#168fe5] px-3 py-1.5 text-[11px] font-medium text-[#08203e]">
+                NAVIGUER LE DIGITAL ENSEMBLE
+              </span>
+
+              <h1 className="mt-5 text-[clamp(2.25rem,8vw,3.25rem)] font-medium leading-[1.08] tracking-[-1.5px]">
+                Votre prochain cap web
+                <br />
+                commence ici.
+              </h1>
+
+              <p className="mt-4 w-full max-w-[620px] text-[15px] leading-[1.65] text-[#69758a]">
+                Une idée, une refonte, un besoin technique ? Parlez-nous de
+                votre projet.
+                <br className="hidden md:block" />
+                Ensemble, donnons-lui une direction claire.
+              </p>
             </div>
 
-            {/* Colonne droite : Formulaire Liquid Glass avec validation temps réel */}
-            <div className="lg:col-span-7">
-              {confirmation ? (
-                <div className="cx-card cx-card--accent flex flex-col gap-5 !p-8">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--comexa-success-bg)] text-[var(--comexa-success)]">
-                      <CheckCircle2 size={24} strokeWidth={2} aria-hidden="true" />
-                    </span>
-                    <div>
-                      <span className="cx-badge cx-badge--success">Demande enregistrée</span>
-                      <h2 className="cx-h3 mt-1">
-                        Merci {confirmation.firstName}, votre message est bien transmis.
-                      </h2>
-                    </div>
-                  </div>
+            {/* Illustration */}
+            <div className="scroll-slide-right relative hidden h-[190px] w-[320px] md:block">
 
-                  <p className="cx-body">
-                    Notre équipe examine votre demande et vous répondra à l’adresse{" "}
-                    <strong className="text-[var(--comexa-ink)]">{confirmation.email}</strong> sous
-                    24 à 48 heures ouvrées.
-                  </p>
+              <div className="absolute left-[35px] top-[0px] h-[188px] w-[188px] rounded-full border border-[#2490e8]" />
 
-                  {confirmation.reference ? (
-                    <div className="rounded-2xl border border-[var(--comexa-border-soft)] bg-white/90 p-4">
-                      <span className="text-[11.5px] font-bold uppercase tracking-[0.08em] text-[var(--comexa-ink-muted)]">
-                        Référence de suivi
-                      </span>
-                      <p className="cx-tabular mt-1 font-mono text-[17px] font-bold text-[var(--comexa-ink)]">
-                        {confirmation.reference}
-                      </p>
-                    </div>
-                  ) : null}
+              <div className="absolute right-0 top-[35px] h-6 w-6 rotate-45 rounded-[3px] bg-[#50afe8]" />
 
-                  <div className="flex flex-wrap gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setConfirmation(null)}
-                      className="cx-btn cx-btn--secondary"
-                    >
-                      Envoyer une autre demande
-                    </button>
-                    <Link href="/realisations" className="cx-btn cx-btn--primary">
-                      Découvrir nos réalisations
-                      <ArrowRight size={15} aria-hidden="true" />
-                    </Link>
-                  </div>
+              <div className="absolute left-[0px] top-[25px] h-[95px] w-[220px] rounded-[20px] border-2 border-[#10294a] bg-white p-4 shadow-[5px_7px_0_#10294a]">
+                <div className="flex items-center gap-2 text-[11px] font-medium">
+                  <span className="text-[19px]">◯</span>
+                  Et si on en parlait ?
                 </div>
-              ) : (
-                <form
-                  onSubmit={handleSubmit}
-                  noValidate
-                  className="cx-card flex flex-col gap-6 !p-6 sm:!p-8"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comexa-border-soft)] pb-4">
-                    <div>
-                      <h2 className="cx-h3">Formulaire de prise de contact</h2>
-                      <p className="cx-small mt-0.5">
-                        Les champs marqués d’un astérisque (*) sont nécessaires pour vous répondre.
-                      </p>
-                    </div>
-                    <span className="cx-badge cx-badge--info">Réponse 24–48 h</span>
-                  </div>
 
-                  {submitError ? (
-                    <div role="alert" className="cx-alert cx-alert--error">
-                      {submitError}
-                    </div>
-                  ) : null}
+                <div className="mt-3 h-1.5 w-[85%] rounded-full bg-[#e8f1fa]" />
+                <div className="mt-3 h-1.5 w-[58%] rounded-full bg-[#e8f1fa]" />
+              </div>
 
-                  {/* Groupe 1 : Identité & Coordonnées */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="cx-field">
-                      <label htmlFor="contact-firstName" className="cx-label flex items-center justify-between">
-                        <span>Prénom *</span>
-                        {!errors.firstName && form.firstName.trim().length >= 2 ? (
-                          <CheckCircle2 size={14} className="text-[var(--comexa-success)]" aria-hidden="true" />
-                        ) : null}
-                      </label>
-                      <input
-                        id="contact-firstName"
-                        type="text"
-                        required
-                        maxLength={120}
-                        autoComplete="given-name"
-                        placeholder="Ex. Amine"
-                        value={form.firstName}
-                        onBlur={() => markTouched("firstName")}
-                        onChange={(e) => updateField("firstName", e.target.value)}
-                        aria-invalid={Boolean(touched.firstName && errors.firstName)}
-                        className="cx-input"
-                      />
-                      {touched.firstName && errors.firstName ? (
-                        <p role="alert" className="cx-field-error">
-                          {errors.firstName}
-                        </p>
-                      ) : null}
-                    </div>
+              <div className="absolute bottom-[0px] right-[10px] flex h-[43px] w-[174px] items-center justify-between rounded-[12px] border-2 border-[#10294a] bg-[#168fe5] px-4 text-[12px] font-medium shadow-[4px_5px_0_#10294a]">
+                <span>Prenons le bon cap.</span>
+                <span>↗</span>
+              </div>
 
-                    <div className="cx-field">
-                      <label htmlFor="contact-lastName" className="cx-label flex items-center justify-between">
-                        <span>Nom *</span>
-                        {!errors.lastName && form.lastName.trim().length >= 2 ? (
-                          <CheckCircle2 size={14} className="text-[var(--comexa-success)]" aria-hidden="true" />
-                        ) : null}
-                      </label>
-                      <input
-                        id="contact-lastName"
-                        type="text"
-                        required
-                        maxLength={120}
-                        autoComplete="family-name"
-                        placeholder="Ex. Benali"
-                        value={form.lastName}
-                        onBlur={() => markTouched("lastName")}
-                        onChange={(e) => updateField("lastName", e.target.value)}
-                        aria-invalid={Boolean(touched.lastName && errors.lastName)}
-                        className="cx-input"
-                      />
-                      {touched.lastName && errors.lastName ? (
-                        <p role="alert" className="cx-field-error">
-                          {errors.lastName}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="cx-field">
-                      <label htmlFor="contact-email" className="cx-label flex items-center justify-between">
-                        <span>E-mail professionnel *</span>
-                        {!errors.email && form.email.trim() ? (
-                          <CheckCircle2 size={14} className="text-[var(--comexa-success)]" aria-hidden="true" />
-                        ) : null}
-                      </label>
-                      <input
-                        id="contact-email"
-                        type="email"
-                        required
-                        maxLength={320}
-                        autoComplete="email"
-                        placeholder="vous@entreprise.com"
-                        value={form.email}
-                        onBlur={() => markTouched("email")}
-                        onChange={(e) => updateField("email", e.target.value)}
-                        aria-invalid={Boolean(touched.email && errors.email)}
-                        className="cx-input"
-                      />
-                      {touched.email && errors.email ? (
-                        <p role="alert" className="cx-field-error">
-                          {errors.email}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="cx-field">
-                      <label htmlFor="contact-phone" className="cx-label">
-                        Téléphone <span className="font-normal text-[var(--comexa-ink-muted)]">(facultatif)</span>
-                      </label>
-                      <input
-                        id="contact-phone"
-                        type="tel"
-                        maxLength={40}
-                        autoComplete="tel"
-                        placeholder="+213 … ou +33 …"
-                        value={form.phone}
-                        onChange={(e) => updateField("phone", e.target.value)}
-                        className="cx-input"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Groupe 2 : Entreprise & Sujet */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="cx-field">
-                      <label htmlFor="contact-company" className="cx-label">
-                        Entreprise / Organisation{" "}
-                        <span className="font-normal text-[var(--comexa-ink-muted)]">(facultatif)</span>
-                      </label>
-                      <input
-                        id="contact-company"
-                        type="text"
-                        maxLength={200}
-                        autoComplete="organization"
-                        placeholder="Nom de votre société"
-                        value={form.companyName}
-                        onChange={(e) => updateField("companyName", e.target.value)}
-                        className="cx-input"
-                      />
-                    </div>
-
-                    <div className="cx-field">
-                      <label htmlFor="contact-subject" className="cx-label">
-                        Objet de la demande
-                      </label>
-                      <input
-                        id="contact-subject"
-                        type="text"
-                        maxLength={200}
-                        placeholder="Ex. Refonte site vitrine, Pack Croissance…"
-                        value={form.subject}
-                        onChange={(e) => updateField("subject", e.target.value)}
-                        className="cx-input"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Pilules de sélection rapide du sujet */}
-                  <div className="flex flex-col gap-2">
-                    <span className="text-[12px] font-semibold text-[var(--comexa-ink-muted)]">
-                      Sujets fréquents :
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      {SUBJECT_PRESETS.map((preset) => {
-                        const active = form.subject === preset;
-                        return (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => updateField("subject", preset)}
-                            className={`rounded-full border px-3 py-1.5 text-[12.5px] font-semibold transition-all ${
-                              active
-                                ? "border-[var(--comexa-ink)] bg-[var(--comexa-ink)] text-white shadow-xs"
-                                : "border-[var(--comexa-border)] bg-white text-[var(--comexa-ink-soft)] hover:border-[var(--comexa-accent)] hover:text-[var(--comexa-ink)]"
-                            }`}
-                          >
-                            {preset}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Groupe 3 : Message */}
-                  <div className="cx-field">
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="contact-message" className="cx-label">
-                        Votre besoin *
-                      </label>
-                      <span className="cx-tabular text-[12px] text-[var(--comexa-ink-muted)]">
-                        {form.message.length} / 5000
-                      </span>
-                    </div>
-                    <textarea
-                      id="contact-message"
-                      rows={5}
-                      required
-                      maxLength={5000}
-                      placeholder="Décrivez votre activité, vos objectifs, vos délais souhaités ou toute précision utile…"
-                      value={form.message}
-                      onBlur={() => markTouched("message")}
-                      onChange={(e) => updateField("message", e.target.value)}
-                      aria-invalid={Boolean(touched.message && errors.message)}
-                      className="cx-textarea"
-                    />
-                    {touched.message && errors.message ? (
-                      <p role="alert" className="cx-field-error">
-                        {errors.message}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  {/* Consentement */}
-                  <div className="flex flex-col gap-1.5">
-                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface-alt)] p-3.5 text-[13.5px] text-[var(--comexa-ink-soft)]">
-                      <input
-                        type="checkbox"
-                        checked={form.consent}
-                        onChange={(e) => {
-                          updateField("consent", e.target.checked);
-                          markTouched("consent");
-                        }}
-                        className="mt-1 h-4 w-4 shrink-0 accent-[var(--comexa-accent)]"
-                      />
-                      <span>
-                        J’accepte que les informations saisies soient utilisées par Comexa uniquement
-                        pour étudier ma demande et me recontacter. *
-                      </span>
-                    </label>
-                    {touched.consent && errors.consent ? (
-                      <p role="alert" className="cx-field-error">
-                        {errors.consent}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
-                    <p className="cx-small">
-                      Aucune prospection automatisée : votre demande est lue par un membre de l’équipe.
-                    </p>
-                    <button
-                      type="submit"
-                      disabled={busy}
-                      className="cx-btn cx-btn--primary"
-                    >
-                      <Send size={15} aria-hidden="true" />
-                      <span>{busy ? "Envoi en cours…" : "Envoyer ma demande"}</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+              <div className="absolute bottom-[17px] left-[8px] h-2 w-2 rounded-full bg-[#10294a]" />
             </div>
           </div>
         </div>
       </section>
 
-      {/* ====================================================================
-          2. PARCOURS DE TRAITEMENT (3 Étapes)
-         ==================================================================== */}
-      <section className="cx-pub-section cx-pub-section--tint">
-        <div className="cx-container">
-          <div className="cx-pub-section__head">
-            <div>
-              <span className="cx-eyebrow">Après votre message</span>
-              <h2 className="cx-h2 mt-3">Que se passe-t-il une fois votre demande envoyée ?</h2>
-            </div>
-          </div>
+      <section className="scroll-reveal section-reveal-delay-1 mx-auto max-w-[1200px] px-5 py-2 md:px-10">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_310px]">
 
-          <div className="cx-pub-grid-3">
-            {PROCESS_STEPS.map((item) => (
-              <article key={item.step} className="cx-card flex flex-col gap-3">
-                <span className="cx-tabular inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--comexa-ink)] text-[13px] font-bold text-white">
-                  {item.step}
-                </span>
-                <h3 className="cx-h3">{item.title}</h3>
-                <p className="cx-body">{item.text}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
+          <div className="reveal-card reveal-card-delay-1 min-w-0 rounded-[20px] border border-[#10294a] bg-white p-5 shadow-[5px_7px_0_#10294a] sm:p-6 md:p-7">
 
-      {/* ====================================================================
-          3. FAQ CONTACT (si disponible)
-         ==================================================================== */}
-      {faqs.length > 0 ? (
-        <section className="cx-pub-section">
-          <div className="cx-container">
-            <div className="cx-pub-section__head">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <span className="cx-eyebrow">Questions fréquentes</span>
-                <h2 className="cx-h2 mt-3">Réponses rapides avant de démarrer</h2>
+                <h2 className="text-[clamp(1.65rem,5vw,1.875rem)] font-medium">
+                  Parlons de votre projet
+                </h2>
+
+                <p className="mt-2 text-[15px] text-[#69758a]">
+                  Quelques lignes suffisent pour commencer. Les champs marqués
+                  * sont obligatoires.
+                </p>
+              </div>
+
+              <span className="text-[20px]">↗</span>
+            </div>
+
+            <form className="mt-5 space-y-4" onSubmit={handleSubmit} noValidate>
+
+              {/* Prénom + Nom + Email */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+                <div>
+                  <label htmlFor="contact-first-name" className="mb-1.5 block text-[17px] font-medium">
+                    Prénom *
+                  </label>
+
+                  <input
+                    id="contact-first-name"
+                    name="firstName"
+                    type="text"
+                    autoComplete="given-name"
+                    value={form.firstName}
+                    onChange={updateField("firstName")}
+                    placeholder="Votre prénom"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:px-4 sm:text-[18px]"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="contact-last-name" className="mb-1.5 block text-[17px] font-medium">
+                    Nom *
+                  </label>
+
+                  <input
+                    id="contact-last-name"
+                    name="lastName"
+                    type="text"
+                    autoComplete="family-name"
+                    value={form.lastName}
+                    onChange={updateField("lastName")}
+                    placeholder="Votre nom"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:px-4 sm:text-[18px]"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label htmlFor="contact-email" className="mb-1.5 block text-[17px] font-medium">
+                    E-mail *
+                  </label>
+
+                  <input
+                    id="contact-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={updateField("email")}
+                    placeholder="vous@entreprise.fr"
+                    className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
+                  />
+                </div>
+
+              </div>
+
+              {/* Entreprise */}
+              <div>
+                <label className="mb-1.5 block text-[17px] font-medium">
+                  Entreprise{" "}
+                  <span className="font-normal text-[#69758a]">
+                    (facultatif)
+                  </span>
+                </label>
+
+                <input
+                  name="companyName"
+                  type="text"
+                  autoComplete="organization"
+                  value={form.companyName}
+                  onChange={updateField("companyName")}
+                  placeholder="Le nom de votre organisation"
+                  className="h-11 w-full min-w-0 rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 text-[16px] outline-none transition focus:border-[#168fe5] sm:text-[18px]"
+                />
+              </div>
+
+              {/* Type de projet */}
+              <div>
+                <label className="mb-2 block text-[17px] font-medium">
+                  Type de projet *
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  {projectTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setProjectType(type)}
+                      className={`flex items-center gap-2 rounded-full border px-3 cursor-pointer py-1.5 text-[13px] transition ${
+                        projectType === type
+                          ? "border-[#168fe5] text-[#10294a]"
+                          : "border-[#cbd3df] bg-white"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-3 w-3 items-center justify-center rounded-full border ${
+                          projectType === type
+                            ? "border-[#168fe5]"
+                            : "border-[#9ba7b8]"
+                        }`}
+                      >
+                        {projectType === type && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#168fe5]" />
+                        )}
+                      </span>
+
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[17px] font-medium">
+                  Votre message *
+                </label>
+
+                <textarea
+                  name="message"
+                  value={form.message}
+                  onChange={updateField("message")}
+                  rows={5}
+                  placeholder="Votre contexte, vos objectifs, les fonctionnalités souhaitées... Si vous avez un budget ou un calendrier en tête, dites-le-nous aussi."
+                  className="w-full resize-none rounded-[7px] border border-[#10294a] bg-[#f7f9fc] px-3 py-3 text-[13px] leading-[1.5] outline-none transition focus:border-[#168fe5]"
+                />
+              </div>
+
+              <label className="flex cursor-pointer items-start gap-2 text-[10px] text-[#69758a]">
+                <input
+                  type="checkbox"
+                  name="consent"
+                  checked={consent}
+                  onChange={(event) => setConsent(event.target.checked)}
+                  className="mt-[1px] h-4 w-4 accent-[#168fe5]"
+                />
+
+                <span>
+                  J’accepte que Comexa utilise mes informations pour répondre à
+                  ma demande. *
+                  <span className="ml-1 underline">
+                    Politique de confidentialité
+                  </span>
+                </span>
+              </label>
+
+            
+              <div className="flex flex-col justify-between gap-4 pt-2 sm:flex-row sm:items-center">
+
+                <div className="flex gap-2 text-[12px] leading-[1.5] text-[#69758a]">
+                  <span className="text-[15px]">♙</span>
+
+                  <p>
+                    Vos informations restent confidentielles.
+                    <br />
+                    Aucun démarchage, juste un échange.
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={sending}
+                  aria-busy={sending}
+                  className="flex h-10 items-center justify-center gap-3 rounded-[11px] bg-[#168fe5] px-4 text-[15px] font-medium text-[#08203e] transition hover:bg-[#0b7dcc] disabled:cursor-wait disabled:opacity-70 sm:px-5 sm:text-[17px]"
+                >
+                  {sending ? "Envoi en cours…" : "Envoyer ma demande"}
+                  <span>↗</span>
+                </button>
+
+                {feedback ? (
+                  <p
+                    role={feedback.tone === "error" ? "alert" : "status"}
+                    className={`text-[14px] leading-[1.5] sm:max-w-[320px] ${
+                      feedback.tone === "error" ? "text-[#b42318]" : "text-[#0f7b3a]"
+                    }`}
+                  >
+                    {feedback.text}
+                  </p>
+                ) : null}
+
+              </div>
+            </form>
+          </div>
+
+        
+          <aside className="reveal-card reveal-card-delay-2 space-y-6">
+
+            <div className="rounded-[19px] border border-[#10294a] bg-white p-5 shadow-[5px_7px_0_#10294a]">
+
+              <h2 className="text-[25px] font-medium">
+                Un échange en direct ?
+              </h2>
+
+              <div className="mt-5 space-y-5">
+
+                <div className="flex gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e8f3fc]">
+                    ✉
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] text-[#69758a]">
+                      Écrivez-nous
+                    </p>
+
+                    <p className="mt-1 text-[15px] font-medium">
+                      bonjour@comexa.dz
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e8f3fc]">
+                    ♡
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] text-[#69758a]">
+                      Téléphone
+                    </p>
+
+                    <p className="mt-1 text-[15px] font-medium">
+                      Numéro à renseigner
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+
+              <div className="my-5 border-t border-[#d8dee8]" />
+
+              <h3 className="text-[16px] font-medium">
+                Retrouvez Comexa
+              </h3>
+
+              <div className="mt-3 space-y-3 text-[14px]">
+                <div className="flex justify-between">
+                  <span>LinkedIn</span>
+                  <span className="text-[12px] text-[#69758a]">
+                    Lien à renseigner
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Instagram</span>
+                  <span className="text-[12px] text-[#69758a]">
+                    Lien à renseigner
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Behance</span>
+                  <span className="text-[12px] text-[#69758a]">
+                    Lien à renseigner
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2 text-[12px] text-[#69758a]">
+                <span>⌖</span>
+                 Algérie · Projets partout en Algérie et à l’international
               </div>
             </div>
-            <div className="cx-pub-grid-2">
-              {faqs.slice(0, 6).map((faq) => (
-                <article key={faq.id ?? faq.question} className="cx-card flex flex-col gap-2">
-                  <h3 className="cx-h3 !text-[16.5px]">{faq.question}</h3>
-                  <p className="cx-body">{faq.answer}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-    </div>
-  );
-}
 
-export default function ContactView(props) {
-  return (
-    <Suspense fallback={<div className="cx-container py-16 text-sm text-[var(--comexa-ink-muted)]">Chargement…</div>}>
-      <ContactFormContent {...props} />
-    </Suspense>
+            {/* Après message */}
+            <div className="rounded-[19px] border border-[#10294a] bg-[#238dde] p-5 text-[#08203e] shadow-[5px_7px_0_#10294a]">
+
+              <h2 className="text-[20px] font-medium">
+                Et après votre message ?
+              </h2>
+
+              <div className="mt-5 space-y-4">
+
+                <div className="flex gap-3">
+                  <span className="text-[12px] font-medium">01</span>
+                  <p className="text-[12px]">
+                    Nous prenons connaissance de votre besoin.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[12px] font-medium">02</span>
+                  <p className="text-[12px]">
+                    Nous échangeons pour préciser le périmètre.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <span className="text-[12px] font-medium">03</span>
+                  <p className="text-[12px]">
+                    Vous recevez une proposition adaptée.
+                  </p>
+                </div>
+
+              </div>
+            </div>
+
+          </aside>
+        </div>
+      </section>
+       <section className="scroll-reveal section-reveal-delay-2 mt-10 w-full bg-[#e8f1fb] px-10 py-12 text-[#10294a] md:px-10 lg:px-14">
+      <div className="mx-auto max-w-[1180px]">
+
+        {/* HEADER */}
+        <div className="mb-6 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div>
+            <span className="inline-flex rounded-md bg-[#168fe5] px-3 py-1 text-[12px] font-semibold uppercase text-[#08203e]">
+              QUESTIONS FRÉQUENTES
+            </span>
+
+            <h2 className="mt-4 max-w-[520px] text-3xl font-medium leading-[1.05] tracking-[-1px] md:text-[34px]">
+              Quelques réponses
+              <br />
+              pour avancer sereinement.
+            </h2>
+          </div>
+
+          <p className="max-w-[220px] pb-1 text-[12px] leading-[1.5] text-[#69758a]">
+            Du premier devis au suivi de votre site, voici ce qu’il faut savoir
+            avant de prendre le cap.
+          </p>
+        </div>
+
+        {/* FAQ */}
+        <div className="space-y-8">
+
+          {questions.map((item, index) => {
+            const isOpen = openIndex === index;
+
+            return (
+              <div
+                key={item.number}
+                className={`reveal-card reveal-card-delay-${(index % 3) + 1} overflow-hidden rounded-[15px] border border-[#10294a] shadow-[4px_5px_0_#10294a] transition-colors ${
+                  isOpen
+                    ? "bg-[#238dde] text-[#08203e]"
+                    : "bg-white"
+                }`}
+              >
+               
+                <button
+                  type="button"
+                  onClick={() => toggleQuestion(index)}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left md:px-4"
+                >
+                  <span className="w-[25px] shrink-0 text-[20px] font-medium">
+                    {item.number}
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-[15px] font-medium md:text-[20px]">
+                      {item.question}
+                    </h3>
+
+                    {isOpen && (
+                      <div className="mt-2 border-t border-[#10294a]/15 pt-2">
+                        <p className="max-w-[1050px] text-[13px] leading-[1.6] text-[#173452] md:text-[15px]">
+                          {item.answer}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center text-[16px] transition-transform duration-200 ${
+                      isOpen ? "rotate-45" : ""
+                    }`}
+                  >
+                    +
+                  </span>
+                </button>
+              </div>
+            );
+          })}
+
+        </div>
+
+      
+        <div className="mt-5 flex flex-col justify-between gap-3 text-[12px] sm:flex-row sm:items-center">
+          <p>
+            Votre question n’est pas ici ?{" "}
+            <span className="font-medium">
+              Parlons-en simplement.
+            </span>
+          </p>
+
+          <a
+            href="mailto:bonjour@comexa.dz"
+            className="font-medium underline underline-offset-2"
+          >
+            Écrire à bonjour@comexa.dz&nbsp; ↗
+          </a>
+        </div>
+
+      </div>
+    </section>
+    </main>
   );
 }
