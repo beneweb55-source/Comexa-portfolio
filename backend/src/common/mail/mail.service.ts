@@ -304,6 +304,107 @@ export class MailService implements OnModuleDestroy {
   }
 
   /**
+   * INVITATION A AUTORISER L'USAGE D'UN COMPTE WHATSAPP.
+   *
+   * Ce gabarit est le seul endroit ou un TIERS lit ce qu'on lui demande. Trois
+   * exigences en decoulent, et elles sont verifiables dans le texte :
+   *
+   *  1. LE TEXTE DE CONSENTEMENT EST RECOPIE TEL QUEL (`consentText`), dans un
+   *     bloc preformate. Le resumer ici produirait deux versions de ce qui est
+   *     autorise — et c'est la version courte, celle qui arrange, que la personne
+   *     retiendrait. Le rendu vient de `describeConsent()`, la meme fonction que
+   *     celle dont la version est stockee en base.
+   *  2. LE REFUS EST AUSSI LISIBLE QUE L'ACCEPTATION. Un courriel qui n'explique
+   *     que comment dire oui n'est pas une demande, c'est une relance.
+   *  3. AUCUN LIEN NE PROVOQUE D'ACTION PAR LUI-MEME. Le lien ouvre une
+   *     conversation Telegram avec le bot ; c'est la personne qui tape le code,
+   *     puis qui scanne le QR depuis SON telephone. Un clic ne connecte rien.
+   *
+   * Le code apparait en clair ici — et c'est sa seule apparition : la base n'en
+   * conserve que l'empreinte, et la reponse HTTP qui le rend n'est pas
+   * journalisee.
+   */
+  async sendWhatsAppDelegation(params: {
+    to: string;
+    delegatorName: string | null;
+    requesterName: string;
+    code: string;
+    botUrl: string;
+    consentText: string;
+    expiresInLabel: string;
+    note: string | null;
+  }): Promise<void> {
+    const greeting = params.delegatorName?.trim() || 'Bonjour';
+    const salutation = params.delegatorName?.trim() ? `Bonjour ${greeting},` : greeting + ',';
+
+    const text = [
+      salutation,
+      '',
+      `${params.requesterName} demande votre autorisation pour envoyer des messages`,
+      'WhatsApp depuis VOTRE compte, par l’intermediaire de Comexa.',
+      '',
+      params.note ? `Contexte donne par la demande : ${params.note}` : null,
+      params.note ? '' : null,
+      'Ce que cette autorisation permet, et ce qu’elle engage :',
+      '',
+      params.consentText,
+      '',
+      '--- POUR ACCEPTER ---',
+      `1. Ouvrir Telegram et le bot : ${params.botUrl}`,
+      `2. Envoyer la commande :  /autoriser ${params.code}`,
+      '3. Le bot affiche un QR code : le scanner depuis WhatsApp > Appareils connectes.',
+      '',
+      `Code d’autorisation : ${params.code}`,
+      `Valable ${params.expiresInLabel}.`,
+      '',
+      '--- POUR REFUSER ---',
+      `Repondre :  /refuser ${params.code}`,
+      'Ou ne rien faire : sans action de votre part, rien n’est connecte et le code',
+      'expire seul.',
+      '',
+      'Si cette demande ne vous dit rien, ignorez ce courriel : aucune connexion ne',
+      'peut etre etablie sans votre scan.',
+      '',
+      'L’equipe Comexa',
+    ]
+      .filter((line) => line !== null)
+      .join('\n');
+
+    await this.send({
+      to: params.to,
+      subject: 'Comexa — autorisation d’envoi depuis votre compte WhatsApp',
+      text,
+      html: [
+        `<p>${escapeHtml(salutation)}</p>`,
+        `<p><strong>${escapeHtml(params.requesterName)}</strong> demande votre autorisation ` +
+          'pour envoyer des messages WhatsApp depuis <strong>votre compte</strong>, par ' +
+          'l’intermediaire de Comexa.</p>',
+        params.note ? `<p>Contexte donne par la demande : ${escapeHtml(params.note)}</p>` : '',
+        '<p>Ce que cette autorisation permet, et ce qu’elle engage :</p>',
+        `<pre style="white-space:pre-wrap;font-family:monospace;font-size:13px">` +
+          `${escapeHtml(params.consentText)}</pre>`,
+        '<h3>Pour accepter</h3>',
+        '<ol>',
+        `<li>Ouvrir Telegram et le bot : <a href="${escapeHtml(params.botUrl)}">` +
+          `${escapeHtml(params.botUrl)}</a></li>`,
+        `<li>Envoyer la commande : <code>/autoriser ${escapeHtml(params.code)}</code></li>`,
+        '<li>Scanner le QR affiche depuis WhatsApp &gt; Appareils connectes.</li>',
+        '</ol>',
+        `<p>Code d’autorisation : <strong>${escapeHtml(params.code)}</strong><br>` +
+          `Valable ${escapeHtml(params.expiresInLabel)}.</p>`,
+        '<h3>Pour refuser</h3>',
+        `<p>Repondre <code>/refuser ${escapeHtml(params.code)}</code>, ou ne rien faire : ` +
+          'sans action de votre part, rien n’est connecte et le code expire seul.</p>',
+        '<p>Si cette demande ne vous dit rien, ignorez ce courriel : aucune connexion ne ' +
+          'peut etre etablie sans votre scan.</p>',
+        '<p>L’equipe Comexa</p>',
+      ]
+        .filter((line) => line.length > 0)
+        .join('\n'),
+    });
+  }
+
+  /**
    * ENVOI D'UNE FACTURE AU CLIENT.
    *
    * Ce gabarit existe parce que la route s'appelle « envoyer » : jusqu'ici

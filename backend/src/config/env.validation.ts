@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -406,6 +407,283 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   DOCS_PASSWORD?: string;
+
+  // --- Bot Telegram ----------------------------------------------------------
+  //
+  // Nom du bot, SANS le `@`. Il est rendu dans les reponses d'appairage
+  // (`POST /me/telegram-link/code` -> `botUsername`) et sert a construire le lien
+  // profond `https://t.me/<nom>?start=...` remis a un tiers pour autoriser
+  // l'usage de son compte WhatsApp.
+  //
+  // DECLARE ICI PLUTOT QUE HARDECODE : le nom etait ecrit en clair dans
+  // `telegram-link.service.ts`. Un deuxieme endroit qui construit un lien vers le
+  // bot (les invitations WhatsApp) aurait fait DEUX copies d'un meme nom — et un
+  // changement de bot n'en aurait corrige qu'une, produisant des liens morts sans
+  // aucune erreur nulle part.
+  @IsOptional()
+  @Matches(/^[A-Za-z0-9_]{3,32}$/, {
+    message:
+      'TELEGRAM_BOT_USERNAME : lettres, chiffres et tirets bas, 3 a 32 caracteres, sans le @.',
+  })
+  TELEGRAM_BOT_USERNAME = 'ComexaWork_bot';
+
+  // --- Transcription des messages vocaux (bot Telegram) ----------------------
+  //
+  // Le bot @ComexaWork_bot recoit des vocaux ; n8n les transmet a
+  // `POST /api/v1/integrations/telegram/transcribe`, qui rend du texte. Le
+  // moteur est CONFIGURABLE et non impose : l'audio d'une personne est une
+  // donnee personnelle sensible, et le choix de la confier a Groq, a OpenAI ou a
+  // un serveur auto-heberge est une decision de l'exploitant, pas du code.
+  //
+  // `none` est le defaut, et ce n'est pas une valeur d'attente : sans moteur
+  // configure, la route repond 503 `TRANSCRIPTION_NOT_CONFIGURED` — un refus net
+  // et nomme, plutot qu'un texte vide que le workflow prendrait pour une
+  // transcription reussie.
+  @IsOptional()
+  @IsIn(['none', 'openai-compatible'])
+  TRANSCRIPTION_PROVIDER: 'none' | 'openai-compatible' = 'none';
+
+  /**
+   * Racine d'une API COMPATIBLE OpenAI (`POST {base}/audio/transcriptions`).
+   *
+   * Un seul pilote couvre donc Groq (`https://api.groq.com/openai/v1`), OpenAI
+   * (`https://api.openai.com/v1`) et tout Whisper auto-heberge qui expose la
+   * meme forme (faster-whisper-server, whisper.cpp `server`). Le choix du
+   * fournisseur devient une URL, pas une dependance de plus.
+   */
+  @IsOptional()
+  @IsString()
+  TRANSCRIPTION_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  TRANSCRIPTION_API_KEY?: string;
+
+  /**
+   * Modele passe au moteur. Le defaut vise Groq, dont la couche gratuite est la
+   * plus rapide pour un vocal de quelques minutes ; avec OpenAI, ecrire
+   * `whisper-1` ou `gpt-4o-mini-transcribe`.
+   */
+  @IsOptional()
+  @IsString()
+  TRANSCRIPTION_MODEL = 'whisper-large-v3-turbo';
+
+  /**
+   * Langue forcee (ex. `fr`), ou vide pour laisser le moteur la detecter.
+   *
+   * La forcer n'est pas un detail : sur un vocal court, la detection hesite, et
+   * une transcription francaise rendue en anglais ne se remarque pas a la
+   * lecture d'un journal. L'equipe travaille en francais ET en arabe : laisser
+   * vide est donc le regle utile ici, et `language` reste acceptable par appel.
+   */
+  @IsOptional()
+  @IsString()
+  TRANSCRIPTION_LANGUAGE?: string;
+
+  /**
+   * Amorce passee au moteur (`prompt`) : vocabulaire metier, noms propres.
+   * Whisper s'en sert comme contexte de decodage — « Comexa », « devis »,
+   * « jalons » s'ecrivent alors correctement au lieu d'etre devines.
+   */
+  @IsOptional()
+  @IsString()
+  TRANSCRIPTION_PROMPT?: string;
+
+  /**
+   * Taille maximale d'un audio transmis, en octets (20 Mo par defaut).
+   *
+   * Plus basse que `MAX_UPLOAD_BYTES`, et volontairement : un vocal Telegram est
+   * compresse en Opus et depasse rarement 1 Mo par minute. Une borne plus large
+   * ne servirait qu'a laisser passer un fichier qui n'est pas un vocal — et le
+   * moteur, lui, facture a la duree.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1024)
+  @Max(52_428_800)
+  TRANSCRIPTION_MAX_BYTES = 20_971_520;
+
+  /**
+   * Delai d'attente du moteur, en millisecondes.
+   *
+   * 60 s par defaut : un moteur distant met quelques secondes pour un vocal de
+   * deux minutes, mais un modele `large` non turbo sur un petit serveur peut
+   * prendre bien plus. Sans borne, une requete n8n expirerait cote client pendant
+   * que le backend attendrait encore — et le rejeu transcrirait une deuxieme fois
+   * le meme audio.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1_000)
+  @Max(600_000)
+  TRANSCRIPTION_TIMEOUT_MS = 60_000;
+
+  /**
+   * Duree de conservation des transcriptions, en jours. `0` = conserver.
+   *
+   * Une transcription est le texte de la VOIX de quelqu'un : la garder sans fin
+   * n'apporte rien au metier et alourdit ce qu'une fuite revelerait. Le balayage
+   * est planifie (`TranscriptRetentionService`) et cette valeur le borne.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(3_650)
+  TRANSCRIPT_RETENTION_DAYS = 30;
+
+  // --- Passerelle WhatsApp ---------------------------------------------------
+  //
+  // IL N'EXISTE AUCUNE API OFFICIELLE DONNANT ACCES A UN COMPTE WHATSAPP
+  // PERSONNEL ET A SON REPERTOIRE. L'API Business Cloud de Meta envoie depuis un
+  // numero dedie, sans acces aux contacts personnels. Ce que le bot fait ici —
+  // envoyer depuis LE COMPTE de la personne qui l'y a autorise — passe donc par
+  // une passerelle qui tient une session WhatsApp Web : WAHA ou Evolution API.
+  //
+  // CETTE PASSERELLE VIT HORS DU BACKEND, ET C'EST LE POINT DE SECURITE.
+  // Les identifiants de session (cookies, cles) restent dans son volume ; Comexa
+  // ne conserve que le NOM de session, l'etat et les traces. Une fuite de la base
+  // Comexa ne donne donc pas acces aux comptes WhatsApp. Le pilote est unique
+  // (`WHATSAPP_GATEWAY_DRIVER`) pour qu'un seul endroit decide de l'adresse et de
+  // l'en-tete d'authentification.
+  //
+  // `none` est le defaut : sans passerelle, les routes repondent 503
+  // `WHATSAPP_GATEWAY_NOT_CONFIGURED`. Rien n'est envoye, et rien ne fait
+  // semblant de l'etre.
+  //
+  // RAPPEL QUI DOIT RESTER VISIBLE : une session WhatsApp Web automatisee est
+  // contraire aux conditions d'utilisation de WhatsApp et peut entrainer le
+  // bannissement du numero. Le consentement explicite, les plafonds d'envoi et la
+  // revocation immediate existent pour limiter ce risque, pas pour le supprimer.
+  @IsOptional()
+  @IsIn(['none', 'waha', 'evolution'])
+  WHATSAPP_GATEWAY_DRIVER: 'none' | 'waha' | 'evolution' = 'none';
+
+  /** Adresse de la passerelle, SANS barre oblique finale (ex. `http://waha:3000`). */
+  @IsOptional()
+  @IsString()
+  WHATSAPP_GATEWAY_URL?: string;
+
+  /**
+   * Cle d'API de la passerelle (`X-Api-Key` pour WAHA, `apikey` pour Evolution).
+   *
+   * OBLIGATOIRE des que le pilote n'est pas `none`, y compris en developpement :
+   * une passerelle sans cle est joignable par tout ce qui tourne sur le meme
+   * reseau, et ce qu'elle detient est l'acces aux comptes WhatsApp de l'equipe.
+   */
+  @IsOptional()
+  @IsString()
+  WHATSAPP_GATEWAY_API_KEY?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1_000)
+  @Max(120_000)
+  WHATSAPP_GATEWAY_TIMEOUT_MS = 20_000;
+
+  /**
+   * Prefixe des noms de session (ex. `comexa` donne `comexa-u_cmabc123`).
+   *
+   * Minuscules, chiffres et tirets : WAHA et Evolution refusent les espaces et
+   * certains caracteres dans un nom d'instance. Un prefixe commun permet aussi de
+   * reconnaitre nos sessions parmi d'autres sur une passerelle partagee.
+   */
+  @IsOptional()
+  @Matches(/^[a-z0-9][a-z0-9-]{0,20}$/, {
+    message: 'WHATSAPP_SESSION_PREFIX : minuscules, chiffres et tirets, 21 caracteres au plus.',
+  })
+  WHATSAPP_SESSION_PREFIX = 'comexa';
+
+  /**
+   * Plafond d'envois par compte et par heure glissante.
+   *
+   * CE N'EST PAS UNE REGLE DE CONFORT, C'EST LA PRINCIPALE PROTECTION CONTRE LE
+   * BANNISSEMENT. Un volume soudain depuis un telephone est le signal que
+   * WhatsApp surveille ; un bot qui envoie sans compter fait bannir le numero de
+   * quelqu'un. 40 par heure couvre largement un usage de suivi (relances,
+   * confirmations) et arrete une boucle de workflow avant le premier incident.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1_000)
+  WHATSAPP_MAX_MESSAGES_PER_HOUR = 40;
+
+  /** Longueur maximale du corps d'un message. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(4_096)
+  WHATSAPP_MAX_BODY_LENGTH = 1_024;
+
+  /**
+   * Duree de validite du CODE d'autorisation remis a un tiers (`72h`).
+   *
+   * Assez longue pour qu'une personne joigne par courriel ait le temps de
+   * repondre, assez courte pour qu'un code oublie ne reste pas utilisable.
+   */
+  @IsOptional()
+  @IsString()
+  WHATSAPP_DELEGATION_CODE_TTL = '72h';
+
+  /**
+   * Duree de l'autorisation accordee une fois acceptee. VIDE = sans limite de
+   * duree (mais toujours revocable).
+   *
+   * Une autorisation qui expire toute seule est preferable pour un tiers : elle
+   * l'oblige a redire oui, et elle borne ce qu'un compte oublie permet encore.
+   */
+  @IsOptional()
+  @IsString()
+  WHATSAPP_CONSENT_TTL?: string;
+
+  /**
+   * Fraicheur acceptee de l'etat de session en base, en millisecondes.
+   *
+   * Interroger la passerelle a chaque envoi coute un aller-retour ; ne jamais
+   * l'interroger fait envoyer sur une session morte. `0` = interroger a chaque
+   * fois (le comportement le plus sur, et celui des tests).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(600_000)
+  WHATSAPP_SESSION_CACHE_MS = 5_000;
+
+  /**
+   * Fraicheur du cache des contacts, en minutes. `0` = resynchroniser a chaque
+   * lecture.
+   *
+   * Un repertoire se relit du telephone : le faire a chaque demande use la
+   * batterie du titulaire et sature la passerelle pour un resultat identique.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(10_080)
+  WHATSAPP_CONTACT_CACHE_MINUTES = 30;
+
+  /**
+   * Indicatif pays par defaut (`DZ` donne `+213`) quand un destinataire est
+   * saisi sans `+`.
+   *
+   * Deviner l'indicatif d'un numero local est la cause la plus frequente d'envoi
+   * a un MAUVAIS DESTINATAIRE : `0555123456` sans indicatif n'est pas un numero,
+   * et le composer tel quel aboutit ailleurs. Le defaut est donc explicite, et un
+   * appel peut le remplacer (`countryCode` dans la requete).
+   */
+  @IsOptional()
+  @Matches(/^[A-Z]{2}$/, {
+    message: 'WHATSAPP_DEFAULT_COUNTRY_CODE : deux lettres majuscules (ISO 3166-1).',
+  })
+  WHATSAPP_DEFAULT_COUNTRY_CODE = 'DZ';
 }
 
 /**
@@ -678,6 +956,145 @@ function assertMailConfigured(env: EnvironmentVariables): void {
   );
 }
 
+/**
+ * Hotes consideres comme INTERNES : le trafic ne sort pas de la machine ou du
+ * reseau de conteneurs, donc `http://` n'y expose rien a un tiers.
+ *
+ * La regle est volontairement courte et lisible plutot que complete : elle ne
+ * cherche pas a classifier tout Internet, seulement a reconnaitre les trois cas
+ * reels d'un deploiement — boucle locale, nom de service Compose (`waha`,
+ * `evolution` : un nom SANS POINT n'est pas resoluble publiquement), et adresse
+ * privee. Tout le reste est traite comme public, ce qui est le sens sur : un
+ * doute doit faire exiger TLS, pas l'inverse.
+ */
+function isInternalHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+
+  if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) {
+    return true;
+  }
+
+  // Nom de service Docker Compose : pas de point, donc pas de DNS public.
+  if (/^[a-z0-9-]+$/.test(host)) {
+    return true;
+  }
+
+  const parts = host.split('.');
+  if (parts.length === 4 && parts.every((p) => /^\d{1,3}$/.test(p))) {
+    const [a, b] = parts.map(Number) as [number, number];
+    // 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16.
+    return (
+      a === 127 ||
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254)
+    );
+  }
+
+  return host === '::1';
+}
+
+/**
+ * Verifie qu'une adresse de service externe est exploitable, et qu'elle ne fait
+ * pas voyager un secret en clair hors d'un reseau interne.
+ *
+ * Exportee pour etre testee : c'est une REGLE (quelle adresse est acceptable en
+ * production ?), et une regle posee seulement dans un `useFactory` ne se teste
+ * qu'en montant tout le serveur.
+ */
+export function assertServiceUrl(raw: string | undefined, label: string, nodeEnv: NodeEnv): string {
+  const value = (raw ?? '').trim();
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      `${label} : « ${value} » n'est pas une URL lisible. Attendu : ` +
+        'http://hote:port ou https://hote, sans chemin ni barre oblique finale.',
+    );
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`${label} : protocole « ${parsed.protocol} » refuse. Attendu : http ou https.`);
+  }
+
+  const internal = isInternalHost(parsed.hostname);
+
+  // EN PRODUCTION, UNE CLE D'API NE SORT PAS EN CLAIR. La transcription envoie
+  // l'AUDIO d'une personne, la passerelle WhatsApp envoie l'ACCES a un compte :
+  // dans les deux cas la cle ouvre plus qu'un service. Un hote interne est
+  // exempté parce que le trafic reste sur la machine ou le reseau de conteneurs —
+  // exiger TLS entre deux services d'un meme Compose produirait des certificats
+  // auto-signes que personne ne verifie, c'est-a-dire une securite de facade.
+  if (nodeEnv === NodeEnv.Production && parsed.protocol === 'http:' && !internal) {
+    throw new Error(
+      `${label} est en http:// vers un hote PUBLIC (${parsed.hostname}) en production : ` +
+        "la cle d'API voyagerait en clair. Utiliser https://, ou heberger le service " +
+        'sur le meme reseau interne (un nom de service, une adresse privee ou localhost).',
+    );
+  }
+
+  return value.replace(/\/+$/, '');
+}
+
+/**
+ * Cohérence des deux blocs de messagerie externe : transcription vocale et
+ * passerelle WhatsApp.
+ *
+ * POURQUOI DES REFUS AU DEMARRAGE, ALORS QUE LES DEUX BLOCS SONT OPTIONNELS.
+ * Rien n'oblige a les configurer : `TRANSCRIPTION_PROVIDER=none` et
+ * `WHATSAPP_GATEWAY_DRIVER=none` sont des etats PREVUS, et les routes repondent
+ * alors 503 avec un code nomme. Ce qui est refuse ici, c'est l'etat
+ * INTERMEDIAIRE — « j'ai choisi un moteur mais oublie la cle » — parce qu'il ne
+ * se voit qu'au premier vocal, sous la forme d'un 401 du fournisseur, tres loin
+ * de la variable manquante.
+ */
+function assertExternalMessagingConfigured(env: EnvironmentVariables): void {
+  if (env.TRANSCRIPTION_PROVIDER !== 'none') {
+    const missing: string[] = [];
+    if (!(env.TRANSCRIPTION_BASE_URL ?? '').trim()) missing.push('TRANSCRIPTION_BASE_URL');
+    if (!(env.TRANSCRIPTION_API_KEY ?? '').trim()) missing.push('TRANSCRIPTION_API_KEY');
+
+    if (missing.length > 0) {
+      throw new Error(
+        `TRANSCRIPTION_PROVIDER=${env.TRANSCRIPTION_PROVIDER}, mais ${missing.join(' et ')} ` +
+          (missing.length > 1 ? 'sont manquantes' : 'est manquante') +
+          ' : chaque vocal recu par le bot echouerait en 502. Renseigner les deux, ou ' +
+          'revenir a TRANSCRIPTION_PROVIDER=none pour desactiver la transcription.',
+      );
+    }
+
+    assertServiceUrl(env.TRANSCRIPTION_BASE_URL, 'TRANSCRIPTION_BASE_URL', env.NODE_ENV);
+  }
+
+  if (env.WHATSAPP_GATEWAY_DRIVER !== 'none') {
+    const missing: string[] = [];
+    if (!(env.WHATSAPP_GATEWAY_URL ?? '').trim()) missing.push('WHATSAPP_GATEWAY_URL');
+    if (!(env.WHATSAPP_GATEWAY_API_KEY ?? '').trim()) missing.push('WHATSAPP_GATEWAY_API_KEY');
+
+    if (missing.length > 0) {
+      throw new Error(
+        `WHATSAPP_GATEWAY_DRIVER=${env.WHATSAPP_GATEWAY_DRIVER}, mais ${missing.join(' et ')} ` +
+          (missing.length > 1 ? 'sont manquantes' : 'est manquante') +
+          ' : une passerelle sans cle est joignable par tout ce qui tourne sur le meme ' +
+          "reseau, et elle detient l'acces aux comptes WhatsApp. Renseigner les deux, ou " +
+          'revenir a WHATSAPP_GATEWAY_DRIVER=none.',
+      );
+    }
+
+    assertServiceUrl(env.WHATSAPP_GATEWAY_URL, 'WHATSAPP_GATEWAY_URL', env.NODE_ENV);
+  }
+
+  // Durees : parsees ici pour qu'une faute de frappe arrete le demarrage au lieu
+  // de produire `new Date(NaN)` au premier code d'autorisation emis.
+  parseDurationMs(env.WHATSAPP_DELEGATION_CODE_TTL, 'WHATSAPP_DELEGATION_CODE_TTL');
+  if ((env.WHATSAPP_CONSENT_TTL ?? '').trim().length > 0) {
+    parseDurationMs(env.WHATSAPP_CONSENT_TTL as string, 'WHATSAPP_CONSENT_TTL');
+  }
+}
+
 export function validateEnv(config: Record<string, unknown>): EnvironmentVariables {
   const validated = plainToInstance(EnvironmentVariables, config, {
     enableImplicitConversion: true,
@@ -697,6 +1114,7 @@ export function validateEnv(config: Record<string, unknown>): EnvironmentVariabl
   assertMailConfigured(validated);
   assertDocsConfigured(validated);
   assertOrderSettings(validated);
+  assertExternalMessagingConfigured(validated);
 
   return validated;
 }

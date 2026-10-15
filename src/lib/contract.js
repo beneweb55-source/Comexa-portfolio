@@ -23,11 +23,21 @@
  *    casse.
  */
 
-/** Fonctionnalites que CETTE interface utilise desormais. */
+/**
+ * Fonctionnalites que CETTE interface utilise desormais.
+ *
+ * `telegramVoice` et `whatsappGateway` (ajoutees cote backend le 2026-10-15)
+ * N'Y FIGURENT PAS, et ce n'est pas un oubli : aucune page de cette interface ne
+ * les appelle encore — la transcription sert le bot n8n, et l'appairage WhatsApp
+ * se fait dans Telegram (le QR y est affiche). Les exiger ici ferait apparaitre
+ * la banniere « backend perime » sur une application qui n'utilise pas ces
+ * routes, c'est-a-dire une alerte qui crie au loup. Elles y entreront le jour ou
+ * une page les appellera.
+ */
 export const REQUIRED_FEATURES = ["timer", "personalTasks", "calendar", "taskCreators"];
 
 /** Version du contrat attendue (informative, affichee dans le diagnostic). */
-export const EXPECTED_CONTRACT_VERSION = "2026-10-12.4";
+export const EXPECTED_CONTRACT_VERSION = "2026-10-15.1";
 
 /**
  * Interroge la sante de l'API et compare au contrat attendu.

@@ -59,6 +59,33 @@ export const PERMISSIONS = {
   'integration:read:any': 'Consulter les jetons d’integration',
   'integration:manage:any': 'Creer, renouveler et revoquer les jetons d’integration',
   'telegram:link:any': 'Lier et resoudre des comptes Telegram via le bot @ComexaWork_bot',
+  /**
+   * Messages vocaux et WhatsApp — six codes, tous destines au jeton
+   * d'integration du bot (n8n) sauf `delegate` et `manage`, qui sont des
+   * decisions humaines.
+   *
+   * POURQUOI `transcribe` EST UN CODE A PART, ET NON INCLUS DANS `link:any`
+   * -----------------------------------------------------------------------
+   * Resoudre un identifiant Telegram ne coute rien et ne revele que le profil
+   * du membre. Transcrire un vocal envoie l'ENREGISTREMENT DE LA VOIX DE
+   * QUELQU'UN a un moteur externe, puis conserve le texte. Ce sont deux niveaux
+   * de consequence tres differents : un jeton qui n'a besoin que d'identifier
+   * l'expediteur ne doit pas pouvoir facturer des transcriptions, et un jeton
+   * vole ne doit pas heriter des deux.
+   *
+   * MEME RAISONNEMENT COTE WHATSAPP : `send` (agir sur le compte d'autrui) est
+   * separe de `read` (lire un repertoire et un journal), de `link` (appairer et
+   * revoquer une session), de `delegate` (demander un consentement) et de
+   * `manage` (administrer les comptes des autres). Un workflow qui ne fait
+   * qu'envoyer ne recoit que `send` — et `read` reste ce qu'il faut refuser en
+   * premier, puisque c'est lui qui aspire un repertoire de tiers.
+   */
+  'telegram:transcribe:any': 'Transcrire les messages vocaux recus par le bot',
+  'whatsapp:link:any': 'Appairer, interroger et revoquer les sessions WhatsApp via la passerelle',
+  'whatsapp:send:any': 'Envoyer un message WhatsApp depuis un compte autorise',
+  'whatsapp:read:any': 'Consulter les contacts et le journal des envois WhatsApp',
+  'whatsapp:delegate:any': 'Demander a un tiers l’autorisation d’envoyer via son compte WhatsApp',
+  'whatsapp:manage:any': 'Administrer les comptes WhatsApp et leurs autorisations',
 
   // ---------------------------------------------------------------------------
   // CRM
@@ -294,6 +321,22 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'calendar:read:own',
     'calendar:write:own',
     'calendar:read:team',
+    /**
+     * WhatsApp : deux codes, et PAS `whatsapp:send:any` NI `whatsapp:manage:any`.
+     *
+     * Le gerant communication anime la relation entrante : il peut donc demander
+     * a un tiers l'autorisation d'envoyer depuis son compte (`delegate`) et lire
+     * ce qui a ete envoye (`read`). En revanche, l'ENVOI lui-meme passe par le
+     * jeton d'integration du bot — un humain qui enverrait directement via l'API
+     * echapperait au fil Telegram qui explique chaque envoi. Quant a `manage`
+     * (revoquer le compte d'un autre, changer de passerelle), c'est une decision
+     * d'administration : `ADMIN` la tient deja par `ALL`.
+     *
+     * Chaque membre garde, sans permission aucune, la gestion de SON PROPRE
+     * compte appaire (`/me/whatsapp`) — comme pour `/me/telegram-link`.
+     */
+    'whatsapp:delegate:any',
+    'whatsapp:read:any',
   ],
 
   [RoleCode.PROJECT_MANAGER]: [

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { createHash, randomInt } from 'node:crypto';
 import { AppException } from '../../common/errors/app-error.js';
 import { AuditService } from '../../common/audit/audit.service.js';
@@ -7,7 +8,16 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { UserStatus } from '../../generated/prisma/enums.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 
-const BOT_USERNAME = 'ComexaWork_bot';
+/**
+ * Nom du bot par defaut.
+ *
+ * La valeur effective vient de `TELEGRAM_BOT_USERNAME` : le nom est aussi employe
+ * pour construire les liens profonds d'autorisation WhatsApp (voir
+ * `WhatsAppAccountService`), et deux copies d'un meme nom finissent par diverger
+ * — un changement de bot ne corrigerait alors qu'une des deux, et produirait des
+ * liens morts sans aucune erreur nulle part.
+ */
+const DEFAULT_BOT_USERNAME = 'ComexaWork_bot';
 const PAIRING_CODE_TTL_MINUTES = 10;
 
 /** Nom de la permission que doit posséder une intégration n8n pour lier/résoudre. */
@@ -52,7 +62,15 @@ export class TelegramLinkService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
+
+  /** Nom du bot, sans le `@` : c'est la forme attendue par `t.me/<nom>`. */
+  get botUsername(): string {
+    return (this.config.get<string>('TELEGRAM_BOT_USERNAME') ?? DEFAULT_BOT_USERNAME)
+      .replace(/^@/, '')
+      .trim();
+  }
 
   // ---------------------------------------------------------------------------
   // Routes pour le membre connecté (JWT humain)
@@ -114,7 +132,7 @@ export class TelegramLinkService {
       },
     });
 
-    return { code, expiresAt, botUsername: BOT_USERNAME };
+    return { code, expiresAt, botUsername: this.botUsername };
   }
 
   /** Révoque la liaison Telegram du membre (DELETE /me/telegram-link). */
@@ -157,7 +175,12 @@ export class TelegramLinkService {
    * `/lier <code>` dans Telegram.
    */
   async verifyCode(
-    body: { code: string; telegramUserId: string; telegramChatId: string; telegramUsername?: string },
+    body: {
+      code: string;
+      telegramUserId: string;
+      telegramChatId: string;
+      telegramUsername?: string;
+    },
     actor: AuthenticatedUser,
     meta: RequestContext,
   ): Promise<TelegramLinkedProfile> {
@@ -165,7 +188,10 @@ export class TelegramLinkService {
 
     const code = (body.code ?? '').trim();
     if (!/^\d{6}$/.test(code)) {
-      throw AppException.unprocessable('TELEGRAM_CODE_INVALID', 'Le code doit comporter exactement 6 chiffres.');
+      throw AppException.unprocessable(
+        'TELEGRAM_CODE_INVALID',
+        'Le code doit comporter exactement 6 chiffres.',
+      );
     }
 
     const telegramUserId = (body.telegramUserId ?? '').toString().trim();
@@ -177,9 +203,10 @@ export class TelegramLinkService {
       );
     }
 
-    const telegramUsername = typeof body.telegramUsername === 'string'
-      ? body.telegramUsername.replace(/^@/, '').trim() || null
-      : null;
+    const telegramUsername =
+      typeof body.telegramUsername === 'string'
+        ? body.telegramUsername.replace(/^@/, '').trim() || null
+        : null;
 
     const pairingCodeHash = hashPairingCode(code);
     const now = new Date();
@@ -248,7 +275,10 @@ export class TelegramLinkService {
 
     const id = (telegramUserId ?? '').toString().trim();
     if (!id) {
-      throw AppException.unprocessable('TELEGRAM_USER_ID_REQUIRED', 'telegramUserId est obligatoire.');
+      throw AppException.unprocessable(
+        'TELEGRAM_USER_ID_REQUIRED',
+        'telegramUserId est obligatoire.',
+      );
     }
 
     const link = await this.prisma.telegramLink.findUnique({
@@ -261,7 +291,10 @@ export class TelegramLinkService {
     });
 
     if (!link || link.revokedAt) {
-      throw AppException.notFound('TELEGRAM_LINK_NOT_FOUND', 'Aucun compte Comexa lié à cet utilisateur Telegram.');
+      throw AppException.notFound(
+        'TELEGRAM_LINK_NOT_FOUND',
+        'Aucun compte Comexa lié à cet utilisateur Telegram.',
+      );
     }
 
     const profile = await this.loadLinkedUser(link.userId);

@@ -51,6 +51,12 @@ session d'un utilisateur connecté.
 Procédure complète, recettes n8n, permissions minimales et dépannage :
 **[`docs/API-N8N.md`](docs/API-N8N.md)**.
 
+Deux routes servent le bot Telegram : la **transcription des messages vocaux** et
+l'**envoi de messages WhatsApp depuis un compte autorisé** (le sien, ou celui d'un
+tiers qui y consent). Architecture, consentement, garde-fous et risques — dont
+celui, réel, de suspension du numéro :
+**[`docs/TELEGRAM-VOIX-WHATSAPP.md`](docs/TELEGRAM-VOIX-WHATSAPP.md)**.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

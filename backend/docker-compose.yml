@@ -6,7 +6,11 @@
 #     docker compose up --build          # base + stockage + migrations + API
 #     docker compose --profile seed run --rm seed
 #
-# Ce fichier monte QUATRE services et deux executions ponctuelles :
+#     # Passerelle WhatsApp (voir le service `waha` plus bas, et l'AVERTISSEMENT
+#     # qui l'accompagne : un compte personnel connecte ici peut etre banni) :
+#     COMEXA_WHATSAPP_DRIVER=waha docker compose --profile gateway up --build
+#
+# Ce fichier monte QUATRE services et trois executions ou services optionnels :
 #
 #     db         PostgreSQL 17             la base
 #     minio      stockage S3-compatible    les fichiers (jamais en base)
@@ -14,6 +18,8 @@
 #     migrate    `prisma migrate deploy`   s'execute une fois, puis s'arrete
 #     api        l'API NestJS              http://localhost:3001/api
 #     seed       (profil `seed`)           jeu de donnees de demonstration
+#     waha       (profil `gateway`)        passerelle WhatsApp, une instance pour
+#                                          toutes les sessions
 #
 # -----------------------------------------------------------------------------
 # POURQUOI CE FICHIER IGNORE `backend/.env`
@@ -186,6 +192,36 @@ services:
       # en production si ni le couple `MAILJET_API_KEY` + `MAILJET_SECRET_KEY` ni
       # `SMTP_HOST` n'est renseigne, mais cette pile-ci n'est pas la production.
       SMTP_HOST: ''
+
+      # --- Passerelle WhatsApp ------------------------------------------------
+      # `none` PAR DEFAUT, et c'est le point important : sans
+      # `COMEXA_WHATSAPP_DRIVER=waha`, l'API ne tente aucun appel et les routes
+      # WhatsApp repondent 503 avec un code stable. Rien ne change pour une pile
+      # qui ne veut pas de cette fonctionnalite.
+      #
+      # L'URL pointe vers le service `waha` de CE fichier, qui ne tourne que sous
+      # le profil `gateway`. Renseigner le pilote sans demarrer le profil donne
+      # des 503 `WHATSAPP_GATEWAY_UNREACHABLE` — un message qui nomme la variable
+      # a verifier, donc une panne qui se diagnostique.
+      WHATSAPP_GATEWAY_DRIVER: ${COMEXA_WHATSAPP_DRIVER:-none}
+      WHATSAPP_GATEWAY_URL: ${COMEXA_WHATSAPP_URL:-http://waha:3000}
+      # La MEME cle des deux cotes : celle-ci est celle que l'API presente, et le
+      # service `waha` la verifie. Une cle differente donne des 401 partout, qui
+      # ressemblent a s'y meprendre a une passerelle cassee.
+      WHATSAPP_GATEWAY_API_KEY: ${COMEXA_WHATSAPP_API_KEY:-comexa-waha-dev-key}
+      WHATSAPP_SESSION_PREFIX: ${COMEXA_WHATSAPP_SESSION_PREFIX:-comexa}
+      WHATSAPP_MAX_MESSAGES_PER_HOUR: ${COMEXA_WHATSAPP_MAX_PER_HOUR:-40}
+      WHATSAPP_DEFAULT_COUNTRY_CODE: ${COMEXA_WHATSAPP_COUNTRY:-DZ}
+
+      # --- Transcription des vocaux Telegram ----------------------------------
+      # `none` par defaut : la route repond 503 `TRANSCRIPTION_NOT_CONFIGURED`
+      # avec la marche a suivre. La cle n'est PAS mise ici par defaut — une cle de
+      # fournisseur dans un fichier de composition est une cle dans le depot.
+      TRANSCRIPTION_PROVIDER: ${COMEXA_TRANSCRIPTION_PROVIDER:-none}
+      TRANSCRIPTION_BASE_URL: ${COMEXA_TRANSCRIPTION_BASE_URL:-https://api.groq.com/openai/v1}
+      TRANSCRIPTION_API_KEY: ${COMEXA_TRANSCRIPTION_API_KEY:-}
+      TRANSCRIPTION_MODEL: ${COMEXA_TRANSCRIPTION_MODEL:-whisper-large-v3-turbo}
+      TELEGRAM_BOT_USERNAME: ${COMEXA_TELEGRAM_BOT_USERNAME:-ComexaWork_bot}
     ports:
       - '3001:3001'
     extra_hosts:
@@ -215,8 +251,70 @@ services:
     command: ['npm', 'run', 'db:seed']
     restart: 'no'
 
+  # --- Passerelle WhatsApp (WAHA) ---------------------------------------------
+  # SOUS PROFIL, ET CE N'EST PAS UNE PRECAUTION DE STYLE.
+  #
+  #     COMEXA_WHATSAPP_DRIVER=waha docker compose --profile gateway up --build
+  #
+  # Demarrer ce service sans le vouloir ferait tourner un automate capable de
+  # parler au nom d'un numero reel. Deux consequences a connaitre avant :
+  #
+  #   1. CONNECTER UN COMPTE PERSONNEL A UN AUTOMATE EST CONTRAIRE AUX CONDITIONS
+  #      D'UTILISATION DE WHATSAPP et peut entrainer la suspension DEFINITIVE du
+  #      numero. Le pilote employe ici (`waha`, WAHA Core) tient une session
+  #      multidevice exactement comme WhatsApp Web le fait.
+  #   2. AUCUNE API OFFICIELLE ne donne acces a un compte personnel et a son
+  #      repertoire. Ce service est donc le seul chemin vers ce que demande le
+  #      besoin — et le seul a porter ce risque. Les garde-fous sont cote API :
+  #      consentement versionne et revoquable, plafond horaire, groupes interdits,
+  #      journal de chaque envoi.
+  #
+  # Un SEUL conteneur pour toutes les sessions : WAHA gere plusieurs sessions dans
+  # une instance, ce qui est la forme du besoin (un membre, ou un tiers deleguant,
+  # = une session). Evolution API, l'autre pilote pris en charge par le code,
+  # demanderait un conteneur par numero.
+  #
+  # Le PORT N'EST PAS PUBLIE : la passerelle ne doit etre joignable que depuis le
+  # reseau interne de cette pile. L'exposer sur l'hote mettrait a disposition une
+  # API capable d'envoyer des messages depuis un numero reel, protegee par une
+  # seule cle — et cette cle est, par defaut ici, une valeur de demonstration.
+  waha:
+    profiles: ['gateway']
+    image: devlikeapro/waha:core
+    restart: unless-stopped
+    environment:
+      # Cle verifiee par WAHA sur chaque requete (en-tete `X-Api-Key`). A
+      # REMPLACER hors de cette pile locale : la valeur par defaut est publique,
+      # puisqu'elle est dans le depot.
+      WHATSAPP_API_KEY: ${COMEXA_WHATSAPP_API_KEY:-comexa-waha-dev-key}
+      # Un seul navigateur sans interface graphique tient toutes les sessions.
+      WHATSAPP_BROWSER_LIMIT: ${COMEXA_WHATSAPP_BROWSER_LIMIT:-5}
+      # Redemarrage automatique des sessions apres un arret du conteneur : sans
+      # lui, chaque `docker compose up` exigerait de rescanner un QR par compte.
+      WHATSAPP_RESTART_ALL_SESSIONS: 'true'
+      # Les sessions (identifiants d'appairage) vivent dans le volume `comexa_waha`.
+      # PERDRE CE VOLUME, C'EST RESCANNER UN QR SUR CHAQUE TELEPHONE : c'est la
+      # seule donnee irremplacable de ce service.
+      WAHA_CORE_SESSIONS_PATH: /app/.sessions
+      # Journal minimal : les journaux de WAHA peuvent contenir des numeros. Les
+      # garder au niveau `info` borne ce qui est ecrit sur le disque de l'hote.
+      WAHA_LOG_LEVEL: ${COMEXA_WHATSAPP_LOG_LEVEL:-info}
+    volumes:
+      - comexa_waha:/app/.sessions
+    healthcheck:
+      # `/api/sessions` ne rend aucun secret et repond des que l'API interne est
+      # prete : sans sonde, `depends_on` ne dirait rien d'utile et l'API
+      # demarrerait avant la passerelle.
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/sessions >/dev/null 2>&1 || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
 volumes:
   comexa_pgdata:
     name: comexa_pgdata
   comexa_minio:
     name: comexa_minio
+  comexa_waha:
+    name: comexa_waha

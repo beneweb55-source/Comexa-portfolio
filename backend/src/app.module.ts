@@ -36,6 +36,7 @@ import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DailyReportsModule } from './modules/daily-reports/daily-reports.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
 import { UserModule } from './modules/users/user.module.js';
+import { WhatsAppModule } from './modules/whatsapp/whatsapp.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -234,6 +235,24 @@ const isProduction = process.env.NODE_ENV === 'production';
      * recoit par injection, pas par position.
      */
     IntegrationsModule,
+
+    /**
+     * WHATSAPP — appairage, consentement, envois et repertoire.
+     *
+     * PLACE A COTE D'`IntegrationsModule`, ET CE N'EST PAS UN VOISINAGE DE
+     * COMMODITE : les routes du bot (`/integrations/whatsapp/*`) vivent dans ce
+     * module, et le workflow n8n les atteint avec le MEME jeton `cxi_` que pour
+     * Telegram. Deux modules voisins, un seul mecanisme d'authentification.
+     *
+     * Le module importe `WhatsAppGatewayModule`, qui choisit le pilote
+     * (WAHA, Evolution API, ou aucun). Sans pilote configure, le backend DEMARRE
+     * quand meme : les routes repondent 503 avec un code stable, et le reste de
+     * l'application ne depend pas d'un service que l'on n'a pas encore deploye.
+     *
+     * Aucun `TranscriptionModule` ici : la transcription des vocaux Telegram est
+     * une route d'integration, pas une route WhatsApp.
+     */
+    WhatsAppModule,
 
     /**
      * CRM — pipeline commercial et dossiers clients.

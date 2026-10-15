@@ -451,6 +451,11 @@ model User {
   createdIntegrationTokens IntegrationToken[]       @relation("IntegrationTokenCreator")
   idempotencyRecords      IdempotencyRecord[]       @relation("IdempotencyPrincipal")
   telegramLink            TelegramLink?
+  voiceTranscripts        VoiceTranscript[]         @relation("VoiceTranscriptOwner")
+  requestedTranscripts    VoiceTranscript[]         @relation("VoiceTranscriptRequester")
+  whatsappAccounts        WhatsAppAccount[]         @relation("WhatsAppAccountHolder")
+  whatsappDelegations     WhatsAppDelegation[]      @relation("WhatsAppDelegationRequester")
+  whatsappMessagesSent    WhatsAppMessage[]         @relation("WhatsAppMessageRequester")
   ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
   calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
@@ -2114,4 +2119,389 @@ model DailyReport {
   @@unique([userId, reportDate])
   @@index([reportDate])
   @@map("daily_reports")
+}
+
+// =============================================================================
+// MESSAGERIE EXTERNE — vocaux Telegram et passerelle WhatsApp
+// =============================================================================
+// Deux familles de tables, ajoutées ensemble parce qu'elles servent le même
+// usage : le bot Telegram @ComexaWork_bot, dont la logique vit dans n8n, reçoit
+// des messages (texte OU VOIX) et agit sur l'API — jusqu'à envoyer un WhatsApp
+// via le compte de la personne qui l'y a autorisée.
+//
+// CE QUE LA BASE CONSERVE, ET CE QU'ELLE NE CONSERVE PAS
+// ------------------------------------------------------
+//  * Les OCTETS AUDIO ne sont JAMAIS écrits ici : la transcription passe par le
+//    moteur configuré, et seule sa SORTIE (le texte) est conservée, avec
+//    l'empreinte du fichier Telegram qui permet de ne pas la payer deux fois.
+//  * Les IDENTIFIANTS DE SESSION WhatsApp (cookies, clés) restent dans la
+//    passerelle (WAHA / Evolution), jamais dans cette base. Comexa ne conserve
+//    que le NOM de session, l'état et les traces. Une fuite de la base ne donne
+//    donc pas accès aux comptes WhatsApp — c'est la raison d'être de la
+//    passerelle comme tiers de confiance.
+//  * Le texte des messages envoyés EST conservé : sans lui, « le bot a envoyé
+//    quoi, à qui, à la demande de qui ? » n'a pas de réponse, et une
+//    autorisation révocable sans historique n'est pas une autorisation.
+
+/// État d'une session WhatsApp, TEL QUE COMEXA LE COMPREND.
+///
+/// Ce n'est PAS l'énumération de la passerelle : WAHA renvoie `STOPPED`,
+/// `STARTING`, `SCAN_QR_CODE`, `WORKING`, `FAILED`, Evolution renvoie `open`,
+/// `connecting`, `close`. Recopier l'un des deux vocabulaires ici rendrait
+/// l'autre pilote impossible sans migration. La traduction vit dans
+/// `whatsapp/gateway/` ; la base ne connaît que cet ensemble stable.
+enum WhatsAppSessionStatus {
+  /// Aucune session utilisable : jamais appairée, ou déconnectée.
+  DISCONNECTED
+  /// La passerelle démarre la session (état transitoire).
+  STARTING
+  /// Un QR code attend d'être scanné depuis le téléphone.
+  WAITING_QR
+  /// Session appairée : l'envoi est possible.
+  CONNECTED
+  /// La passerelle signale une erreur (session cassée, téléphone hors ligne…).
+  FAILED
+  /// Révoquée volontairement : déconnexion demandée ou consentement retiré.
+  REVOKED
+}
+
+/// De qui vient l'autorisation d'envoyer via ce compte WhatsApp.
+enum WhatsAppOwnerKind {
+  /// Le membre Comexa utilise SON PROPRE numéro.
+  SELF
+  /// Un TIERS a explicitement autorisé Comexa à envoyer via son compte.
+  DELEGATED
+}
+
+/// Vie d'une invitation faite à un tiers (« autorisez-vous Comexa à envoyer
+/// des messages depuis votre WhatsApp ? »).
+enum WhatsAppDelegationStatus {
+  /// Envoyée, en attente de réponse.
+  PENDING
+  /// Le tiers a scanné le QR ET accepté le texte de consentement.
+  ACCEPTED
+  /// Le tiers a refusé.
+  REFUSED
+  /// Le code d'autorisation a dépassé sa durée de validité.
+  EXPIRED
+  /// Retirée après acceptation (par le tiers, le membre ou un administrateur).
+  REVOKED
+}
+
+enum WhatsAppMessageDirection {
+  /// Envoyé par Comexa via le compte appairé.
+  OUTBOUND
+  /// Reçu par ce compte (réservé : l'écoute n'est pas branchée).
+  INBOUND
+}
+
+enum WhatsAppMessageStatus {
+  /// Enregistré avant l'appel à la passerelle.
+  QUEUED
+  /// La passerelle a accepté l'envoi.
+  SENT
+  /// La passerelle a échoué (réseau, numéro inexistant, session coupée).
+  FAILED
+  /// REFUSÉ PAR COMEXA, avant tout appel : consentement absent ou expiré,
+  /// session non appairée, plafond horaire atteint, corps trop long.
+  ///
+  /// Distinct de `FAILED`, et c'est le point important : un `REFUSED` n'a pas
+  /// quitté le serveur. Confondre les deux ferait croire qu'un message a été
+  /// envoyé alors qu'il a été bloqué par une règle — ou l'inverse.
+  REFUSED
+}
+
+/// Transcription d'un message vocal reçu par le bot Telegram.
+///
+/// POURQUOI UNE TABLE, ALORS QUE LE TEXTE POURRAIT RESTER DANS n8n
+/// ----------------------------------------------------------------
+/// Trois raisons, toutes vérifiables :
+///
+///  1. LE REJEU. n8n réessaie quand un nœud expire. Sans trace, chaque essai
+///     repaie une transcription — et un vocal de trois minutes coûte plus cher
+///     en calcul que tout le reste du workflow. `telegramFileId` est UNIQUE :
+///     le deuxième appel rend le texte déjà produit, sans rappeler le moteur.
+///  2. LA PREUVE. « Le bot a créé cette tâche d'après ce vocal » se conteste ;
+///     la transcription datée, avec le moteur et le membre concernés, ne se
+///     conteste pas.
+///  3. LA DURÉE DE CONSERVATION. Une transcription est une donnée personnelle
+///     (la voix de quelqu'un, mise en texte). Elle a donc une fin de vie
+///     réglable (`TRANSCRIPT_RETENTION_DAYS`) et un balayage planifié, là où un
+///     historique de workflow n8n n'en a aucune.
+model VoiceTranscript {
+  id String @id @default(cuid())
+
+  /// Membre Comexa dont le compte Telegram a produit le vocal (résolu par
+  /// `TelegramLink` avant l'appel). `Cascade` : supprimer un compte supprime
+  /// ses transcriptions — ce sont les siennes.
+  userId String
+  user   User   @relation("VoiceTranscriptOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Identifiants Telegram, conservés pour retrouver le message d'origine.
+  telegramUserId    String
+  telegramChatId    String?
+  telegramMessageId String?
+  /// Identifiant du FICHIER Telegram : la clé de rejeu (unique).
+  telegramFileId    String  @unique
+
+  /// Ce qui a été transcrit : format, taille, durée déclarée par Telegram.
+  mimeType        String
+  bytes           Int
+  durationSeconds Int?
+
+  /// Langue détectée ou demandée (BCP-47 court, ex. `fr`).
+  language String?
+  /// Le texte produit. Jamais de HTML : du texte brut, tel que rendu.
+  text     String
+  /// Moteur et modèle effectifs — indispensables pour expliquer une
+  /// transcription fautive (« quel moteur a produit ceci ? »).
+  provider String
+  model    String?
+
+  /// Compte technique du jeton d'intégration qui a demandé la transcription.
+  /// `SetNull` : révoquer un jeton ne doit pas effacer l'historique.
+  requestedById String?
+  requestedBy   User?   @relation("VoiceTranscriptRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("voice_transcripts")
+}
+
+/// Un compte WhatsApp appairé à la passerelle, et l'autorisation qui va avec.
+///
+/// UNE LIGNE = UNE AUTORISATION, PAS UN NUMÉRO
+/// -------------------------------------------
+/// `userId` est le membre Comexa qui PEUT DEMANDER UN ENVOI via ce compte. Le
+/// numéro, lui, appartient soit à ce membre (`ownerKind = SELF`), soit à un tiers
+/// qui l'a autorisé (`DELEGATED`, avec la `WhatsAppDelegation` qui le prouve).
+/// C'est cette distinction qui rend la demande « ou au compte de celui qui l'y
+/// autorise » traçable plutôt qu'implicite.
+///
+/// `sessionName` est UNIQUE et n'est JAMAIS RÉUTILISÉ après révocation : une
+/// révocation doit couper la session correspondante à coup sûr. Recycler un nom
+/// laisserait un doute — « cette session est-elle l'ancienne ou la nouvelle ? »
+/// — et le doute, ici, porte sur l'accès au compte WhatsApp de quelqu'un.
+model WhatsAppAccount {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("WhatsAppAccountHolder", fields: [userId], references: [id], onDelete: Cascade)
+
+  ownerKind WhatsAppOwnerKind @default(SELF)
+
+  /// Pilote de passerelle qui détient la session (`waha`, `evolution`).
+  /// Conservé par ligne : changer de pilote globalement ne doit pas faire
+  /// croire qu'une session appairée sous l'ancien est encore vivante.
+  gatewayDriver String
+  /// Nom de session côté passerelle. Dérivé de l'identifiant Comexa, donc
+  /// non devinable et stable (voir `whatsapp-identity.ts`).
+  sessionName   String @unique
+
+  status WhatsAppSessionStatus @default(DISCONNECTED)
+
+  /// Numéro et nom d'affichage, lus sur la passerelle APRÈS appairage. Jamais
+  /// demandés à la saisie : ce sont des faits, pas des déclarations.
+  phoneNumber String?
+  pushName    String?
+
+  /// Ce que le titulaire a autorisé, en codes stables (`message:send`,
+  /// `contact:read`). Une délégation peut être plus étroite qu'une utilisation
+  /// personnelle ; l'envoi vérifie cette liste, pas seulement l'état.
+  grantedScopes String[] @default(["message:send"])
+
+  /// CONSENTEMENT — la version du texte accepté, quand, et depuis quelle
+  /// adresse. Trois colonnes plutôt qu'un booléen : « il a accepté » ne dit ni
+  /// QUOI ni QUAND, et c'est précisément ce qu'on demande le jour où quelqu'un
+  /// conteste un envoi.
+  consentVersion    String
+  consentAcceptedAt DateTime?
+  consentIpAddress  String?
+  /// Fin de l'autorisation. `null` = sans limite de durée, mais TOUJOURS
+  /// révocable : la révocation coupe la session, elle ne se contente pas
+  /// d'écrire une date.
+  consentExpiresAt  DateTime?
+
+  pairedAt  DateTime?
+  revokedAt DateTime?
+
+  /// Dernier état interrogé sur la passerelle, et la dernière erreur lue.
+  /// L'état en base est un CACHE : il peut mentir de quelques secondes, et
+  /// `WHATSAPP_SESSION_CACHE_MS` dit combien.
+  lastStatusAt DateTime?
+  lastError    String?
+
+  /// Délégation à l'origine de cette ligne (`ownerKind = DELEGATED`).
+  delegationId String?             @unique
+  delegation   WhatsAppDelegation? @relation(fields: [delegationId], references: [id], onDelete: SetNull)
+
+  contacts WhatsAppContact[]
+  messages WhatsAppMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
+  @@index([revokedAt])
+  @@map("whatsapp_accounts")
+}
+
+/// Invitation faite à un tiers d'autoriser Comexa à envoyer depuis son WhatsApp.
+///
+/// LE CODE N'EST JAMAIS STOCKÉ EN CLAIR — même mécanique que
+/// `TelegramLink.pairingCodeHash` et `IntegrationToken.tokenHash` : seule
+/// l'empreinte SHA-256 est conservée, le code n'est affiché qu'une fois, et la
+/// comparaison est à durée constante. Une fuite de la base ne permet pas de se
+/// faire passer pour le tiers.
+///
+/// Pourquoi un code ET un QR : le tiers doit faire deux choses distinctes —
+/// prouver qu'il accepte (le code, tapé dans Telegram ou ouvert depuis le lien)
+/// et appairer son téléphone (le QR, généré par la passerelle). Les confondre
+/// en une seule étape produirait un compte connecté sans consentement daté.
+model WhatsAppDelegation {
+  id String @id @default(cuid())
+
+  /// Membre Comexa qui demande l'autorisation.
+  requestedById String
+  requestedBy   User   @relation("WhatsAppDelegationRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+
+  /// Le tiers. L'adresse sert à l'invitation par courriel, le numéro à
+  /// l'identification après appairage ; les deux sont facultatifs car un tiers
+  /// peut être joint par l'un ou l'autre.
+  delegatorName  String?
+  delegatorEmail String?
+  delegatorPhone String?
+
+  /// Identite Telegram du tiers, relevee AU MOMENT DE L'ACCEPTATION.
+  ///
+  /// Elle sert a la revocation : c'est depuis ce chat que le titulaire peut
+  /// retirer l'autorisation d'un message au bot, sans passer par Comexa. Sans
+  /// elle, seul le membre demandeur pourrait couper l'acces — ce qui revient a
+  /// donner a l'un ce que l'autre a accorde.
+  delegatorTelegramUserId String?
+  delegatorTelegramChatId String?
+  /// Contexte libre, remis au tiers avec le texte de consentement : il doit
+  /// savoir POURQUOI on lui demande cela.
+  note           String?
+
+  status WhatsAppDelegationStatus @default(PENDING)
+
+  /// Capacites DEMANDEES au tiers, recopiees sur le compte a l'acceptation.
+  ///
+  /// Stockees ici et non devinees : ce que le tiers a vu dans le texte de
+  /// consentement doit etre exactement ce que le compte obtient. Sans cette
+  /// colonne, l'acceptation accorderait le jeu par defaut, qui peut etre plus
+  /// large (ou plus etroit) que la demande affichee.
+  grantedScopes String[]  @default([])
+
+  codeHash      String?   @unique
+  codeExpiresAt DateTime?
+
+  acceptedAt        DateTime?
+  acceptedIpAddress String?
+  refusedAt         DateTime?
+  revokedAt         DateTime?
+  /// Fin de l'autorisation accordée (recopiée dans le compte).
+  expiresAt         DateTime?
+
+  account WhatsAppAccount?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, codeExpiresAt])
+  @@index([requestedById])
+  @@map("whatsapp_delegations")
+}
+
+/// Contact WhatsApp, mis en cache depuis la passerelle.
+///
+/// POURQUOI UN CACHE PLUTÔT QU'UN APPEL À CHAQUE FOIS
+/// ---------------------------------------------------
+/// Le répertoire d'un compte peut compter des milliers d'entrées, et la
+/// passerelle les relit du téléphone à chaque demande. Un envoi piloté par un
+/// bot ne doit pas dépendre de cette latence — ni la provoquer cinquante fois
+/// par heure. Le cache est explicitement daté (`syncedAt`) : personne ne croit
+/// lire l'état du téléphone en temps réel.
+///
+/// CE CACHE CONTIENT LES DONNÉES DE TIERS qui n'ont rien demandé. D'où
+/// `contact:read` dans `grantedScopes` : sans cette autorisation, la
+/// synchronisation est refusée, et les contacts déjà copiés sont supprimés à la
+/// révocation (voir `WhatsAppAccountService.revoke`).
+model WhatsAppContact {
+  id String @id @default(cuid())
+
+  accountId String
+  account   WhatsAppAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  /// Identifiant WhatsApp (`<numéro>@s.whatsapp.net`, ou `<id>@g.us` pour un
+  /// groupe). C'est ce que la passerelle attend comme destinataire.
+  jid         String
+  /// Numéro au format E.164 sans le `+`, quand le JID en porte un.
+  phoneNumber String?
+  /// Nom tel que publié par le titulaire (ou enregistré dans le téléphone).
+  name        String?
+  isBusiness  Boolean @default(false)
+
+  syncedAt DateTime @default(now())
+
+  @@unique([accountId, jid])
+  @@index([accountId, name])
+  @@map("whatsapp_contacts")
+}
+
+/// Journal des messages WhatsApp — la trace qui répond à « qui a envoyé quoi ».
+///
+/// Écrit AVANT l'appel à la passerelle (`QUEUED`), puis mis à jour (`SENT`,
+/// `FAILED`) : un message dont l'envoi a coupé le processus reste visible comme
+/// « demandé, non confirmé ». N'écrire qu'après le succès produirait l'inverse —
+/// des envois réels sans aucune trace.
+///
+/// `(accountId, idempotencyKey)` est UNIQUE : un rejeu n8n rend la ligne
+/// existante au lieu d'envoyer le message deux fois. Un double envoi à un client
+/// est exactement l'incident que l'idempotence des créations de tâches évite
+/// déjà ailleurs dans ce projet.
+model WhatsAppMessage {
+  id String @id @default(cuid())
+
+  accountId String
+  account   WhatsAppAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  direction WhatsAppMessageDirection @default(OUTBOUND)
+
+  toJid         String
+  toPhoneNumber String?
+  body          String
+
+  status WhatsAppMessageStatus @default(QUEUED)
+
+  /// Identifiant rendu par la passerelle : la seule façon de rapprocher un envoi
+  /// d'un accusé de réception ultérieur.
+  gatewayMessageId String?
+  errorCode        String?
+  errorMessage     String?
+
+  /// Membre Comexa à l'origine de la demande (résolu depuis son compte
+  /// Telegram). `SetNull` : un départ ne doit pas effacer la trace de l'envoi.
+  requestedById     String?
+  requestedBy       User?   @relation("WhatsAppMessageRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  telegramChatId    String?
+  telegramMessageId String?
+
+  /// Clé fournie par l'appelant (facultative). `null` en base n'entre pas en
+  /// conflit avec un autre `null` : PostgreSQL traite les NULL comme distincts
+  /// dans un index unique, donc les envois sans clé ne se bloquent jamais
+  /// mutuellement.
+  idempotencyKey String?
+
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([accountId, idempotencyKey])
+  @@index([accountId, createdAt])
+  @@index([status])
+  @@map("whatsapp_messages")
 }

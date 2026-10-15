@@ -248,6 +248,10 @@ clé, ce qui est précisément l'usage voulu.
 | Consulter le temps passé | `time:read:any` |
 | Écrire du temps (saisie automatique) | `time:write:any` |
 | Lecture seule, pour un tableau de bord | `dashboard:read:any` si le rôle le prévoit |
+| Transcrire les vocaux Telegram | `telegram:transcribe:any` |
+| Envoyer un message WhatsApp depuis un compte autorisé | `whatsapp:send:any` + `telegram:link:any` (résoudre l'expéditeur) |
+| Appairer / révoquer une session WhatsApp | `whatsapp:link:any` |
+| Lire le répertoire et le journal des envois | `whatsapp:read:any` |
 
 **Le niveau de lecture suit le jeton, pas la confiance.** Une intégration qui n'a
 que `task:read:own` ne verra que les tâches qui lui sont assignées — mais un
@@ -256,6 +260,13 @@ machine, il faut un scope `any`.
 
 **Aucune intégration ne peut gérer les intégrations** : `integration:manage:any`
 est refusé dans `scopes`. Une machine ne se distribue pas d'accès à elle-même.
+
+**Un jeton WhatsApp ne devrait presque jamais tout porter.** `whatsapp:send:any`
+envoie des messages depuis le téléphone d'une personne réelle ; `whatsapp:read:any`
+lit un répertoire qui contient les coordonnées de gens qui n'ont rien demandé. Les
+mettre sur le même jeton revient à donner à un seul workflow volé la capacité
+d'écrire au nom de quelqu'un **et** de récupérer son carnet d'adresses. Deux
+jetons, deux workflows, deux révocations indépendantes.
 
 ---
 
@@ -296,6 +307,16 @@ est refusé dans `scopes`. Une machine ne se distribue pas d'accès à elle-mêm
 | 422 `INTEGRATION_SCOPE_UNKNOWN` | faute de frappe dans un code de permission |
 | 404 sur `/api/v1/...` | backend pas redéployé, ou `API_PREFIX` différent |
 | 429 | plafond atteint → desserrer `RATE_LIMIT_*`, ou espacer les exécutions |
+| 429 `WHATSAPP_RATE_LIMITED` | plafond **par compte WhatsApp** atteint (`WHATSAPP_MAX_MESSAGES_PER_HOUR`) → attendre la fin de l'heure glissante ; ne pas rejouer tout de suite |
+| 409 `WHATSAPP_SESSION_NOT_CONNECTED` | le téléphone n'a pas scanné le QR, ou la session s'est déconnectée → relancer l'appairage (§10.3) |
+| 403 `WHATSAPP_CONSENT_EXPIRED` / `_REVOKED` / `_OUTDATED` | le titulaire a retiré l'autorisation, ou le texte a changé → un nouveau consentement est nécessaire, aucun rejeu ne le contournera |
+| 403 `WHATSAPP_SCOPE_NOT_GRANTED` | la capacité demandée (ex. `contact:read`) n'a pas été accordée au moment du consentement |
+| 503 `WHATSAPP_GATEWAY_NOT_CONFIGURED` | `WHATSAPP_GATEWAY_DRIVER=none` côté serveur → la fonctionnalité n'est pas déployée |
+| 502 / 503 `WHATSAPP_GATEWAY_*` | la passerelle (WAHA / Evolution) ne répond pas → vérifier son conteneur, pas le jeton |
+| 503 `TRANSCRIPTION_NOT_CONFIGURED` | `TRANSCRIPTION_PROVIDER=none` → renseigner le moteur (§10.1) |
+| 413 `TRANSCRIPTION_PAYLOAD_TOO_LARGE` | corps au-dessus de `TRANSCRIPTION_MAX_BYTES` ; le plus souvent, ce n'est pas un vocal |
+| 422 `TRANSCRIPTION_UNSUPPORTED_FORMAT` | type MIME non audio (une vidéo Telegram arrive en `video/mp4`) |
+| 502 `TRANSCRIPTION_UNAUTHORIZED` | la clé **du fournisseur** de transcription est refusée — pas votre jeton `cxi_` |
 
 ---
 
@@ -304,7 +325,9 @@ est refusé dans `scopes`. Une machine ne se distribue pas d'accès à elle-mêm
 **En place** : jetons d'intégration (création, liste, renouvellement,
 révocation, suppression), vérification serveur, permissions par jeton,
 traçabilité, alias `/api/v1`, limitation de débit réglable, idempotence des
-créations, documentation.
+créations, documentation, liaison Telegram multi-utilisateurs
+(`/integrations/telegram/*`), transcription des vocaux Telegram et passerelle
+WhatsApp (§10).
 
 **Non implémenté** (et volontairement absent de ce document jusqu'à livraison) :
 
@@ -334,3 +357,90 @@ dépôt :
 4. **Renseigner** `RATE_LIMIT_LIMIT` / `RATE_LIMIT_TTL` dans l'environnement
    Render si les valeurs par défaut (120 / 60 s) ne conviennent pas au volume de
    workflows.
+
+---
+
+## 10. Vocaux Telegram et WhatsApp
+
+Ces routes sont **servies** ; elles attendent chacune une configuration côté
+serveur, sans laquelle elles répondent `503` avec un code stable plutôt que de
+faire semblant. Le détail de l'architecture, du consentement et des risques est
+dans `docs/TELEGRAM-VOIX-WHATSAPP.md`.
+
+### 10.1 Transcrire un vocal
+
+```
+POST /api/v1/integrations/telegram/transcribe
+Content-Type: multipart/form-data
+```
+
+| Champ | Obligatoire | Rôle |
+|---|---|---|
+| `file` | oui | les octets audio, téléchargés depuis Telegram |
+| `telegramUserId` | oui | expéditeur — résolu en membre Comexa via la liaison existante |
+| `telegramFileId` | oui | **clé de rejeu** : unique par fichier |
+| `telegramChatId`, `telegramMessageId` | non | retrouver le message d'origine |
+| `mimeType` | non | défaut : celui de la pièce jointe |
+| `durationSeconds` | non | durée annoncée par Telegram |
+| `language` | non | `fr`, `ar`… ; omis, le moteur détecte |
+| `prompt` | non | vocabulaire attendu, pas une consigne |
+
+Le workflow télécharge **d'abord** le fichier (`getFile`, puis
+`https://api.telegram.org/file/bot<token>/<file_path>`) : l'API ne parle jamais à
+Telegram. Un vocal arrive en OGG/Opus et se transmet **tel quel** — aucune
+conversion, aucun ffmpeg.
+
+Réponse : `data.text`, `data.language`, `data.provider`, `data.model`, et
+`data.replayed`. **Aucun octet audio n'est conservé** ; le texte l'est
+`TRANSCRIPT_RETENTION_DAYS` jours.
+
+Un second appel sur le même `telegramFileId` rend la transcription existante avec
+`replayed: true`, **sans nouvel appel au moteur** — donc sans nouveau coût. C'est
+ce qui rend le nœud HTTP rejouable sans risque.
+
+### 10.2 Envoyer un message WhatsApp
+
+```
+POST /api/v1/integrations/whatsapp/users/{userId}/messages
+```
+
+`{userId}` est l'identifiant **Comexa**, obtenu par
+`GET /api/v1/integrations/telegram/resolve/{telegramUserId}`. Le corps :
+
+| Champ | Obligatoire | Rôle |
+|---|---|---|
+| `to` | oui | numéro (`+213555123456`, `0555123456`) ou JID complet |
+| `body` | oui | texte, ≤ `WHATSAPP_MAX_BODY_LENGTH` |
+| `idempotencyKey` | conseillé | anti-double-envoi sur un rejeu du workflow |
+| `countryCode` | non | indicatif par défaut pour un numéro local (défaut : `WHATSAPP_DEFAULT_COUNTRY_CODE`) |
+| `telegramChatId`, `telegramMessageId` | non | rattacher l'envoi à la demande |
+
+La règle s'applique **avant** tout appel à la passerelle : consentement, état de
+session, destinataire, longueur, plafond horaire. Un refus laisse une ligne
+`REFUSED` dans le journal et rend le code correspondant (§7) — la passerelle n'est
+pas appelée.
+
+Les **groupes sont refusés** (`WHATSAPP_GROUP_NOT_ALLOWED`, 422) : un message de
+groupe touche tous ses membres, ce qui dépasse l'autorisation donnée pour des
+contacts individuels.
+
+### 10.3 Appairage et consentement d'un tiers
+
+| Route | Permission | Rôle |
+|---|---|---|
+| `POST /api/v1/integrations/whatsapp/users/{userId}/session` | `whatsapp:link:any` | démarre l'appairage, rend le QR en base64 (PNG) à afficher dans le chat |
+| `GET …/users/{userId}/session` | `whatsapp:link:any` | état (`WAITING_QR` → `CONNECTED` après le scan) |
+| `DELETE …/users/{userId}/session` | `whatsapp:link:any` | révocation : coupe la session, supprime les contacts copiés |
+| `GET …/users/{userId}/contacts` | `whatsapp:read:any` | répertoire en cache, **seulement** si `contact:read` a été accordé |
+| `GET …/users/{userId}/messages` | `whatsapp:read:any` | journal des envois |
+| `POST /api/v1/integrations/whatsapp/delegations/accept` | `whatsapp:link:any` | le tiers envoie `/autoriser <code>` → QR à lui afficher |
+| `POST /api/v1/integrations/whatsapp/delegations/refuse` | `whatsapp:link:any` | le tiers envoie `/refuser <code>` |
+
+Une invitation est créée côté application web (`POST /api/whatsapp/delegations`) :
+le code `WA-XXXX-XXXX-XXXX` est rendu **une seule fois**, et le texte de
+consentement part par courriel au tiers. C'est **son** scan, depuis **son**
+téléphone, qui termine l'appairage.
+
+Le QR est rendu en base64 **sans préfixe `data:`** : Telegram attend des octets.
+Dans n8n, un nœud *Convert to File* (base64 → binaire) puis *Send a photo* suffit.
+

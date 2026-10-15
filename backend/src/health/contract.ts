@@ -43,7 +43,7 @@ export interface ApiContract {
 }
 
 export const API_CONTRACT: ApiContract = {
-  version: '2026-10-12.4',
+  version: '2026-10-15.1',
   features: {
     // P2 : suivi du temps persiste cote serveur.
     timer: true,
@@ -56,6 +56,33 @@ export const API_CONTRACT: ApiContract = {
     // 400 sur le parametre inconnu et 404 sur la route : le frontend doit le
     // savoir avant d'afficher des cartes sans createur.
     taskCreators: true,
+
+    /**
+     * TRANSCRIPTION DES VOCAUX TELEGRAM.
+     *
+     * `POST /api/v1/integrations/telegram/transcribe` rend le texte d'un vocal.
+     * La cle annonce la ROUTE, PAS SON MOTEUR : elle est presente meme quand
+     * `TRANSCRIPTION_PROVIDER=none`, cas ou la route repond 503
+     * `TRANSCRIPTION_NOT_CONFIGURED` avec la marche a suivre. L'etat du moteur
+     * n'est volontairement PAS publie ici : `GET /api/health` est public
+     * (`@Public()`), et annoncer a un anonyme « un moteur est configure, voici son
+     * modele » revelerait une configuration qui ne le regarde pas. Le 503, lui, ne
+     * s'obtient qu'avec un jeton d'integration valide.
+     */
+    telegramVoice: true,
+
+    /**
+     * PASSERELLE WHATSAPP.
+     *
+     * Routes `/api/me/whatsapp/*`, `/api/whatsapp/*` et
+     * `/api/v1/integrations/whatsapp/*`. Meme raisonnement que ci-dessus : sans
+     * pilote configure (`WHATSAPP_GATEWAY_DRIVER=none`) les routes existent et
+     * repondent 503 avec un code stable — un serveur ANTERIEUR a cette cle, lui,
+     * repond 404, et la difference se lit ici. Le pilote effectivement deploye,
+     * lui, n'est rendu qu'aux appels authentifies (`gatewayDriver` dans les vues
+     * de compte), pour la meme raison que ci-dessus.
+     */
+    whatsappGateway: true,
   },
 };
 

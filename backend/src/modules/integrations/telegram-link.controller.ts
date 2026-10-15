@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
@@ -34,7 +27,7 @@ export class TelegramLinkController {
   // ---------------------------------------------------------------------------
 
   @Get('me/telegram-link')
-  @ApiOperation({ summary: "État de la liaison Telegram du membre connecté." })
+  @ApiOperation({ summary: 'État de la liaison Telegram du membre connecté.' })
   async getState(@CurrentUser() actor: AuthenticatedUser) {
     return this.links.getState(actor);
   }
@@ -49,10 +42,7 @@ export class TelegramLinkController {
 
   @Delete('me/telegram-link')
   @ApiOperation({ summary: 'Révoque la liaison Telegram du membre connecté.' })
-  async revoke(
-    @CurrentUser() actor: AuthenticatedUser,
-    @RequestMeta() meta: RequestContext,
-  ) {
+  async revoke(@CurrentUser() actor: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
     return this.links.revokeForSelf(actor, meta);
   }
 
