@@ -42,8 +42,23 @@ export const INTEGRATION_PREFIX_LENGTH = 12;
  */
 export const INTEGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
-/** Plafond de permissions par jeton : borne la surface d'une fuite. */
-export const MAX_INTEGRATION_SCOPES = 40;
+/**
+ * Plafond de permissions par jeton : borne la surface d'une fuite.
+ *
+ * 250, et non 40. Un plafond n'a de sens que rapporte a la TAILLE DU
+ * CATALOGUE : `ALL_PERMISSION_CODES` compte un peu plus de cent codes, dont
+ * tous sauf `INTEGRATION_MANAGED_CODES` sont attribuables a une integration
+ * (voir `integration-token.spec.ts`, qui verifie que le catalogue entier
+ * passe). A 40, le plafond serait descendu SOUS le plus large besoin legitime —
+ * une integration d'agence qui pilote projets, taches, agenda, CRM et
+ * facturation en une seule connexion — et aurait oblige a tailler dans les
+ * droits au hasard, ou a contourner la regle.
+ *
+ * La marge restante laisse le catalogue plus que doubler sans repasser par ici,
+ * tout en gardant une borne : une liste absurde de mille codes est toujours
+ * refusee net, jamais tronquee en silence.
+ */
+export const MAX_INTEGRATION_SCOPES = 250;
 
 /**
  * Genere un jeton. Le seul moyen d'en obtenir un.

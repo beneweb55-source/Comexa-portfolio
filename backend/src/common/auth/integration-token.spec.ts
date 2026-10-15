@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { ALL_PERMISSION_CODES } from './permissions.catalogue.js';
 import {
+  INTEGRATION_MANAGED_CODES,
   INTEGRATION_TOKEN_PREFIX,
+  MAX_INTEGRATION_SCOPES,
   displayPrefixOf,
   generateIntegrationToken,
   hashIntegrationToken,
@@ -197,11 +200,59 @@ describe('permissions accordees a un jeton', () => {
     assert.deepEqual(result, { ok: true, scopes: [] });
   });
 
+  it('accepte l’integralite des permissions attribuables du catalogue', () => {
+    // LE TEST QUI MANQUAIT AVEC L'ANCIEN PLAFOND. A 40, un jeton ne pouvait
+    // porter qu'un tiers du catalogue : une integration d'agence — projets,
+    // taches, agenda, CRM et facturation — devait choisir ce qu'elle abandonnait.
+    // Le plafond est donc verifie ici contre la REALITE du catalogue, et non
+    // contre une liste de codes fictifs inventes pour le test.
+    const managed = new Set(INTEGRATION_MANAGED_CODES);
+    const assignable = ALL_PERMISSION_CODES.filter((code) => !managed.has(code));
+
+    assert.ok(
+      assignable.length <= MAX_INTEGRATION_SCOPES,
+      `${assignable.length} permissions attribuables pour un plafond de ${MAX_INTEGRATION_SCOPES}`,
+    );
+
+    const result = normalizeIntegrationScopes(assignable, ALL_PERMISSION_CODES);
+
+    assert.deepEqual(result, { ok: true, scopes: [...assignable].sort() });
+    assert.equal(result.ok === true && result.scopes.length, assignable.length);
+  });
+
+  it('refuse tout de meme les deux codes d’administration du catalogue reel', () => {
+    // Le catalogue entier passe, mais JAMAIS les deux codes qui permettraient a
+    // une machine de se remplacer elle-meme : la regle des droits refuses est
+    // independante du plafond.
+    const result = normalizeIntegrationScopes(ALL_PERMISSION_CODES, ALL_PERMISSION_CODES);
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.ok === false && result.forbidden, [...INTEGRATION_MANAGED_CODES]);
+  });
+
   it('plafonne le nombre de permissions', () => {
+    // Le plafond borne toujours une liste absurde : il refuse, il ne tronque
+    // jamais en silence.
     const tooMany = new Set<string>();
-    for (let i = 0; i < 41; i += 1) tooMany.add(`permission:fictive:${i}`);
+    for (let i = 0; i < MAX_INTEGRATION_SCOPES + 1; i += 1) tooMany.add(`permission:fictive:${i}`);
     const result = normalizeIntegrationScopes([...tooMany], new Set([...CATALOGUE, ...tooMany]));
 
     assert.equal(result.ok, false);
+  });
+
+  it('accepte exactement le plafond, et une seule permission de plus que lui', () => {
+    const atCeiling = new Set<string>();
+    for (let i = 0; i < MAX_INTEGRATION_SCOPES; i += 1) atCeiling.add(`permission:fictive:${i}`);
+    const catalogue = new Set([...CATALOGUE, ...atCeiling]);
+
+    // Juste AU plafond : accepte. Au-dessus : refuse. La frontiere est
+    // verifiee des deux cotes, sinon un `>` ecrit `>=` ne se verrait pas.
+    assert.equal(normalizeIntegrationScopes([...atCeiling], catalogue).ok, true);
+
+    const oneMore = [...atCeiling, 'permission:fictive:supplementaire'];
+    assert.equal(
+      normalizeIntegrationScopes(oneMore, new Set([...catalogue, ...oneMore])).ok,
+      false,
+    );
   });
 });
