@@ -1,0 +1,178 @@
+/* Active workspace shell. Legacy .cx-workspace glass rules do not target it.
+   Opaque defaults remain readable without backdrop-filter; only the chrome and
+   dashboard surfaces are blurred, never individual table rows. */
+.sui-viewport:not(.sui-viewport--embedded) {
+  --liquid-edge: rgba(255, 255, 255, 0.9);
+  --liquid-shadow: 0 4px 6px -4px rgba(30, 58, 96, 0.06), 0 14px 36px -22px rgba(30, 58, 96, 0.2), inset 0 1px 0 #fff;
+  background:
+    radial-gradient(ellipse at 0% 10%, rgba(151, 199, 255, 0.42), transparent 44%),
+    radial-gradient(ellipse at 96% 20%, rgba(196, 185, 246, 0.27), transparent 48%),
+    radial-gradient(ellipse at 64% 100%, rgba(174, 222, 240, 0.32), transparent 50%),
+    #f0f4fa;
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.sui-viewport .sui-sidebar {
+  background: #eef4fc;
+  border-right-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 1px 0 0 rgba(30, 58, 96, 0.04);
+}
+.sui-viewport .sui-sidebar__brand { min-height: 76px; }
+.sui-viewport .sui-sidebar__group-label { color: #526681; letter-spacing: 0.09em; font-size: 10px; }
+.sui-viewport .sui-sidebar__link {
+  min-height: 42px;
+  border-radius: 12px;
+  font-size: 12.5px;
+}
+.sui-viewport .sui-sidebar__link--active,
+.sui-viewport .sui-sidebar__link--active:hover {
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.95), rgba(228, 240, 255, 0.9));
+  border-color: #fff;
+  color: #155b9a;
+  box-shadow: 0 3px 10px rgba(47, 92, 148, 0.08), inset 0 1px 0 #fff;
+}
+.sui-viewport .sui-sidebar__link--active .sui-sidebar__link-icon { color: #1675cb; }
+.sui-viewport .sui-sidebar__link--active .sui-sidebar__link-badge { background: #dcecff; color: #155b9a; }
+.sui-viewport .sui-sidebar__cmdk-btn { min-height: 42px; background: rgba(255, 255, 255, 0.5); }
+.sui-viewport .sui-topbar {
+  min-height: 76px;
+  flex-shrink: 0;
+  background: #f6f8fd;
+  border-bottom-color: rgba(255, 255, 255, 0.85);
+  gap: 20px;
+}
+.sui-viewport .sui-topbar__left { flex-shrink: 0; }
+.sui-viewport .sui-topbar__eyebrow { font-size: 9px; letter-spacing: 0.07em; }
+.sui-viewport .sui-topbar__title { font-size: 14px; margin-top: 3px; }
+.sui-viewport .sui-topbar__center { min-width: 140px; }
+.sui-topbar__command { text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sui-viewport .sui-canvas-scroll {
+  padding: clamp(22px, 2.5vw, 40px) clamp(16px, 2.4vw, 40px) 36px;
+  scrollbar-width: thin;
+  scrollbar-color: #b1c2d9 transparent;
+  overscroll-behavior-y: contain;
+  scroll-padding-block: 24px;
+}
+
+/* Previously unstyled PageHeader: one real h1, connected actions, no inert search. */
+.sui-head { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+.sui-head__left { display: flex; gap: 14px; align-items: center; min-width: 0; }
+.sui-head__crumb { margin: 0 0 8px; color: #526987; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; }
+.sui-head__title { margin: 0; color: #102b4a; font-size: clamp(25px, 2.3vw, 36px); line-height: 1.2; font-weight: 800; letter-spacing: -0.045em; }
+.sui-head__sub { margin: 9px 0 0; font-size: 12.5px; line-height: 1.65; color: #526681; max-width: 64ch; }
+.sui-head__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sui-head__actions .cx-btn { font-size: 12px; min-height: 42px; border-radius: 13px; }
+.sui-head__icon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; background: var(--pastel-blue); color: #1568b4; flex-shrink: 0; }
+.sui-search { display: flex; align-items: center; gap: 8px; padding: 0 14px; min-height: 42px; border-radius: 13px; background: #fff; border: var(--border-subtle); color: var(--muted); }
+.sui-search input { width: 100%; min-width: 0; outline: none; background: transparent; font: inherit; font-size: 13px; }
+.sui-search:focus-within { outline: 2px solid #1675cb; outline-offset: 3px; }
+
+/* Layout responds to usable canvas width, not the viewport behind the sidebar. */
+.cx-bento { min-width: 0; }
+.cx-bento__kpis, .cx-bento__widgets { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.cx-bento__kpis > *, .cx-bento__widgets > * { min-width: 0; }
+@container (min-width: 580px) {
+  .cx-bento__kpis, .cx-bento__widgets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (min-width: 1080px) {
+  .cx-bento__kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cx-bento__widgets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.sui-viewport .cx-bento .cx-card,
+.sui-viewport .cx-bento .cx-glass-card,
+.sui-viewport .cx-bento__actions {
+  border: 1px solid var(--liquid-edge);
+  border-radius: 22px;
+  background: #fafcff;
+  background-clip: padding-box;
+  box-shadow: var(--liquid-shadow);
+}
+.sui-viewport .cx-bento__kpis > .cx-card {
+  padding: 20px;
+  min-height: 166px;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.cx-bento__kpis > .cx-card > :first-child { flex-wrap: wrap; gap: 12px; }
+.cx-bento__kpis > .cx-card > :first-child > .flex { min-width: 0; }
+.cx-bento__kpis .cx-tabular { font-size: clamp(22px, 1.7vw, 30px); line-height: 1.25; overflow-wrap: anywhere; letter-spacing: -0.045em; }
+.cx-bento__kpis .cx-badge { white-space: normal; font-size: 10px; }
+.cx-bento__kpis > .cx-card > :last-child { flex-wrap: wrap; gap: 8px; }
+.cx-bento__kpis svg { flex-shrink: 0; }
+.cx-bento__widgets > .cx-glass-card { padding: 22px; min-height: 264px; }
+.cx-bento__widgets h3 { letter-spacing: -0.025em; }
+.cx-bento__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 16px; }
+.cx-bento__actions .cx-btn { min-height: 38px; border-radius: 11px; font-size: 11px; }
+.cx-bento__actions .sui-filter-pills { flex-shrink: 0; }
+.cx-bento__actions .sui-filter-pill { min-height: 38px; }
+.sui-viewport .cx-bento .cx-dashboard__muted { color: #536a83; line-height: 1.6; }
+.sui-viewport .cx-bento .cx-dashboard__rate { color: #345e88; }
+.sui-viewport .cx-bento .cx-dashboard__task-button { min-height: 44px; }
+.cx-bento__details { min-width: 0; }
+.cx-bento__details .cx-panel { background: rgba(255,255,255,0.72); border-color: #fff; border-radius: 22px; box-shadow: var(--liquid-shadow); }
+.cx-bento__details .cx-dashboard__tabs { flex-wrap: wrap; }
+.cx-bento__details .cx-dashboard__tab { min-height: 42px; }
+
+@supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+  .sui-viewport .sui-sidebar {
+    background: linear-gradient(160deg, rgba(255,255,255,0.66), rgba(237,244,255,0.4));
+    -webkit-backdrop-filter: blur(30px) saturate(150%);
+    backdrop-filter: blur(30px) saturate(150%);
+  }
+  .sui-viewport .sui-topbar, .sui-viewport .sui-mobile-tabbar {
+    background: rgba(249,251,255,0.65);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+  }
+  .sui-viewport .cx-bento .cx-card,
+  .sui-viewport .cx-bento .cx-glass-card,
+  .sui-viewport .cx-bento__actions {
+    background: linear-gradient(135deg, rgba(255,255,255,0.84), rgba(255,255,255,0.52));
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .sui-viewport .cx-bento__kpis > .cx-card:hover {
+    transform: translateY(-3px);
+    border-color: #fff;
+    box-shadow: 0 16px 30px -18px rgba(30, 79, 141, 0.3), inset 0 1px 0 #fff;
+  }
+}
+@media (max-width: 1180px) {
+  .sui-viewport .sui-topbar__center { display: none; }
+}
+@media (max-width: 1023px) {
+  .sui-viewport .sui-topbar__right > .sui-pill-btn { display: none; }
+}
+@media (max-width: 767px) {
+  .sui-viewport .sui-topbar { min-height: 68px; gap: 8px; padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top, 0px)); }
+  .sui-viewport .sui-topbar__eyebrow { font-size: 8px; }
+  .sui-viewport .sui-topbar__title { font-size: 12px; }
+  .sui-viewport .sui-topbar__left { flex-shrink: 1; }
+  .sui-viewport .sui-topbar__right { gap: 4px; }
+  .sui-viewport .cx-user-menu__identity, .sui-viewport .cx-user-menu__chevron { display: none; }
+  .sui-viewport .cx-user-menu__trigger { padding: 4px; min-width: 44px; min-height: 44px; }
+  .sui-viewport .sui-canvas-scroll { padding: 24px 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
+  .sui-head { gap: 16px; }
+  .sui-head__actions { width: 100%; }
+  .sui-head__actions .cx-btn { flex: 1; }
+  .sui-head__crumb { font-size: 9px; }
+  .cx-bento__actions { padding: 14px; }
+  .cx-bento__actions > .flex { width: 100%; }
+  .cx-bento__actions .sui-filter-pills { width: 100%; }
+  .cx-bento__actions .sui-filter-pill { flex: 1; min-height: 44px; }
+  .cx-bento__actions .cx-btn { min-height: 44px; }
+  .sui-viewport .sui-mobile-tabbar { left: 10px; right: 10px; bottom: 8px; border: 1px solid rgba(255,255,255,0.95); border-radius: 24px; box-shadow: 0 6px 30px rgba(30,58,96,0.14), inset 0 1px 0 #fff; }
+  .sui-viewport .sui-mobile-tab--active { background: rgba(218,235,255,0.75); color: #155b9a; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sui-viewport *, .sui-viewport *::before, .sui-viewport *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sui-viewport .sui-sidebar, .sui-viewport .sui-topbar, .sui-viewport .sui-mobile-tabbar,
+  .sui-viewport .cx-bento .cx-card, .sui-viewport .cx-bento .cx-glass-card, .sui-viewport .cx-bento__actions {
+    background: #f8fbff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

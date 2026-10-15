@@ -22,7 +22,6 @@ import {
   FileCheck2,
   FileText,
   FolderKanban,
-  Plus,
   ReceiptText,
   Sparkles,
   TrendingUp,
@@ -84,9 +83,9 @@ function MiniSparkline({ points = [], color = "#1e86e0" }) {
 
 function BentoSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12" role="status" aria-label="Chargement des indicateurs">
+    <div className="cx-bento__kpis" role="status" aria-label="Chargement des indicateurs">
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="cx-panel flex flex-col gap-3 p-5 xl:col-span-3">
+        <div key={i} className="cx-panel flex flex-col gap-3 p-5">
           <div className="flex items-center justify-between">
             <div className="cx-skeleton h-10 w-10 rounded-xl" />
             <div className="cx-skeleton h-6 w-20 rounded-full" />
@@ -124,7 +123,7 @@ export default function BentoDashboard() {
     return () => window.clearInterval(interval);
   }, []);
 
-  const canAgency = can(user, "dashboard:read:agency");
+  const canAgency = can(user, "dashboard:read:any");
   const canReadProjects = ["project:read:any", "project:read:assigned", "project:read:own"].some((p) => can(user, p));
   const canReadOwnTaskList = canReadOwnTasks(user);
   const canReadTeamTasks = can(user, "project:read:any") && can(user, "task:read:any");
@@ -137,7 +136,7 @@ export default function BentoDashboard() {
   const canReadActivity = can(user, "activity:read:any") || can(user, "activity:read:client");
   const canReadOrders = can(user, "order:read:any");
 
-  const agency = useObject("/dashboard/agency", canAgency);
+  const agency = useObject("/dashboard", canAgency);
   const me = useObject("/dashboard/me", true);
   const projects = useAllListing("/projects?perPage=100", canReadProjects);
   const myTasks = useAllListing("/me/tasks?perPage=100", canReadOwnTaskList);
@@ -226,6 +225,12 @@ export default function BentoDashboard() {
         statusLabel: PROJECT_STATUS[p.status] ?? p.status,
         overdue: Boolean(p.dueDate && isDeadlinePassed(p.dueDate, now)),
       }));
+    const healthCounts = activeProjects.reduce((counts, project) => {
+      const health = project.health ?? (project.overdue ? "DELAYED" : "ON_TRACK");
+      counts[health] = (counts[health] ?? 0) + 1;
+      return counts;
+    }, {});
+    const projectHealth = Object.entries(healthCounts).map(([status, count]) => ({ status, count }));
     const onHoldProjects = projectList.filter((p) => p.status === "ON_HOLD").length;
     const lateProjects = activeProjects.filter((p) => p.overdue).length;
     const avgProgress = activeProjects.length
@@ -329,6 +334,7 @@ export default function BentoDashboard() {
     return {
       currency,
       activeProjects,
+      projectHealth,
       onHoldProjects,
       lateProjects,
       avgProgress,
@@ -381,16 +387,16 @@ export default function BentoDashboard() {
 
   const activeProjectsCount = projectsDataReady
     ? computed.activeProjects.length
-    : Number.isFinite(Number(agencyCounters.activeProjects))
-      ? Number(agencyCounters.activeProjects)
+    : Number.isFinite(Number(agency.data?.projects?.active ?? agencyCounters.activeProjects))
+      ? Number(agency.data?.projects?.active ?? agencyCounters.activeProjects)
       : null;
   const openTasksCount = myTasksReady
     ? computed.myOpenTasks.length
-    : Number.isFinite(Number(meCounters.openTasks))
-      ? Number(meCounters.openTasks)
+    : Number.isFinite(Number(me.data?.tasks?.open ?? meCounters.openTasks))
+      ? Number(me.data?.tasks?.open ?? meCounters.openTasks)
       : null;
 
-  const errors = [
+  const errors = [...new Set([
     canAgency ? agency.error : null,
     me.error,
     projects.error,
@@ -401,11 +407,25 @@ export default function BentoDashboard() {
     prospects.error,
     activity.error,
     extrasError,
-  ].filter(Boolean);
+  ].filter(Boolean))];
 
   const initialLoading =
     (canReadProjects && projects.items === null && projects.loading) ||
     (canReadInvoices && invoices.items === null && invoices.loading);
+
+  const finance = agency.data ? {
+    ...agency.data.invoices,
+    collected: agency.data.collected,
+    rate: Math.round((agency.data.collectionRate ?? 0) * 100),
+  } : invoicesReady ? {
+    open: { total: computed.outstanding, currency: computed.currency, count: computed.unpaidInvoices.length },
+    overdue: {
+      total: computed.unpaidInvoices.filter((invoice) => invoice.overdue).reduce((sum, invoice) => sum + invoice.remaining, 0),
+      currency: computed.currency,
+      count: computed.overdueInvoicesCount,
+    },
+    collected: { total: computed.collectedTotal, currency: computed.currency },
+  } : {};
 
   const sparkRevenue = computed.revenueMonths.map((m) => m.encaisse);
 
@@ -427,7 +447,7 @@ export default function BentoDashboard() {
       ) : (
         <section
           aria-label="Indicateurs clés de performance"
-          className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+          className="cx-bento__kpis"
         >
           {/* KPI 1 : Chiffre d'affaires / Trésorerie */}
           <Link
@@ -605,19 +625,13 @@ export default function BentoDashboard() {
          ==================================================================== */}
       <section
         aria-label="Actions rapides"
-        className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-white/85 bg-white/80 px-4 py-3 shadow-xs backdrop-blur-xl"
+        className="cx-bento__actions"
       >
         <div className="flex flex-wrap items-center gap-2">
           <span className="mr-1 inline-flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-[0.07em] text-[#4a607a]">
             <Sparkles size={14} className="text-[#1e86e0]" aria-hidden="true" />
             Accès direct
           </span>
-          {can(user, "quote:write:any") ? (
-            <Link href="/espace-equipe/devis/nouveau" className="cx-btn cx-btn--primary cx-btn--sm">
-              <Plus size={14} strokeWidth={2.2} aria-hidden="true" />
-              Nouveau devis
-            </Link>
-          ) : null}
           {canReadProspects ? (
             <Link href="/espace-equipe/prospects" className="cx-btn cx-btn--secondary cx-btn--sm">
               <Compass size={14} strokeWidth={1.85} aria-hidden="true" />
@@ -643,14 +657,13 @@ export default function BentoDashboard() {
         {/* Sélecteur de mode d'inspection opérationnelle */}
         {canAgency ? (
           <div
-            role="tablist"
+            role="group"
             aria-label="Mode du tableau de bord"
             className="sui-filter-pills"
           >
             <button
               type="button"
-              role="tab"
-              aria-selected={currentView === "agency"}
+              aria-pressed={currentView === "agency"}
               onClick={() => setView("agency")}
               className={`sui-filter-pill ${currentView === "agency" ? "sui-filter-pill--active" : ""}`}
             >
@@ -658,8 +671,7 @@ export default function BentoDashboard() {
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={currentView === "day"}
+              aria-pressed={currentView === "day"}
               onClick={() => setView("day")}
               className={`sui-filter-pill ${currentView === "day" ? "sui-filter-pill--active" : ""}`}
             >
@@ -672,54 +684,38 @@ export default function BentoDashboard() {
       {/* ====================================================================
           3. BENTO GRID : GRAPHIQUES ÉPURÉS + WIDGETS TEMPS RÉEL
          ==================================================================== */}
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+      <div className="cx-bento__widgets">
         {canReadInvoices ? (
-          <FinanceTile
-            currency={computed.currency}
-            collectedMonth={invoicesReady ? computed.collectedMonth : null}
-            outstanding={invoicesReady ? computed.outstanding : null}
-            overdueCount={invoicesReady ? computed.overdueInvoicesCount : 0}
-            openQuotesCount={quotesReady ? computed.openQuotesCount : null}
-            openQuotesTotal={quotesReady ? computed.openQuotesTotal : 0}
-          />
+          <FinanceTile open={finance.open} overdue={finance.overdue} collected={finance.collected} rate={finance.rate} />
         ) : (
           <KpiTile
-            span="xl:col-span-4"
+            className="p-6"
             tone="sky"
             icon="clock"
-            eyebrow="Cette semaine"
             value={timeReady ? computed.weekHours : timeEntries.loading ? "…" : "—"}
             label="Temps enregistré sur les 7 derniers jours"
-            chip={
-              timeReady
-                ? {
-                    tone: "neutral",
-                    label: `${computed.myEntries.length} ${
-                      computed.myEntries.length > 1 ? "saisies" : "saisie"
-                    }`,
-                  }
-                : null
-            }
+            sub={timeReady ? `${computed.myEntries.length} saisie(s) cette semaine` : undefined}
             href={canReadTime ? "/espace-equipe/temps" : undefined}
           />
         )}
 
         <HealthTile
-          activeCount={projectsDataReady ? computed.activeProjects.length : null}
-          avgProgress={projectsDataReady ? computed.avgProgress : null}
-          lateCount={projectsDataReady ? computed.lateProjects : 0}
-          onHoldCount={projectsDataReady ? computed.onHoldProjects : 0}
-          milestonesReached={canReadMilestones && !extrasLoading ? computed.milestonesReached : 0}
-          milestonesTotal={canReadMilestones && !extrasLoading ? computed.milestonesTotal : 0}
+          rows={projectsDataReady ? computed.projectHealth : EMPTY}
+          error={projects.error}
+          loading={!projectsDataReady && projects.loading}
         />
 
-        <DueTile items={dueSoonReady ? computed.dueSoon : EMPTY} loading={!dueSoonReady} />
+        <DueTile
+          tasks={dueSoonReady ? computed.dueSoon.map((item) => ({ ...item, projectName: item.context })) : EMPTY}
+          loading={!dueSoonReady && (projects.loading || myTasks.loading || extrasLoading)}
+          error={projects.error || myTasks.error || extrasError}
+          taskHref={(task) => task.href}
+          tasksHref="/espace-equipe/calendrier"
+          tasksLinkLabel="Voir le calendrier"
+        />
 
         {canTime ? (
-          <TimerTile
-            tasks={myTasksReady ? computed.myOpenTasks : EMPTY}
-            weekHours={timeReady ? computed.weekHours : "—"}
-          />
+          <TimerTile tasks={myTasks} />
         ) : null}
 
         {canReadInvoices ? (
@@ -728,7 +724,7 @@ export default function BentoDashboard() {
             currency={computed.currency}
             ready={invoicesReady}
             loading={invoices.loading}
-            span={canTime ? "xl:col-span-4" : "xl:col-span-6"}
+            span=""
           />
         ) : null}
 
@@ -738,7 +734,7 @@ export default function BentoDashboard() {
             total={prospectsReady ? computed.prospectList.length : null}
             ready={prospectsReady}
             loading={prospects.loading}
-            span={canTime && canReadInvoices ? "xl:col-span-4" : "xl:col-span-6"}
+            span=""
           />
         ) : null}
       </div>
@@ -746,35 +742,13 @@ export default function BentoDashboard() {
       {/* ====================================================================
           4. VUES OPÉRATIONNELLES DÉTAILLÉES (Toujours visibles, sans <details>)
          ==================================================================== */}
-      {currentView === "agency" && canAgency ? (
-        <AgencyView
-          activeProjects={computed.activeProjects}
-          unpaidInvoices={computed.unpaidInvoices}
-          prospects={computed.prospectList}
-          activity={activity.items ?? EMPTY}
-          currency={computed.currency}
-          onProspectsChanged={prospects.reload}
-          permissions={{
-            projects: canReadProjects,
-            invoices: canReadInvoices,
-            prospects: canReadProspects,
-            activity: canReadActivity,
-          }}
-        />
-      ) : (
-        <MyDayView
-          tasks={computed.myOpenTasks}
-          projects={computed.activeProjects}
-          entries={computed.myEntries}
-          onTasksChanged={myTasks.reload}
-          permissions={{
-            tasks: canReadOwnTaskList,
-            projects: canReadProjects,
-            time: canReadTime,
-            timer: canTime,
-          }}
-        />
-      )}
+      <section className="cx-bento__details" aria-label={currentView === "agency" ? "Détails de l’agence" : "Détails de ma journée"}>
+        {currentView === "agency" && canAgency ? (
+          agency.data ? <AgencyView data={agency.data} /> : <Notice>{agency.loading ? "Chargement de la vue agence…" : "La vue agence est indisponible pour le moment."}</Notice>
+        ) : (
+          me.data ? <MyDayView data={me.data} /> : <Notice>{me.loading ? "Chargement de votre journée…" : "Votre journée est indisponible pour le moment."}</Notice>
+        )}
+      </section>
     </div>
   );
 }

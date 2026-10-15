@@ -9,8 +9,11 @@
    ========================================================================== */
 
 .sui-viewport {
+  height: 100vh;
   height: 100dvh;
   width: 100%;
+  min-width: 0;
+  flex: 1 0 auto;
   overflow: hidden;
   background-color: var(--comexa-bg, #f3f7fc);
   background-image:
@@ -261,7 +264,7 @@
 
 .sui-sidebar__link--active {
   background: linear-gradient(135deg, #0b2545 0%, #15457a 100%);
-  color: #ffffff !important;
+  color: #ffffff;
   font-weight: 600;
   box-shadow:
     0 4px 12px -2px rgba(11, 37, 69, 0.24),
@@ -270,7 +273,7 @@
 
 .sui-sidebar__link--active:hover {
   background: linear-gradient(135deg, #0f3058 0%, #195290 100%);
-  color: #ffffff !important;
+  color: #ffffff;
 }
 
 .sui-sidebar__link-icon {
@@ -490,8 +493,11 @@
 }
 
 .sui-canvas-inner {
-  max-width: 1520px;
-  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 22px;
