@@ -34,6 +34,14 @@ const PATHS = {
   stop: (<rect x="6" y="6" width="12" height="12" rx="2" />),
   kanban: (<><rect x="3" y="3" width="5" height="18" rx="1" /><rect x="10" y="3" width="5" height="12" rx="1" /><rect x="17" y="3" width="4" height="8" rx="1" /></>),
   users: (<><circle cx="9" cy="8" r="4" /><path d="M2 21a7 7 0 0 1 14 0" /><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3" /></>),
+  /* Console Comexa : terminal de commandes, envoi, élargissement du panneau. */
+  terminal: (<><rect x="2.5" y="4" width="19" height="16" rx="2" /><polyline points="6.5 9 9.5 11.5 6.5 14" /><line x1="12.5" y1="14.5" x2="17" y2="14.5" /></>),
+  send: (<><line x1="21" y1="3" x2="10.5" y2="13.5" /><polygon points="21 3 14.5 21 10.5 13.5 3 9.5 21 3" /></>),
+  trash: (<><polyline points="4 7 20 7" /><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6.5 7l1 12.5h9L17.5 7" /></>),
+  expand: (<><polyline points="10.5 7 6.5 12 10.5 17" /><polyline points="13.5 7 17.5 12 13.5 17" /></>),
+  collapse: (<><polyline points="6.5 7 10.5 12 6.5 17" /><polyline points="17.5 7 13.5 12 17.5 17" /></>),
+  'chevron-up': (<polyline points="6 15 12 9 18 15" />),
+  'chevron-right': (<polyline points="9 18 15 12 9 6" />),
 };
 
 export default function Icon({ name, className = "h-5 w-5" }) {

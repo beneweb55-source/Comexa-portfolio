@@ -20,8 +20,16 @@ import {
 } from "@/components/workspace/ui";
 
 const INTEGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
-const MAX_SCOPES = 40;
-const FORBIDDEN_SCOPE = "integration:manage:any";
+/**
+ * Les deux seuls droits qu'un jeton ne peut JAMAIS porter (côté backend :
+ * `INTEGRATION_MANAGED_CODES`). Une machine ne consulte pas la liste des
+ * intégrations — ce serait le plan de vol d'un attaquant — et ne distribue pas
+ * d'accès : un jeton volé ne doit pas pouvoir s'en créer d'autres.
+ *
+ * Ils sont donc retirés du catalogue proposé, et non seulement de l'accès
+ * complet : les cocher ferait échouer la création côté serveur.
+ */
+const RESERVED_SCOPES = ["integration:read:any", "integration:manage:any"];
 const MACHINE_API_BASE = "/api/v1";
 const BEARER_EXAMPLE = "Authorization: Bearer cxi_...";
 
@@ -74,12 +82,19 @@ const RESOURCE_LABEL = {
   setting: "Paramètres",
 };
 
-/** Preset "Agent IA n8n Complet" : toutes les permissions attribuables (max 40). */
-function completeN8nPreset(allowedPermissions) {
+/**
+ * Accès complet agence : TOUTES les permissions attribuables du catalogue.
+ *
+ * Il n'y a plus de plafond côté interface parce qu'il n'y en a plus de utile
+ * côté serveur : le catalogue compte un peu plus de cent droits, et une
+ * intégration d'agence qui pilote projets, tâches, agenda, CRM et facturation
+ * en une seule connexion doit pouvoir tous les porter. Seuls les deux droits
+ * réservés aux humains sont écartés.
+ */
+function fullAgencyPreset(allowedPermissions) {
   const codes = allowedPermissions
-    .filter((p) => p.code !== FORBIDDEN_SCOPE)
-    .map((p) => p.code)
-    .slice(0, MAX_SCOPES);
+    .filter((permission) => !RESERVED_SCOPES.includes(permission.code))
+    .map((permission) => permission.code);
   return [...new Set(codes)].sort();
 }
 
@@ -108,6 +123,34 @@ function expirationPayload(choice, customDays) {
     return { error: "Saisissez une durée entière comprise entre 1 et 3 650 jours." };
   }
   return { value: { expiresInDays: days }, label: `${days} jour${days > 1 ? "s" : ""}` };
+}
+
+/**
+ * Tous les droits attribuables du catalogue, triés.
+ *
+ * C'est la matière de l'« accès complet agence » : le catalogue renvoyé par
+ * `GET /permissions`, moins les deux droits réservés. Rien n'est tronqué — la
+ * sélection est le catalogue, pas un extrait.
+ */
+function assignableScopesOf(permissions) {
+  return [
+    ...new Set((permissions ?? []).filter((permission) => !RESERVED_SCOPES.includes(permission.code)).map((permission) => permission.code)),
+  ].sort();
+}
+
+/**
+ * Expiration restante d'un jeton, exprimée en jours à partir de maintenant.
+ *
+ * L'accorder en un clic ne doit pas transformer un jeton sans expiration en
+ * jeton périmé, ni raccourcir une échéance déjà fixée : on reconduit ce qui
+ * restait, et on garde l'absence d'échéance telle quelle.
+ */
+function remainingExpiration(token) {
+  const expiresAt = token?.expiresAt ? new Date(token.expiresAt).getTime() : null;
+  if (!expiresAt || !Number.isFinite(expiresAt)) return { value: {}, label: "sans expiration" };
+
+  const days = Math.max(1, Math.min(3650, Math.ceil((expiresAt - Date.now()) / 86_400_000)));
+  return { value: { expiresInDays: days }, label: `échéance reconduite de ${days} jour${days > 1 ? "s" : ""}` };
 }
 
 function initialRenewalExpiration(token) {
@@ -263,17 +306,18 @@ function ExpirationFields({ idPrefix, choice, customDays, onChoiceChange, onCust
 }
 
 function readOnlyPreset(permissions) {
-  const readable = permissions.filter((permission) => permission.action === "read" && permission.resource !== "integration");
+  const readable = permissions.filter(
+    (permission) => permission.action === "read" && !RESERVED_SCOPES.includes(permission.code),
+  );
   const resourcesWithAny = new Set(readable.filter((permission) => permission.scope === "any").map((permission) => permission.resource));
   return readable
     .filter((permission) => permission.scope === "any" || !resourcesWithAny.has(permission.resource))
-    .map((permission) => permission.code)
-    .slice(0, MAX_SCOPES);
+    .map((permission) => permission.code);
 }
 
 function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
   const allowedPermissions = useMemo(
-    () => permissions.filter((permission) => permission.code !== FORBIDDEN_SCOPE),
+    () => permissions.filter((permission) => !RESERVED_SCOPES.includes(permission.code)),
     [permissions],
   );
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -293,7 +337,7 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
   }, [allowedPermissions]);
 
   function applyPreset(codes) {
-    const next = codes.filter((code) => availableCodes.has(code)).slice(0, MAX_SCOPES);
+    const next = codes.filter((code) => availableCodes.has(code));
     onChange([...new Set(next)].sort());
   }
 
@@ -302,34 +346,51 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
       onChange(selected.filter((selectedCode) => selectedCode !== code));
       return;
     }
-    if (selected.length >= MAX_SCOPES) return;
     onChange([...selected, code].sort());
   }
+
+  /** Tout cocher / tout décocher, groupe de ressources par groupe. */
+  function toggleGroup(codes, checked) {
+    const next = new Set(selected);
+    for (const code of codes) {
+      if (checked) next.add(code);
+      else next.delete(code);
+    }
+    onChange([...next].sort());
+  }
+
+  const fullAccess = useMemo(() => fullAgencyPreset(allowedPermissions), [allowedPermissions]);
+  const isFullAccess = selected.length === fullAccess.length && fullAccess.every((code) => selectedSet.has(code));
 
   return (
     <div className="flex flex-col gap-4">
       <div>
         <span className="cx-label">Profils de permissions</span>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={secondaryButton} onClick={() => applyPreset(completeN8nPreset(allowedPermissions))}>
-            Preset Agent IA n8n Complet ({Math.min(allowedPermissions.filter((p) => p.code !== FORBIDDEN_SCOPE).length, MAX_SCOPES)} scopes)
+          <button
+            type="button"
+            className={primaryButton}
+            onClick={() => applyPreset(fullAccess)}
+            aria-pressed={isFullAccess}
+          >
+            Accès complet agence (toutes les permissions)
           </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(N8N_PILOT_PRESET)}>
-            Preset Agent IA Pilote (Projets, Tâches, Calendrier)
+            Pilotage projets, tâches et calendrier
           </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(readOnlyPreset(allowedPermissions))}>
-            Preset Lecture seule
+            Lecture seule
           </button>
           <button type="button" className={secondaryButton} onClick={() => onChange([])} disabled={selected.length === 0}>
             Aucun droit
           </button>
         </div>
         <p className="cx-hint">
-          {selected.length} permission{selected.length > 1 ? "s" : ""} sélectionnée{selected.length > 1 ? "s" : ""} sur {MAX_SCOPES} maximum.
+          {selected.length} permission{selected.length > 1 ? "s" : ""} sélectionnée{selected.length > 1 ? "s" : ""} sur{" "}
+          {allowedPermissions.length} attribuables{isFullAccess ? " · accès complet agence actif" : ""}.
         </p>
       </div>
 
-      {selected.length >= MAX_SCOPES ? <Notice tone="warning">Le maximum de {MAX_SCOPES} permissions est atteint. Retirez un droit avant d’en ajouter un autre.</Notice> : null}
       {unavailableSelected.length > 0 ? (
         <Notice tone="warning">
           Certaines permissions actuelles ne sont plus proposées par le catalogue : {unavailableSelected.join(", ")}.
@@ -341,15 +402,34 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
         {groups.length === 0 ? <Empty>Le catalogue ne contient aucune permission attribuable.</Empty> : null}
         <div className="grid gap-3 lg:grid-cols-2">
           {groups.map(([resource, resourcePermissions]) => {
-            const selectedInGroup = resourcePermissions.filter((permission) => selectedSet.has(permission.code)).length;
+            const groupCodes = resourcePermissions.map((permission) => permission.code);
+            const selectedInGroup = groupCodes.filter((code) => selectedSet.has(code)).length;
+            const allSelected = selectedInGroup === groupCodes.length;
+            const groupLabel = RESOURCE_LABEL[resource] ?? resource;
             return (
               <details key={resource} className="rounded-lg border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-4" open={selectedInGroup > 0}>
-                <summary className="cursor-pointer font-semibold text-[var(--comexa-ink)]">
-                  {RESOURCE_LABEL[resource] ?? resource}
-                  <span className="ml-2 text-[12px] font-normal text-[var(--comexa-ink-muted)]">{selectedInGroup}/{resourcePermissions.length}</span>
+                <summary className="flex cursor-pointer items-center justify-between gap-3 font-semibold text-[var(--comexa-ink)]">
+                  <span>
+                    {groupLabel}
+                    <span className="ml-2 text-[12px] font-normal text-[var(--comexa-ink-muted)]">{selectedInGroup}/{groupCodes.length}</span>
+                  </span>
                 </summary>
                 <fieldset className="mt-3 flex flex-col gap-3">
-                  <legend className="sr-only">Permissions pour {RESOURCE_LABEL[resource] ?? resource}</legend>
+                  <legend className="sr-only">Permissions pour {groupLabel}</legend>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--comexa-border-soft)] pb-3">
+                    <span className="text-[12px] font-medium uppercase tracking-[0.06em] text-[var(--comexa-ink-muted)]">
+                      {groupCodes.length} droit{groupCodes.length > 1 ? "s" : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className={secondaryButton}
+                      onClick={() => toggleGroup(groupCodes, !allSelected)}
+                      aria-pressed={allSelected}
+                      title={`${allSelected ? "Décocher" : "Cocher"} les ${groupCodes.length} droits ${groupLabel}`}
+                    >
+                      {allSelected ? "Tout décocher" : "Tout cocher"}
+                    </button>
+                  </div>
                   {resourcePermissions.map((permission) => {
                     const checked = selectedSet.has(permission.code);
                     const id = `${idPrefix}-${permission.code.replaceAll(":", "-")}`;
@@ -360,7 +440,6 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
                           type="checkbox"
                           className="mt-1 h-4 w-4 accent-[var(--comexa-accent-strong)]"
                           checked={checked}
-                          disabled={!checked && selected.length >= MAX_SCOPES}
                           onChange={() => toggle(permission.code)}
                         />
                         <span className="min-w-0">
@@ -376,7 +455,8 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
           })}
         </div>
         <p className="cx-hint">
-          Le droit <code>{FORBIDDEN_SCOPE}</code> est volontairement exclu : un jeton machine ne peut jamais créer ou distribuer d’autres accès.
+          Les droits <code>{RESERVED_SCOPES[0]}</code> et <code>{RESERVED_SCOPES[1]}</code> sont volontairement exclus du
+          catalogue : un jeton machine ne peut ni consulter la liste des intégrations ni distribuer d’autres accès.
         </p>
       </div>
     </div>
@@ -524,7 +604,7 @@ function RenewTokenEditor({ token, permissions, catalogueAvailable, onCancel, on
   );
 }
 
-function TokenItem({ token, descriptions, canManage, busy, editing, onEdit, onRevoke, onDelete }) {
+function TokenItem({ token, descriptions, canManage, canGrantAll, busy, editing, onEdit, onGrantAll, onRevoke, onDelete }) {
   const status = statusOf(token);
 
   return (
@@ -539,6 +619,19 @@ function TokenItem({ token, descriptions, canManage, busy, editing, onEdit, onRe
         </div>
         {canManage ? (
           <div className="flex max-w-full flex-wrap gap-2">
+            <button
+              type="button"
+              className={primaryButton}
+              onClick={onGrantAll}
+              disabled={busy || !canGrantAll}
+              title={
+                canGrantAll
+                  ? "Attribuer toutes les permissions attribuables du catalogue et renouveler le secret"
+                  : "Le catalogue des permissions doit être chargé pour accorder tous les droits"
+              }
+            >
+              Accorder toutes les permissions &amp; renouveler
+            </button>
             <button type="button" className={secondaryButton} onClick={onEdit} disabled={busy} aria-pressed={editing}>
               Modifier les droits / Renouveler le secret
             </button>
@@ -606,6 +699,9 @@ export default function IntegrationsPage() {
     [catalogue.items],
   );
 
+  /** Accès complet agence, calculé une fois sur le catalogue réel. */
+  const assignableScopes = useMemo(() => assignableScopesOf(catalogue.items), [catalogue.items]);
+
   async function reloadFirstPage() {
     if (!canReadTokens) return;
     if (page === 1) await tokens.reload();
@@ -644,6 +740,23 @@ export default function IntegrationsPage() {
     setActionError(null);
     setActionSuccess(null);
     setPendingAction(action);
+  }
+
+  /**
+   * Un clic : toutes les permissions attribuables, puis renouvellement.
+   *
+   * L'échéance est reconduite telle quelle (ou absente si le jeton n'en a pas)
+   * pour que l'opération n'ajoute pas une contrainte que personne n'a décidée.
+   */
+  function grantEverythingAndRenew(token) {
+    if (!canGrantAll) return;
+    const expiration = remainingExpiration(token);
+    openConfirmation({
+      type: "renew",
+      token,
+      payload: { scopes: assignableScopes, ...expiration.value },
+      expirationLabel: expiration.label,
+    });
   }
 
   async function confirmPendingAction() {
@@ -697,6 +810,8 @@ export default function IntegrationsPage() {
 
   const items = tokens.items ?? [];
   const catalogueAvailable = canReadPermissions && catalogue.items !== null && !catalogue.error;
+  /** Sans catalogue chargé, « accorder toutes les permissions » n'a pas de sens. */
+  const canGrantAll = catalogueAvailable && assignableScopes.length > 0;
   const pendingBusy = pendingAction ? busy === `${pendingAction.type}:${pendingAction.token.id}` : false;
 
   return (
@@ -760,12 +875,14 @@ export default function IntegrationsPage() {
               token={token}
               descriptions={permissionDescriptions}
               canManage={canManageTokens}
+              canGrantAll={canGrantAll}
               busy={Boolean(busy)}
               editing={editingToken?.id === token.id}
               onEdit={() => {
                 setActionError(null);
                 setEditingToken(token);
               }}
+              onGrantAll={() => grantEverythingAndRenew(token)}
               onRevoke={() => openConfirmation({ type: "revoke", token })}
               onDelete={() => openConfirmation({ type: "delete", token })}
             />
