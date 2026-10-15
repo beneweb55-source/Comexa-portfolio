@@ -2,32 +2,32 @@ import { Module } from '@nestjs/common';
 import { INTEGRATION_PRINCIPAL_RESOLVER } from '../../common/guards/access.guards.js';
 import { IntegrationsController } from './integrations.controller.js';
 import { IntegrationTokenService } from './integration-token.service.js';
+import { TelegramLinkController } from './telegram-link.controller.js';
+import { TelegramLinkService } from './telegram-link.service.js';
 
 /**
  * INTEGRATIONS SERVEUR-A-SERVEUR.
  *
- * Deux roles dans un seul module, et c'est la raison d'etre du fichier :
+ * Deux rôles dans un seul module :
  *
- *  - `IntegrationsController` : l'administration (creer, renouveler, revoquer),
- *    reservee aux administrateurs ;
- *  - `IntegrationTokenService` fourni SOUS LE JETON `INTEGRATION_PRINCIPAL_RESOLVER`
- *    : la verification d'un jeton, branchee sur le garde d'authentification.
- *
- * Ce second point est tout l'interet du montage. Le garde vit dans
- * `src/common/` et n'a pas le droit d'importer un module metier — sinon
- * `common/` dependrait de tout, et un test de garde obligerait a monter
- * l'application entiere. Le garde ne connait donc qu'une INTERFACE, et c'est ce
- * module qui la realise. L'inversion coute un symbole et evite un cycle.
+ *  - `IntegrationsController` : l'administration des jetons `cxi_`.
+ *  - `IntegrationTokenService` fourni sous le jeton
+ *    `INTEGRATION_PRINCIPAL_RESOLVER` : la vérification d'un jeton, branchée sur
+ *    le garde d'authentification.
+ *  - `TelegramLinkController` + `TelegramLinkService` : l'appairage Telegram
+ *    multi-utilisateur (routes `/me/telegram-link*` pour les membres et
+ *    `/v1/integrations/telegram/*` pour le bot n8n).
  */
 @Module({
-  controllers: [IntegrationsController],
+  controllers: [IntegrationsController, TelegramLinkController],
   providers: [
     IntegrationTokenService,
     {
       provide: INTEGRATION_PRINCIPAL_RESOLVER,
       useExisting: IntegrationTokenService,
     },
+    TelegramLinkService,
   ],
-  exports: [IntegrationTokenService, INTEGRATION_PRINCIPAL_RESOLVER],
+  exports: [IntegrationTokenService, TelegramLinkService, INTEGRATION_PRINCIPAL_RESOLVER],
 })
 export class IntegrationsModule {}

@@ -14,7 +14,7 @@ const RESOURCE_LABEL = {
   conversation: "Conversations", message: "Messages", notification: "Notifications", document: "Documents", report: "Rapports",
   dashboard: "Tableau de bord", service: "Services", package: "Packs", casestudy: "Études de cas", testimonial: "Témoignages",
   partner: "Partenaires", faq: "FAQ", contactrequest: "Demandes de contact", modificationrequest: "Demandes de modification",
-  setting: "Paramètres", integration: "API & Intégrations",
+  setting: "Paramètres", integration: "API & Intégrations", telegram: "Telegram",
 };
 
 /**

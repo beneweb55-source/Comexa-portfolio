@@ -58,6 +58,7 @@ export const PERMISSIONS = {
    */
   'integration:read:any': 'Consulter les jetons d’integration',
   'integration:manage:any': 'Creer, renouveler et revoquer les jetons d’integration',
+  'telegram:link:any': 'Lier et resoudre des comptes Telegram via le bot @ComexaWork_bot',
 
   // ---------------------------------------------------------------------------
   // CRM

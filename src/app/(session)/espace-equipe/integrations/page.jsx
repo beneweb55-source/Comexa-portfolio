@@ -42,6 +42,7 @@ const RESOURCE_LABEL = {
   permission: "Permissions",
   audit: "Journal d’audit",
   integration: "API & Intégrations",
+  telegram: "Telegram",
   prospect: "Prospects",
   client: "Clients",
   contact: "Contacts",
@@ -72,6 +73,15 @@ const RESOURCE_LABEL = {
   modificationrequest: "Demandes de modification",
   setting: "Paramètres",
 };
+
+/** Preset "Agent IA n8n Complet" : toutes les permissions attribuables (max 40). */
+function completeN8nPreset(allowedPermissions) {
+  const codes = allowedPermissions
+    .filter((p) => p.code !== FORBIDDEN_SCOPE)
+    .map((p) => p.code)
+    .slice(0, MAX_SCOPES);
+  return [...new Set(codes)].sort();
+}
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
   dateStyle: "medium",
@@ -206,8 +216,8 @@ function SecretReveal({ revealed, onClose }) {
           <code className="block break-all text-[15px] font-semibold text-[var(--comexa-ink)]">{revealed.secret}</code>
         </div>
         <div className="flex flex-wrap gap-3">
-          <CopyButton value={revealed.secret} label="Copier le secret" />
-          <CopyButton value={bearer} label="Copier l’en-tête Bearer complet" />
+          <CopyButton value={revealed.secret} label="Copier le jeton cxi_…" copiedLabel="Jeton copié" />
+          <CopyButton value={bearer} label="Copier `Bearer cxi_…`" copiedLabel="En-tête copié" />
         </div>
       </div>
     </Card>
@@ -301,11 +311,14 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
       <div>
         <span className="cx-label">Profils de permissions</span>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={secondaryButton} onClick={() => applyPreset(completeN8nPreset(allowedPermissions))}>
+            Preset Agent IA n8n Complet ({Math.min(allowedPermissions.filter((p) => p.code !== FORBIDDEN_SCOPE).length, MAX_SCOPES)} scopes)
+          </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(N8N_PILOT_PRESET)}>
-            Preset Agent n8n Pilote
+            Preset Agent IA Pilote (Projets, Tâches, Calendrier)
           </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(readOnlyPreset(allowedPermissions))}>
-            Lecture seule
+            Preset Lecture seule
           </button>
           <button type="button" className={secondaryButton} onClick={() => onChange([])} disabled={selected.length === 0}>
             Aucun droit

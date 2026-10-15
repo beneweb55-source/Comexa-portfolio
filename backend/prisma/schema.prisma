@@ -450,6 +450,7 @@ model User {
   integrationTokens       IntegrationToken[]        @relation("IntegrationTokenServiceAccount")
   createdIntegrationTokens IntegrationToken[]       @relation("IntegrationTokenCreator")
   idempotencyRecords      IdempotencyRecord[]       @relation("IdempotencyPrincipal")
+  telegramLink            TelegramLink?
   ownedCalendarEvents     CalendarEvent[]           @relation("CalendarEventOwner")
   calendarEventParticipations CalendarEventParticipant[] @relation("CalendarEventParticipant")
   auditLogs               AuditLog[]
@@ -2067,6 +2068,35 @@ model Report {
   @@index([projectId])
   @@index([generatedById])
   @@map("reports")
+}
+
+/// LIAISON TELEGRAM — association entre un compte Comexa et un utilisateur Telegram.
+///
+/// Chaque membre de l'équipe peut lier son propre compte Telegram pour dialoguer
+/// avec le bot @ComexaWork_bot. Les droits appliqués au bot sont ceux du MEMBRE,
+/// via son profil Comexa résolu par `telegramUserId`.
+///
+/// Le code d'appairage (6 chiffres) est stocké sous forme d'empreinte SHA-256
+/// seulement, avec une expiration courte (10 minutes) — même logique que les
+/// jetons d'intégration : jamais de secret en clair en base.
+model TelegramLink {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telegramUserId     String?  @unique
+  telegramChatId     String?
+  telegramUsername   String?
+  pairingCodeHash    String?
+  pairingExpiresAt   DateTime?
+  pairedAt           DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([telegramUserId])
+  @@index([pairingCodeHash])
+  @@index([revokedAt])
+  @@map("telegram_links")
 }
 
 /// Récapitulatif journalier d'un membre de l'équipe (un par personne et par jour).
