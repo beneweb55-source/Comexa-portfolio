@@ -95,7 +95,10 @@ quelle dans `ControlCenter.jsx`), ainsi que `styles/workspace-liquid.css`
 3. **Les boutons `+` / `−` règlent la densité du texte (90 / 100 / 110 / 120 %)**
    du panneau principal, préférence mémorisée dans `localStorage`
    (`comexa:panel-zoom`). Le brief ne précisait pas leur action ; le zoom est la
-   seule action utile et non destructive à cet endroit.
+   seule action utile et non destructive à cet endroit. Portée réelle : le jeton
+   `--zoom` s'applique à la taille de base du panneau, donc aux composants du
+   design system ; les pages qui fixent encore des tailles absolues en
+   utilitaires Tailwind (`text-[13px]`) ne suivent que partiellement.
 4. **Le dock s'adapte aux permissions.** Cinq boutons pastel + « + » quand c'est
    possible ; pour un porteur qui n'a pas les droits correspondants, les actions
    interdites sont retirées (jamais de bouton mort). L'espace client a son propre
