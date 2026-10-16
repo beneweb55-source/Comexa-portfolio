@@ -4,10 +4,11 @@
  * `softui.tokens.css` (aucune couleur en dur, sauf les blancs/noirs de la coque
  * déjà tokenisés).
  *
- * Signature du design : la languette à rayon inversé (`.sui-notch`) qui
- * descend de la navbar SOUS L'ONGLET ACTIF, avec deux congés concaves obtenus
- * par une silhouette SVG continue, sans raccords de masques. Le dock,
- * lui, est une pilule flottante détachée du bord (voir section 11).
+ * Signature du design : la languette (`.sui-notch`) qui descend de la navbar
+ * SOUS L'ONGLET ACTIF — silhouette SVG continue, sans raccord de masque, dont
+ * la géométrie (congés concaves, coins bas arrondis, largeur calquée sur la
+ * pilule active) est calculée par `src/lib/notch.mjs`. Le dock, lui, est une
+ * pilule flottante détachée du bord (voir section 11).
  *
  * Accessibilité : focus visible partout (anneau bleu sur le clair, blanc dans la
  * coque noire), cibles tactiles ≥ 40 px (36 px pour les mini-actions internes
@@ -517,13 +518,15 @@
 .sui-notch {
   position: absolute;
   z-index: 6;
+  /* `y = 0` du dessin est la dernière rangée noire de la navbar : les deux noirs
+     se soudent, sans liseré clair. */
   top: calc(var(--nav-h) - 1px);
-  width: 116px;
-  height: 15px;
   display: block;
   color: var(--shell);
   transform: translateX(-50%);
+  /* Largeur et hauteur viennent du composant (calculées sur la pilule active). */
   transition: left var(--dur-slow) var(--ease-out);
+  overflow: visible;
   pointer-events: none;
 }
 

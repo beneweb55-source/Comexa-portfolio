@@ -201,3 +201,71 @@ tous les composants avec des données de démonstration, sans session.
   glisser-déposer, raccourcis clavier, chargement par plage visible.
 - **Listes** : `softui/ListView` (bascule Cartes / Liste, tableau `.sui-table`
   à défilement horizontal confiné dans sa carte).
+
+---
+
+## 8. Languette de la navbar et feuille de temps (octobre 2026)
+
+### 8.1 La languette suit l'onglet, coins arrondis compris
+
+La languette noire qui descend sous l'onglet actif n'est plus un dessin figé de
+116 × 15 px : sa géométrie est **calculée** sur la pilule réellement rendue.
+
+- `src/lib/notch.mjs` (fonctions pures, `src/lib/notch.test.mjs`) :
+  `notchWidth(pillWidth)` renvoie la largeur du dessin — le **corps** de la
+  languette mesure exactement la largeur de la pilule, les deux congés
+  (`flare = 12 px`) débordent de part et d'autre ; `notchPath(width)` renvoie la
+  silhouette SVG complète, **un seul chemin fermé**, sans masque CSS ni raccord
+  de pseudo-éléments :
+  - deux congés concaves `A7 7` (épaulements) relient le bord de la navbar au
+    corps — jamais de coin carré rapporté ;
+  - deux coins bas `A10 10` arrondis (« courbe continue » à la Apple) ;
+  - profondeur 19 px, `y = 0` posé sur la **dernière rangée de la navbar** :
+    les deux noirs se soudent, sans liseré clair au zoom.
+- `src/components/softui/Notch.jsx` ne fait que le rendu ;
+  `Navbar` rapporte `{ center, pillWidth }` de l'onglet actif (mesure +
+  `ResizeObserver` + `resize`) et `Shell` positionne le dessin dans le repère de
+  la coque. La languette épouse donc aussi bien « Mon temps » (pilule large) que
+  les onglets réduits à leur icône (plancher de 72 px).
+- Jetons correspondants : `--r-notch` (profondeur), `--r-notch-foot`,
+  `--r-notch-shoulder` — la source exécutable reste `src/lib/notch.mjs`.
+- `/refonte-apercu` utilise le vrai composant : cliquer un onglet y montre la
+  languette se recalquer sur la nouvelle pilule.
+
+### 8.2 « Mon temps » (espace personnel) et « Suivi du temps » (équipe)
+
+Même écran, deux usages, une seule lecture de haut en bas :
+
+1. **Barre de période** — pilules `Aujourd'hui / Cette semaine / <mois> / Tout
+   l'historique`, puce de la plage affichée, « Dates précises » (dialogue, avec
+   raccourcis 7 / 30 jours et mois courant) et « Exporter en CSV » ;
+2. **quatre chiffres** (`KpiGrid`) : aujourd'hui, total de la période,
+   facturable (avec le pourcentage), non facturable (nombre de saisies et de
+   jours) — tous calculés sur **la même liste filtrée** que le tableau, donc
+   jamais en désaccord avec les lignes affichées ;
+3. **minuteur** (`TimerPanel variant="card"`) avec une ligne d'explication :
+   le geste principal n'est plus noyé dans un bandeau décoratif ;
+4. **feuille de saisies** : une ligne par session (tâche, projet, membre,
+   jour, description), durée alignée à droite, étiquette de facturation,
+   correction et suppression en boutons icône, pagination de 20 lignes.
+
+Décisions de conception :
+
+- **Le bandeau d'accroche « Du temps bien investi. » a disparu** : il répétait
+  le titre et le sous-titre déjà affichés par l'en-tête de la coque, sur 150 px
+  de haut. L'action « Saisir du temps » est déclarée par `usePageAction()` et
+  s'affiche donc dans l'en-tête, à la place habituelle (comme « Nouveau devis »).
+- **La recherche de la page est celle de la coque** (`useShellQuery()`) : il n'y
+  a plus deux champs de recherche pour la même liste.
+- **La saisie manuelle commence par le sélecteur de tâche du minuteur**
+  (`TaskPicker`, `GET /timer/tasks`) au lieu d'un `<select>` paginé : mêmes
+  tâches que celles que le minuteur accepte, recherche incluse, puis durée
+  (raccourcis 15 min → 4 h), jour, description et facturation.
+- **La feuille prend les jetons soft UI** (`.sui-panel`, `.sui-kpi`,
+  `.sui-btn`…) et non plus la palette bleue historique ; ce qui reste de
+  composants partagés (`cx-input`, `cx-alert`, `cx-empty`) est réhabillé sous
+  `.cx-time` dans `src/styles/workspace-settings-time.css`. Aucun texte sous
+  12 px (`--fs-micro`) : l'ancien écran descendait à 10 px pour la plage de
+  dates et les aides.
+- Suppression : dialogue de confirmation, focus posé sur « Annuler » (jamais sur
+  l'action destructrice), seule action rose de la page.

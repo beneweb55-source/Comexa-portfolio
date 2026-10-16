@@ -12,8 +12,9 @@
  *   au lieu de laisser « Tableau de bord » faussement actif ;
  * - à droite : profil (UserMenu).
  *
- * `onActiveTabMove` reçoit le centre horizontal de l'onglet actif : la coque y
- * aligne la languette noire qui descend dans le panneau clair.
+ * `onActiveTabMove` reçoit `{ center, pillWidth }` de l'onglet actif : la coque
+ * y aligne la languette noire qui descend dans le panneau clair, et lui donne
+ * la largeur de la pilule (le corps de la languette s'y superpose exactement).
  */
 
 import Image from "next/image";
@@ -30,8 +31,9 @@ export default function Navbar({ items, activeHref, space, user, homeHref = "/",
   const active = items.find((item) => item.href === activeHref);
   const listRef = useRef(null);
 
-  // Position de l'onglet actif (et après chaque redimensionnement) : la
-  // languette suit l'onglet, elle ne reste plus centrée sur le panneau.
+  // Position et largeur de l'onglet actif (et après chaque redimensionnement) :
+  // la languette suit l'onglet et épouse sa pilule, elle ne reste plus centrée
+  // sur le panneau.
   useLayoutEffect(() => {
     if (!onActiveTabMove) return undefined;
     const list = listRef.current;
@@ -44,7 +46,7 @@ export default function Navbar({ items, activeHref, space, user, homeHref = "/",
         return;
       }
       const rect = link.getBoundingClientRect();
-      onActiveTabMove(rect.left + rect.width / 2);
+      onActiveTabMove({ center: rect.left + rect.width / 2, pillWidth: rect.width });
     }
 
     report();

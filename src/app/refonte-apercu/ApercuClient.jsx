@@ -9,7 +9,7 @@
  * `src/components/softui` et les données de l'API.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   BadgeCheck,
@@ -46,6 +46,7 @@ import Dock from "@/components/softui/Dock";
 import { ItemCard, ItemGrid } from "@/components/softui/ItemCard";
 import { KpiGrid } from "@/components/softui/KpiCard";
 import Navbar from "@/components/softui/Navbar";
+import Notch from "@/components/softui/Notch";
 import PageHeader from "@/components/softui/PageHeader";
 import SideRail from "@/components/softui/SideRail";
 import { ActivityList, HealthList, Panel } from "@/components/softui/panels";
@@ -249,6 +250,17 @@ const HEALTH = [
 export default function ApercuClient() {
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  /* Onglet actif suivi par le fragment d'URL : cliquer un onglet montre la
+     languette se recalquer sur la nouvelle pilule (largeur comprise). */
+  const [active, setActive] = useState("#");
+  const [notch, setNotch] = useState(null);
+
+  useEffect(() => {
+    const sync = () => setActive(window.location.hash || "#");
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
 
   return (
     <SoftMotionProvider>
@@ -258,7 +270,15 @@ export default function ApercuClient() {
         </p>
 
         <div className="sui-shell" style={{ height: "calc(100dvh - 76px)" }}>
-          <Navbar items={NAV_ITEMS} activeHref="#" roleLabel="admin" homeHref="/" profile={<MockProfile />} />
+          <Navbar
+            items={NAV_ITEMS}
+            activeHref={active}
+            roleLabel="admin"
+            homeHref="/"
+            profile={<MockProfile />}
+            onActiveTabMove={setNotch}
+          />
+          {notch ? <Notch center={notch.center} pillWidth={notch.pillWidth} /> : null}
 
           <div className="sui-shell__body">
             <SideRail
@@ -276,11 +296,6 @@ export default function ApercuClient() {
             />
 
             <main className="sui-main" id="sui-main">
-              <span className="sui-notch" aria-hidden="true">
-                <span className="sui-notch__fillet sui-notch__fillet--left" />
-                <span className="sui-notch__fillet sui-notch__fillet--right" />
-              </span>
-
               <div className="sui-main__scroll">
                 <PageHeader
                   title="Control Center"

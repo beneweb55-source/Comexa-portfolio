@@ -247,204 +247,534 @@
 .cx-settings__advanced > button {
   margin-top: 20px;
 }
-.cx-time__hero {
+/* ==========================================================================
+   Feuille de temps — « Mon temps » (espace personnel) et « Suivi du temps »
+   (espace équipe).
+
+   La page vit DANS la coque soft UI : elle consomme donc ses jetons (`--ink`,
+   `--muted`, pastels, rayons, ombres) et non la palette bleue héritée. Les
+   composants partagés encore utilisés (`cx-input`, `cx-alert`, `cx-empty`)
+   sont réhabillés ici, sous `.cx-time`, pour ne pas détonner au milieu d'un
+   panneau pastel.
+   ========================================================================== */
+
+.cx-time {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  color: var(--ink);
 }
-.cx-time__hero > button {
-  flex-shrink: 0;
-}
-.cx-time__timer {
-  border: 1px solid var(--page-line);
-  background: #fff;
-  border-radius: 22px;
-  overflow: hidden;
-}
-.cx-time__timer .sui-timer {
-  width: 100%;
-  border: 0;
-  box-shadow: none;
-}
-.cx-time__periods {
+
+/* --- 1. Barre de période : elle commande les chiffres ET la liste -------- */
+
+.cx-time__bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
   align-items: center;
+  gap: 10px 14px;
 }
-.cx-time__periods button {
-  min-height: 38px;
-  padding: 8px 13px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: transparent;
-  color: var(--page-muted);
-  font-size: 12px;
-  cursor: pointer;
+
+.cx-time__bar .sui-toolbar {
+  flex: 1 1 auto;
 }
-.cx-time__periods button[aria-pressed="true"] {
-  background: #2b352e;
-  color: #fff;
+
+.cx-time__bar-end {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
-.cx-time__periods button:hover:not([aria-pressed="true"]) {
-  background: #eaf0e5;
-}
-.cx-time__periods > span {
+
+.cx-time__range {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  margin-left: auto;
-  color: var(--page-muted);
-  font-size: 10px;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 0 15px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
 }
-.cx-time__stats {
+
+.cx-time__range svg {
+  flex: 0 0 auto;
+}
+
+.cx-time__range-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* --- 2. Minuteur : le geste principal, expliqué en une ligne ------------ */
+
+.cx-time__timer {
+  gap: 16px;
+}
+
+.cx-time__hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--green);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.cx-time__hint svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.cx-time__hint strong {
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* --- 3. Feuille : en-tête, lignes, état vide --------------------------- */
+
+.cx-time__sheet {
+  gap: 16px;
+}
+
+.cx-time__sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 18px;
+}
+
+.cx-time__sheet-titles {
+  min-width: min(100%, 42ch);
+}
+
+.cx-time__sheet-titles .sui-card__desc {
+  margin-top: 6px;
+  max-width: 88ch;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
+.cx-time__billing {
+  flex: 0 0 auto;
+}
+
+.cx-time__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cx-time__row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 14px 0;
 }
-.cx-time__stats article {
+
+.cx-time__row + .cx-time__row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.cx-time__row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cx-time__row-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+.cx-time__row-meta,
+.cx-time__row-note {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.cx-time__row-minutes {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cx-time__tag {
+  padding: 4px 11px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cx-time__tag--billable {
+  background: var(--green);
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.cx-time__row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* La suppression est la seule action destructrice de la page : elle seule
+   vire au rose à l'approche du curseur. */
+.cx-time__row-actions .cx-time__remove:hover {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.cx-time__retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Squelette de chargement du tableau : mêmes lignes, en gris. */
+.cx-time__loading {
+  display: flex;
+  flex-direction: column;
+}
+
+.cx-time__loading-row {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 17px 0;
+}
+
+.cx-time__loading-row + .cx-time__loading-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.cx-time__ghost {
+  height: 11px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    90deg,
+    rgba(17, 17, 17, 0.05) 25%,
+    rgba(17, 17, 17, 0.1) 50%,
+    rgba(17, 17, 17, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: cx-shimmer 1.6s ease-in-out infinite;
+}
+
+.cx-time__ghost--title {
+  width: min(42%, 320px);
+  height: 14px;
+}
+
+.cx-time__ghost--meta {
+  width: min(64%, 460px);
+}
+
+/* --- 4. Dialogues : saisie, dates précises, correction ----------------- */
+
+.cx-time__form,
+.cx-time__entry-form,
+.cx-time__range-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 22px;
-  border: 1px solid #dce5d3;
-  background: #edf3e5;
-  border-radius: 19px;
 }
-.cx-time__stats article:nth-child(2) {
-  background: #f0ecf7;
-  border-color: #e4ddef;
+
+.cx-time__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.cx-time__stats article:nth-child(3) {
-  background: #f7f2e6;
-  border-color: #eae2ce;
-}
-.cx-time__stats span {
+
+.cx-time__pick-hint {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
-  color: #586052;
-}
-.cx-time__stats strong {
-  font-size: clamp(24px, 2.5vw, 32px);
-  line-height: 1.1;
+  margin: 0;
+  font-size: var(--fs-small);
   font-weight: 600;
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
-.cx-time__stats small {
-  font-size: 10px;
-  line-height: 1.6;
-  color: #62685d;
-}
-.cx-time__search {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-.cx-time__search > label {
-  display: flex;
-  align-items: center;
-  flex: 1;
+
+.cx-time__fields,
+.cx-time__range-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   min-width: 0;
-  gap: 10px;
-  padding: 11px 14px;
-  background: #f8faf6;
-  border: 1px solid var(--page-line);
-  border-radius: 12px;
-  color: var(--page-muted);
-}
-.cx-time__search input {
-  flex: 1;
-  min-width: 0;
-  font: inherit;
-  font-size: 12px;
-  background: transparent;
+  margin: 0;
+  padding: 0;
   border: 0;
-  outline: none;
 }
-.cx-time__search label:focus-within {
-  outline: 2px solid #839b73;
-  outline-offset: 2px;
+
+.cx-time__wide {
+  grid-column: 1 / -1;
 }
-.cx-time__search > select {
-  width: auto;
-  max-width: 100%;
-  font-size: 12px;
-}
-.cx-time__dates {
-  margin: 16px 0 22px;
-  color: var(--page-muted);
-  font-size: 12px;
-}
-.cx-time__dates summary {
-  cursor: pointer;
-  padding: 7px 0;
-  width: fit-content;
-}
-.cx-time__dates form {
-  margin-top: 16px;
-}
-.cx-time__entry {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  padding: 20px;
-  border: 1px solid var(--page-line);
-  border-radius: 16px;
-  background: #fdfefc;
-}
-.cx-time__entry p {
-  margin-bottom: 5px;
-}
-.cx-time__task {
-  font-size: 14px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.cx-time__context {
-  font-size: 11px;
-  color: var(--page-muted);
-}
-.cx-time__badge {
-  display: inline-flex;
-  margin-top: 7px;
-  padding: 4px 8px;
-  border-radius: 7px;
-  background: #f0f1ed;
-  color: #606b5b;
-  font-size: 10px;
-}
-.cx-time__badge.is-billable {
-  background: #eaf2e3;
-  color: #436334;
-}
-.cx-time__durations {
+
+.cx-time__presets,
+.cx-time__range-presets {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
 }
-.cx-time__durations button {
-  padding: 6px 9px;
-  border: 1px solid #dfe6da;
-  border-radius: 8px;
-  font-size: 11px;
+
+.cx-time__range-presets {
+  margin-top: 0;
+}
+
+.cx-time__preset {
+  min-height: 34px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
   cursor: pointer;
-  background: #fff;
-  color: #55674a;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
-.cx-time__durations button[aria-pressed="true"] {
-  background: #e7f0de;
-  border-color: #aabd9d;
+
+.cx-time__preset:hover {
+  color: var(--ink);
+  background: #e9e6e8;
 }
-.cx-time__form fieldset {
-  min-width: 0;
+
+.cx-time__preset.is-active {
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: none;
 }
+
+.cx-time__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px 16px;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.cx-time__chosen-label {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cx-time__chosen-title {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+.cx-time__chosen-meta {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.cx-time__link {
+  align-self: flex-start;
+  margin-top: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cx-time__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.cx-time__check input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--fill);
+}
+
+.cx-time__check small {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.cx-time__form-actions,
+.cx-time__range-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.cx-time__range-actions {
+  justify-content: flex-end;
+}
+
+.cx-time__form-note {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.cx-time__confirm {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+}
+
+/* Action destructrice : rose pastel, la seule de la page. */
+.cx-time__danger {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.cx-time__danger:hover {
+  background: #f4bccb;
+}
+
+/* --- 5. Composants partagés réhabillés dans la coque pastel ------------- */
+
+.cx-time .cx-field {
+  gap: 7px;
+}
+
+.cx-time .cx-label {
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.cx-time .cx-hint {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.cx-time .cx-input,
+.cx-time .cx-select,
+.cx-time .cx-textarea {
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+
+.cx-time .cx-select {
+  min-width: 170px;
+  border-radius: var(--r-pill);
+  padding-right: 38px;
+  font-weight: 600;
+}
+
+.cx-time .cx-input:hover:not(:disabled),
+.cx-time .cx-select:hover:not(:disabled),
+.cx-time .cx-textarea:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.24);
+}
+
+.cx-time .cx-input:focus,
+.cx-time .cx-select:focus,
+.cx-time .cx-textarea:focus {
+  outline: none;
+  border-color: transparent;
+  background: var(--card);
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.cx-time .cx-alert {
+  border: 0;
+  border-radius: 18px;
+  background: var(--pink);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.cx-time .cx-alert--success {
+  background: var(--green);
+}
+
+.cx-time .cx-alert--warning {
+  background: var(--yellow);
+}
+
+.cx-time .cx-alert--info {
+  background: var(--blue);
+}
+
+.cx-time .cx-empty {
+  gap: 12px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--fs-body);
+}
+
+.cx-time .cx-empty > span {
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--ink);
+  box-shadow: none;
+}
+
 .cx-redesign button:focus-visible,
 .cx-redesign a:focus-visible,
 .cx-redesign summary:focus-visible {
@@ -468,33 +798,56 @@
     display: none;
   }
 }
-@media (max-width: 700px) {
-  .cx-time__hero {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .cx-time__stats {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  .cx-time__stats article {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    gap: 8px;
-    padding: 18px;
-  }
-  .cx-time__stats small {
-    grid-column: 1 / -1;
-  }
-  .cx-time__periods > span {
-    width: 100%;
-    margin: 8px 0 0;
-  }
-  .cx-time__search {
+@media (max-width: 760px) {
+  .cx-time__bar {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .cx-time__bar-end {
+    margin-left: 0;
+  }
+
+  .cx-time__range {
+    flex: 1 1 auto;
+    font-size: var(--fs-micro);
+  }
+
+  /* Une ligne = le contenu à gauche, la durée à droite, puis l'étiquette et
+     les actions : le tableau reste lisible sur 360 px. */
+  .cx-time__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "main minutes"
+      "tag actions";
+    row-gap: 10px;
+  }
+
+  .cx-time__row-main {
+    grid-area: main;
+  }
+
+  .cx-time__row-minutes {
+    grid-area: minutes;
+  }
+
+  .cx-time__tag {
+    grid-area: tag;
+    justify-self: start;
+  }
+
+  .cx-time__row-actions {
+    grid-area: actions;
+    justify-self: end;
+  }
+
+  .cx-time__fields,
+  .cx-time__range-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
   .cx-settings__fields {
     grid-template-columns: 1fr;
     gap: 18px;
