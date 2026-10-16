@@ -16,6 +16,7 @@
 /* Minuteur, cases à cocher, objectifs, assignation : la couche « productivité »
    s'appuie sur les jetons et primitives ci-dessus. */
 @import "../styles/softui.productivity.css";
+@import "../styles/workspace-settings-time.css";
 
 :root {
   --background: #ffffff;

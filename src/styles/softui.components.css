@@ -6,7 +6,7 @@
  *
  * Signature du design : la languette à rayon inversé (`.sui-notch`) qui
  * descend de la navbar SOUS L'ONGLET ACTIF, avec deux congés concaves obtenus
- * par `mask-image: radial-gradient(…)` (nets à n'importe quel zoom). Le dock,
+ * par une silhouette SVG continue, sans raccords de masques. Le dock,
  * lui, est une pilule flottante détachée du bord (voir section 11).
  *
  * Accessibilité : focus visible partout (anneau bleu sur le clair, blanc dans la
@@ -512,50 +512,19 @@
   background: var(--surface);
 }
 
-/* Languette noire : elle descend de la navbar dans le panneau clair, SOUS
-   L'ONGLET ACTIF. Elle était centrée sur le panneau principal — donc décalée
-   de l'onglet actif, et déplacée à chaque ouverture du panneau de suivi. Elle
-   est désormais posée dans la coque, à l'abscisse mesurée de l'onglet actif
-   (voir `Navbar`), et glisse avec lui.
-   Les deux congés sont posés en HAUT de la languette et leur rayon est égal au
-   rayon bas de la languette : la courbe concave est tangente au bord noir. */
+/* Une silhouette continue : aucun masque ou raccord de pseudo-éléments.
+   Le chevauchement de 1 px avec la navbar évite une couture au zoom. */
 .sui-notch {
   position: absolute;
   z-index: 6;
-  top: var(--nav-h);
-  width: 88px;
-  height: var(--r-notch);
-  background: var(--shell);
-  border-radius: 0 0 var(--r-notch) var(--r-notch);
+  top: calc(var(--nav-h) - 1px);
+  width: 116px;
+  height: 15px;
+  display: block;
+  color: var(--shell);
   transform: translateX(-50%);
   transition: left var(--dur-slow) var(--ease-out);
   pointer-events: none;
-}
-
-.sui-notch__fillet {
-  position: absolute;
-  top: 0;
-  width: var(--r-notch);
-  height: var(--r-notch);
-  background: var(--shell);
-  pointer-events: none;
-}
-
-.sui-notch__fillet--left {
-  right: 100%;
-  /* Congé concave : le disque transparent est centré sur le coin EXTÉRIEUR
-     (bas-gauche, opposé à la jonction languette/navbar). Le noir ne subsiste
-     qu'en croissant le long de la navbar et de la languette — centrer le disque
-     sur la jonction produisait un triangle noir isolé dans le panneau clair.
-     Le pas de 1 px adoucit l'arc (l'ancien seuil 99 %/100 % crénelait). */
-  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 0 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
-  mask-image: radial-gradient(circle var(--r-notch) at 0 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
-}
-
-.sui-notch__fillet--right {
-  left: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-notch) at 100% 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
-  mask-image: radial-gradient(circle var(--r-notch) at 100% 100%, #0000 calc(var(--r-notch) - 1px), #000 var(--r-notch));
 }
 
 .sui-main__scroll {

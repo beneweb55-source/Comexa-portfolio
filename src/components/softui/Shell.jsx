@@ -52,6 +52,8 @@ import { motion } from "framer-motion";
 import { can as canFor } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
+import { useAllListing } from "@/lib/use-all-listing";
+import { WORKSPACE_UPDATED } from "@/lib/workspace-updates.mjs";
 import { canReadOwnTasks } from "@/lib/timer-access";
 import { TASK_STATUS } from "@/lib/labels";
 import { formatDate, messageOf } from "@/lib/api";
@@ -287,7 +289,34 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
   const unreadProbe = useListing(canReadNotifications ? "/notifications?read=false&page=1&perPage=1" : null);
   const recentNotifications = useListing(canReadNotifications ? "/notifications?page=1&perPage=6" : null);
   const canReadTasks = area !== "comexa" && area !== "client" && canReadOwnTasks(user);
-  const myTasks = useListing(canReadTasks ? "/me/tasks?page=1&perPage=20" : null);
+  const myTasks = useAllListing(canReadTasks ? "/me/tasks" : null);
+
+  const reloadTasks = myTasks.reload;
+  const reloadUnread = unreadProbe.reload;
+  const reloadNotifications = recentNotifications.reload;
+
+  // La coque reste montée pendant les navigations : ses données doivent suivre
+  // les écritures des pages (y compris la console), pas seulement son montage.
+  useEffect(() => {
+    let pending;
+    const reload = () => {
+      clearTimeout(pending);
+      pending = setTimeout(() => {
+        reloadTasks();
+        reloadUnread();
+        reloadNotifications();
+        if (isWorkspace) refreshUnread();
+      }, 100);
+    };
+    reload();
+    window.addEventListener(WORKSPACE_UPDATED, reload);
+    window.addEventListener("focus", reload);
+    return () => {
+      clearTimeout(pending);
+      window.removeEventListener(WORKSPACE_UPDATED, reload);
+      window.removeEventListener("focus", reload);
+    };
+  }, [pathname, reloadTasks, reloadUnread, reloadNotifications, isWorkspace, refreshUnread]);
 
   const unreadCount = Number.isFinite(Number(unreadProbe.meta?.total)) ? Number(unreadProbe.meta.total) : 0;
 
@@ -515,10 +544,9 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
 
             {/* Languette alignée sur l'onglet actif (masquée sans onglet actif). */}
             {!isMobile && notchX !== null ? (
-              <span className="sui-notch" aria-hidden="true" style={{ left: `${notchX}px` }}>
-                <span className="sui-notch__fillet sui-notch__fillet--left" />
-                <span className="sui-notch__fillet sui-notch__fillet--right" />
-              </span>
+              <svg className="sui-notch" aria-hidden="true" style={{ left: `${notchX}px` }} viewBox="0 0 116 15" fill="currentColor">
+                <path d="M0 0H116V1C108.268 1 108.268 15 100 15H16C7.732 15 7.732 1 0 1Z" />
+              </svg>
             ) : null}
 
             <div className="sui-shell__body">
