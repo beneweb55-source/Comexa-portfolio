@@ -43,7 +43,7 @@ export interface ApiContract {
 }
 
 export const API_CONTRACT: ApiContract = {
-  version: '2026-10-12.4',
+  version: '2026-10-16.1',
   features: {
     // P2 : suivi du temps persiste cote serveur.
     timer: true,
@@ -56,6 +56,14 @@ export const API_CONTRACT: ApiContract = {
     // 400 sur le parametre inconnu et 404 sur la route : le frontend doit le
     // savoir avant d'afficher des cartes sans createur.
     taskCreators: true,
+    // Objectifs personnels : `GET|POST /me/goals`, liaison des taches.
+    goals: true,
+    // Minuteur v2 : `GET /timer/tasks|recent-tasks|summary`, `PATCH /timer`,
+    // `POST /timer/discard`, note et description a l'arret. Un serveur
+    // anterieur repond 404 : le selecteur de taches de projet serait vide.
+    timerTasks: true,
+    // Assignation depuis l'ecran : `GET /projects/:id/tasks/assignees`.
+    taskAssignees: true,
   },
 };
 

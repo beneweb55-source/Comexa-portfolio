@@ -1,9 +1,9 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequireAnyPermission } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
-import { StartTimerDto } from './dto/timer.dto.js';
+import { StartTimerDto, StopTimerDto, TimerTasksQueryDto, UpdateTimerDto } from './dto/timer.dto.js';
 import { TimerService } from './timer.service.js';
 
 /**
@@ -35,6 +35,38 @@ export class TimerController {
     return this.timer.current(new AccessPolicy(user));
   }
 
+  @Patch('timer')
+  @RequireAnyPermission('time:write:own', 'time:write:any')
+  @ApiOperation({ summary: 'Corriger la session en cours (tache, note) sans perdre le temps ecoule.' })
+  async update(
+    @Body() dto: UpdateTimerDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @RequestMeta() meta: RequestContext,
+  ) {
+    return this.timer.update(dto, new AccessPolicy(user), meta);
+  }
+
+  @Get('timer/tasks')
+  @RequireAnyPermission('time:write:own', 'time:write:any')
+  @ApiOperation({ summary: 'Taches que le porteur peut chronometrer (meme filtre que le demarrage).' })
+  async tasks(@Query() query: TimerTasksQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.timer.chronometrableTasks(query, new AccessPolicy(user));
+  }
+
+  @Get('timer/recent-tasks')
+  @RequireAnyPermission('time:write:own', 'time:write:any')
+  @ApiOperation({ summary: 'Dernieres taches chronometrees, encore ouvertes.' })
+  async recentTasks(@CurrentUser() user: AuthenticatedUser) {
+    return this.timer.recentTasks(new AccessPolicy(user));
+  }
+
+  @Get('timer/summary')
+  @RequireAnyPermission('time:write:own', 'time:write:any')
+  @ApiOperation({ summary: 'Mon temps du jour et de la semaine, et mes saisies du jour.' })
+  async summary(@CurrentUser() user: AuthenticatedUser) {
+    return this.timer.summary(new AccessPolicy(user));
+  }
+
   @Post('timer/start')
   @RequireAnyPermission('time:write:own', 'time:write:any')
   @ApiOperation({ summary: 'Demarrer le minuteur sur une tache (409 si un autre est deja actif).' })
@@ -43,7 +75,7 @@ export class TimerController {
     @CurrentUser() user: AuthenticatedUser,
     @RequestMeta() meta: RequestContext,
   ) {
-    return this.timer.start(dto.taskId, new AccessPolicy(user), meta);
+    return this.timer.start(dto, new AccessPolicy(user), meta);
   }
 
   @Post('timer/pause')
@@ -66,7 +98,19 @@ export class TimerController {
   @HttpCode(HttpStatus.OK)
   @RequireAnyPermission('time:write:own', 'time:write:any')
   @ApiOperation({ summary: 'Terminer la session et enregistrer la saisie de temps.' })
-  async stop(@CurrentUser() user: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
-    return this.timer.stop(new AccessPolicy(user), meta);
+  async stop(
+    @Body() dto: StopTimerDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @RequestMeta() meta: RequestContext,
+  ) {
+    return this.timer.stop(dto, new AccessPolicy(user), meta);
+  }
+
+  @Post('timer/discard')
+  @HttpCode(HttpStatus.OK)
+  @RequireAnyPermission('time:write:own', 'time:write:any')
+  @ApiOperation({ summary: 'Abandonner la session en cours SANS enregistrer de temps.' })
+  async discard(@CurrentUser() user: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
+    return this.timer.discard(new AccessPolicy(user), meta);
   }
 }

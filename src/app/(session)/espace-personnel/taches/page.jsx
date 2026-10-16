@@ -1,21 +1,18 @@
 "use client";
 
-import AssignedTasks from "@/components/workspace/AssignedTasks";
-import PersonalTasks from "@/components/workspace/PersonalTasks";
-import { canAny } from "@/lib/access";
-import { useAuth } from "@/lib/session";
+import { Suspense } from "react";
+import PersonalWorkspace from "@/components/workspace/PersonalWorkspace";
 
 /**
- * Mes tâches : la liste privée du membre, puis les tâches de projet qui lui
- * sont assignées. Deux sources distinctes, jamais mélangées dans une même liste.
+ * Mes tâches : une seule liste pour mes tâches personnelles (privées) et les
+ * tâches de projet qui me sont assignées — chacune marquée comme telle — avec
+ * cases à cocher, objectifs et minuteur. `Suspense` : la page lit `?tache=`
+ * (lien profond des notifications) ; seul ce composant attend les paramètres.
  */
 export default function MesTachesPage() {
-  const { user } = useAuth();
-  const seesAssigned = canAny(user, ["task:read:assigned", "task:read:own"]);
   return (
-    <div className="flex flex-col gap-6">
-      <PersonalTasks />
-      {seesAssigned ? <AssignedTasks /> : null}
-    </div>
+    <Suspense fallback={<p className="sui-card__desc">Chargement de vos tâches…</p>}>
+      <PersonalWorkspace />
+    </Suspense>
   );
 }

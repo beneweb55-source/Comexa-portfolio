@@ -1,42 +1,43 @@
 "use client";
 
+/*
+ * Minuteur du dock : un déclencheur toujours visible (décompte vivant quand il
+ * tourne) et le panneau complet du minuteur au-dessus du dock.
+ *
+ * `variant="dock"` : rendu DANS le dock de la coque (segment de droite). Sur
+ * mobile, le panneau devient une feuille posée en bas d'écran.
+ * `variant="floating"` (historique) : pastille flottante dans le coin.
+ */
+
 import { useEffect, useId, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { formatElapsed, useTimer } from "@/lib/timer";
-import { useListing } from "@/lib/use-listing";
+import { Pause, Play } from "lucide-react";
 import { useAuth } from "@/lib/session";
+import { useTimer } from "@/lib/timer";
 import { canUseTimer } from "@/lib/timer-access";
-import { Pagination } from "@/components/workspace/ui";
-import Icon from "@/components/dashboard/icons";
+import { formatElapsed } from "@/lib/timer-format.mjs";
+import TimerPanel from "@/components/timer/TimerPanel";
 
-/**
- * Minuteur Comexa, avec des surfaces claires et un menu clavier accessible.
- *
- * `variant="dock"` : rendu DANS le dock de la coque (segment de droite), au lieu
- * de flotter seul dans le coin de l'écran, où il débordait de la coque et
- * recouvrait le panneau de suivi.
- */
 export default function TimerPill({ variant = "floating" }) {
   const pathname = usePathname() ?? "/";
-  return <TimerPillContent key={pathname} pathname={pathname} variant={variant} />;
-}
-
-function TimerPillContent({ pathname, variant }) {
   const docked = variant === "dock";
-  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
-  const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState("");
-  const [taskPage, setTaskPage] = useState(1);
+  const { timer, elapsedSeconds, refreshSummary } = useTimer();
   const { user } = useAuth();
-  const allowed = canUseTimer(user);
-  const tasks = useListing(allowed ? `/me/tasks?page=${taskPage}&perPage=50` : null);
-  const list = (tasks.items ?? []).filter((task) => task.status !== "DONE" && task.status !== "CANCELLED");
-  const [stopError, setStopError] = useState(null);
+  const [open, setOpen] = useState(false);
   const dialogId = useId();
+  const titleId = useId();
   const triggerRef = useRef(null);
   const panelRef = useRef(null);
   const rootRef = useRef(null);
   const wasOpen = useRef(false);
+  const lastPath = useRef(pathname);
+
+  // Une navigation referme le panneau (on vient de cliquer un lien du dock).
+  useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    setOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) {
@@ -48,19 +49,21 @@ function TimerPillContent({ pathname, variant }) {
     }
 
     wasOpen.current = true;
-    panelRef.current?.querySelector("select, button:not(:disabled)")?.focus();
+    refreshSummary();
+    const focusTarget = panelRef.current?.querySelector("input, textarea, button:not(:disabled)");
+    focusTarget?.focus();
 
     function closeOnEscape(event) {
       if (event.key !== "Escape") return;
+      // Une boîte de dialogue ouverte par-dessus (bascule) garde la priorité.
+      if (document.querySelector(".sui-dialog-backdrop")) return;
       event.preventDefault();
       event.stopPropagation();
-      wasOpen.current = false;
       setOpen(false);
-      triggerRef.current?.focus();
     }
     function closeOutside(event) {
       if (rootRef.current?.contains(event.target)) return;
-      wasOpen.current = false;
+      if (event.target.closest?.(".sui-dialog-backdrop")) return;
       setOpen(false);
     }
 
@@ -70,88 +73,28 @@ function TimerPillContent({ pathname, variant }) {
       document.removeEventListener("keydown", closeOnEscape);
       document.removeEventListener("pointerdown", closeOutside);
     };
-  }, [open]);
+  }, [open, refreshSummary]);
 
-  async function onStop() {
-    setStopError(null);
-    const result = await stop();
-    if (result === null) {
-      setStopError("Enregistrement impossible : réessayez, le minuteur serveur garde la session.");
-    } else if (result.overflowMinutes > 0) {
-      // Plafond serveur à 24 h : la saisie existe, mais la durée dépasse.
-      setStopError(
-        `${result.savedMinutes} min enregistrées (plafond de 24 h). Corrigez la saisie de temps de ${result.overflowMinutes} min manuellement.`,
-      );
-      setOpen(false);
-    } else setOpen(false);
-  }
+  // Sur le tableau de bord de l'équipe, la pastille flottante ferait doublon
+  // avec la tuile ; dans le dock, le minuteur reste à sa place.
+  if (!canUseTimer(user) || (!docked && pathname === "/espace-equipe/tableau-de-bord")) return null;
 
-  // Sur le tableau de bord, le minuteur flottant ferait doublon avec la tuile ;
-  // dans le dock, il reste à sa place (c'est la barre d'outils globale).
-  if (!allowed || (!docked && pathname === "/espace-equipe/tableau-de-bord")) return null;
+  const paused = timer?.status === "PAUSED";
+  const triggerClass = docked
+    ? `sui-dock-timer__trigger${timer ? " is-active" : ""}${paused ? " is-paused" : ""}`
+    : `cx-timer-pill__trigger${timer ? " is-active" : ""}`;
 
   return (
-    <div ref={rootRef} className={docked ? "sui-dock-timer" : "cx-timer-pill"} data-theme="team-glass">
+    <div ref={rootRef} className={docked ? "sui-dock-timer" : "cx-timer-pill"}>
       {open ? (
-        <section ref={panelRef} id={dialogId} role="dialog" aria-labelledby={`${dialogId}-title`} className="cx-timer-pill__panel">
-          {timer ? (
-            <>
-              <p className="cx-timer-pill__eyebrow">
-                {timer.status === "PAUSED" ? "En pause" : "Enregistrement en cours"}
-              </p>
-              <h2 id={`${dialogId}-title`} className="cx-timer-pill__time">{formatElapsed(elapsedSeconds)}</h2>
-              <p className="cx-timer-pill__task" title={timer.title}>
-                {timer.title}
-                {timer.taskIsPersonal ? " · Personnel" : ""}
-              </p>
-              <div className="cx-timer-pill__actions">
-                {timer.status === "PAUSED" ? (
-                  <button type="button" onClick={() => resume()} disabled={saving} className="cx-timer-pill__start">
-                    <Icon name="play" />
-                    Reprendre
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => pause()} disabled={saving} className="cx-timer-pill__start">
-                    <Icon name="pause" />
-                    Pause
-                  </button>
-                )}
-                <button type="button" onClick={onStop} disabled={saving} className="cx-timer-pill__stop">
-                  <Icon name="stop" />
-                  {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 id={`${dialogId}-title`} className="cx-timer-pill__title">Chronométrer une tâche</h2>
-              {tasks.error ? <p className="cx-timer-pill__error" role="alert">{tasks.error}</p> : null}
-              <label htmlFor={`${dialogId}-task`} className="cx-timer-pill__label">Tâche</label>
-              <select id={`${dialogId}-task`} value={picked} onChange={(event) => setPicked(event.target.value)} className="cx-timer-pill__select">
-                <option value="">{list.length ? "Choisir une tâche…" : tasks.items === null ? "Chargement…" : "Aucune tâche assignée"}</option>
-                {list.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}
-              </select>
-              <Pagination
-                meta={tasks.meta}
-                onPageChange={(nextPage) => { setPicked(""); setTaskPage(nextPage); }}
-                loading={tasks.loading}
-                label="Pagination des tâches du minuteur"
-              />
-              <button
-                type="button"
-                disabled={!picked || saving}
-                onClick={() => {
-                  const task = list.find((item) => item.id === picked);
-                  if (task) start(task);
-                }}
-                className="cx-timer-pill__start"
-              >
-                <Icon name="play" />
-                Démarrer
-              </button>
-            </>
-          )}
-          {error || stopError ? <p role="alert" className="cx-timer-pill__error">{error ?? stopError}</p> : null}
+        <section
+          ref={panelRef}
+          id={dialogId}
+          role="dialog"
+          aria-labelledby={titleId}
+          className="sui-dock-timer__panel"
+        >
+          <TimerPanel variant="popover" titleId={titleId} onClose={() => setOpen(false)} />
         </section>
       ) : null}
 
@@ -160,12 +103,30 @@ function TimerPillContent({ pathname, variant }) {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        aria-controls={dialogId}
-        aria-label={timer ? `Minuteur ${timer.status === "PAUSED" ? "en pause" : "en cours"} : ${formatElapsed(elapsedSeconds)}` : "Ouvrir le minuteur"}
-        className={docked ? `sui-dock-timer__trigger${timer ? " is-active" : ""}${timer?.status === "PAUSED" ? " is-paused" : ""}` : `cx-timer-pill__trigger${timer ? " is-active" : ""}`}
+        aria-controls={open ? dialogId : undefined}
+        aria-label={
+          timer
+            ? `Minuteur ${paused ? "en pause" : "en cours"} sur ${timer.title} : ${formatElapsed(elapsedSeconds)}`
+            : "Ouvrir le minuteur"
+        }
+        className={triggerClass}
       >
-        <Icon name={timer ? "clock" : "play"} />
-        {timer ? <span className="cx-timer-pill__trigger-time">{formatElapsed(elapsedSeconds)}</span> : <span>Minuteur</span>}
+        {timer ? (
+          <>
+            {paused ? (
+              <Pause size={16} strokeWidth={2.2} aria-hidden="true" />
+            ) : (
+              <span className="sui-dock-timer__pulse" aria-hidden="true" />
+            )}
+            <span className="cx-timer-pill__trigger-time">{formatElapsed(elapsedSeconds)}</span>
+            <span className="sui-dock-timer__task">{timer.title}</span>
+          </>
+        ) : (
+          <>
+            <Play size={16} strokeWidth={2.2} aria-hidden="true" />
+            <span>Minuteur</span>
+          </>
+        )}
       </button>
     </div>
   );

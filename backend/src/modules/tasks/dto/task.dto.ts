@@ -154,6 +154,18 @@ export class CreatePersonalTaskDto {
   @IsOptional()
   @IsDateStringLike()
   dueDate?: string | null;
+
+  /**
+   * Objectif PERSONNEL auquel rattacher la tache des sa creation. Le service
+   * verifie qu'il appartient au porteur et qu'il n'est pas archive : un
+   * identifiant d'objectif d'un collegue donne 404, comme une tache hors
+   * perimetre.
+   */
+  @ApiPropertyOptional({ description: 'Objectif personnel de rattachement.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  goalId?: string;
 }
 
 export class UpdateTaskDto {
@@ -304,4 +316,12 @@ export class TaskQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Uniquement les taches personnelles.' })
   @BooleanFilter()
   personalOnly?: boolean;
+
+  /**
+   * `?unassignedOnly=true` : le travail encore a distribuer (sans assigne).
+   * Ignore si `assigneeId` est fourni. Meme piege de conversion que `rootOnly`.
+   */
+  @ApiPropertyOptional({ description: 'Uniquement les taches sans assigne.' })
+  @BooleanFilter()
+  unassignedOnly?: boolean;
 }

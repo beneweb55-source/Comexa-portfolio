@@ -23,12 +23,18 @@ const ROUTES = {
     [/^\/devis\/([^/?#]+)/, (id) => `/espace-equipe/devis/${id}`],
     [/^\/(?:admin\/)?projets\/([^/?#]+)/, (id) => `/espace-equipe/projets/${id}`],
     [/^\/clients\/([^/?#]+)/, (id) => `/espace-equipe/clients/${id}`],
+    // La tâche visée s'ouvre dans son projet, sur le tableau (`?tache=`).
+    [/^\/taches\/([^/?#]+)/, (id) => `/espace-equipe/taches?tache=${id}`],
     [/^\/taches(?:\/|$)/, () => "/espace-equipe/taches"],
     [/^\/espace\/messages(?:\/|$)/, () => "/espace-equipe/messagerie"],
     [/^\/espace\/demandes(?:\/|$)/, () => "/espace-equipe/modifications"],
     [/^\/admin\/demandes(?:\/|$)/, () => "/espace-equipe/demandes"],
   ],
-  personal: [[/^\/taches(?:\/|$)/, () => "/espace-personnel/taches"]],
+  personal: [
+    // « Une tâche vous est assignée » : la liste s'ouvre sur CETTE tâche.
+    [/^\/taches\/([^/?#]+)/, (id) => `/espace-personnel/taches?tache=${id}`],
+    [/^\/taches(?:\/|$)/, () => "/espace-personnel/taches"],
+  ],
   comexa: [],
   client: [
     [/^\/devis\/([^/?#]+)/, (id) => `/espace-client/devis/${id}`],

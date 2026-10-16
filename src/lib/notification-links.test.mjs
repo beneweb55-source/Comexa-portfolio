@@ -8,14 +8,16 @@ test("les liens du serveur deviennent des pages réelles de l'espace équipe", (
   assert.equal(resolveNotificationHref("/projets/p_1", "team"), "/espace-equipe/projets/p_1");
   assert.equal(resolveNotificationHref("/admin/projets/p_2", "team"), "/espace-equipe/projets/p_2");
   assert.equal(resolveNotificationHref("/clients/c_1", "team"), "/espace-equipe/clients/c_1");
-  assert.equal(resolveNotificationHref("/taches/t_1", "team"), "/espace-equipe/taches");
+  assert.equal(resolveNotificationHref("/taches/t_1", "team"), "/espace-equipe/taches?tache=t_1");
+  assert.equal(resolveNotificationHref("/taches", "team"), "/espace-equipe/taches");
   assert.equal(resolveNotificationHref("/espace/messages/conv_1", "team"), "/espace-equipe/messagerie");
   assert.equal(resolveNotificationHref("/espace/demandes/m_1", "team"), "/espace-equipe/modifications");
   assert.equal(resolveNotificationHref("/admin/demandes/r_1", "team"), "/espace-equipe/demandes");
 });
 
 test("chaque espace garde ses propres destinations", () => {
-  assert.equal(resolveNotificationHref("/taches/t_1", "personal"), "/espace-personnel/taches");
+  assert.equal(resolveNotificationHref("/taches/t_1", "personal"), "/espace-personnel/taches?tache=t_1");
+  assert.equal(resolveNotificationHref("/taches/a%2Fb", "personal"), "/espace-personnel/taches?tache=a%2Fb", "identifiant encodé");
   assert.equal(resolveNotificationHref("/factures/inv_1", "personal"), "/espace-personnel/notifications");
   assert.equal(resolveNotificationHref("/admin/projets/p_1", "comexa"), "/espace-comexa/notifications");
   assert.equal(resolveNotificationHref("/devis/q_1", "client"), "/espace-client/devis/q_1");

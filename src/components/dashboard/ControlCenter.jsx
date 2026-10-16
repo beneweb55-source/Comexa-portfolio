@@ -69,7 +69,7 @@ import { canReadOwnTasks, canUseTimer } from "@/lib/timer-access";
 import { useAllListing } from "@/lib/use-all-listing";
 import { useObject } from "@/lib/use-object";
 import { fetchAllPages } from "@/lib/pagination.mjs";
-import { formatElapsed, useTimer } from "@/lib/timer";
+import TimerPanel from "@/components/timer/TimerPanel";
 import {
   INVOICE_STATUS,
   PROSPECT_COLUMNS,
@@ -933,7 +933,11 @@ export default function ControlCenter() {
               </Button>
             </Panel>
 
-            {canTime ? <TimerPanel tasks={myTasks} /> : null}
+            {canTime ? (
+              <section className="sui-panel sui-timer-card sui-timer-card--compact" aria-label="Minuteur">
+                <TimerPanel variant="compact" />
+              </section>
+            ) : null}
 
             {canReadInvoices ? (
               <Panel title="Encaissements mensuels" action={<span className="sui-section__count">6 mois</span>}>
@@ -1028,64 +1032,6 @@ function BarList({ rows = [], empty = "Aucune donnée.", tone = "green" }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-/** Minuteur : même contexte que le reste de l'application (état persisté). */
-function TimerPanel({ tasks }) {
-  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
-  const list = (tasks.items ?? []).filter((task) => !CLOSED_TASK.includes(task.status)).slice(0, 8);
-
-  return (
-    <Panel title="Minuteur" action={<span className="sui-section__count">{timer ? formatElapsed(elapsedSeconds) : "inactif"}</span>}>
-      {timer ? (
-        <>
-          <p className="sui-card__desc">
-            {timer.title}
-            {timer.taskIsPersonal ? " · personnel" : ""} — {timer.status === "PAUSED" ? "en pause" : "enregistrement en cours"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {timer.status === "PAUSED" ? (
-              <Button variant="dark" icon={Play} onClick={() => resume()} disabled={saving}>
-                Reprendre
-              </Button>
-            ) : (
-              <Button icon={Pause} onClick={() => pause()} disabled={saving}>
-                Pause
-              </Button>
-            )}
-            <Button variant="dark" icon={Square} onClick={() => stop()} disabled={saving}>
-              {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-            </Button>
-          </div>
-        </>
-      ) : (
-        <>
-          {tasks.error ? <Alert icon={CircleAlert}>{tasks.error}</Alert> : null}
-          {tasks.items === null && !tasks.error ? <p className="sui-card__desc">Chargement des tâches…</p> : null}
-          {tasks.items !== null && list.length === 0 && !tasks.error ? (
-            <p className="sui-card__desc">Aucune tâche ouverte assignée.</p>
-          ) : null}
-          {list.length > 0 ? (
-            <ul className="sui-pills-list">
-              {list.map((task) => (
-                <li key={task.id}>
-                  <button type="button" className="sui-pill" onClick={() => start(task)}>
-                    <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-                    {task.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-        </>
-      )}
-
-      {error ? <Alert icon={CircleAlert}>{error}</Alert> : null}
-      <Button href="/espace-equipe/taches" icon={CheckSquare}>
-        Voir toutes les tâches
-      </Button>
-    </Panel>
   );
 }
 

@@ -2062,61 +2062,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Panneau du minuteur : il s'ouvre AU-DESSUS du dock, aligné à droite. */
-.sui-dock-timer .cx-timer-pill__panel {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 14px);
-  width: min(330px, calc(100vw - 32px));
-  border: 0;
-  border-radius: 22px;
-  background: var(--card);
-  color: var(--ink);
-  box-shadow: var(--shadow-pop);
-}
-
-.sui-dock-timer .cx-timer-pill__eyebrow,
-.sui-dock-timer .cx-timer-pill__label {
-  color: var(--muted);
-  font-size: var(--fs-micro);
-}
-
-.sui-dock-timer .cx-timer-pill__title,
-.sui-dock-timer .cx-timer-pill__time {
-  color: var(--ink);
-}
-
-.sui-dock-timer .cx-timer-pill__task {
-  color: var(--muted);
-}
-
-.sui-dock-timer .cx-timer-pill__select {
-  border-color: var(--line);
-  border-radius: 14px;
-  color: var(--ink);
-}
-
-.sui-dock-timer .cx-timer-pill__start,
-.sui-dock-timer .cx-timer-pill__stop {
-  border: 0;
-  border-radius: var(--r-pill);
-  background: var(--shell);
-  font-size: var(--fs-small);
-}
-
-.sui-dock-timer .cx-timer-pill__start:hover:not(:disabled) {
-  background: #2a2830;
-}
-
-.sui-dock-timer .cx-timer-pill__stop {
-  background: var(--pink);
-  color: var(--ink);
-}
-
-.sui-dock-timer .cx-timer-pill__stop:hover:not(:disabled) {
-  background: #f4c3cf;
-}
-
 /* ==========================================================================
    11 bis. SÉLECTEUR D'ESPACE (navbar et tiroir)
    ========================================================================== */
@@ -2381,80 +2326,6 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-}
-
-/* Liste de tâches (espace personnel) : une ligne par tâche, actions à droite. */
-.sui-tasklist {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sui-tasklist__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 16px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: var(--surface);
-}
-
-.sui-tasklist__main {
-  display: flex;
-  flex: 1 1 260px;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-
-.sui-tasklist__title {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.sui-tasklist__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 14px;
-  font-size: var(--fs-micro);
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.sui-tasklist__meta > span,
-.sui-tasklist__project {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.sui-tasklist__project {
-  color: var(--ink);
-  text-decoration: none;
-}
-
-.sui-tasklist__project:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.sui-tasklist__late {
-  color: #9b2335;
-}
-
-.sui-tasklist__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
 }
 
 @media (max-width: 1023px) {
@@ -4229,27 +4100,6 @@ textarea.sui-input {
   font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-}
-
-/* Rangée de pilules d'action (démarrer le minuteur sur une tâche). */
-.sui-pills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sui-pills-list .sui-pill {
-  max-width: 100%;
-}
-
-.sui-pills-list .sui-pill {
-  max-width: 260px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 /* ==========================================================================

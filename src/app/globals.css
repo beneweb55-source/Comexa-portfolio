@@ -13,6 +13,9 @@
    dernier : elle a le dernier mot sur les classes `sui-*` partagées avec les
    anciennes feuilles de l'espace de travail. */
 @import "../styles/softui.components.css";
+/* Minuteur, cases à cocher, objectifs, assignation : la couche « productivité »
+   s'appuie sur les jetons et primitives ci-dessus. */
+@import "../styles/softui.productivity.css";
 
 :root {
   --background: #ffffff;

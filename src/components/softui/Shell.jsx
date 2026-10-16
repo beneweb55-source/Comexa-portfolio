@@ -387,7 +387,8 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
           cta: {
             label: "Ouvrir",
             icon: CheckSquare,
-            href: area === "team" && task.projectId ? `/espace-equipe/projets/${task.projectId}` : taskHref,
+            // La tâche elle-même (dépliée et mise en avant), pas seulement sa liste.
+            href: `${taskHref}?tache=${encodeURIComponent(task.id)}`,
           },
         });
       });

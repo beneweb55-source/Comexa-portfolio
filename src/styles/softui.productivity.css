@@ -1,0 +1,2498 @@
+/*
+ * Productivité personnelle et d'équipe — minuteur, sélecteur de tâches, cases à
+ * cocher, objectifs, liste « Mes tâches », assignation sur le tableau.
+ *
+ * Même charte que `softui.components.css` (chargée juste avant) : coque noire,
+ * surfaces claires, pastels pour coder les catégories, un seul accent noir pour
+ * l'action principale, texte foncé sur pastel. Aucune couleur en dur hors des
+ * jetons, sauf les voiles blancs translucides posés sur un pastel.
+ */
+
+/* ==========================================================================
+   1. MINUTEUR — panneau
+   ========================================================================== */
+
+.sui-timer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  color: var(--ink);
+}
+
+.sui-timer__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.sui-timer__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-timer__title-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.sui-timer__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+}
+
+.sui-timer__state.is-paused {
+  background: var(--yellow);
+}
+
+.sui-timer__pulse,
+.sui-dock-timer__pulse,
+.sui-ttb__dot {
+  position: relative;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.is-running .sui-timer__pulse::after,
+.sui-dock-timer__pulse::after,
+.sui-ttb.is-live:not(.is-paused) .sui-ttb__dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  opacity: 0;
+  animation: sui-timer-pulse 1.8s var(--ease-out) infinite;
+}
+
+.sui-timer__state.is-paused .sui-timer__pulse {
+  border-radius: 2px;
+  width: 8px;
+  background: linear-gradient(90deg, var(--ink) 0 35%, transparent 35% 65%, var(--ink) 65%);
+}
+
+@keyframes sui-timer-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.sui-timer__today {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sui-timer__today strong {
+  color: var(--ink);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-timer__close {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.sui-timer__close:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sui-timer__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.sui-timer__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Cartes des tableaux de bord : cadran à gauche, tâche à droite ; la note et
+   les commandes prennent toute la largeur dessous. Sous 380 px de carte, tout
+   s'empile (requête de conteneur : la carte connaît sa propre largeur). */
+.sui-timer-card {
+  container-type: inline-size;
+}
+
+.sui-timer--card .sui-timer__body,
+.sui-timer--compact .sui-timer__body {
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
+}
+
+.sui-timer--compact .sui-timer__body {
+  gap: 14px;
+}
+
+@container (max-width: 380px) {
+  .sui-timer--card .sui-timer__body,
+  .sui-timer--compact .sui-timer__body {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+.sui-timer__notefield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sui-timer__notefield .sui-timer__label {
+  margin: 0;
+}
+
+.sui-timer__picking-time {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Cadran ------------------------------------------------------------- */
+
+.sui-timer-dial {
+  position: relative;
+  flex: 0 0 auto;
+  width: var(--dial-size);
+  height: var(--dial-size);
+  border-radius: 50%;
+}
+
+.sui-timer-dial::before {
+  content: "";
+  position: absolute;
+  inset: 16%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, var(--card) 0%, var(--surface) 100%);
+  box-shadow:
+    0 10px 26px rgba(11, 10, 15, 0.08),
+    inset 0 1px 0 #ffffff;
+}
+
+.sui-timer-dial.is-running::before {
+  background: radial-gradient(circle at 50% 35%, #ffffff 0%, var(--green) 140%);
+}
+
+.sui-timer-dial.is-paused::before {
+  background: radial-gradient(circle at 50% 35%, #ffffff 0%, var(--yellow) 140%);
+}
+
+.sui-timer-dial svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.sui-timer-dial__track {
+  fill: none;
+  stroke: var(--track);
+}
+
+.sui-timer-dial__arc {
+  fill: none;
+  stroke: var(--track-strong);
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 900ms linear,
+    stroke var(--dur-base) var(--ease-out);
+}
+
+.sui-timer-dial.is-running .sui-timer-dial__arc {
+  stroke: var(--fill-green);
+}
+
+.sui-timer-dial.is-paused .sui-timer-dial__arc {
+  stroke: var(--fill-yellow);
+}
+
+.sui-timer-dial.is-over .sui-timer-dial__arc {
+  stroke: var(--fill-pink);
+}
+
+.sui-timer-dial__knob {
+  fill: #ffffff;
+  stroke: var(--fill-green);
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 4px rgba(11, 10, 15, 0.2));
+  transition: cx 900ms linear, cy 900ms linear;
+}
+
+.sui-timer-dial.is-paused .sui-timer-dial__knob {
+  stroke: var(--fill-yellow);
+}
+
+.sui-timer-dial.is-over .sui-timer-dial__knob {
+  stroke: var(--fill-pink);
+}
+
+.sui-timer-dial__face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 22%;
+  text-align: center;
+}
+
+.sui-timer-dial__digits {
+  font-size: calc(var(--dial-size) * 0.19);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-timer-dial__seconds {
+  font-size: 0.5em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+}
+
+.sui-timer-dial__caption {
+  max-width: 100%;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.sui-timer-dial.is-over .sui-timer-dial__caption {
+  color: #9c2440;
+}
+
+/* --- Tâche, note --------------------------------------------------------- */
+
+.sui-timer__task {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sui-timer__task-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sui-timer__task-title {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sui-timer__task-title.is-empty {
+  color: var(--muted);
+}
+
+.sui-timer__chip,
+.sui-picker__chip,
+.sui-mytask__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--ink);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sui-timer__chip {
+  align-self: flex-start;
+}
+
+.sui-timer__chip.is-soft,
+.sui-picker__chip.is-soft {
+  color: var(--muted);
+}
+
+.sui-timer__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sui-timer__switch:hover:not(:disabled) {
+  background: var(--blue);
+  box-shadow: none;
+}
+
+.sui-timer__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sui-timer__note-state {
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sui-timer__note {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.sui-timer__note:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-timer__picking {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sui-timer__picking-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sui-timer__picking-head .sui-timer__label {
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* --- Commandes ----------------------------------------------------------- */
+
+.sui-timer__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-timer__round {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #e7e4e6;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.sui-timer__round:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: var(--yellow);
+}
+
+.sui-timer__round.is-resume {
+  background: var(--green);
+}
+
+.sui-timer__stop {
+  flex: 1;
+  min-width: 0;
+}
+
+.sui-timer__ghost {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.sui-timer__ghost:hover:not(:disabled) {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.sui-timer__round:disabled,
+.sui-timer__ghost:disabled,
+.sui-timer__switch:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.sui-timer__danger {
+  background: var(--pink);
+}
+
+.sui-timer__danger:hover:not(:disabled) {
+  background: #f4bccb;
+}
+
+.sui-timer__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--pink);
+  font-size: var(--fs-small);
+}
+
+.sui-timer__confirm p {
+  margin: 0;
+}
+
+.sui-timer__confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.sui-timer__confirm .sui-btn,
+.sui-mytask__confirm .sui-btn,
+.sui-goalfocus__confirm .sui-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+.sui-timer__confirm .sui-timer__danger,
+.sui-mytask__confirm .sui-timer__danger,
+.sui-goalfocus__confirm .sui-timer__danger {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-timer__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-timer__notice.is-warning {
+  background: var(--yellow);
+}
+
+.sui-timer__notice.is-error {
+  background: var(--pink);
+}
+
+.sui-timer__notice span {
+  flex: 1;
+}
+
+.sui-timer__link {
+  flex: 0 0 auto;
+  padding: 4px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* --- À l'arrêt ----------------------------------------------------------- */
+
+.sui-timer__result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: var(--green);
+  font-size: var(--fs-small);
+}
+
+.sui-timer__result.is-discarded {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sui-timer__result-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.sui-timer__result-copy {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.sui-timer__result-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sui-timer__result-close:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.sui-timer__quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 1.5px dashed rgba(17, 17, 17, 0.18);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sui-timer__quick span {
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-timer__quick:hover:not(:disabled) {
+  border-color: var(--fill-green);
+  background: var(--green);
+}
+
+.sui-timer__quick:hover:not(:disabled) span {
+  color: var(--ink);
+}
+
+.sui-timer__log ul {
+  display: flex;
+  flex-direction: column;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-timer__log li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: var(--fs-small);
+}
+
+.sui-timer__log li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sui-timer__log-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-timer__log-minutes {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Carte « Minuteur » des tableaux de bord. */
+.sui-timer-card {
+  padding: 22px;
+}
+
+.sui-timer-card--compact {
+  padding: 20px;
+}
+
+/* ==========================================================================
+   2. SÉLECTEUR DE TÂCHES
+   ========================================================================== */
+
+.sui-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sui-picker__search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+}
+
+.sui-picker__search:focus-within {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-picker__search input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  outline: none;
+}
+
+/* L'anneau de focus est porté par la pilule (`:focus-within`) : pas de second
+   cadre à l'intérieur. */
+.sui-picker__search input:focus,
+.sui-picker__search input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.sui-picker__results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.sui-timer--card .sui-picker__results {
+  max-height: 340px;
+}
+
+.sui-picker--compact .sui-picker__results {
+  max-height: 248px;
+}
+
+.sui-picker__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-picker__group-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 4px 2px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sui-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-picker__option.is-active {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sui-picker__play {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--green);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.sui-picker__option.is-active .sui-picker__play {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-picker__copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sui-picker__title {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-picker__meta {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent);
+}
+
+.sui-picker__meta > * {
+  flex: 0 0 auto;
+}
+
+.sui-picker__chip {
+  font-size: 11.5px;
+  padding: 1px 8px;
+}
+
+.sui-picker__chip.is-late,
+.sui-mytask__chip.is-late,
+.sui-kcard__due.is-late {
+  background: var(--pink);
+  box-shadow: none;
+}
+
+.sui-picker__chip.is-today,
+.sui-mytask__chip.is-today,
+.sui-kcard__due.is-today {
+  background: var(--yellow);
+  box-shadow: none;
+}
+
+.sui-picker__empty {
+  margin: 0;
+  padding: 14px 6px;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+
+/* ==========================================================================
+   3. MINUTEUR DU DOCK
+   ========================================================================== */
+
+.sui-dock-timer__trigger {
+  max-width: min(360px, 42vw);
+}
+
+/* Le décompte garde la police de la marque, en chiffres tabulaires (la règle
+   historique du minuteur flottant imposait une police à chasse fixe). */
+.sui-dock-timer__trigger .cx-timer-pill__trigger-time {
+  font-family: inherit;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sui-dock-timer__pulse::after {
+  border-color: var(--ink);
+}
+
+.sui-dock-timer__task {
+  max-width: 150px;
+  overflow: hidden;
+  padding-left: 8px;
+  border-left: 1px solid rgba(17, 17, 17, 0.18);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-dock-timer__panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 14px);
+  z-index: 60;
+  width: min(400px, calc(100vw - 24px));
+  max-height: min(680px, calc(100vh - 150px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 18px;
+  border-radius: 26px;
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  animation: sui-pop-in var(--dur-base) var(--ease-out);
+}
+
+@keyframes sui-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .sui-dock-timer__task {
+    display: none;
+  }
+}
+
+/* Mobile : une feuille centrée au-dessus du dock. Le dock flouté
+   (`backdrop-filter`) devient le bloc conteneur de ses descendants « fixed » :
+   la feuille se cale donc sur lui (centre, 12 px au-dessus) ; sans flou, elle
+   se cale sur la fenêtre. La largeur, elle, suit toujours l'écran (`vw`). */
+@media (max-width: 640px) {
+  .sui-dock-timer__panel {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    translate: -50% 0;
+    bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+    width: calc(100vw - 16px);
+    max-width: 440px;
+    max-height: calc(100dvh - 210px);
+    border-radius: 24px;
+  }
+
+  @supports (backdrop-filter: blur(12px)) {
+    .sui-dock-timer__panel {
+      bottom: calc(100% + 12px);
+    }
+  }
+
+  .sui-composer__plus {
+    display: none;
+  }
+
+  .sui-composer__input {
+    font-size: 15px;
+  }
+
+  .sui-mytasks__tab-label {
+    gap: 4px;
+  }
+}
+
+/* Quatre vues ne tiennent pas sur une ligne de téléphone : deux par ligne,
+   toutes visibles (pas de défilement horizontal caché). */
+@media (max-width: 480px) {
+  .sui-mytasks__views {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    overflow: visible;
+    border-radius: 20px;
+  }
+
+  .sui-mytasks__views .sui-seg__tab {
+    padding: 0 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-dock-timer__panel,
+  .sui-timer-dial__arc,
+  .sui-timer-dial__knob {
+    animation: none;
+    transition: none;
+  }
+
+  .sui-timer__pulse::after,
+  .sui-dock-timer__pulse::after,
+  .sui-ttb__dot::after {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   4. BOUTON « CHRONOMÉTRER » D'UNE TÂCHE
+   ========================================================================== */
+
+.sui-ttb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+button.sui-ttb:hover:not(:disabled) {
+  background: var(--green);
+  box-shadow: none;
+}
+
+.sui-ttb--sm:not(.is-live) {
+  width: 34px;
+  padding: 0;
+}
+
+button.sui-ttb:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.sui-ttb.is-live {
+  gap: 4px;
+  padding: 0 4px 0 10px;
+  background: var(--green);
+  box-shadow: none;
+  cursor: default;
+}
+
+.sui-ttb.is-live.is-paused {
+  background: var(--yellow);
+}
+
+.sui-ttb__time {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-ttb.is-paused .sui-ttb__dot {
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ink) 0 35%, transparent 35% 65%, var(--ink) 65%);
+}
+
+.sui-ttb__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sui-ttb__icon:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+/* ==========================================================================
+   5. CASE À COCHER D'UNE TÂCHE
+   ========================================================================== */
+
+.sui-taskcheck {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+
+.sui-taskcheck::before {
+  content: "";
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: inset 0 0 0 2px rgba(17, 17, 17, 0.3);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.sui-taskcheck--sm::before {
+  width: 20px;
+  height: 20px;
+}
+
+.sui-taskcheck svg {
+  position: relative;
+  z-index: 1;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.sui-taskcheck:hover:not(.is-unavailable)::before {
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+.sui-taskcheck:hover:not(.is-unavailable):not(.is-checked) {
+  color: rgba(17, 17, 17, 0.35);
+}
+
+.sui-taskcheck.is-checked {
+  color: var(--ink);
+}
+
+.sui-taskcheck.is-checked::before {
+  background: var(--fill-green);
+  box-shadow: inset 0 0 0 2px var(--fill-green);
+  animation: sui-check-pop 280ms var(--ease-out);
+}
+
+.sui-taskcheck.is-unavailable {
+  cursor: not-allowed;
+}
+
+.sui-taskcheck.is-unavailable::before {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px rgba(17, 17, 17, 0.14);
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(17, 17, 17, 0.08) 4px 6px);
+}
+
+.sui-taskcheck.is-busy {
+  color: var(--ink);
+  cursor: wait;
+}
+
+.sui-taskcheck:focus-visible {
+  outline: none;
+}
+
+.sui-taskcheck:focus-visible::before {
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    0 0 0 3px var(--card),
+    0 0 0 5px var(--focus);
+}
+
+@keyframes sui-check-pop {
+  0% {
+    transform: scale(0.8);
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ==========================================================================
+   6. MES TÂCHES — composer, objectifs, liste
+   ========================================================================== */
+
+.sui-mywork {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+/* --- Ajout rapide -------------------------------------------------------- */
+
+.sui-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  scroll-margin: 120px;
+}
+
+.sui-composer:focus-within {
+  box-shadow:
+    var(--shadow-card),
+    inset 0 0 0 2px rgba(30, 134, 224, 0.35);
+}
+
+.sui-composer__line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sui-composer__plus {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--yellow);
+}
+
+.sui-composer__input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* L'anneau de focus est celui de la carte (`:focus-within`) : la règle globale
+   `.sui-viewport :focus-visible` ne doit pas dessiner un second cadre dedans. */
+.sui-composer__input:focus-visible,
+.sui-composer__option select:focus-visible,
+.sui-composer__option input:focus-visible,
+.sui-mytasks__goalfilter select:focus-visible,
+.sui-assign-chip__select:focus-visible {
+  outline: none;
+}
+
+.sui-composer__input::placeholder {
+  color: #8a8a8a;
+  font-weight: 500;
+}
+
+.sui-composer__submit {
+  min-height: 40px;
+}
+
+.sui-composer__options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-left: 48px;
+}
+
+.sui-composer__option,
+.sui-composer__days > button,
+.sui-mytasks__goalfilter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sui-composer__option select,
+.sui-composer__option input,
+.sui-mytasks__goalfilter select {
+  max-width: 190px;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+.sui-composer__option:focus-within,
+.sui-mytasks__goalfilter:focus-within {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-composer__option.is-set {
+  background: var(--blue);
+}
+
+.sui-composer__days {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sui-composer__days > button[aria-pressed="true"] {
+  background: var(--shell);
+  box-shadow: none;
+  color: #ffffff;
+}
+
+.sui-composer__error,
+.sui-form__error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: var(--pink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .sui-composer__options {
+    padding-left: 0;
+  }
+
+  .sui-composer__submit {
+    padding: 0 14px;
+  }
+}
+
+/* --- Objectifs ----------------------------------------------------------- */
+
+.sui-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sui-goals__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sui-goals__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sui-goals__archived {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sui-goals__archived:hover,
+.sui-goals__archived[aria-pressed="true"] {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.sui-goals__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.sui-goals__skeleton {
+  height: 84px;
+  border-radius: 22px;
+  background: linear-gradient(90deg, var(--card) 0%, var(--surface) 50%, var(--card) 100%);
+  background-size: 200% 100%;
+  animation: sui-shimmer 1.4s linear infinite;
+}
+
+@keyframes sui-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.sui-goal {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 84px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-goal:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.sui-goal.is-selected {
+  box-shadow:
+    inset 0 0 0 2.5px var(--shell),
+    var(--shadow-card);
+}
+
+.sui-goal.is-achieved {
+  background: color-mix(in srgb, var(--tone-bg, var(--blue)) 55%, var(--card));
+}
+
+.sui-goal--empty {
+  grid-template-columns: auto minmax(0, 1fr);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(17, 17, 17, 0.16);
+  border: 0;
+  background-image: none;
+  outline: 1.5px dashed rgba(17, 17, 17, 0.2);
+  outline-offset: -1.5px;
+}
+
+.sui-goal--empty:hover {
+  background: var(--card);
+}
+
+.sui-goal__plus {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--lilac);
+}
+
+.sui-goal__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 64px;
+}
+
+.sui-goal--empty .sui-goal__copy {
+  padding-right: 0;
+}
+
+.sui-goal__title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sui-goal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: rgba(17, 17, 17, 0.72);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-goal--empty .sui-goal__meta {
+  color: var(--muted);
+}
+
+.sui-goal__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.sui-goal__due {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.sui-goal__due.is-late {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-goalring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--ring-size);
+  height: var(--ring-size);
+}
+
+.sui-goalring svg {
+  position: absolute;
+  inset: 0;
+}
+
+.sui-goalring__track {
+  fill: none;
+  stroke: rgba(17, 17, 17, 0.1);
+}
+
+.sui-goalring__arc {
+  fill: none;
+  stroke: var(--ink);
+  stroke-linecap: round;
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-out);
+}
+
+.sui-goalring__value {
+  position: relative;
+  font-size: calc(var(--ring-size) * 0.24);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-goals__archive {
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-goals__archive-title {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sui-goals__archive ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-goals__archive li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: var(--fs-small);
+}
+
+.sui-goals__archive li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sui-goals__archive-dot,
+.sui-mytask__goal-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tone-fill, var(--fill-blue));
+}
+
+.sui-goals__archive-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Objectif sélectionné ------------------------------------------------ */
+
+.sui-goalfocus {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 22px;
+  border-radius: 26px;
+  background: var(--tone-bg, var(--blue));
+  box-shadow: var(--shadow-card);
+}
+
+.sui-goalfocus .sui-goalring__arc {
+  stroke: var(--ink);
+}
+
+.sui-goalfocus__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sui-goalfocus__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: rgba(17, 17, 17, 0.7);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sui-goalfocus__eyebrow .sui-goal__due {
+  position: static;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sui-goalfocus__title {
+  margin: 0;
+  font-size: clamp(19px, 1.6vw, 23px);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.2;
+}
+
+.sui-goalfocus__desc {
+  margin: 0;
+  color: rgba(17, 17, 17, 0.78);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+
+.sui-goalfocus__bar {
+  height: 8px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.sui-goalfocus__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+
+.sui-goalfocus__stats {
+  margin: 0;
+  color: rgba(17, 17, 17, 0.75);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-goalfocus__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  align-self: start;
+}
+
+.sui-goalfocus__actions .sui-iconbtn {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.sui-goalfocus__confirm,
+.sui-mytask__confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+@media (max-width: 860px) {
+  .sui-goalfocus {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sui-goalfocus__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+.sui-goal-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.sui-goal-tone {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tone-bg);
+  box-shadow: inset 0 0 0 2px var(--tone-fill);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-goal-tone:hover {
+  transform: scale(1.08);
+}
+
+.sui-goal-tone[aria-checked="true"] {
+  box-shadow:
+    inset 0 0 0 2px var(--tone-fill),
+    0 0 0 3px var(--card),
+    0 0 0 5px var(--shell);
+}
+
+/* --- Liste --------------------------------------------------------------- */
+
+.sui-mytasks {
+  gap: 12px;
+}
+
+.sui-mytasks__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sui-mytasks__views {
+  flex: 0 1 auto;
+  margin-top: 0;
+}
+
+.sui-mytasks__views .sui-seg__tab {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font-size: var(--fs-micro);
+  overflow: visible;
+}
+
+.sui-mytasks__tab-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sui-mytasks__tab-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: rgba(17, 17, 17, 0.07);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: center;
+}
+
+.sui-mytasks__tab-count.is-late {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.sui-mytasks__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sui-pill--sm {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: var(--fs-micro);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sui-mytasks__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-mytasks__notice.is-success {
+  background: var(--green);
+}
+
+.sui-mytasks__notice.is-error {
+  background: var(--pink);
+}
+
+.sui-mytasks__notice.is-warning {
+  background: var(--yellow);
+}
+
+.sui-mytasks__notice > span {
+  flex: 1;
+}
+
+.sui-mytasks__notice-close {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sui-mytasks__notice-close:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.sui-mytasks__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sui-mytasks__skeleton span {
+  height: 56px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, var(--surface) 0%, #efeced 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: sui-shimmer 1.4s linear infinite;
+}
+
+.sui-mytasks__group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sui-mytasks__group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 6px 2px;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sui-mytasks__group-title span {
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.sui-mytasks__group-title.is-late {
+  color: #8f1f3a;
+}
+
+.sui-mytasks__group-title.is-late span {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.sui-mytasks__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* --- Une tâche ------------------------------------------------------------ */
+
+.sui-mytask {
+  border-radius: 18px;
+  scroll-margin: 140px;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-base) var(--ease-out);
+}
+
+.sui-mytask:hover,
+.sui-mytask.is-expanded {
+  background: var(--surface);
+}
+
+.sui-mytask.is-expanded {
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+
+.sui-mytask.is-focused {
+  animation: sui-focus-ring 1.4s var(--ease-out) 2;
+}
+
+@keyframes sui-focus-ring {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px var(--line-soft);
+  }
+  40% {
+    box-shadow:
+      inset 0 0 0 2px var(--focus),
+      0 0 0 6px rgba(30, 134, 224, 0.14);
+  }
+}
+
+.sui-mytask__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 6px 4px;
+}
+
+.sui-mytask__main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sui-mytask__main:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
+
+.sui-mytask__title {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.sui-mytask.is-closed .sui-mytask__title {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.sui-mytask__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.sui-mytask__chip.is-goal {
+  gap: 6px;
+  background: var(--card);
+}
+
+.sui-mytask__chip.is-warm {
+  background: #fdf0d5;
+  box-shadow: none;
+}
+
+.sui-mytask__chip.is-blue {
+  background: var(--blue);
+  box-shadow: none;
+}
+
+.sui-mytask__chip.is-pink {
+  background: var(--pink);
+  box-shadow: none;
+}
+
+.sui-mytask__chip.is-lilac {
+  background: var(--lilac);
+  box-shadow: none;
+}
+
+.sui-mytask__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sui-mytask__more {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    transform var(--dur-base) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.sui-mytask__more:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+
+.sui-mytask__more[aria-expanded="true"] {
+  transform: rotate(180deg);
+  color: var(--ink);
+}
+
+.sui-mytask__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 14px 16px 50px;
+}
+
+.sui-mytask__controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sui-mytask__controls .sui-field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sui-mytask__detail .sui-input {
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--card);
+  font-size: var(--fs-small);
+}
+
+.sui-mytask__edit {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sui-mytask__wide {
+  grid-column: 1 / -1;
+}
+
+.sui-mytask__edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.sui-mytask__edit-actions .sui-btn--dark {
+  min-height: 40px;
+  margin-left: auto;
+}
+
+.sui-mytask__delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sui-mytask__delete:hover {
+  background: var(--pink);
+  color: var(--ink);
+}
+
+.sui-mytask__info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sui-mytask__desc {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.sui-mytask__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-mytask__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .sui-mytask__detail {
+    padding: 2px 10px 14px;
+  }
+
+  .sui-mytask__controls,
+  .sui-mytask__edit {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sui-mytasks__views {
+    width: 100%;
+    overflow-x: auto;
+  }
+}
+
+/* ==========================================================================
+   7. MA JOURNÉE — tâches cochables, mini-objectifs
+   ========================================================================== */
+
+.sui-lines--tasks > li.sui-lines__task {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sui-lines--tasks > li.sui-lines__task > a {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Colonne étroite (mobile, panneau à moitié) : l'échéance passe sous le titre
+   au lieu de le tronquer à trois lettres. */
+.sui-panel:has(> .sui-lines--tasks) {
+  container-type: inline-size;
+}
+
+@container (max-width: 460px) {
+  .sui-lines--tasks > li.sui-lines__task > a {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .sui-lines--tasks .sui-lines__copy {
+    flex-basis: 100%;
+  }
+
+  .sui-lines--tasks .sui-lines__end {
+    margin-right: auto;
+  }
+}
+
+.sui-split--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sui-goalmini {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-goalmini__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-goalmini__item:hover {
+  transform: translateY(-1px);
+}
+
+.sui-goalmini__copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-goalmini__copy strong {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-goalmini__copy span {
+  color: rgba(17, 17, 17, 0.72);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-goalmini__item .sui-goal__due {
+  position: static;
+}
+
+/* ==========================================================================
+   8. TABLEAU D'ÉQUIPE — assignation sur les cartes
+   ========================================================================== */
+
+.sui-board-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sui-board-filters__assign {
+  margin-top: 0;
+}
+
+.sui-board-filters__assign .sui-seg__tab {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  font-size: var(--fs-micro);
+}
+
+.sui-kcard.is-focused {
+  animation: sui-focus-ring 1.4s var(--ease-out) 2;
+  border-color: var(--focus);
+}
+
+.sui-kcard__due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  color: var(--comexa-ink-muted, var(--muted));
+  font-weight: 600;
+}
+
+.sui-kcard__due.is-late,
+.sui-kcard__due.is-today {
+  color: var(--ink);
+}
+
+.sui-kcard__people {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--comexa-border-soft, var(--line-soft));
+  font-size: 12.5px;
+}
+
+.sui-kcard__creator {
+  margin: 6px 0 0;
+  color: var(--comexa-ink-muted, var(--muted));
+  font-size: var(--fs-micro);
+}
+
+/* Assigné cliquable : la pastille est l'étiquette d'une liste native posée
+   par-dessus, invisible — accessibilité et clavier du navigateur conservés. */
+.sui-assign-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 3px 10px 3px 4px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-assign-chip:hover {
+  background: var(--blue);
+}
+
+.sui-assign-chip:focus-within {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-assign-chip.is-busy {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sui-assign-chip .sui-assignee {
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-assign-chip__caret {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.sui-assign-chip__select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+}
+
+.sui-assign-chip__select:disabled {
+  cursor: wait;
+}
+
+.sui-assignee {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.sui-assignee.is-empty {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.sui-assignee__none {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px rgba(17, 17, 17, 0.16);
+  color: var(--muted);
+}
+
+.sui-assign {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.sui-assign select {
+  width: 100%;
+  min-width: 0;
+  max-width: 230px;
+  min-height: 34px;
+  padding: 0 28px 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
+    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+  background-position:
+    calc(100% - 15px) 50%,
+    calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  appearance: none;
+  cursor: pointer;
+}
+
+.sui-assign select:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-assign select:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}

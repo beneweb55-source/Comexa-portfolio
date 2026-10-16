@@ -21,30 +21,29 @@ import {
   CalendarPlus,
   CheckSquare,
   CircleAlert,
-  Clock3,
   ListTodo,
   NotebookPen,
-  Pause,
-  Play,
-  Square,
-  TriangleAlert,
+  Target,
 } from "lucide-react";
-import { formatDateOnly } from "@/lib/api";
+import { formatDateOnly, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
-import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { TASK_STATUS } from "@/lib/labels";
 import { useAuth } from "@/lib/session";
 import { useAllListing } from "@/lib/use-all-listing";
 import { useListing } from "@/lib/use-listing";
-import { formatElapsed, useTimer } from "@/lib/timer";
+import { goalProgressOf, goalTone } from "@/lib/goals.mjs";
+import { compareTasks, dueBucket, dueDayOf, isOverdue, localDay } from "@/lib/task-status.mjs";
 import { canReadOwnTasks, canUseTimer } from "@/lib/timer-access";
-import { Alert, Button, KpiGrid, Panel, StatusPill, toneBackground } from "@/components/softui";
+import { Alert, Button, KpiGrid, Panel, toneBackground } from "@/components/softui";
 import { Empty } from "@/components/workspace/ui";
+import TaskCheck from "@/components/tasks/TaskCheck";
+import TaskTimerButton from "@/components/timer/TaskTimerButton";
+import TimerPanel from "@/components/timer/TimerPanel";
+import { GoalCountdown, GoalRing } from "@/components/goals/GoalParts";
 
 const OPEN = ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW"];
-const PRIORITY_RANK = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
-const isoDay = (date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+const isoDay = (date) => localDay(date);
 
 function hours(minutes) {
   const value = Number(minutes) || 0;
@@ -58,7 +57,7 @@ function plural(count, one, many) {
 }
 
 export default function PersonalDashboard() {
-  const { user } = useAuth();
+  const { user, request } = useAuth();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -85,25 +84,44 @@ export default function PersonalDashboard() {
   const canCalendar = can(user, "calendar:read:own");
   const canTime = can(user, "time:read:own");
   const canReport = can(user, "time:write:own");
+  const canGoals = can(user, "task:read:personal");
+  const canWriteProject = can(user, "task:write:any") || can(user, "task:write:own");
+  const canWritePersonal = can(user, "task:write:personal");
+  const [statusError, setStatusError] = useState(null);
+  const [busyTask, setBusyTask] = useState(null);
 
   const tasks = useAllListing("/me/tasks?perPage=100", canTasks);
   const events = useListing(canCalendar ? `/me/calendar/events?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}` : null);
   const entries = useAllListing(`/time-entries?from=${weekStart}&to=${todayIso}&perPage=100`, canTime);
   const report = useListing(canReport ? `/daily-reports/mine?from=${todayIso}&to=${todayIso}` : null);
+  const goals = useListing(canGoals ? "/me/goals?status=ACTIVE" : null);
+
+  /** Case cochée sur « Ma journée » : même geste, mêmes règles que « Mes tâches ». */
+  async function changeStatus(task, status) {
+    setStatusError(null);
+    setBusyTask(task.id);
+    try {
+      await request(`/tasks/${task.id}/status`, { method: "PATCH", body: { status } });
+      await Promise.all([tasks.reload(), canGoals ? goals.reload() : null]);
+    } catch (caught) {
+      setStatusError(`« ${task.title} » : ${messageOf(caught)}`);
+    } finally {
+      setBusyTask(null);
+    }
+  }
 
   const computed = useMemo(() => {
     const list = (tasks.items ?? []).filter((task) => OPEN.includes(task.status));
-    const overdue = list.filter((task) => task.dueDate && isDeadlinePassed(task.dueDate, now));
-    const dueToday = list.filter((task) => task.dueDate && String(task.dueDate).slice(0, 10) === todayIso);
+    // Retard et échéance du jour AU JOUR PRÈS (comme « Mes tâches ») : une
+    // tâche due aujourd'hui n'est pas « en retard » dès midi.
+    const overdue = list.filter((task) => isOverdue(task, now));
+    const dueToday = list.filter((task) => dueDayOf(task.dueDate) === todayIso);
     const focus = [...list]
       .sort((a, b) => {
-        const lateA = a.dueDate && isDeadlinePassed(a.dueDate, now) ? 0 : 1;
-        const lateB = b.dueDate && isDeadlinePassed(b.dueDate, now) ? 0 : 1;
+        const lateA = isOverdue(a, now) ? 0 : 1;
+        const lateB = isOverdue(b, now) ? 0 : 1;
         if (lateA !== lateB) return lateA - lateB;
-        const dueA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-        const dueB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-        if (dueA !== dueB) return dueA - dueB;
-        return (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9);
+        return compareTasks(a, b);
       })
       .slice(0, 6);
     const weekMinutes = (entries.items ?? []).reduce((sum, entry) => sum + (Number(entry.minutes) || 0), 0);
@@ -118,7 +136,8 @@ export default function PersonalDashboard() {
   }, [entries.items, events.items, now, tasks.items, todayIso]);
 
   const reportWritten = (report.items ?? []).length > 0;
-  const errors = [...new Set([tasks.error, events.error, entries.error, report.error].filter(Boolean))];
+  const errors = [...new Set([tasks.error, events.error, entries.error, report.error, statusError].filter(Boolean))];
+  const goalList = (Array.isArray(goals.items) ? goals.items : []).slice(0, 4);
 
   const kpis = [
     canTasks
@@ -218,25 +237,32 @@ export default function PersonalDashboard() {
               <Empty icon={CheckSquare}>Rien d’ouvert : profitez-en pour planifier la suite.</Empty>
             ) : null}
             {computed.focus.length ? (
-              <ul className="sui-lines">
+              <ul className="sui-lines sui-lines--tasks">
                 {computed.focus.map((task) => {
-                  const late = task.dueDate && isDeadlinePassed(task.dueDate, now);
+                  const bucket = dueBucket(task, now);
+                  const late = bucket === "overdue";
+                  const writable = task.isPersonal ? canWritePersonal : canWriteProject;
                   return (
-                    <li key={task.id}>
-                      <Link href="/espace-personnel/taches">
-                        <span className="sui-lines__icon" style={{ "--tone-bg": toneBackground(late ? "pink" : task.isPersonal ? "yellow" : "blue") }} aria-hidden="true">
-                          {late ? <TriangleAlert size={16} strokeWidth={1.75} /> : <CheckSquare size={16} strokeWidth={1.75} />}
-                        </span>
+                    <li key={task.id} className="sui-lines__task">
+                      <TaskCheck
+                        task={task}
+                        busy={busyTask === task.id}
+                        lockedReason={writable ? null : "Votre rôle ne permet pas de modifier cette tâche de projet."}
+                        onToggle={(next) => changeStatus(task, next)}
+                      />
+                      <Link href={`/espace-personnel/taches?tache=${encodeURIComponent(task.id)}`}>
                         <span className="sui-lines__copy">
                           <strong>{task.title}</strong>
                           <span>
                             {task.isPersonal ? "Tâche personnelle" : task.project?.name ?? "Projet"} · {TASK_STATUS[task.status] ?? task.status}
+                            {task.goal ? ` · ${task.goal.title}` : ""}
                           </span>
                         </span>
                         <span className={`sui-lines__end${late ? " sui-lines__end--late" : ""}`}>
-                          {task.dueDate ? formatDateOnly(task.dueDate) : "Sans échéance"}
+                          {task.dueDate ? `${late ? "En retard · " : bucket === "today" ? "Aujourd’hui · " : ""}${formatDateOnly(task.dueDate)}` : "Sans échéance"}
                         </span>
                       </Link>
+                      {writable ? <TaskTimerButton task={task} size="sm" /> : null}
                     </li>
                   );
                 })}
@@ -282,49 +308,52 @@ export default function PersonalDashboard() {
         ) : null}
       </div>
 
-      {canUseTimer(user) ? <TimerCard tasks={tasks} /> : null}
-    </div>
-  );
-}
+      <div className={`sui-split${canGoals ? "" : " sui-split--single"}`}>
+        {canUseTimer(user) ? (
+          <section className="sui-panel sui-timer-card" aria-label="Minuteur">
+            <TimerPanel variant="card" />
+          </section>
+        ) : null}
 
-/** Minuteur de la journée : même contexte serveur que le dock. */
-function TimerCard({ tasks }) {
-  const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
-  const list = (tasks.items ?? []).filter((task) => OPEN.includes(task.status)).slice(0, 6);
-  return (
-    <Panel title="Minuteur" action={<StatusPill tone={timer ? (timer.status === "PAUSED" ? "yellow" : "green") : "plain"} icon={Clock3} label={timer ? formatElapsed(elapsedSeconds) : "À l’arrêt"} />}>
-      {timer ? (
-        <>
-          <p className="sui-card__desc">
-            {timer.title}
-            {timer.taskIsPersonal ? " · personnel" : ""} — {timer.status === "PAUSED" ? "en pause" : "enregistrement en cours"}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {timer.status === "PAUSED" ? (
-              <Button variant="dark" icon={Play} onClick={() => resume()} disabled={saving}>Reprendre</Button>
-            ) : (
-              <Button icon={Pause} onClick={() => pause()} disabled={saving}>Pause</Button>
-            )}
-            <Button variant="dark" icon={Square} onClick={() => stop()} disabled={saving}>
-              {saving ? "Enregistrement…" : "Arrêter et enregistrer"}
-            </Button>
-          </div>
-        </>
-      ) : list.length ? (
-        <ul className="sui-pills-list">
-          {list.map((task) => (
-            <li key={task.id}>
-              <button type="button" className="sui-pill" onClick={() => start(task)}>
-                <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-                {task.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="sui-card__desc">Aucune tâche ouverte à chronométrer.</p>
-      )}
-      {error ? <Alert icon={CircleAlert}>{error}</Alert> : null}
-    </Panel>
+        {canGoals ? (
+          <Panel
+            title="Mes objectifs"
+            action={
+              <Button href="/espace-personnel/taches" icon={Target}>
+                Gérer
+              </Button>
+            }
+          >
+            {goals.items === null && !goals.error ? <p className="sui-card__desc">Chargement de vos objectifs…</p> : null}
+            {goals.error ? <Alert icon={CircleAlert}>{goals.error}</Alert> : null}
+            {goals.items !== null && goalList.length === 0 && !goals.error ? (
+              <Empty icon={Target}>
+                Aucun objectif en cours. Dans « Mes tâches », fixez-vous un objectif et regroupez les tâches qui y mènent.
+              </Empty>
+            ) : null}
+            {goalList.length ? (
+              <ul className="sui-goalmini">
+                {goalList.map((goal) => {
+                  const progress = goal.progress ?? goalProgressOf((goal.tasks ?? []).map((task) => task.status));
+                  const countable = progress.total - progress.cancelled;
+                  return (
+                    <li key={goal.id}>
+                      <Link href="/espace-personnel/taches" className="sui-goalmini__item" style={{ "--tone-bg": `var(--${goalTone(goal.color)})` }}>
+                        <GoalRing percent={progress.percent} tone={goal.color} size={44} stroke={5} />
+                        <span className="sui-goalmini__copy">
+                          <strong>{goal.title}</strong>
+                          <span>{countable ? `${progress.done}/${countable} tâches terminées` : "Aucune tâche pour l’instant"}</span>
+                        </span>
+                        <GoalCountdown targetDate={goal.targetDate} now={now} />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+          </Panel>
+        ) : null}
+      </div>
+    </div>
   );
 }

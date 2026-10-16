@@ -1,15 +1,26 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { SCOPE_ANY, SCOPE_ASSIGNED, SCOPE_OWN } from '../../common/auth/principal.js';
-import { Priority, TaskStatus } from '../../generated/prisma/enums.js';
+import {
+  AccessPolicy,
+  SCOPE_ANY,
+  SCOPE_ASSIGNED,
+  SCOPE_OWN,
+  type AuthenticatedUser,
+} from '../../common/auth/principal.js';
+import { Priority, RoleCode, TaskStatus, UserStatus } from '../../generated/prisma/enums.js';
 import type { ScopeSubject } from '../projects/project-scope.js';
 import {
+  ASSIGNEE_READ_CODES,
+  ASSIGNEE_WRITE_CODES,
   CLOSED_TASK_STATUSES,
   TASK_READ_ORDER,
   TASK_STATUS_TRANSITIONS,
   TASK_WRITE_ORDER,
+  assignableUserWhere,
   canAttachSubTask,
   canTransitionTask,
+  canTransitionTaskFor,
+  mineTaskWhere,
   hasOpenSubTasks,
   isClosedTaskStatus,
   isTaskEditable,
@@ -248,5 +259,113 @@ describe('modifiabilite d’une tache close', () => {
     ]) {
       assert.equal(isTaskEditable(statut, false), true, `statut ${statut}`);
     }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Taches personnelles : transitions libres ; taches de projet : machine stricte
+// -----------------------------------------------------------------------------
+
+describe('transitions selon la nature de la tache', () => {
+  const statuses = Object.values(TaskStatus);
+
+  it('laisse une tache personnelle passer de n’importe quel statut a un autre', () => {
+    for (const from of statuses) {
+      for (const to of statuses) {
+        assert.equal(
+          canTransitionTaskFor({ isPersonal: true }, from, to),
+          from !== to,
+          `${from} -> ${to} sur une tache personnelle`,
+        );
+      }
+    }
+  });
+
+  it('permet de decocher une tache personnelle terminee vers « a faire »', () => {
+    assert.equal(canTransitionTaskFor({ isPersonal: true }, TaskStatus.DONE, TaskStatus.TODO), true);
+    assert.equal(canTransitionTaskFor({ isPersonal: true }, TaskStatus.BLOCKED, TaskStatus.DONE), true);
+  });
+
+  it('garde exactement la machine stricte pour une tache de projet', () => {
+    for (const from of statuses) {
+      for (const to of statuses) {
+        assert.equal(
+          canTransitionTaskFor({ isPersonal: false }, from, to),
+          from !== to && canTransitionTask(from, to),
+          `${from} -> ${to} sur une tache de projet`,
+        );
+      }
+    }
+    assert.equal(canTransitionTaskFor({ isPersonal: false }, TaskStatus.DONE, TaskStatus.TODO), false);
+    assert.equal(canTransitionTaskFor({ isPersonal: false }, TaskStatus.BLOCKED, TaskStatus.DONE), false);
+  });
+});
+
+describe('filtre « sans assigne »', () => {
+  it('demande assigneeId IS NULL', () => {
+    assert.deepEqual(taskFilterWhere({ unassignedOnly: true }), { assigneeId: null });
+  });
+
+  it('laisse un assigne explicite l’emporter', () => {
+    assert.deepEqual(taskFilterWhere({ unassignedOnly: true, assigneeId: 'dev-1' }), { assigneeId: 'dev-1' });
+  });
+
+  it('ne filtre rien sans la demande', () => {
+    assert.deepEqual(taskFilterWhere({ unassignedOnly: false }), {});
+  });
+});
+
+describe('qui peut recevoir une tache de projet', () => {
+  const where = assignableUserWhere();
+
+  it('exige un compte actif, non supprime, humain et non client', () => {
+    assert.equal(where.deletedAt, null);
+    assert.equal(where.status, UserStatus.ACTIVE);
+    assert.equal(where.isServiceAccount, false);
+    assert.ok(Array.isArray(where.AND));
+    assert.deepEqual((where.AND as unknown[])[0], { roles: { none: { role: { code: RoleCode.CLIENT } } } });
+  });
+
+  it('exige un droit de LECTURE et un droit d’ECRITURE de tache, lus sur les roles', () => {
+    const clauses = JSON.stringify(where.AND);
+    for (const code of [...ASSIGNEE_READ_CODES, ...ASSIGNEE_WRITE_CODES]) {
+      assert.ok(clauses.includes(code), `${code} doit faire partie des droits verifies`);
+    }
+    assert.equal((where.AND as unknown[]).length, 3, 'client exclu + lecture + ecriture');
+  });
+
+  it('ne compte pas les droits personnels comme une capacite de travail sur un projet', () => {
+    const codes = [...ASSIGNEE_READ_CODES, ...ASSIGNEE_WRITE_CODES] as readonly string[];
+    assert.equal(codes.includes('task:read:personal'), false);
+    assert.equal(codes.includes('task:write:personal'), false);
+  });
+});
+
+describe('« mes taches » (objectifs, minuteur)', () => {
+  function bearer(permissions: string[], space?: 'personal' | 'team'): AccessPolicy {
+    const user: AuthenticatedUser = {
+      id: 'dev-1',
+      email: 'dev@agence.example',
+      firstName: 'Thomas',
+      lastName: 'Lefevre',
+      roles: [RoleCode.DEVELOPER],
+      permissions: new Set(permissions),
+      clientId: null,
+      mustChangePassword: false,
+      ...(space ? { space } : {}),
+    };
+    return new AccessPolicy(user);
+  }
+
+  it('borne toujours a l’assigne porteur, sur une tache vivante', () => {
+    const where = mineTaskWhere(bearer(['task:read:assigned', 'task:read:personal']));
+    assert.equal(where.deletedAt, null);
+    const and = where.AND as unknown[];
+    assert.deepEqual(and[0], { assigneeId: 'dev-1' });
+  });
+
+  it('accepte une tache personnelle (sans projet) comme une tache de projet vivant', () => {
+    const where = mineTaskWhere(bearer(['task:read:assigned']));
+    assert.deepEqual(where.OR, [{ project: { deletedAt: null } }, { projectId: null }]);
   });
 });

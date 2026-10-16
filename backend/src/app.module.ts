@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { ContentModule } from './modules/content/content.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { GoalsModule } from './modules/goals/goals.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
@@ -283,6 +284,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     TimeEntriesModule,
     CalendarModule,
     TimerModule,
+    GoalsModule,
     DailyReportsModule,
 
     /**
