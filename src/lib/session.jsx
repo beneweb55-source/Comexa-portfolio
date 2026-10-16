@@ -14,6 +14,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, apiFetch, downloadFile } from "@/lib/api";
 
+import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -74,12 +76,17 @@ export function AuthProvider({ children }) {
    */
   const request = useCallback(
     async (path, options = {}) => {
+      const execute = async () => {
+        const result = await apiFetch(path, { ...options, token: tokenRef.current });
+        notifyWorkspaceUpdate(path, options);
+        return result;
+      };
       try {
-        return await apiFetch(path, { ...options, token: tokenRef.current });
+        return await execute();
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           const user = await refresh();
-          if (user) return apiFetch(path, { ...options, token: tokenRef.current });
+          if (user) return execute();
         }
         throw error;
       }

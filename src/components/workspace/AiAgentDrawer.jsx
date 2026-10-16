@@ -720,13 +720,8 @@ export default function AiAgentDrawer({ showLauncher = true }) {
               </span>
               <div className="cx-console__identity">
                 <h3 className="cx-console__title">Console Comexa</h3>
-                <p className="cx-console__subtitle">Pilotage projets, agenda, CRM et facturation</p>
+                <p className="cx-console__subtitle"><span className="cx-console__presence" aria-hidden="true" />Votre espace de travail, assisté par IA</p>
               </div>
-
-              <span className={`cx-console__status${busy ? " is-busy" : ""}`}>
-                <span className="cx-console__status-dot" aria-hidden="true" />
-                {busy ? "Exécution" : "Prêt"}
-              </span>
 
               <div className="cx-console__tools">
                 <button
@@ -762,12 +757,28 @@ export default function AiAgentDrawer({ showLauncher = true }) {
                   <span className="cx-console__monogram cx-console__monogram--lg" aria-hidden="true">
                     CX
                   </span>
-                  <h4 className="cx-console__welcome-title">Console Comexa</h4>
+                  <span className="cx-console__eyebrow">Un peu de clarté dans votre journée</span>
+                  <h4 className="cx-console__welcome-title">Comment puis-je vous aider ?</h4>
                   <p className="cx-console__welcome-text">
-                    Interrogez l’activité de l’agence en langage clair, ou lancez une commande prête à l’emploi.
-                    Chaque opération qui modifie une donnée vous est présentée avant exécution.
+                    Projets, tâches, agenda… demandez simplement.
+                    Toute modification vous sera proposée pour confirmation.
                   </p>
-                  <CategoryTabs onPick={send} busy={busy} />
+                  <div className="cx-console__starters" aria-label="Suggestions pour commencer">
+                    <button type="button" className="cx-console__starter" disabled={busy} onClick={() => send("Mes tâches en cours, par échéance")}>
+                      <span className="cx-console__starter-icon"><Icon name="folder" className="h-[18px] w-[18px]" /></span>
+                      <span><strong>Faire le point</strong><small>Mes tâches et priorités</small></span>
+                      <Icon name="send" className="h-4 w-4" />
+                    </button>
+                    <button type="button" className="cx-console__starter" disabled={busy} onClick={() => send("Mon agenda d’aujourd’hui")}>
+                      <span className="cx-console__starter-icon"><Icon name="calendar" className="h-[18px] w-[18px]" /></span>
+                      <span><strong>Organiser ma journée</strong><small>Mon agenda en un regard</small></span>
+                      <Icon name="send" className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <details className="cx-console__commands">
+                    <summary>Explorer les commandes</summary>
+                    <CategoryTabs onPick={send} busy={busy} />
+                  </details>
                 </div>
               ) : (
                 <ul className="cx-console__messages">
@@ -889,7 +900,7 @@ export default function AiAgentDrawer({ showLauncher = true }) {
                   className="cx-console__textarea"
                   rows={1}
                   value={draft}
-                  placeholder="Décrivez votre demande… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"
+                  placeholder="Écrivez votre demande…"
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={onKeyDown}
                   aria-label="Message pour la Console Comexa"
@@ -906,7 +917,7 @@ export default function AiAgentDrawer({ showLauncher = true }) {
               </form>
 
               <p className="cx-console__hint">
-                Entrée pour envoyer · Maj+Entrée pour aller à la ligne · Échap pour fermer
+                Entrée pour envoyer · Maj+Entrée pour une nouvelle ligne
               </p>
             </div>
           </aside>

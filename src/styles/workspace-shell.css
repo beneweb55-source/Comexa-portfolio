@@ -1785,3 +1785,84 @@
   .cx-console__status.is-busy .cx-console__status-dot { animation: none; opacity: 0.85; }
   .cx-console-launcher:hover { transform: none; }
 }
+
+/* Console — anthracite, papier et accents pastel, comme la coque de travail. */
+.cx-console {
+  --chat-ink: #202725;
+  --chat-muted: #65716b;
+  --chat-paper: #f8faf7;
+  --chat-line: #dfe6df;
+  padding: 14px;
+}
+.cx-console__scrim { background: rgb(15 23 20 / 28%); }
+.cx-console__panel {
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 24px;
+  background: var(--chat-paper);
+  box-shadow: 0 24px 80px rgb(15 23 20 / 24%);
+}
+.cx-console__header { flex-wrap: nowrap; gap: 12px; padding: 20px; background: #202725; border: 0; }
+.cx-console__identity { flex: 1 1 auto; }
+.cx-console__tools { flex: 0 0 auto; }
+.cx-console__title { color: #f5f8f4; font-size: 14px; letter-spacing: -0.02em; }
+.cx-console__subtitle { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #b8c5ba; font-size: 10px; line-height: 1.5; }
+.cx-console__presence { width: 5px; height: 5px; flex: none; border-radius: 50%; background: #d3e7b8; }
+.cx-console__header .cx-console__monogram { width: 36px; height: 36px; border: 1px solid #56634f; background: #d3e7b8; color: #263222; border-radius: 12px; }
+.cx-console__icon-btn { color: #dce5dc; border-radius: 10px; }
+.cx-console__icon-btn:hover:not(:disabled) { background: #354038; color: #fff; }
+.cx-console__icon-btn:focus-visible { outline-color: #d3e7b8; }
+.cx-console__body { min-height: 0; padding: 30px 24px; background: radial-gradient(ellipse at 0 0, #edf3e6 0, transparent 65%), var(--chat-paper); scrollbar-width: thin; scrollbar-color: #cbd5c9 transparent; }
+.cx-console__welcome { max-width: 480px; margin: clamp(16px, 5vh, 50px) auto 20px; gap: 16px; }
+.cx-console__monogram--lg { width: 56px; height: 56px; margin-bottom: 8px; border: 1px solid #d9e5d0; border-radius: 19px; background: linear-gradient(135deg, #e5efd8, #f8faf7); color: #364b30; box-shadow: 0 6px 18px #2632220a, inset 0 1px 0 #fff; }
+.cx-console__eyebrow { color: var(--chat-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
+.cx-console__welcome-title { max-width: 16ch; color: var(--chat-ink); font-size: clamp(25px, 3vw, 32px); font-weight: 600; line-height: 1.2; letter-spacing: -0.045em; }
+.cx-console__welcome-text { max-width: 39ch; color: var(--chat-muted); font-size: 13px; line-height: 1.8; }
+.cx-console__starters { display: grid; gap: 9px; margin-top: 10px; }
+.cx-console__starter { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; border: 1px solid var(--chat-line); border-radius: 15px; background: #ffffffb8; color: var(--chat-ink); text-align: left; cursor: pointer; transition: background 160ms ease, border-color 160ms ease; }
+.cx-console__starter:hover:not(:disabled) { background: #fff; border-color: #a9bda0; }
+.cx-console__starter:disabled { cursor: not-allowed; opacity: 0.5; }
+.cx-console__starter:focus-visible, .cx-console__commands summary:focus-visible { outline: 2px solid #64844f; outline-offset: 3px; }
+.cx-console__starter-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 11px; background: #eaf0e1; color: #4a6340; }
+.cx-console__starter:nth-child(2) .cx-console__starter-icon { background: #eeeaf7; color: #72618b; }
+.cx-console__starter strong { display: block; font-size: 12px; font-weight: 600; }
+.cx-console__starter small { display: block; margin-top: 4px; color: var(--chat-muted); font-size: 11px; }
+.cx-console__starter > svg { margin-left: auto; color: #85927d; }
+.cx-console__commands summary { width: fit-content; padding: 8px 0; color: var(--chat-muted); font-size: 12px; cursor: pointer; border-radius: 4px; }
+.cx-console__commands[open] summary { margin-bottom: 12px; }
+.cx-console-tab { border-color: var(--chat-line); font-size: 11px; }
+.cx-console-tab.is-active { background: var(--chat-ink); border-color: var(--chat-ink); }
+.cx-console-suggestion { border-color: var(--chat-line); font-size: 12px; border-radius: 12px; }
+.cx-console-suggestion:hover:not(:disabled) { background: #edf3e6; border-color: #a9bda0; }
+.cx-console__messages { gap: 28px; }
+.cx-console-row__avatar { display: none; }
+.cx-console-row__content { max-width: 100%; }
+.cx-console-row--user .cx-console-row__content { max-width: 90%; }
+.cx-console-row__author { color: var(--chat-muted); letter-spacing: 0; text-transform: none; font-size: 10px; font-weight: 600; }
+.cx-console-row__time { color: var(--chat-muted); font-size: 10px; }
+.cx-console-row__meta { margin-bottom: 8px; }
+.cx-console-row__bubble { overflow-wrap: anywhere; border: 0; border-radius: 16px; padding: 0; background: transparent; color: var(--chat-ink); line-height: 1.8; }
+.cx-console-row--user .cx-console-row__bubble { padding: 13px 17px; border: 1px solid #d9e4cd; border-radius: 18px 18px 4px 18px; background: #e7efdc; color: #293b24; }
+.cx-console-row--error .cx-console-row__bubble,
+.cx-console-row--system .cx-console-row__bubble { padding: 12px 16px; }
+.cx-console__foot { flex-shrink: 0; padding: 14px 20px 18px; background: var(--chat-paper); border-top: 1px solid var(--chat-line); }
+.cx-console__composer { border: 1px solid #d5dfcf; border-radius: 19px; padding: 10px 10px 10px 16px; background: #fff; box-shadow: 0 4px 16px #26322206; }
+.cx-console__composer:focus-within { border-color: #8ba277; box-shadow: 0 0 0 3px #8ba2771a; }
+.cx-console__textarea { color: var(--chat-ink); font-size: 13px; }
+.cx-console__textarea::placeholder { color: var(--chat-muted); }
+.cx-console__send { width: 36px; height: 36px; border-radius: 12px; background: var(--chat-ink); }
+.cx-console__send:hover:not(:disabled) { background: #40543a; }
+.cx-console__suggest-btn { background: transparent; border-color: var(--chat-line); color: var(--chat-muted); font-size: 11px; }
+.cx-console__hint { margin-top: 3px; color: var(--chat-muted); font-size: 10px; text-align: center; }
+@media (max-width: 560px) {
+  .cx-console { padding: 0; }
+  .cx-console__panel { border: 0; border-radius: 0; height: 100%; height: 100dvh; }
+  .cx-console__foot { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+@media (max-width: 380px) {
+  .cx-console__header { padding: 16px 12px; gap: 8px; }
+  .cx-console__header > .cx-console__monogram { display: none; }
+  .cx-console__body { padding: 22px 16px; }
+  .cx-console__foot { padding-inline: 12px; }
+}
