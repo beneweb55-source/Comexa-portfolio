@@ -62,6 +62,7 @@ import { useSpaces } from "@/lib/spaces-context";
 import AdminDeskPanel from "./AdminDeskPanel";
 import Dock from "./Dock";
 import Navbar from "./Navbar";
+import Notch from "./Notch";
 import PageHeader from "./PageHeader";
 import SideRail from "./SideRail";
 import { SpaceSwitcherList } from "./SpaceSwitcher";
@@ -212,7 +213,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
   const [deskOpen, setDeskOpen] = useState(false);
   const [deskHidden, setDeskHidden] = useState(false);
   const [cmdkOpen, setCmdkOpen] = useState(false);
-  const [notchX, setNotchX] = useState(null);
+  const [notchMeasure, setNotch] = useState(null);
   const [dockHidden, setDockHidden] = useState(false);
   const shellRef = useRef(null);
   const scrollRef = useRef(null);
@@ -274,14 +275,14 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
   }, []);
 
   /* Languette : centre de l'onglet actif, converti dans le repère de la coque. */
-  const onActiveTabMove = useCallback((clientX) => {
+  const onActiveTabMove = useCallback((measure) => {
     const shell = shellRef.current;
-    if (clientX === null || !shell) {
-      setNotchX(null);
+    if (!measure || !shell || measure.center === null) {
+      setNotch(null);
       return;
     }
     const rect = shell.getBoundingClientRect();
-    setNotchX(Math.round(clientX - rect.left));
+    setNotch({ center: Math.round(measure.center - rect.left), pillWidth: measure.pillWidth });
   }, []);
 
   /* Données réelles du panneau de suivi et du compteur de la cloche (espace actif). */
@@ -543,10 +544,8 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
             />
 
             {/* Languette alignée sur l'onglet actif (masquée sans onglet actif). */}
-            {!isMobile && notchX !== null ? (
-              <svg className="sui-notch" aria-hidden="true" style={{ left: `${notchX}px` }} viewBox="0 0 116 15" fill="currentColor">
-                <path d="M0 0H116V1C108.268 1 108.268 15 100 15H16C7.732 15 7.732 1 0 1Z" />
-              </svg>
+            {!isMobile && notchMeasure ? (
+              <Notch center={notchMeasure.center} pillWidth={notchMeasure.pillWidth} />
             ) : null}
 
             <div className="sui-shell__body">

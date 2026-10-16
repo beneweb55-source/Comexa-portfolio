@@ -62,7 +62,9 @@
   --r-kpi: 28px;
   --r-pill: 999px;
   --r-icon: 36px;              /* boutons icône ronds */
-  --r-notch: 14px;             /* rayon de la languette qui descend de la navbar */
+  --r-notch: 19px;             /* profondeur de la languette sous la navbar */
+  --r-notch-foot: 10px;        /* rayon des coins bas de la languette */
+  --r-notch-shoulder: 7px;     /* rayon des congés qui la raccordent à la navbar */
   --r-dock: 26px;              /* rayon du haut du dock */
 
   /* --- Ombres ------------------------------------------------------------ */
