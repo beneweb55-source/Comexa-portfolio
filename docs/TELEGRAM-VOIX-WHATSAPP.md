@@ -205,11 +205,20 @@ POST /api/whatsapp/delegations  →  code WA-XXXX-XXXX-XXXX (rendu UNE fois)
                                    + courriel au tiers (texte de consentement)
                                    + lien https://t.me/ComexaWork_bot?start=wa_…
         │
-        ▼   le tiers, dans Telegram
-/autoriser WA-7KQM-2ZPX-9BRT  →  POST /integrations/whatsapp/delegations/accept
+        ▼   le tiers, dans Telegram (le lien profond arrive comme `/start wa_…`)
+/autoriser WA-7KQM-2ZPX-9BRT  →  GET  /integrations/whatsapp/delegations/consent
+                                   → le texte s'affiche, RIEN n'est enregistré
+/accepter  WA-7KQM-2ZPX-9BRT  →  POST /integrations/whatsapp/delegations/accept
                                    → QR à scanner depuis SON téléphone
 /refuser   WA-7KQM-2ZPX-9BRT  →  POST /integrations/whatsapp/delegations/refuse
 ```
+
+Deux commandes plutôt qu'une : `accept` exige `acceptConsent: true`, donc accepter
+dès la réception du code enregistrerait un consentement que personne n'a encore lu
+dans Telegram. `GET …/delegations/consent` ne crée aucun compte, n'ouvre aucune
+session et n'écrit rien ; il rend le **même** texte qu'`accept`, et **exactement la
+même** erreur pour un code absent, déjà utilisé ou expiré — c'est la route la moins
+coûteuse à appeler, donc la première qu'un attaquant essaierait.
 
 Trois propriétés, toutes délibérées :
 

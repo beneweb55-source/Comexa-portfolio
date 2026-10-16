@@ -367,6 +367,10 @@ serveur, sans laquelle elles répondent `503` avec un code stable plutôt que de
 faire semblant. Le détail de l'architecture, du consentement et des risques est
 dans `docs/TELEGRAM-VOIX-WHATSAPP.md`.
 
+Le workflow qui consomme ces routes est **fourni et testé** :
+`integrations/n8n/comexa-bot-telegram.json`, avec le câblage pas à pas, la
+procédure de test et le dépannage dans `docs/N8N-WORKFLOWS.md`.
+
 ### 10.1 Transcrire un vocal
 
 ```
@@ -433,13 +437,36 @@ contacts individuels.
 | `DELETE …/users/{userId}/session` | `whatsapp:link:any` | révocation : coupe la session, supprime les contacts copiés |
 | `GET …/users/{userId}/contacts` | `whatsapp:read:any` | répertoire en cache, **seulement** si `contact:read` a été accordé |
 | `GET …/users/{userId}/messages` | `whatsapp:read:any` | journal des envois |
-| `POST /api/v1/integrations/whatsapp/delegations/accept` | `whatsapp:link:any` | le tiers envoie `/autoriser <code>` → QR à lui afficher |
+| `GET /api/v1/integrations/whatsapp/delegations/consent?code=` | `whatsapp:link:any` | le tiers envoie `/autoriser <code>` → **lit** le texte, sans rien enregistrer |
+| `POST /api/v1/integrations/whatsapp/delegations/accept` | `whatsapp:link:any` | le tiers envoie `/accepter <code>` → QR à lui afficher |
 | `POST /api/v1/integrations/whatsapp/delegations/refuse` | `whatsapp:link:any` | le tiers envoie `/refuser <code>` |
 
 Une invitation est créée côté application web (`POST /api/whatsapp/delegations`) :
 le code `WA-XXXX-XXXX-XXXX` est rendu **une seule fois**, et le texte de
 consentement part par courriel au tiers. C'est **son** scan, depuis **son**
 téléphone, qui termine l'appairage.
+
+**L'acceptation d'un tiers est en DEUX commandes, et ce n'est pas cosmétique.**
+`accept` exige `acceptConsent: true` : appeler `accept` dès la réception du code
+enregistrerait un consentement que personne n'a encore lu dans Telegram. La
+lecture passe donc par `GET …/delegations/consent`, qui ne crée aucun compte,
+n'ouvre aucune session et n'écrit rien :
+
+1. `/autoriser <code>` → `GET …/delegations/consent` → le bot affiche `consentText`
+   et demande une confirmation explicite ;
+2. `/accepter <code>` → `POST …/delegations/accept` → le QR est affiché.
+
+Le consentement rendu par `consent` est le **même texte** que celui renvoyé par
+`accept` (`consentText` du pairing) : pas de seconde copie à maintenir dans le
+workflow. Les deux routes rendent aussi **exactement la même erreur** pour un
+code absent, déjà utilisé ou expiré — cette route de lecture est la moins coûteuse
+à appeler, donc celle qu'un attaquant essaierait en premier ; distinguer les trois
+cas lui permettrait d'énumérer les codes valides.
+
+`consent` ne vérifie pas que la passerelle est déployée : informer n'est pas
+connecter. Refuser d'afficher le texte parce que le déploiement n'est pas terminé
+laisserait le tiers sans la seule information dont il a besoin pour décider — et
+l'étape d'acceptation, elle, rend bien `WHATSAPP_GATEWAY_NOT_CONFIGURED`.
 
 Le QR est rendu en base64 **sans préfixe `data:`** : Telegram attend des octets.
 Dans n8n, un nœud *Convert to File* (base64 → binaire) puis *Send a photo* suffit.

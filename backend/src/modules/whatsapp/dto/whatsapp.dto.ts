@@ -205,6 +205,24 @@ export class AcceptWhatsAppDelegationDto {
   acceptConsent!: boolean;
 }
 
+/** Lecture du texte de consentement d'une invitation, AVANT acceptation. */
+export class WhatsAppDelegationConsentQueryDto {
+  /**
+   * Code recu par le tiers.
+   *
+   * En QUERY et non dans le corps : c'est une lecture, et un `GET` n'a pas de
+   * corps. Le code reste un secret — il ne doit donc jamais se retrouver dans une
+   * URL recopiee dans un journal : voir `WHATSAPP_DELEGATION_CONSENT_LOG`.
+   */
+  @ApiProperty({
+    description: 'Code d’autorisation recu (`WA-XXXX-XXXX-XXXX`, tirets facultatifs).',
+    example: 'WA-7KQM-2ZPX-9BRT',
+  })
+  @IsString()
+  @Length(8, 40)
+  code!: string;
+}
+
 /** Refus explicite d'une invitation, par le tiers (`/refuser <code>`). */
 export class RefuseWhatsAppDelegationDto {
   @ApiProperty({

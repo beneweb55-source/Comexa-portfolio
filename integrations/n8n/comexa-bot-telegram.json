@@ -1,0 +1,2004 @@
+{
+  "name": "Comexa — Bot Telegram (vocaux + WhatsApp)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "14ccb764-68a3-42c4-a240-e03465fb5791",
+      "name": "Déclencheur Telegram",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1400,
+        300
+      ],
+      "parameters": {
+        "updates": [
+          "message"
+        ]
+      },
+      "notes": "Un seul webhook par bot : ce noeud est la raison pour laquelle vocaux et WhatsApp vivent dans le MEME workflow."
+    },
+    {
+      "id": "c78429bd-7777-4b47-be19-4be3cbf20849",
+      "name": "Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1180,
+        300
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "daec699d-25aa-4e43-a1b2-6d6684aa84f8",
+              "name": "apiBase",
+              "value": "={{ $vars.COMEXA_API_BASE }}",
+              "type": "string"
+            },
+            {
+              "id": "e9a28a98-d68c-4ba9-b30b-d6c61c8118fe",
+              "name": "botToken",
+              "value": "={{ $vars.TELEGRAM_BOT_TOKEN }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "notes": "Variables n8n (Reglages > Variables) : COMEXA_API_BASE et TELEGRAM_BOT_TOKEN. Jamais en dur dans un noeud."
+    },
+    {
+      "id": "9f29cfe0-519d-4442-be63-3da9512ccecd",
+      "name": "Analyse du message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// UNE SEULE PLACE pour absorber les deux formes que peut prendre la sortie du\n// declencheur (message nu, ou enveloppe { message }) selon la version de n8n.\nconst brut = $input.item.json;\nconst message = brut.message || brut;\n\nif (!brut.apiBase || !brut.botToken) {\n  throw new Error('Variables n8n manquantes : COMEXA_API_BASE et TELEGRAM_BOT_TOKEN (Reglages > Variables).');\n}\n\nconst media = message.voice || message.audio || null;\nconst texte = (message.text || '').trim();\nlet commande = texte.startsWith('/') ? texte.split(/\\s+/)[0].toLowerCase() : '';\nlet args = commande ? texte.slice(commande.length).trim() : texte;\n\n// LIEN PROFOND. L invitation part par courriel sous la forme\n// https://t.me/<bot>?start=wa_<corps> ; Telegram la livre comme \"/start wa_XXXX\".\n// Sans ce branchement, l arrivee d un tiers — le seul chemin documente — ne\n// declencherait que l aide. Le copier-coller du lien entier est reconnu aussi.\nfunction extraireCode(valeur) {\n  const profond = valeur.match(/wa[_-]?([A-Z2-9]{12})(?![A-Z0-9])/i);\n  if (profond) return profond[1].toUpperCase();\n  const prefixe = valeur.match(/\\bWA[-\\s]?([A-Z2-9]{4})[-\\s]?([A-Z2-9]{4})[-\\s]?([A-Z2-9]{4})\\b/i);\n  if (prefixe) return (prefixe[1] + prefixe[2] + prefixe[3]).toUpperCase();\n  const tirets = valeur.match(/\\b([A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4})\\b/i);\n  if (tirets) return tirets[1].toUpperCase().replace(/-/g, '');\n  return '';\n}\n\nconst code = extraireCode(texte);\nif (code && (commande === '/start' || commande === '')) {\n  commande = '/autoriser';\n  args = code;\n} else if (code && ['/autoriser', '/accepter', '/refuser'].indexOf(commande) >= 0) {\n  // Le prefixe WA et les tirets sont facultatifs cote API : on rend le corps nu.\n  // Une saisie vraiment illisible tombe quand meme sur le 422 du serveur.\n  args = code;\n}\n\nreturn { json: {\n  apiBase: String(brut.apiBase).replace(/\\/+$/, ''),\n  botToken: String(brut.botToken),\n  chatId: String(message.chat?.id ?? ''),\n  fromId: String(message.from?.id ?? ''),\n  username: message.from?.username || '',\n  messageId: String(message.message_id ?? ''),\n  text: texte,\n  command: commande,\n  args: args,\n  isVoice: Boolean(media && media.file_id),\n  fileId: media ? String(media.file_id) : '',\n  mimeType: media ? String(media.mime_type || 'audio/ogg') : '',\n  durationSeconds: media ? Number(media.duration || 0) : 0,\n} };"
+      }
+    },
+    {
+      "id": "92bdedb4-ff87-47ec-97cb-612bd85e9af4",
+      "name": "Est un vocal",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -740,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "88029f74-f910-4672-96e5-032b6784df77",
+              "leftValue": "={{ $json.isVoice }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4158f1d-d267-4824-8657-e9bea9ed0320",
+      "name": "Telegram getFile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -480,
+        120
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/bot{{ $json.botToken }}/getFile",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_id",
+              "value": "={{ $json.fileId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "396a8b78-340d-4aba-ab14-0d271229516a",
+      "name": "Téléchargement audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -260,
+        120
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.telegram.org/file/bot{{ $('Analyse du message').item.json.botToken }}/{{ $json.result.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Aucun ffmpeg : l OGG/Opus de Telegram est transmis tel quel au moteur."
+    },
+    {
+      "id": "5aa912ff-bc4c-4bc2-8e00-84b07ffbf4e7",
+      "name": "Transcrire",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -40,
+        120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/telegram/transcribe",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "telegramUserId",
+              "value": "={{ $('Analyse du message').item.json.fromId }}"
+            },
+            {
+              "name": "telegramFileId",
+              "value": "={{ $('Analyse du message').item.json.fileId }}"
+            },
+            {
+              "name": "telegramChatId",
+              "value": "={{ $('Analyse du message').item.json.chatId }}"
+            },
+            {
+              "name": "telegramMessageId",
+              "value": "={{ $('Analyse du message').item.json.messageId }}"
+            },
+            {
+              "name": "mimeType",
+              "value": "={{ $('Analyse du message').item.json.mimeType }}"
+            },
+            {
+              "name": "durationSeconds",
+              "value": "={{ $('Analyse du message').item.json.durationSeconds }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "telegramFileId est la cle de rejeu : un retry ne paie pas deux fois la transcription.",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "8064922e-7b7e-4f21-a27b-511785153134",
+      "name": "Réponse transcription",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        40
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const d = $input.item.json.data;\nconst m = $('Analyse du message').item.json;\nconst moteur = d.provider + (d.model ? ' · ' + d.model : '');\nconst langue = d.language ? 'langue : ' + d.language : 'langue detectee';\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Transcription (' + langue + ', ' + moteur + ') :\\n\\n' + d.text +\n        (d.replayed ? '\\n\\n(deja transcrit : aucun nouvel appel au moteur)' : '') +\n        '\\n\\nEcris ta demande en texte, ou reponds a ce message : je la traite comme un ordre ecrit.',\n} };"
+      }
+    },
+    {
+      "id": "b6f0010a-ec4c-438a-91fd-18df5c116d3f",
+      "name": "Est une commande",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -480,
+        460
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5b0135c2-b597-449f-9a18-bbcd7cae105e",
+              "leftValue": "={{ $json.command }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "53d08974-7586-4770-b27f-7ac419e7d74f",
+      "name": "Routeur de commandes",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -260,
+        460
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "c7141866-edcb-43f9-8521-e914982c0cf2",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Appairer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "77f4abab-bcc1-4fee-853a-4734e91b354f",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/statut",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Statut"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ce4c446e-7148-4f83-a97e-f505ab313ac9",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/deconnecter",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Déconnecter"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "2d1535d0-19e2-4045-931e-da4af56265f1",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/contacts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Contacts"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "e4154e28-8a21-4d55-af7f-ebc1b430aa56",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/envoyer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Envoyer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "58f93888-4525-4755-88f5-60f7aff37413",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/autoriser",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Autoriser"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d3f136db-84f3-46af-84ed-2c74a51f6ae5",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/accepter",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Accepter"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "586593e1-65e0-4c53-b6d7-8d1677adb52d",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/refuser",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Refuser"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "49f258a2-76ef-4252-887f-bd3ecc57b63c",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "/aide",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Aide"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "notes": "Sortie de repli (la derniere) : commande inconnue -> aide."
+    },
+    {
+      "id": "6a8a1e19-28ed-4d13-9c71-18ef9c9332dc",
+      "name": "Résoudre la liaison",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -20,
+        460
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/telegram/resolve/{{ $json.fromId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Telegram -> membre Comexa. Une seule implementation de cette resolution existe, cote backend."
+    },
+    {
+      "id": "f17990c0-8ccb-4fe1-8bc2-c604c3dbd9e4",
+      "name": "Routeur membre",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        200,
+        460
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6224bd18-2fb0-4adf-b48e-7bf47c73cfa3",
+                    "leftValue": "={{ $('Analyse du message').item.json.command }}",
+                    "rightValue": "/whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Appairer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "db4240a3-e300-4cb9-806f-aeb93c37eae0",
+                    "leftValue": "={{ $('Analyse du message').item.json.command }}",
+                    "rightValue": "/statut",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Statut"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "09de0ed2-80a9-4b55-bc78-356224beaf25",
+                    "leftValue": "={{ $('Analyse du message').item.json.command }}",
+                    "rightValue": "/deconnecter",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Déconnecter"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "5e8ce68b-4e0b-42e1-b7d5-cf1f3700a5f3",
+                    "leftValue": "={{ $('Analyse du message').item.json.command }}",
+                    "rightValue": "/contacts",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Contacts"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b621f430-d5cc-4259-be42-dc7ce6e269ab",
+                    "leftValue": "={{ $('Analyse du message').item.json.command }}",
+                    "rightValue": "/envoyer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Envoyer"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "bd2688cc-099a-47b7-809e-c7ce17271884",
+      "name": "Appairer WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        60
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/users/{{ $('Résoudre la liaison').item.json.data.userId }}/session",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ acceptConsent: true }) }}"
+      },
+      "onError": "continueErrorOutput",
+      "notes": "acceptConsent est obligatoire cote serveur : sans lui, 422. Le texte est montre juste apres."
+    },
+    {
+      "id": "21a54599-755a-4c0f-ab4c-1b94082bac2b",
+      "name": "QR disponible",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        60
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f03a3aba-69a9-4cd3-806b-efe1c5e2d47c",
+              "leftValue": "={{ $json.data.qr.imageBase64 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "Session deja appairee : la passerelle ne rend pas de QR. Sans ce test, le noeud suivant echoue."
+    },
+    {
+      "id": "fe6e2caa-7a5c-46f1-a4fa-09a7cc85cd5e",
+      "name": "QR en image",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        -20
+      ],
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "={{ $json.data.qr.imageBase64 }}",
+        "binaryPropertyName": "qr",
+        "options": {
+          "mimeType": "image/png",
+          "fileName": "whatsapp-qr.png"
+        }
+      },
+      "notes": "Le backend rend le base64 SANS prefixe data: , ce que sendPhoto attend."
+    },
+    {
+      "id": "dd40cbe8-79e2-4e04-8afc-6eb802adbcae",
+      "name": "Envoyer le QR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -20
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $('Analyse du message').item.json.botToken }}/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Analyse du message').item.json.chatId }}"
+            },
+            {
+              "name": "photo",
+              "value": "",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "qr"
+            },
+            {
+              "name": "caption",
+              "value": "=WhatsApp : scanner ce QR depuis le telephone du titulaire."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "8989212a-fa5d-4b8c-96c7-641693a1acc5",
+      "name": "Réponse appairage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -20
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $('Appairer WhatsApp').item.json.data;\nconst lignes = (d.instructions || []).map(function (l, i) { return (i + 1) + '. ' + l; }).join('\\n');\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Etat : ' + d.status + ' (compte ' + d.ownerKind + ')\\n\\n' +\n        'A faire maintenant :\\n' + lignes + '\\n\\n' +\n        'Puis /statut pour verifier. Retrait a tout moment : /deconnecter.\\n\\n' +\n        'Consentement ' + d.consentVersion + ' :\\n' + d.consentText,\n} };"
+      }
+    },
+    {
+      "id": "7dff1552-4fad-4457-a650-b51bed0156c6",
+      "name": "Réponse sans QR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        160
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $('Appairer WhatsApp').item.json.data;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Aucun QR a scanner : la session est deja dans l etat ' + d.status +\n        '. /statut pour le detail, /deconnecter pour repartir de zero.',\n} };"
+      }
+    },
+    {
+      "id": "7d298e57-0364-4575-9bdb-4d3cbb0bb6d9",
+      "name": "Statut session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        280
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/users/{{ $('Résoudre la liaison').item.json.data.userId }}/session",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "5822c74c-cb50-497b-bc45-efcea024bb0e",
+      "name": "Réponse statut",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        280
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $input.item.json.data;\nconst c = d.consent || {};\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'WhatsApp — ' + d.status + '\\n' +\n        'Compte : ' + d.ownerKind + (d.phoneNumber ? ' (' + d.phoneNumber + ')' : '') + '\\n' +\n        'Passerelle : ' + d.gatewayDriver + '\\n' +\n        'Capacites : ' + (d.grantedScopes || []).join(', ') + '\\n' +\n        'Consentement : ' + (c.valid ? 'valide' : 'NON valide') + ' (version ' + c.version + ')' +\n        (c.expiresAt ? ', expire le ' + String(c.expiresAt).slice(0, 10) : ', sans echeance') + '\\n' +\n        (d.lastError ? 'Derniere erreur : ' + d.lastError : ''),\n} };"
+      }
+    },
+    {
+      "id": "14299af9-c5aa-4ffe-ba81-670228c2de03",
+      "name": "Déconnecter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        400
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/users/{{ $('Résoudre la liaison').item.json.data.userId }}/session",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "4a188271-da75-4a88-8fd5-76220d4f8419",
+      "name": "Réponse déconnexion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Session WhatsApp revoquee : la passerelle est deconnectee et les contacts copies ont ete supprimes.\\n' +\n        'Un nouvel appairage demande un consentement explicite (/whatsapp).',\n} };"
+      }
+    },
+    {
+      "id": "645d7fb0-b7bb-4eef-bcc7-bcd2f972c562",
+      "name": "Contacts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        520
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/users/{{ $('Résoudre la liaison').item.json.data.userId }}/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "perPage",
+              "value": "50"
+            }
+          ]
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "403 WHATSAPP_SCOPE_NOT_GRANTED si le titulaire n a pas accorde contact:read."
+    },
+    {
+      "id": "8bfdd364-ac74-4983-a17c-a18242a0844c",
+      "name": "Réponse contacts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        520
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst corps = $input.item.json;\nconst liste = corps.data || [];\nconst total = (corps.meta && corps.meta.total) || liste.length;\n\nif (liste.length === 0) {\n  return { json: { botToken: m.botToken, chatId: m.chatId, text: 'Repertoire vide (ou jamais synchronise).' } };\n}\n\nconst lignes = liste.slice(0, 25).map(function (c) {\n  return '- ' + (c.name || '(sans nom)') + ' : ' + (c.phoneNumber || c.jid);\n}).join('\\n');\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Contacts WhatsApp (' + total + ' au total, 25 affiches) :\\n' + lignes,\n} };"
+      }
+    },
+    {
+      "id": "bb694bbc-3d0b-4423-a3d2-721a047d08a6",
+      "name": "Préparer envoi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        660
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst liaison = $('Résoudre la liaison').item.json.data;\nconst args = m.args || '';\nconst sep = args.search(/\\s/);\n\nif (sep < 1) {\n  return { json: {\n    valide: false,\n    botToken: m.botToken,\n    chatId: m.chatId,\n    text: 'Format attendu : /envoyer +213555123456 votre message\\n' +\n          'Le numero doit etre international (ou local avec le 0 initial). Les groupes sont refuses.',\n  } };\n}\n\nreturn { json: {\n  valide: true,\n  apiBase: m.apiBase,\n  userId: liaison.userId,\n  to: args.slice(0, sep),\n  body: args.slice(sep + 1).trim(),\n  // Cle d idempotence PAR DEMANDE Telegram : un rejeu du workflow ne renvoie pas\n  // deux fois le meme message a un client.\n  idempotencyKey: ('tg-' + m.chatId + '-' + m.messageId).slice(0, 120),\n  telegramChatId: m.chatId,\n  telegramMessageId: m.messageId,\n} };"
+      }
+    },
+    {
+      "id": "e0550717-cfc0-4c7a-8b77-c814e44765f7",
+      "name": "Envoi valide",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        660
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "540d3c6f-c651-46fb-b77e-086735c44da1",
+              "leftValue": "={{ $json.valide }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2be33e96-66ff-4fb6-b2a6-86446af9e51e",
+      "name": "Envoyer message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        620
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.apiBase }}/api/v1/integrations/whatsapp/users/{{ $json.userId }}/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.to, body: $json.body, idempotencyKey: $json.idempotencyKey, telegramChatId: $json.telegramChatId, telegramMessageId: $json.telegramMessageId }) }}",
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "6a2973af-4e10-48bd-b5e0-6da999e097ea",
+      "name": "Réponse envoi",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        620
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $input.item.json.data;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Message ' + d.status + ' vers ' + d.to.jid +\n        (d.replayed ? '\\n(deja envoye : ce rejeu n a rien transmis de plus)' : '') +\n        (d.gatewayMessageId ? '\\nIdentifiant WhatsApp : ' + d.gatewayMessageId : ''),\n} };"
+      }
+    },
+    {
+      "id": "e9186d40-c694-4c79-861f-b77946eaadd1",
+      "name": "Consentement tiers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        800
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/delegations/consent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "code",
+              "value": "={{ $('Analyse du message').item.json.args }}"
+            }
+          ]
+        }
+      },
+      "onError": "continueErrorOutput",
+      "notes": "Lecture seule : rien n est enregistre. L acceptation est une seconde commande."
+    },
+    {
+      "id": "debcaf1d-3157-4775-9267-dcc88dcfe0f1",
+      "name": "Réponse consentement",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        800
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $input.item.json.data;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: d.consentText + '\\n\\n---\\n' +\n        'Si tu acceptes EXACTEMENT cela, reponds : /accepter ' + m.args + '\\n' +\n        'Sinon : /refuser ' + m.args + '\\n\\n' +\n        'Rien n est enregistre tant que tu n as pas repondu.',\n} };"
+      }
+    },
+    {
+      "id": "96a023d3-f1dd-4aa5-a798-8b254a91fefe",
+      "name": "Accepter invitation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        940
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/delegations/accept",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ code: $('Analyse du message').item.json.args, telegramUserId: $('Analyse du message').item.json.fromId, telegramChatId: $('Analyse du message').item.json.chatId, telegramUsername: $('Analyse du message').item.json.username || undefined, acceptConsent: true }) }}"
+      },
+      "onError": "continueErrorOutput",
+      "notes": "acceptConsent: true n est legitime qu APRES /autoriser, qui a affiche le texte."
+    },
+    {
+      "id": "f0dbed3a-1c95-4d54-94b9-86b4bc95d538",
+      "name": "QR tiers disponible",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        940
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49653fc9-3e74-443a-9728-27380338fd4f",
+              "leftValue": "={{ $json.data.pairing.qr.imageBase64 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "50e5f119-e9d3-436f-bda8-8fa32cb16d44",
+      "name": "QR tiers en image",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        880
+      ],
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "={{ $json.data.pairing.qr.imageBase64 }}",
+        "binaryPropertyName": "qr",
+        "options": {
+          "mimeType": "image/png",
+          "fileName": "whatsapp-qr-delegation.png"
+        }
+      }
+    },
+    {
+      "id": "97ebbb81-cc55-45f3-ac80-f5e525af5b74",
+      "name": "Envoyer QR tiers",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        880
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $('Analyse du message').item.json.botToken }}/sendPhoto",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "chat_id",
+              "value": "={{ $('Analyse du message').item.json.chatId }}"
+            },
+            {
+              "name": "photo",
+              "value": "",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "qr"
+            },
+            {
+              "name": "caption",
+              "value": "=Scanner ce QR depuis LE telephone du titulaire du numero."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "9d575333-dc79-4bcf-bb1a-9c3bbe964ff3",
+      "name": "Réponse appairage tiers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        880
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst d = $('Accepter invitation').item.json.data;\nconst p = d.pairing;\nconst lignes = (p.instructions || []).map(function (l, i) { return (i + 1) + '. ' + l; }).join('\\n');\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Autorisation enregistree (consentement ' + p.consentVersion +\n        (p.consentExpiresAt ? ', valable jusqu au ' + String(p.consentExpiresAt).slice(0, 10) : '') + ')\\n\\n' +\n        'Compte : ' + p.ownerKind + ' — etat ' + p.status + '\\n\\n' + lignes + '\\n\\n' +\n        'Ce que tu as accepte :\\n' + d.consentText + '\\n\\n' +\n        'Retrait a tout moment : le titulaire le fait depuis l application web.',\n} };"
+      }
+    },
+    {
+      "id": "693b5d5d-c481-4916-a425-50ebeb4583f5",
+      "name": "Réponse tiers sans QR",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        1020
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\nconst p = $('Accepter invitation').item.json.data.pairing;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Autorisation acceptee, mais aucun QR a scanner : la session est dans l etat ' + p.status + '.',\n} };"
+      }
+    },
+    {
+      "id": "e50e561d-03b5-4e32-93c3-21179c8e19ce",
+      "name": "Refuser invitation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        1120
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Analyse du message').item.json.apiBase }}/api/v1/integrations/whatsapp/delegations/refuse",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ code: $('Analyse du message').item.json.args, telegramUserId: $('Analyse du message').item.json.fromId }) }}"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "a7d3b576-653c-4fa9-a272-a42723619a6f",
+      "name": "Réponse refus",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        1120
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $('Analyse du message').item.json;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Invitation refusee : rien n a ete connecte, et le code ne peut plus etre utilise.',\n} };"
+      }
+    },
+    {
+      "id": "6cf8dfc0-d760-4281-8799-7443ca96a0e1",
+      "name": "Réponse aide",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        1240
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const m = $input.item.json;\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: 'Commandes :\\n' +\n        '/whatsapp — appairer mon compte WhatsApp (QR a scanner)\\n' +\n        '/statut — etat de la session et du consentement\\n' +\n        '/deconnecter — revoquer la session et supprimer les contacts copies\\n' +\n        '/contacts — repertoire du compte appaire (si contact:read accorde)\\n' +\n        '/envoyer +213555123456 votre message\\n\\n' +\n        'Si quelqu un t a envoye un code WA-XXXX-XXXX-XXXX :\\n' +\n        '/autoriser <code> — lire ce que tu autorises (rien n est enregistre)\\n' +\n        '/accepter <code> — accepter, puis scanner le QR\\n' +\n        '/refuser <code> — refuser\\n\\n' +\n        'Envoie-moi un message VOCAL et je le transcris.',\n} };"
+      }
+    },
+    {
+      "id": "aa75d69f-956e-4602-884c-8dd1b1b026df",
+      "name": "Normaliser erreur",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        1420
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n ne donne pas la meme forme d erreur selon la version : le code stable est\n// cherche partout ou il peut se trouver, sinon extrait du texte brut.\n// Les workflows doivent brancher sur error.code, jamais sur le message.\nconst item = $input.item.json;\nconst m = $('Analyse du message').item.json;\nconst err = item.error || item;\nconst corps = err.error || err.responseBody || err.body || (typeof err === 'object' ? err : null);\n\nlet code = (corps && corps.error && corps.error.code) || (corps && corps.code) || err.code || null;\nconst statut = err.statusCode || err.status || (corps && corps.status) || null;\nlet detail = (corps && corps.error && corps.error.message) || err.message || '';\n\nif (!code) {\n  const trouve = JSON.stringify(err).match(/\\b(?:WHATSAPP|TRANSCRIPTION|TELEGRAM|INTEGRATION)_[A-Z_]+/);\n  code = trouve ? trouve[0] : 'ERREUR_INCONNUE';\n}\n\nconst MESSAGES = {\n  TELEGRAM_LINK_NOT_FOUND: 'Ton compte Telegram n est pas lie a Comexa. Ouvre l application web, puis /lier dans le bot.',\n  TRANSCRIPTION_NOT_CONFIGURED: 'La transcription n est pas activee cote serveur (TRANSCRIPTION_PROVIDER=none).',\n  TRANSCRIPTION_AUDIO_REQUIRED: 'Je n ai recu aucun audio : le telechargement depuis Telegram a echoue.',\n  TRANSCRIPTION_UNSUPPORTED_FORMAT: 'Format audio non pris en charge (une video n est pas un vocal).',\n  TRANSCRIPTION_PAYLOAD_TOO_LARGE: 'Audio trop long : au-dela de la taille accepte par le serveur.',\n  TRANSCRIPTION_UNAUTHORIZED: 'La cle du moteur de transcription est refusee (a corriger cote serveur).',\n  TRANSCRIPTION_RATE_LIMITED: 'Le moteur de transcription est sature : reessaie dans une minute.',\n  TRANSCRIPTION_UPSTREAM_UNREACHABLE: 'Le moteur de transcription ne repond pas.',\n  TRANSCRIPTION_UPSTREAM_FAILED: 'Le moteur n a rendu aucun texte exploitable (silence, bruit, langue non reconnue).',\n  WHATSAPP_GATEWAY_NOT_CONFIGURED: 'La passerelle WhatsApp n est pas deployee cote serveur.',\n  WHATSAPP_GATEWAY_UNREACHABLE: 'La passerelle WhatsApp ne repond pas.',\n  WHATSAPP_GATEWAY_UNAUTHORIZED: 'La cle de la passerelle WhatsApp est refusee (a corriger cote serveur).',\n  WHATSAPP_GATEWAY_FEATURE_UNAVAILABLE: 'Cette passerelle ne fournit pas cette fonction (repertoire : licence WAHA PLUS).',\n  WHATSAPP_ACCOUNT_NOT_FOUND: 'Aucun compte WhatsApp actif : /whatsapp pour l appairer.',\n  WHATSAPP_SESSION_NOT_CONNECTED: 'La session n est pas appairee : /whatsapp puis scanner le QR.',\n  WHATSAPP_ACCOUNT_REVOKED: 'Cette autorisation a ete retiree : /whatsapp pour la redemander.',\n  WHATSAPP_CONSENT_MISSING: 'Aucun consentement enregistre : /whatsapp pour appairer.',\n  WHATSAPP_CONSENT_EXPIRED: 'Le consentement a expire : le titulaire doit accepter a nouveau.',\n  WHATSAPP_CONSENT_REVOKED: 'Le consentement a ete retire : aucun envoi n est possible.',\n  WHATSAPP_CONSENT_OUTDATED: 'Le texte de consentement a change : une nouvelle acceptation est necessaire.',\n  WHATSAPP_SCOPE_NOT_GRANTED: 'Cette capacite n a pas ete accordee au moment du consentement.',\n  WHATSAPP_RECIPIENT_INVALID: 'Destinataire illisible. Format : /envoyer +213555123456 message',\n  WHATSAPP_GROUP_NOT_ALLOWED: 'L envoi vers un groupe est refuse : ecris aux personnes une par une.',\n  WHATSAPP_BODY_EMPTY: 'Message vide.',\n  WHATSAPP_BODY_TOO_LONG: 'Message trop long : le raccourcir (il n est jamais tronque).',\n  WHATSAPP_RATE_LIMITED: 'Plafond d envois atteint pour ce compte : attendre la fin de l heure glissante.',\n  WHATSAPP_CODE_INVALID: 'Code d autorisation invalide, deja utilise ou expire.',\n  VALIDATION_ERROR: 'Requete refusee par le serveur : ' + detail,\n};\n\nreturn { json: {\n  botToken: m.botToken,\n  chatId: m.chatId,\n  text: (MESSAGES[code] || 'Echec (' + code + ')' + (detail ? ' : ' + detail : '')) +\n        (statut ? ' [HTTP ' + statut + ']' : ''),\n} };"
+      },
+      "notes": "Une seule sortie d erreur pour tout le workflow : le code stable est traduit ici, pas dans chaque branche."
+    },
+    {
+      "id": "08e0ee12-34c6-4527-bf86-28026c87816e",
+      "name": "Envoyer à Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1420,
+        1420
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $json.botToken }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $json.chatId, text: $json.text, disable_web_page_preview: true }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "notes": "UN seul noeud d envoi : si la reponse part mal, il n y a qu un endroit a corriger."
+    },
+    {
+      "id": "157cd92b-846d-4fd0-8653-32eda688aaea",
+      "name": "Note 1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1460,
+        -60
+      ],
+      "parameters": {
+        "content": "## Avant d'activer\n\n**Variables n8n** (Reglages > Variables) :\n- `COMEXA_API_BASE` = `https://comexa-api.onrender.com`\n- `TELEGRAM_BOT_TOKEN` = le token du bot\n\n**Credential** Header Auth `Authorization: Bearer cxi_…`\na selectionner sur CHAQUE noeud HTTP qui appelle Comexa\n(Transcrire, Resoudre la liaison, Appairer, Statut,\nDeconnecter, Contacts, Envoyer message, Consentement,\nAccepter, Refuser).\n\n**Credential Telegram** a selectionner sur le declencheur.\n\nLe token apparait dans les variables PARCE QUE n8n n'expose\npas la valeur d'un credential aux expressions — et les appels\nTelegram (`getFile`, `sendPhoto`, `sendMessage`) le portent\ndans l'URL, pas dans un en-tete.",
+        "width": 460,
+        "height": 400,
+        "color": 4
+      }
+    },
+    {
+      "id": "2ffb799c-5a8e-4297-a044-98c293cca20b",
+      "name": "Note 2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -140
+      ],
+      "parameters": {
+        "content": "## Vocaux\n\n`getFile` puis telechargement, puis transcription.\n\nAUCUN ffmpeg : l'OGG/Opus de Telegram part tel quel.\n\n`telegramFileId` est la **cle de rejeu** : les 2 retries du\nnoeud *Transcrire* ne paient pas trois transcriptions.\n\nAucun octet audio n'est conserve cote serveur.",
+        "width": 420,
+        "height": 220,
+        "color": 4
+      }
+    },
+    {
+      "id": "02241f30-79cd-4d24-b25e-f8249928b1fd",
+      "name": "Note 3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        380,
+        220
+      ],
+      "parameters": {
+        "content": "## WhatsApp — commandes du membre\n\n`/whatsapp` `/statut` `/deconnecter` `/contacts` `/envoyer`\n\nToutes passent d'abord par **Resoudre la liaison** :\nTelegram -> membre Comexa. Une seule implementation de cette\nresolution existe, cote backend.\n\nSupprimer un projet n'est PAS expose ici : un ordre vocal mal\ntranscrit couterait trop cher.",
+        "width": 460,
+        "height": 200,
+        "color": 4
+      }
+    },
+    {
+      "id": "45a12a6e-91d2-4bee-8bb0-b6b44d6681d6",
+      "name": "Note 4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        380,
+        740
+      ],
+      "parameters": {
+        "content": "## WhatsApp — consentement d'un tiers\n\n**Deux commandes, et c'est volontaire :**\n\n1. `/autoriser <code>` **lit** le texte — route de lecture,\n   rien n'est enregistre\n2. `/accepter <code>` enregistre (`acceptConsent: true`) et\n   montre le QR a scanner depuis LE telephone du tiers\n\nUn seul pas aurait enregistre un consentement que personne\nn'avait encore lu.\n\nLe lien profond du courriel (`t.me/<bot>?start=wa_XXXX`) arrive\ncomme `/start wa_XXXX` : *Analyse du message* le reconnait et le\nroute vers `/autoriser`.\n\nMemes erreurs qu'`accept` pour un code absent, utilise ou expire :\nne pas permettre d'enumerer les codes valides.",
+        "width": 460,
+        "height": 260,
+        "color": 4
+      }
+    },
+    {
+      "id": "bfa18b80-26a8-419f-986e-7f57683ac5fd",
+      "name": "Note 5",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        1240
+      ],
+      "parameters": {
+        "content": "## Erreurs\n\nTous les noeuds HTTP sont en **Continue (using error output)**\net tombent dans **Normaliser erreur**, qui traduit le code\nstable (`WHATSAPP_CONSENT_EXPIRED`, `TRANSCRIPTION_RATE_LIMITED`, …)\nen message lisible.\n\nLes workflows doivent brancher sur `error.code`, jamais sur le\nmessage — voir `docs/API-N8N.md` §7 et §10.",
+        "width": 480,
+        "height": 200,
+        "color": 4
+      }
+    }
+  ],
+  "connections": {
+    "Déclencheur Telegram": {
+      "main": [
+        [
+          {
+            "node": "Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Configuration": {
+      "main": [
+        [
+          {
+            "node": "Analyse du message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyse du message": {
+      "main": [
+        [
+          {
+            "node": "Est un vocal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Est un vocal": {
+      "main": [
+        [
+          {
+            "node": "Telegram getFile",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Est une commande",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram getFile": {
+      "main": [
+        [
+          {
+            "node": "Téléchargement audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Téléchargement audio": {
+      "main": [
+        [
+          {
+            "node": "Transcrire",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcrire": {
+      "main": [
+        [
+          {
+            "node": "Réponse transcription",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse transcription": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Est une commande": {
+      "main": [
+        [
+          {
+            "node": "Routeur de commandes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse aide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routeur de commandes": {
+      "main": [
+        [
+          {
+            "node": "Résoudre la liaison",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Résoudre la liaison",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Résoudre la liaison",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Résoudre la liaison",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Résoudre la liaison",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consentement tiers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Accepter invitation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refuser invitation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse aide",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse aide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Résoudre la liaison": {
+      "main": [
+        [
+          {
+            "node": "Routeur membre",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Routeur membre": {
+      "main": [
+        [
+          {
+            "node": "Appairer WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Statut session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Déconnecter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Préparer envoi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Appairer WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "QR disponible",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QR disponible": {
+      "main": [
+        [
+          {
+            "node": "QR en image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse sans QR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QR en image": {
+      "main": [
+        [
+          {
+            "node": "Envoyer le QR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer le QR": {
+      "main": [
+        [
+          {
+            "node": "Réponse appairage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse appairage": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse sans QR": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Statut session": {
+      "main": [
+        [
+          {
+            "node": "Réponse statut",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse statut": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Déconnecter": {
+      "main": [
+        [
+          {
+            "node": "Réponse déconnexion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse déconnexion": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contacts": {
+      "main": [
+        [
+          {
+            "node": "Réponse contacts",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse contacts": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer envoi": {
+      "main": [
+        [
+          {
+            "node": "Envoi valide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoi valide": {
+      "main": [
+        [
+          {
+            "node": "Envoyer message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer message": {
+      "main": [
+        [
+          {
+            "node": "Réponse envoi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse envoi": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consentement tiers": {
+      "main": [
+        [
+          {
+            "node": "Réponse consentement",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse consentement": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accepter invitation": {
+      "main": [
+        [
+          {
+            "node": "QR tiers disponible",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QR tiers disponible": {
+      "main": [
+        [
+          {
+            "node": "QR tiers en image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Réponse tiers sans QR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "QR tiers en image": {
+      "main": [
+        [
+          {
+            "node": "Envoyer QR tiers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoyer QR tiers": {
+      "main": [
+        [
+          {
+            "node": "Réponse appairage tiers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse appairage tiers": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse tiers sans QR": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refuser invitation": {
+      "main": [
+        [
+          {
+            "node": "Réponse refus",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normaliser erreur",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse refus": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Réponse aide": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliser erreur": {
+      "main": [
+        [
+          {
+            "node": "Envoyer à Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

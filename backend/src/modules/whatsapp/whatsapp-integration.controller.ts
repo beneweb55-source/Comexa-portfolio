@@ -12,6 +12,7 @@ import {
   RefuseWhatsAppDelegationDto,
   SendWhatsAppMessageDto,
   StartWhatsAppSessionDto,
+  WhatsAppDelegationConsentQueryDto,
 } from './dto/whatsapp.dto.js';
 import { WhatsAppAccountService } from './whatsapp-account.service.js';
 import { WhatsAppMessagingService } from './whatsapp-messaging.service.js';
@@ -124,6 +125,29 @@ export class WhatsAppIntegrationController {
   // ---------------------------------------------------------------------------
   // Delegations (consentement d'un tiers)
   // ---------------------------------------------------------------------------
+
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Get('delegations/consent')
+  @RequirePermissions('whatsapp:link:any')
+  @ApiOperation({
+    summary: 'Lire le texte de consentement d’une invitation, sans rien accepter.',
+    description:
+      'À appeler quand le tiers envoie `/autoriser <code>` : le bot affiche CE texte, ' +
+      'puis demande une confirmation explicite avant `POST /delegations/accept`. ' +
+      'Aucun compte n’est créé, aucune session ouverte, rien n’est écrit. Un code ' +
+      'absent, déjà utilisé ou expiré rend exactement le même message — ne pas ' +
+      'permettre d’énumérer les codes valides.',
+  })
+  async delegationConsent(
+    @Query() query: WhatsAppDelegationConsentQueryDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{
+    consentText: string;
+    consentVersion: string;
+    delegation: WhatsAppDelegationView;
+  }> {
+    return this.accounts.previewDelegationConsent(query, actor);
+  }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('delegations/accept')

@@ -57,6 +57,10 @@ tiers qui y consent). Architecture, consentement, garde-fous et risques — dont
 celui, réel, de suspension du numéro :
 **[`docs/TELEGRAM-VOIX-WHATSAPP.md`](docs/TELEGRAM-VOIX-WHATSAPP.md)**.
 
+Le workflow n8n qui les relie est fourni, importable et testé
+(`integrations/n8n/comexa-bot-telegram.json`, `npm run test:n8n`) :
+**[`docs/N8N-WORKFLOWS.md`](docs/N8N-WORKFLOWS.md)**.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

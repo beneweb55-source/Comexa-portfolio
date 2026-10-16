@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:pagination": "node --test src/lib/pagination.test.mjs",
     "test:timer": "node --test src/lib/timer-utils.test.mjs",
-    "test:unit": "node --test src/lib/*.test.mjs"
+    "test:unit": "node --test src/lib/*.test.mjs",
+    "test:n8n": "node --test integrations/n8n/workflow.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

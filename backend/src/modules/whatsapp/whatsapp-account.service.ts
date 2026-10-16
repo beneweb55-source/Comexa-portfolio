@@ -47,6 +47,7 @@ import {
 import type {
   AcceptWhatsAppDelegationDto,
   RefuseWhatsAppDelegationDto,
+  WhatsAppDelegationConsentQueryDto,
   CreateWhatsAppDelegationDto,
   ListWhatsAppAccountsQueryDto,
   ListWhatsAppDelegationsQueryDto,
@@ -642,6 +643,86 @@ export class WhatsAppAccountService {
       pairing: await this.pairingViewFor(account),
       consentText,
       delegation: this.toDelegationView(updatedDelegation),
+    };
+  }
+
+  /**
+   * Rend le texte de consentement d'une invitation, SANS rien enregistrer.
+   *
+   * -----------------------------------------------------------------------
+   * POURQUOI CETTE ROUTE EXISTE
+   * -----------------------------------------------------------------------
+   * `acceptDelegation` exige `acceptConsent: true`, et son propre commentaire dit
+   * que « le bot doit l'avoir affiche et avoir recu une reponse positive ». Sans
+   * lecture possible AVANT, le bot n'avait que deux mauvaises sorties : accepter
+   * d'abord (donc enregistrer un consentement que personne n'a encore lu), ou
+   * recopier le texte dans le workflow n8n — une seconde copie qui divergerait de
+   * `describeConsent` au premier changement, sans que rien ne le signale.
+   *
+   * Cette methode ne cree AUCUN compte, n'ouvre AUCUNE session et n'ecrit rien :
+   * elle rend le texte que le tiers va lire, puis le bot demande une confirmation
+   * explicite (`/accepter <code>`) avant d'appeler `acceptDelegation`.
+   *
+   * -----------------------------------------------------------------------
+   * DEUX CHOIX ASSUMES
+   * -----------------------------------------------------------------------
+   *  1. MEMES ERREURS QUE `acceptDelegation` : un message unique pour un code
+   *     absent, deja utilise ou expire. Distinguer les trois serait un oracle
+   *     permettant d'enumerer les codes valides — et cette route est justement
+   *     celle qu'un attaquant appellerait en premier, puisqu'elle ne coute rien.
+   *  2. LA PASSERELLE N'EST PAS EXIGEE. Informer n'est pas connecter : refuser de
+   *     montrer le texte parce que le deploiement n'est pas termine laisserait le
+   *     tiers sans la seule information dont il a besoin pour decider. L'etape
+   *     d'acceptation, elle, verifie bien la passerelle.
+   */
+  async previewDelegationConsent(
+    dto: WhatsAppDelegationConsentQueryDto,
+    actor: AuthenticatedUser,
+  ): Promise<{
+    consentText: string;
+    consentVersion: string;
+    delegation: WhatsAppDelegationView;
+  }> {
+    if (!actor.permissions.has('whatsapp:link:any')) {
+      throw AppException.forbidden('Droit insuffisant : whatsapp:link:any');
+    }
+
+    if (!looksLikeDelegationCode(dto.code)) {
+      throw AppException.unprocessable(
+        'WHATSAPP_CODE_INVALID',
+        'Le code d’autorisation est illisible. Forme attendue : WA-XXXX-XXXX-XXXX.',
+      );
+    }
+
+    const now = new Date();
+    const delegation = await this.prisma.whatsAppDelegation.findUnique({
+      where: { codeHash: hashDelegationCode(dto.code) },
+      select: DELEGATION_SELECT,
+    });
+
+    if (
+      !delegation ||
+      delegation.status !== WhatsAppDelegationStatus.PENDING ||
+      !delegation.codeExpiresAt ||
+      delegation.codeExpiresAt.getTime() <= now.getTime()
+    ) {
+      throw AppException.notFound(
+        'WHATSAPP_CODE_INVALID',
+        'Code d’autorisation invalide, deja utilise ou expire.',
+      );
+    }
+
+    return {
+      consentText: describeConsent({
+        requestedBy:
+          `${delegation.requestedBy.firstName} ${delegation.requestedBy.lastName}`.trim(),
+        delegatorName: delegation.delegatorName,
+        scopes: normalizeGrantScopes(delegation.grantedScopes),
+        expiresAt: delegation.expiresAt,
+        maxMessagesPerHour: this.gatewayConfig.maxMessagesPerHour,
+      }),
+      consentVersion: CONSENT_VERSION,
+      delegation: this.toDelegationView(delegation),
     };
   }
 
