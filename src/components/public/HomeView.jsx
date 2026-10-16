@@ -235,7 +235,12 @@ export default function HomeView({ apiServices, apiTestimonials }) {
               <span>Conception · Développement · Suivi</span>
             </div>
           </div>
-          <div className="cx-pub-hero__visual cx-pub-enter">
+          {/* Cadre aux proportions de l'image : en 4/3,4, `object-fit: cover` rognait
+              les bords de la maquette (« omepage.tsx », « section> »). */}
+          <div
+            className="cx-pub-hero__visual cx-pub-enter"
+            style={{ aspectRatio: `${quisommesnous.width} / ${quisommesnous.height}` }}
+          >
             <Image
               src={quisommesnous}
               alt="Aperçu d’une interface web conçue par Comexa"
@@ -451,7 +456,7 @@ export default function HomeView({ apiServices, apiTestimonials }) {
               </li>
             ))}
           </ul>
-          <div style={{ marginTop: "var(--comexa-space-12)" }}>
+          <div style={{ marginTop: "var(--comexa-space-9)" }}>
             <p className="cx-pub-eyebrow" style={{ color: "var(--comexa-ink-muted)" }}>
               Partenaires et technologies de confiance
             </p>

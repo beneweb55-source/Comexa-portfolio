@@ -66,8 +66,11 @@ function NavbarContent({ pathname }) {
     wasOpen.current = true;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const focusable = () => [...(drawerRef.current?.querySelectorAll("a[href], button:not(:disabled)") ?? [])];
-    focusable()[0]?.focus();
+    const drawerLinks = () => [...(drawerRef.current?.querySelectorAll("a[href], button:not(:disabled)") ?? [])];
+    // Le bouton « Fermer le menu » reste visible au-dessus du voile : il fait
+    // partie de la boucle de tabulation, avec les liens du panneau.
+    const focusable = () => [burgerRef.current, ...drawerLinks()].filter(Boolean);
+    drawerLinks()[0]?.focus();
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
@@ -79,20 +82,29 @@ function NavbarContent({ pathname }) {
       if (nodes.length === 0) return;
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
-      const focusOutsideDrawer = !drawerRef.current?.contains(document.activeElement);
-      if (event.shiftKey && (document.activeElement === first || focusOutsideDrawer)) {
+      const focusOutsideMenu = !nodes.includes(document.activeElement);
+      if (event.shiftKey && (document.activeElement === first || focusOutsideMenu)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || focusOutsideDrawer)) {
+      } else if (!event.shiftKey && (document.activeElement === last || focusOutsideMenu)) {
         event.preventDefault();
         first.focus();
       }
     }
 
+    // Passage à la mise en page bureau (rotation, fenêtre agrandie) : le bouton
+    // du menu disparaît, le tiroir ne doit pas rester ouvert ni bloquer le défilement.
+    const desktop = window.matchMedia("(min-width: 1000px)");
+    function handleDesktop(event) {
+      if (event.matches) setIsMenuOpen(false);
+    }
+
     window.addEventListener("keydown", handleKeyDown);
+    desktop.addEventListener("change", handleDesktop);
     return () => {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
+      desktop.removeEventListener("change", handleDesktop);
     };
   }, [isMenuOpen]);
 

@@ -37,6 +37,9 @@
     var(--backdrop);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* Les anciens composants `cx-*` encore affichés dans l'espace de travail
+     lisent `--comexa-font` : ils gardent ici la police de l'espace. */
+  --comexa-font: var(--font-sans);
   font-size: var(--fs-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;

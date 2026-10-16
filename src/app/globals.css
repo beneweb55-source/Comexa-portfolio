@@ -22,8 +22,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Les polices Geist du modèle de départ ne sont pas chargées : sans ces
+     correspondances, `font-mono` n'affichait pas de chasse fixe. */
+  --font-sans: var(--comexa-font-sans);
+  --font-mono: var(--comexa-font-mono);
 }
 
 body {

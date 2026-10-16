@@ -90,6 +90,7 @@
 
   /* ---------- Navigation flottante ---------- */
   .cx-pub-nav {
+    --cx-pub-nav-h: 60px;
     position: sticky;
     top: var(--comexa-space-3);
     z-index: var(--comexa-z-header);
@@ -100,13 +101,17 @@
     .cx-pub-nav { padding-inline: var(--comexa-margin-desktop); }
   }
   .cx-pub-nav__bar {
+    /* Au-dessus du voile du tiroir : le logo et le bouton « Fermer le menu »
+       restent visibles et cliquables quand le menu mobile est ouvert. */
+    position: relative;
+    z-index: calc(var(--comexa-z-drawer) + 1);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--comexa-space-4);
     max-width: var(--comexa-container);
     margin-inline: auto;
-    min-height: 60px;
+    min-height: var(--cx-pub-nav-h);
     padding: 0 var(--comexa-space-4) 0 var(--comexa-space-5);
     border-radius: var(--comexa-radius-lg);
     border: 1px solid var(--comexa-border-soft);
@@ -172,22 +177,32 @@
   .cx-pub-nav__burger[aria-expanded="true"] .cx-pub-nav__burger-bars span:nth-child(2) { opacity: 0; }
   .cx-pub-nav__burger[aria-expanded="true"] .cx-pub-nav__burger-bars span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-  /* Tiroir mobile : overlay flou + panneau. Le flou est réservé à ces éléments. */
+  /* Tiroir mobile : voile flou sur toute la page, panneau aligné sous la barre.
+     Le flou est réservé à ces éléments. Le panneau défile s'il dépasse l'écran
+     (téléphone à l'horizontale). */
   .cx-pub-drawer {
     position: fixed;
     inset: 0;
     z-index: var(--comexa-z-drawer);
-    display: grid;
-    grid-template-rows: auto 1fr;
+    display: flex;
+    flex-direction: column;
+    padding: calc(var(--comexa-space-3) + var(--cx-pub-nav-h) + var(--comexa-space-2)) var(--comexa-margin-mobile) var(--comexa-space-3);
     background: rgb(11 37 69 / 0.32);
     -webkit-backdrop-filter: blur(10px);
     backdrop-filter: blur(10px);
     animation: cx-pub-fade var(--comexa-duration) var(--comexa-ease-out) both;
   }
+  @media (min-width: 900px) {
+    .cx-pub-drawer { padding-inline: var(--comexa-margin-desktop); }
+  }
   .cx-pub-drawer__panel {
-    margin: var(--comexa-space-3);
-    margin-bottom: 0;
-    padding: var(--comexa-space-5);
+    width: 100%;
+    max-width: var(--comexa-container);
+    min-height: 0;
+    margin-inline: auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--comexa-space-4);
     border-radius: var(--comexa-radius-xl);
     background: var(--comexa-surface);
     border: 1px solid var(--comexa-border-soft);
@@ -212,6 +227,11 @@
   }
   .cx-pub-drawer__link:hover { background: var(--comexa-blue-50); }
   .cx-pub-drawer__link::after { content: "→"; color: var(--comexa-accent-text); }
+  .cx-pub-drawer__link[aria-current="page"] {
+    background: var(--comexa-blue-50);
+    color: var(--comexa-accent-text);
+    font-weight: 600;
+  }
 
   @keyframes cx-pub-fade { from { opacity: 0; } to { opacity: 1; } }
   @keyframes cx-pub-rise {
@@ -242,12 +262,12 @@
   /* ---------- Hero ---------- */
   .cx-pub-hero {
     display: grid;
-    gap: var(--comexa-space-12);
+    gap: var(--comexa-space-9);
     align-items: center;
     padding-block: clamp(48px, 8vw, 96px) clamp(64px, 9vw, 112px);
   }
   @media (min-width: 900px) {
-    .cx-pub-hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: var(--comexa-space-16); }
+    .cx-pub-hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: var(--comexa-space-10); }
   }
   .cx-pub-hero__copy { display: flex; flex-direction: column; gap: var(--comexa-space-6); }
   .cx-pub-hero__visual {
@@ -305,11 +325,11 @@
   /* ---------- Introduction (agence) ---------- */
   .cx-pub-split {
     display: grid;
-    gap: var(--comexa-space-12);
+    gap: var(--comexa-space-9);
     align-items: center;
   }
   @media (min-width: 900px) {
-    .cx-pub-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--comexa-space-20); }
+    .cx-pub-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--comexa-space-11); }
   }
   .cx-pub-checks { display: grid; gap: var(--comexa-space-3); list-style: none; margin: var(--comexa-space-6) 0 0; padding: 0; }
   .cx-pub-checks li {
@@ -490,7 +510,7 @@
 
   /* ---------- Pied de page ---------- */
   .cx-pub-footer { background: var(--comexa-surface-ink); color: var(--comexa-ink-inverse); }
-  .cx-pub-footer__grid { display: grid; gap: var(--comexa-space-10); padding-block: var(--comexa-space-16) var(--comexa-space-10); }
+  .cx-pub-footer__grid { display: grid; gap: var(--comexa-space-10); padding-block: var(--comexa-space-10); }
   @media (min-width: 900px) { .cx-pub-footer__grid { grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr)); gap: var(--comexa-space-8); } }
   .cx-pub-footer h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--comexa-blue-400); margin-bottom: var(--comexa-space-4); }
   .cx-pub-footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--comexa-space-2); }
@@ -528,7 +548,7 @@
     border-bottom: 1px solid var(--comexa-border-soft);
   }
   @media (min-width: 900px) {
-    .cx-pub-page-hero { grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); align-items: end; gap: var(--comexa-space-16); }
+    .cx-pub-page-hero { grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); align-items: end; gap: var(--comexa-space-10); }
   }
   .cx-pub-crumbs {
     display: flex;
@@ -666,7 +686,7 @@
 
   /* Bénéfices : liste à deux colonnes avec un grand titre */
   .cx-pub-benefits { display: grid; gap: var(--comexa-space-10); }
-  @media (min-width: 900px) { .cx-pub-benefits { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--comexa-space-16); } }
+  @media (min-width: 900px) { .cx-pub-benefits { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--comexa-space-10); } }
   .cx-pub-benefit-list { list-style: none; margin: 0; padding: 0; display: grid; }
   .cx-pub-benefit-list li {
     display: grid;
@@ -690,7 +710,7 @@
     border: 1px solid var(--comexa-border-soft);
     background: var(--comexa-surface-alt);
   }
-  @media (min-width: 900px) { .cx-pub-option { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: var(--comexa-space-16); } }
+  @media (min-width: 900px) { .cx-pub-option { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: var(--comexa-space-10); } }
   .cx-pub-option ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--comexa-space-3); }
   .cx-pub-option li { display: flex; gap: var(--comexa-space-3); align-items: center; font-weight: 500; color: var(--comexa-ink); }
   .cx-pub-option li::before { content: "✓"; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--comexa-accent-soft); color: var(--comexa-accent-text); font-size: 13px; font-weight: 600; }
@@ -724,9 +744,9 @@
   @media (min-width: 900px) {
     .cx-pub-showcase { grid-template-columns: repeat(12, minmax(0, 1fr)); }
     .cx-pub-showcase > .cx-pub-project:nth-child(1) { grid-column: span 7; }
-    .cx-pub-showcase > .cx-pub-project:nth-child(2) { grid-column: span 5; margin-top: var(--comexa-space-12); }
+    .cx-pub-showcase > .cx-pub-project:nth-child(2) { grid-column: span 5; margin-top: var(--comexa-space-9); }
     .cx-pub-showcase > .cx-pub-project:nth-child(3) { grid-column: span 6; }
-    .cx-pub-showcase > .cx-pub-project:nth-child(4) { grid-column: span 6; margin-top: var(--comexa-space-12); }
+    .cx-pub-showcase > .cx-pub-project:nth-child(4) { grid-column: span 6; margin-top: var(--comexa-space-9); }
   }
   .cx-pub-project {
     display: flex;
@@ -771,7 +791,7 @@
     scroll-margin-top: 120px;
   }
   @media (min-width: 900px) {
-    .cx-pub-case { grid-template-columns: 200px minmax(0, 1fr) minmax(0, 1fr); gap: var(--comexa-space-12); }
+    .cx-pub-case { grid-template-columns: 200px minmax(0, 1fr) minmax(0, 1fr); gap: var(--comexa-space-9); }
   }
   .cx-pub-case__num { font-size: clamp(3.5rem, 8vw, 6rem); line-height: 1; letter-spacing: -0.05em; color: var(--comexa-blue-100); font-weight: 500; }
   .cx-pub-case__head { display: grid; gap: var(--comexa-space-4); align-content: start; }
