@@ -10,6 +10,7 @@
  * `actions` et `corner`, ce qui garantit que la logique métier reste dans la page.
  */
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { cardHover, staggerItem } from "./motion";
 import { IconButton, StatusPill } from "./primitives";
@@ -41,12 +42,18 @@ function renderActions(actions) {
   });
 }
 
-export function ProgressBar({ value, ratio }) {
+/**
+ * Barre de progression. `tone` colore le remplissage selon l'état réel : un
+ * projet annulé ou en pause n'affiche pas une barre « verte » trompeuse.
+ * `muted` : la valeur est historique (projet clos), affichée en gris.
+ */
+export function ProgressBar({ value, ratio, tone, label = "Avancement" }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
+  const fill = tone === "muted" ? "var(--track-strong)" : tone ? `var(--fill-${tone}, var(--fill))` : undefined;
   return (
-    <div className="sui-progress">
-      <div className="sui-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={safe}>
-        <div className="sui-progress__bar" style={{ width: `${safe}%` }} />
+    <div className={`sui-progress${tone === "muted" ? " sui-progress--muted" : ""}`}>
+      <div className="sui-progress__track" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={safe}>
+        <div className="sui-progress__bar" style={{ width: `${safe}%`, ...(fill ? { background: fill } : {}) }} />
       </div>
       <span className="sui-progress__value">{ratio ?? `${safe} %`}</span>
     </div>
@@ -83,24 +90,31 @@ export function ItemCard({
        n'était plus pilotée par `staggerItem`. Le retour au repos (y: 0) est
        déjà la cible de la variante `visible`. */
     <motion.li variants={staggerItem} whileHover={ghost ? undefined : cardHover} className={classes} style={{ listStyle: "none" }}>
-      {corner || cornerLabel || CornerIcon ? (
-        <span
-          className="sui-card__corner"
-          aria-hidden={cornerLabel ? undefined : "true"}
-          style={{ "--tone-bg": `var(--${cornerTone})` }}
-        >
-          {CornerIcon ? <CornerIcon size={17} strokeWidth={1.75} /> : corner ?? cornerLabel}
-        </span>
+      {/* En-tête : titre (et pilule d'information) à gauche, pastille à droite,
+          À L'INTÉRIEUR de la carte — elle ne chevauche plus le bord supérieur. */}
+      {title || info || corner || cornerLabel || CornerIcon ? (
+        <div className="sui-card__head">
+          <div className="sui-card__heading">
+            {title ? (
+              <h3 className="sui-card__title">
+                {titleHref ? <Link href={titleHref}>{title}</Link> : title}
+              </h3>
+            ) : null}
+            {/* `info` peut contenir un bloc (bouton, pilule) : élément de type bloc. */}
+            {info ? <div className="sui-card__pill">{info}</div> : null}
+          </div>
+          {corner || cornerLabel || CornerIcon ? (
+            <span
+              className="sui-card__corner"
+              aria-hidden={cornerLabel ? undefined : "true"}
+              title={cornerLabel || undefined}
+              style={{ "--tone-bg": `var(--${cornerTone})` }}
+            >
+              {CornerIcon ? <CornerIcon size={18} strokeWidth={1.75} /> : corner ?? cornerLabel}
+            </span>
+          ) : null}
+        </div>
       ) : null}
-
-      {title ? (
-        <h3 className="sui-card__title">
-          {titleHref ? <a href={titleHref}>{title}</a> : title}
-        </h3>
-      ) : null}
-
-      {/* `info` peut contenir un bloc (bouton, pilule) : élément de type bloc. */}
-      {info ? <div className="sui-card__pill">{info}</div> : null}
       {description ? <p className="sui-card__desc">{description}</p> : null}
 
       {meta.length ? (
@@ -116,7 +130,7 @@ export function ItemCard({
 
       {children}
 
-      {progress ? <ProgressBar value={progress.value} ratio={progress.ratio} /> : null}
+      {progress ? <ProgressBar value={progress.value} ratio={progress.ratio} tone={progress.tone} label={progress.label} /> : null}
 
       {status || actions || footer || play ? (
         <div className="sui-card__foot">

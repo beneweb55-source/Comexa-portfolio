@@ -31,7 +31,13 @@ export default function AdminDeskPanel({
   onClose,
   emptyLabel = "Rien à traiter pour l’instant.",
 }) {
-  const [tab, setTab] = useState(tabs[0]?.id ?? "all");
+  // Tant que l'utilisateur n'a pas choisi d'onglet, le premier onglet NON VIDE
+  // s'affiche : « Rien à traiter » ne doit pas masquer des notifications en
+  // attente dans l'onglet voisin.
+  const [chosen, setChosen] = useState(null);
+  const firstFilled = tabs.find((entry) => items.some((item) => item.tab === entry.id))?.id;
+  const tab = chosen ?? firstFilled ?? tabs[0]?.id ?? "all";
+  const setTab = setChosen;
   const visible = tab === "all" ? items : items.filter((item) => item.tab === tab);
 
   return (

@@ -456,7 +456,28 @@ function CategoryTabs({ onPick, busy, compact }) {
   );
 }
 
-export default function AiAgentDrawer() {
+/**
+ * `/lier <code>` est une commande du BOT TELEGRAM @ComexaWork_bot : elle associe
+ * un compte Telegram au compte Comexa. Tapée ici, elle partait vers l'agent
+ * conversationnel, qui ne pouvait que répondre qu'il ne comprenait pas. La
+ * Console l'intercepte désormais et explique où l'envoyer — sans rien lier :
+ * depuis le navigateur, aucun identifiant Telegram n'est connu.
+ */
+const LINK_COMMAND = /^\/lier(?:@\w+)?(?:\s|$)/i;
+
+function linkCommandGuidance() {
+  return [
+    "La commande **/lier** s’envoie au bot Telegram **@ComexaWork_bot**, pas à la Console.",
+    "",
+    "1. Ouvrez **Mon compte › Bot Telegram** dans Comexa et générez un code (valable 10 minutes).",
+    "2. Dans Telegram, ouvrez une conversation **privée** avec @ComexaWork_bot.",
+    "3. Envoyez exactement : `/lier 123456` (avec votre code).",
+    "",
+    "Le bot confirme la liaison ; la page Mon compte affiche alors « Lié ».",
+  ].join("\n");
+}
+
+export default function AiAgentDrawer({ showLauncher = true }) {
   const { request } = useAuth();
   const [open, setOpen] = useState(false);
   const [wide, setWide] = useState(false);
@@ -472,6 +493,9 @@ export default function AiAgentDrawer() {
 
   const endRef = useRef(null);
   const inputRef = useRef(null);
+  // Session courante : une réponse arrivée après « Nouvelle session » est
+  // ignorée au lieu d'apparaître dans la conversation suivante.
+  const sessionRef = useRef(sessionId);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -542,6 +566,19 @@ export default function AiAgentDrawer() {
       const content = (text ?? draft).trim();
       if (!content || busy) return;
 
+      if (LINK_COMMAND.test(content)) {
+        setError(null);
+        setSuggestOpen(false);
+        setDraft("");
+        setMessages((current) => [
+          ...current,
+          { id: genId(), role: "user", content, ts: timestamp() },
+          { id: genId(), role: "assistant", content: linkCommandGuidance(), ts: timestamp(), operation: null, operationState: null },
+        ]);
+        return;
+      }
+
+      const sessionAtSend = sessionRef.current;
       setError(null);
       setBusy(true);
       setElapsed(0);
@@ -565,6 +602,7 @@ export default function AiAgentDrawer() {
           },
         });
 
+        if (sessionRef.current !== sessionAtSend) return;
         const payload = Array.isArray(data) ? data[0] : data;
         const reply =
           typeof payload === "string"
@@ -589,6 +627,7 @@ export default function AiAgentDrawer() {
           },
         ]);
       } catch (caught) {
+        if (sessionRef.current !== sessionAtSend) return;
         const text = messageOf(caught) || "La Console n’a pas pu répondre.";
         setError(text);
         setMessages((current) => [...current, { id: genId(), role: "error", content: text, ts: timestamp() }]);
@@ -617,11 +656,13 @@ export default function AiAgentDrawer() {
   }
 
   function newSession() {
+    const next = genSessionId();
+    sessionRef.current = next;
     setMessages([]);
     setError(null);
     setDraft("");
     setLastPrompt(null);
-    setSessionId(genSessionId());
+    setSessionId(next);
     setSuggestOpen(false);
     setBusy(false);
     setStartedAt(null);
@@ -646,18 +687,21 @@ export default function AiAgentDrawer() {
 
   return (
     <>
-      {/* Bouton d'ouverture : pilule sobre, en bas a droite. */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="cx-console-launcher"
-        aria-label="Ouvrir la Console Comexa"
-        aria-keyshortcuts="Control+K Alt+C"
-      >
-        <Icon name="terminal" className="h-[18px] w-[18px]" />
-        <span className="cx-console-launcher__label">Console Comexa</span>
-        <kbd className="cx-console-launcher__kbd">{SHORTCUT_LABEL}</kbd>
-      </button>
+      {/* Bouton d'ouverture flottant, sauf quand la coque l'intègre au dock.
+          Raccourcis réels : Alt+C et Ctrl/Cmd+J (Ctrl+K ouvre la recherche). */}
+      {showLauncher ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="cx-console-launcher"
+          aria-label="Ouvrir la Console Comexa"
+          aria-keyshortcuts="Alt+C Control+J"
+        >
+          <Icon name="terminal" className="h-[18px] w-[18px]" />
+          <span className="cx-console-launcher__label">Console Comexa</span>
+          <kbd className="cx-console-launcher__kbd">{SHORTCUT_LABEL}</kbd>
+        </button>
+      ) : null}
 
       {open ? (
         <div className="cx-console">

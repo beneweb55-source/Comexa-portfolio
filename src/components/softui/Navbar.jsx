@@ -3,25 +3,65 @@
 /*
  * Navbar noire (64 px) de la coque.
  *
- * - à gauche : logo Comexa (identité conservée) + badge de rôle ;
- * - au centre : 6 à 8 icônes de navigation. Seul l'onglet actif déplie sa pilule
- *   (fond gris foncé, icône + libellé) et cette pilule glisse d'un onglet à l'autre
- *   grâce à `layoutId` ;
- * - à droite : avatar à initiales sur pastille, nom, courriel, chevron (UserMenu) ;
- * - < 1024 px : la barre passe en bas de l'écran et n'affiche que des icônes,
- *   le libellé restant sur l'onglet actif (accessibilité conservée).
+ * - à gauche : logo Comexa, puis le SÉLECTEUR D'ESPACE (espace actif toujours
+ *   visible). L'ancien badge « admin », affiché à TOUS les membres quel que soit
+ *   leur rôle, a disparu : le rôle réel est rappelé dans le sélecteur ;
+ * - au centre : les onglets autorisés de l'espace. Seul l'onglet actif déplie sa
+ *   pilule (`layoutId`). La rubrique courante est TOUJOURS représentée : si elle
+ *   ne fait pas partie des onglets prioritaires, elle prend la dernière place,
+ *   au lieu de laisser « Tableau de bord » faussement actif ;
+ * - à droite : profil (UserMenu).
+ *
+ * `onActiveTabMove` reçoit le centre horizontal de l'onglet actif : la coque y
+ * aligne la languette noire qui descend dans le panneau clair.
  */
 
 import Image from "next/image";
 import Link from "next/link";
+import { useLayoutEffect, useRef } from "react";
 import { LayoutGroup, motion } from "framer-motion";
 import logoLight from "../../../public/comexa-logo-horizontal-clair-transparent.png";
 import UserMenu from "@/components/workspace/UserMenu";
+import SpaceSwitcher from "./SpaceSwitcher";
 import Tooltip from "./Tooltip";
 import { layoutSpring } from "./motion";
 
-export default function Navbar({ items, activeHref, roleLabel, homeHref = "/", profile }) {
+export default function Navbar({ items, activeHref, space, user, homeHref = "/", badge, profile, onActiveTabMove }) {
   const active = items.find((item) => item.href === activeHref);
+  const listRef = useRef(null);
+
+  // Position de l'onglet actif (et après chaque redimensionnement) : la
+  // languette suit l'onglet, elle ne reste plus centrée sur le panneau.
+  useLayoutEffect(() => {
+    if (!onActiveTabMove) return undefined;
+    const list = listRef.current;
+    if (!list) return undefined;
+
+    function report() {
+      const link = list.querySelector('[aria-current="page"]');
+      if (!link) {
+        onActiveTabMove(null);
+        return;
+      }
+      const rect = link.getBoundingClientRect();
+      onActiveTabMove(rect.left + rect.width / 2);
+    }
+
+    report();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(report) : null;
+    observer?.observe(list);
+    observer?.observe(document.documentElement);
+    list.addEventListener("scroll", report, { passive: true });
+    window.addEventListener("resize", report);
+    // La pilule glisse (layoutId) : une seconde mesure après l'animation.
+    const settle = window.setTimeout(report, 320);
+    return () => {
+      observer?.disconnect();
+      list.removeEventListener("scroll", report);
+      window.removeEventListener("resize", report);
+      window.clearTimeout(settle);
+    };
+  }, [activeHref, items, onActiveTabMove]);
 
   return (
     <header className="sui-nav">
@@ -29,13 +69,12 @@ export default function Navbar({ items, activeHref, roleLabel, homeHref = "/", p
         <Link href={homeHref} className="sui-nav__logo" aria-label="Comexa, accueil de l’espace">
           <Image src={logoLight} alt="" width={112} height={26} className="sui-nav__logo-img" priority />
         </Link>
-        <span className="sui-nav__logo-dot" aria-hidden="true" />
-        {roleLabel ? <span className="sui-nav__role">{roleLabel}</span> : null}
+        {space ? <SpaceSwitcher active={space} user={user} /> : badge ? <span className="sui-nav__role">{badge}</span> : null}
       </div>
 
-      <nav className="sui-nav__center" aria-label={`Navigation ${roleLabel ?? "principale"}`}>
+      <nav className="sui-nav__center" aria-label="Rubriques de l’espace">
         <LayoutGroup id="sui-nav">
-          <ul className="sui-nav__links">
+          <ul className="sui-nav__links" ref={listRef}>
             {items.map((item) => {
               const isActive = item.href === activeHref;
               return (

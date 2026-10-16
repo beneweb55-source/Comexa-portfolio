@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
-import { QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
+import { QUOTE_STATUS, QUOTE_STATUS_TONE, quoteRecipient } from "@/lib/commercial";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
@@ -64,11 +64,7 @@ export default function DevisEquipePage() {
         {items.length > 0 ? (
           <ItemGrid label="Devis">
             {items.map((quote) => {
-              const recipient =
-                quote.client?.companyName ??
-                (quote.prospect
-                  ? `${quote.prospect.companyName || quote.prospect.email} (prospect)`
-                  : "Destinataire non renseigné");
+              const recipient = quoteRecipient(quote);
               return (
                 <ItemCard
                   key={quote.id}

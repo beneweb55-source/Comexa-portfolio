@@ -23,10 +23,46 @@ export const EVERY_CREATOR = null;
  * est alors celle d'origine, et l'API rend les tâches du projet quel que soit
  * leur auteur.
  */
-export function taskListPath(projectId, { page = 1, perPage = 100, reporterId = EVERY_CREATOR } = {}) {
+export function taskListPath(
+  projectId,
+  { page = 1, perPage = 100, reporterId = EVERY_CREATOR, assignee = EVERY_ASSIGNEE } = {},
+) {
   const params = new URLSearchParams({ page: String(page), perPage: String(perPage) });
   if (typeof reporterId === "string" && reporterId) params.set("reporterId", reporterId);
+  // Filtre d'assignation : un identifiant de compte (« les miennes ») ou le
+  // travail encore à distribuer. Combiné en `AND` par le serveur, comme le
+  // filtre par créateur.
+  if (assignee === UNASSIGNED) params.set("unassignedOnly", "true");
+  else if (typeof assignee === "string" && assignee) params.set("assigneeId", assignee);
   return `/projects/${encodeURIComponent(projectId)}/tasks?${params.toString()}`;
+}
+
+/** Filtre d'assignation « Toutes » (aucun filtre). */
+export const EVERY_ASSIGNEE = null;
+/** Filtre d'assignation « Non assignées ». */
+export const UNASSIGNED = "__unassigned__";
+
+/** Chemin des personnes à qui confier une tâche du projet (`task:assign:any`). */
+export function taskAssigneesPath(projectId) {
+  return `/projects/${encodeURIComponent(projectId)}/tasks/assignees`;
+}
+
+/** Nom affiché de l'assigné, ou « Non assignée ». */
+export function assigneeNameOf(profile) {
+  if (!profile) return "Non assignée";
+  const name = [profile.firstName, profile.lastName].filter(Boolean).join(" ").trim();
+  return name || profile.email || "Membre";
+}
+
+/**
+ * Peut-on agir sur cette tâche de projet ? Même règle que le serveur
+ * (`taskWriteWhereFor`) : `task:write:any`, ou `task:write:own` sur une tâche
+ * qui nous est assignée.
+ */
+export function canWriteProjectTask(task, { userId, writeAny = false, writeOwn = false } = {}) {
+  if (!task) return false;
+  if (writeAny) return true;
+  return Boolean(writeOwn && userId && task.assigneeId === userId);
 }
 
 /** Chemin des profils à afficher dans le filtre : ceux qui ont créé des tâches du projet. */

@@ -355,6 +355,14 @@ enum TimerSessionStatus {
   STOPPED
 }
 
+/// Etat d'un OBJECTIF personnel. `ACHIEVED` et `ARCHIVED` se defont : un
+/// objectif atteint trop tot se rouvre, un objectif archive se reactive.
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  ARCHIVED
+}
+
 // =============================================================================
 // IDENTITE, ROLES ET PERMISSIONS
 // =============================================================================
@@ -432,6 +440,8 @@ model User {
   reportedTasks           Task[]                    @relation("TaskReporter")
   timeEntries             TimeEntry[]
   timerSessions           TimerSession[]
+  goals                   Goal[]                    @relation("GoalOwner")
+  goalTaskLinks           GoalTask[]                @relation("GoalTaskOwner")
   activities              Activity[]                @relation("ActivityActor")
   leadStatusChanges       LeadStatusHistory[]
   createdQuotes           Quote[]                   @relation("QuoteCreator")
@@ -1089,6 +1099,9 @@ model Task {
   documents   Document[]
   timerSessions TimerSession[]
   calendarEvents CalendarEvent[] @relation("CalendarEventTask")
+  /// Objectifs personnels qui regroupent cette tache (table de liaison privee :
+  /// aucune colonne n'est ajoutee a la tache, l'equipe n'en voit rien).
+  goalLinks GoalTask[]
 
   @@index([projectId, status])
   @@index([milestoneId])
@@ -1166,6 +1179,9 @@ model TimerSession {
   accumulatedSeconds Int @default(0)
   /// Minutes effectivement ecrites dans la saisie de temps a l'arret.
   savedMinutes Int?
+  /// Note libre du porteur pendant la session (« sur quoi je travaille »).
+  /// Elle devient la description de la saisie de temps a l'arret.
+  note String?
 
   timeEntryId String?     @unique
   timeEntry   TimeEntry?  @relation(fields: [timeEntryId], references: [id], onDelete: SetNull)
@@ -1177,6 +1193,55 @@ model TimerSession {
   @@index([taskId])
   @@index([status, startedAt])
   @@map("timer_sessions")
+}
+
+/// OBJECTIF PERSONNEL — un but que le membre se fixe, et le groupe de taches
+/// qui y mene.
+///
+/// PRIVE, COMME LES TACHES PERSONNELLES : visible de son seul proprietaire,
+/// jamais d'un collegue (meme `task:read:any`), jamais d'un client. Il peut
+/// regrouper des taches personnelles ET des taches de projet assignees a son
+/// proprietaire : le rattachement passe par `GoalTask`, une table de liaison,
+/// pour ne RIEN ecrire sur la tache de projet partagee.
+model Goal {
+  id          String     @id @default(cuid())
+  ownerId     String
+  owner       User       @relation("GoalOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  /// Date cible facultative (un jour, stocke a minuit UTC comme les echeances).
+  targetDate  DateTime?
+  /// Teinte pastel de la charte : blue, green, yellow, lilac, pink.
+  color       String     @default("blue")
+  status      GoalStatus @default(ACTIVE)
+  achievedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tasks GoalTask[]
+
+  @@index([ownerId, status])
+  @@map("goals")
+}
+
+/// Rattachement d'une tache a un objectif.
+///
+/// `ownerId` recopie le proprietaire de l'objectif pour porter l'unicite
+/// `(ownerId, taskId)` : une tache sert AU PLUS UN objectif par personne, ce qui
+/// garde une lecture simple (« cette tache fait partie de tel objectif »).
+model GoalTask {
+  goalId  String
+  goal    Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  taskId  String
+  task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  ownerId String
+  owner   User     @relation("GoalTaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  addedAt DateTime @default(now())
+
+  @@id([goalId, taskId])
+  @@unique([ownerId, taskId])
+  @@index([taskId])
+  @@map("goal_tasks")
 }
 
 /// Journal d'un projet : ce qui s'est passe, dans l'ordre. Alimente la

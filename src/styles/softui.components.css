@@ -4,13 +4,10 @@
  * `softui.tokens.css` (aucune couleur en dur, sauf les blancs/noirs de la coque
  * déjà tokenisés).
  *
- * Signature du design : les découpes à rayon inversé.
- *  - `.sui-notch` : la languette noire qui descend de la navbar au centre du
- *    panneau clair, avec deux congés concaves de part et d'autre ;
- *  - `.sui-dock__fillet` : le dock noir qui « sort » du bord inférieur avec des
- *    coins concaves.
- * Les deux sont obtenus par `mask-image: radial-gradient(…)`, donc sans SVG ni
- * image externe, et restent nets à n'importe quel zoom.
+ * Signature du design : la languette à rayon inversé (`.sui-notch`) qui
+ * descend de la navbar SOUS L'ONGLET ACTIF, avec deux congés concaves obtenus
+ * par `mask-image: radial-gradient(…)` (nets à n'importe quel zoom). Le dock,
+ * lui, est une pilule flottante détachée du bord (voir section 11).
  *
  * Accessibilité : focus visible partout (anneau bleu sur le clair, blanc dans la
  * coque noire), cibles tactiles ≥ 40 px (36 px pour les mini-actions internes
@@ -40,6 +37,9 @@
     var(--backdrop);
   color: var(--ink);
   font-family: var(--font-sans);
+  /* Les anciens composants `cx-*` encore affichés dans l'espace de travail
+     lisent `--comexa-font` : ils gardent ici la police de l'espace. */
+  --comexa-font: var(--font-sans);
   font-size: var(--fs-body);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -512,21 +512,23 @@
   background: var(--surface);
 }
 
-/* Languette noire centrée : elle descend de la navbar dans le panneau clair.
-   Les deux congés sont posés en HAUT de la languette (là où elle rejoint la
-   navbar) et leur rayon est égal au rayon bas de la languette : la courbe
-   concave est tangente au bord noir, donc la découpe se lit comme une seule
-   pièce, sans décrochement. */
+/* Languette noire : elle descend de la navbar dans le panneau clair, SOUS
+   L'ONGLET ACTIF. Elle était centrée sur le panneau principal — donc décalée
+   de l'onglet actif, et déplacée à chaque ouverture du panneau de suivi. Elle
+   est désormais posée dans la coque, à l'abscisse mesurée de l'onglet actif
+   (voir `Navbar`), et glisse avec lui.
+   Les deux congés sont posés en HAUT de la languette et leur rayon est égal au
+   rayon bas de la languette : la courbe concave est tangente au bord noir. */
 .sui-notch {
   position: absolute;
-  z-index: 5;
-  top: 0;
-  left: 50%;
-  width: 116px;
+  z-index: 6;
+  top: var(--nav-h);
+  width: 88px;
   height: var(--r-notch);
   background: var(--shell);
   border-radius: 0 0 var(--r-notch) var(--r-notch);
   transform: translateX(-50%);
+  transition: left var(--dur-slow) var(--ease-out);
   pointer-events: none;
 }
 
@@ -933,6 +935,196 @@
   color: #ffffff;
 }
 
+/* Bascule « Cartes / Liste » des pages de collection : même hauteur (40 px)
+   et même matière que les pilules de filtre qu'elle accompagne. */
+.sui-viewtoggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: var(--r-pill);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-viewtoggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.sui-viewtoggle__btn:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sui-viewtoggle__btn[aria-pressed="true"] {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-viewtoggle__btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Sur mobile, la bascule ne garde que ses icônes (le libellé reste lu par
+   les lecteurs d'écran). */
+@media (max-width: 560px) {
+  .sui-viewtoggle__btn {
+    min-width: 36px;
+    min-height: 36px;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .sui-viewtoggle__btn span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
+
+/* Vue « Liste » : tableau dans une carte blanche. Le défilement horizontal
+   reste confiné à la carte sur petit écran, jamais à la page. Chaque ligne est
+   cliquable par le lien de sa première colonne (étendu à toute la ligne). */
+.sui-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  overscroll-behavior-x: contain;
+}
+
+.sui-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-small);
+  color: var(--ink);
+}
+
+.sui-table th {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sui-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+
+.sui-table tbody tr {
+  position: relative;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sui-table tbody tr:hover {
+  background: var(--surface);
+}
+
+.sui-table .is-end {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-table__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* La ligne entière devient la cible du lien principal. */
+.sui-table__link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.sui-table__link:focus-visible {
+  outline: none;
+}
+
+.sui-table tbody tr:has(.sui-table__link:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.sui-table__primary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sui-table__primary strong {
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-table__primary span {
+  max-width: 34ch;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-table__progress {
+  min-width: 160px;
+}
+
+.sui-table__progress .sui-progress {
+  margin-top: 0;
+}
+
+.sui-table__muted {
+  color: var(--muted);
+}
+
+/* Échéance dépassée : même pastille rose que les listes du tableau de bord. */
+.sui-table__late {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--pink);
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .sui-btn {
   display: inline-flex;
   align-items: center;
@@ -1144,10 +1336,7 @@
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 0;
-  /* Les pastilles de coin dépassent de 10 px au-dessus des cartes : sans ce
-     retrait, la première rangée les plaque contre le bloc précédent (et tout
-     conteneur à débordement masqué les rognerait). */
-  padding: 12px 0 0;
+  padding: 0;
   list-style: none;
 }
 
@@ -1198,18 +1387,36 @@
   box-shadow: none;
 }
 
-/* Pastille qui chevauche le coin haut-droit (initiales ou icône). */
+/* En-tête de carte : titre à gauche, pastille (initiales ou icône) à droite,
+   alignée sur la première ligne du titre. La pastille chevauchait auparavant le
+   bord supérieur de la carte (top: -10px) : elle semblait mal placée, se
+   faisait rogner par tout conteneur à débordement masqué et imposait un retrait
+   artificiel à chaque grille. */
+.sui-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sui-card__heading {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
 .sui-card__corner {
-  position: absolute;
-  top: -10px;
-  right: 18px;
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
   width: 40px;
   height: 40px;
+  margin: -4px -4px 0 0;
   border-radius: 50%;
   background: var(--tone-bg, var(--blue));
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
   color: var(--ink);
   font-size: var(--fs-micro);
   font-weight: 800;
@@ -1218,7 +1425,6 @@
 
 .sui-card__title {
   margin: 0;
-  padding-right: 44px;
   font-size: calc(16px * var(--zoom, 1));
   font-weight: 800;
   line-height: 1.3;
@@ -1398,6 +1604,34 @@
   letter-spacing: var(--tracking-tight);
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+
+/* Entrée du fil cliquable : la phrase mène à l'élément concerné. */
+.sui-activity__link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sui-activity__link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-activity__link:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sui-activity__context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .sui-activity__time {
@@ -1694,11 +1928,25 @@
 .sui-dockwrap {
   position: absolute;
   z-index: 45;
-  bottom: 0;
+  bottom: 14px;
   left: 0;
   right: 0;
   display: flex;
   justify-content: center;
+  pointer-events: none;
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+
+/* Replié pendant le défilement vers le bas : il glisse sous le bord, en
+   laissant une poignée de 10 px qui le rappelle au survol. */
+.sui-dockwrap--hidden {
+  transform: translateY(calc(100% + 4px));
+  opacity: 0.001;
+}
+
+.sui-dockwrap--hidden .sui-dock {
   pointer-events: none;
 }
 
@@ -1706,40 +1954,22 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: var(--r-dock) var(--r-dock) 0 0;
-  background: var(--shell);
-  box-shadow: 0 -10px 30px rgba(11, 10, 15, 0.18);
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 8px;
+  border-radius: var(--r-pill);
+  background: rgba(11, 10, 15, 0.94);
+  box-shadow:
+    0 18px 40px rgba(11, 10, 15, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   pointer-events: auto;
 }
 
-/* Congés concaves du dock : le carré noir est évidé d'un quart de disque dont
-   le centre est le point de contact avec le dock, au niveau du bord bas du
-   panneau. Le dock « sort » donc du bord inférieur sans angle rentrant. */
-.sui-dock__fillet {
-  position: absolute;
-  bottom: 0;
-  width: var(--r-dock);
-  height: var(--r-dock);
-  background: var(--shell);
-  pointer-events: none;
-}
-
-.sui-dock__fillet--left {
-  right: 100%;
-  /* Même géométrie que la languette : disque transparent centré sur le coin
-     extérieur (haut-gauche), croissant noir le long du dock et du bord bas.
-     L'ancien centre (jonction dock/bord) laissait un triangle noir détaché
-     flotter dans le panneau clair, de chaque côté du dock. */
-  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 0 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
-  mask-image: radial-gradient(circle var(--r-dock) at 0 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
-}
-
-.sui-dock__fillet--right {
-  left: 100%;
-  -webkit-mask-image: radial-gradient(circle var(--r-dock) at 100% 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
-  mask-image: radial-gradient(circle var(--r-dock) at 100% 0, #0000 calc(var(--r-dock) - 1px), #000 var(--r-dock));
+@supports (backdrop-filter: blur(12px)) {
+  .sui-dock {
+    background: rgba(11, 10, 15, 0.86);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
 }
 
 .sui-dock__btn {
@@ -1759,19 +1989,1295 @@
 }
 
 .sui-dock__btn:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   filter: brightness(1.04);
 }
 
-/* Le « + » : noir cerclé, seule action sombre du dock. */
+/* « Toutes les rubriques » : noir cerclé, seule action sombre du dock. */
 .sui-dock__btn--ink {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.45);
   color: #ffffff;
 }
 
 .sui-dock__btn--ink:hover {
   box-shadow: inset 0 0 0 1.5px #ffffff;
+}
+
+.sui-dock__sep {
+  width: 1px;
+  height: 28px;
+  margin: 0 4px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sui-dock__end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Minuteur intégré au dock : pilule blanche, compteur en chiffres tabulaires. */
+.sui-dock-timer {
+  position: relative;
+}
+
+.sui-dock-timer__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-dock-timer__trigger svg {
+  width: 17px;
+  height: 17px;
+}
+
+.sui-dock-timer__trigger:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sui-dock-timer__trigger.is-active {
+  background: var(--green);
+  color: var(--ink);
+}
+
+.sui-dock-timer__trigger.is-paused {
+  background: var(--yellow);
+  color: var(--ink);
+}
+
+.sui-dock-timer__trigger .cx-timer-pill__trigger-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   11 bis. SÉLECTEUR D'ESPACE (navbar et tiroir)
+   ========================================================================== */
+
+.sui-space {
+  position: relative;
+}
+
+.sui-space-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  max-width: 230px;
+  padding: 0 12px 0 5px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px var(--shell-line);
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-space-trigger:hover,
+.sui-space-trigger[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.sui-space-trigger--static {
+  cursor: default;
+  padding-right: 14px;
+}
+
+.sui-space-trigger__icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-space-trigger__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sui-space-trigger__chevron {
+  flex: 0 0 auto;
+  color: var(--shell-muted);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-space-trigger[aria-expanded="true"] .sui-space-trigger__chevron {
+  transform: rotate(180deg);
+}
+
+/* Pastille : des notifications attendent dans UN AUTRE espace. */
+.sui-space-trigger__dot {
+  position: absolute;
+  top: 6px;
+  left: 28px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--shell);
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.sui-space-menu {
+  position: absolute;
+  z-index: 70;
+  top: calc(100% + 10px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 340px;
+  padding: 10px;
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: var(--shadow-pop);
+}
+
+.sui-space-menu__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 2px 8px 6px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-space-menu__head span {
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sui-space-menu__foot {
+  margin: 6px 8px 2px;
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.sui-space-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-space-option:hover,
+.sui-space-option:focus-visible {
+  background: var(--surface);
+}
+
+.sui-space-option--active {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.sui-space-option__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-space-option__copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sui-space-option__label {
+  font-size: var(--fs-body);
+  font-weight: 800;
+}
+
+.sui-space-option__desc {
+  font-size: var(--fs-micro);
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.sui-space-option__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sui-space-option__check {
+  flex: 0 0 auto;
+  color: var(--ink);
+}
+
+.sui-space-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Rappel discret d'une rubrique qui vit dans un autre espace. */
+.sui-space-hint {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.sui-space-hint a {
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Action principale sous l'en-tête, sur mobile. */
+.sui-mobile-primary {
+  display: flex;
+  margin-top: -8px;
+}
+
+.sui-mobile-primary .sui-btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.sui-mobile-tab__dot {
+  position: absolute;
+  top: 8px;
+  right: calc(50% - 16px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+/* Recherche globale de l'en-tête : bouton icône avec rappel du raccourci. */
+.sui-head__global {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  min-width: 44px;
+  height: 44px;
+  gap: 8px;
+  padding: 0 12px 0 14px;
+  border-radius: var(--r-pill);
+  background: #eceaec;
+}
+
+.sui-head__global:hover {
+  background: #e3e0e2;
+}
+
+.sui-head__kbd {
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+@media (max-width: 1023px) {
+  .sui-space-trigger__label {
+    max-width: 120px;
+  }
+}
+
+/* Bandeau d'état (rapport du jour, rappel) : pastel, action à droite. */
+.sui-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px 12px 18px;
+  border-radius: 22px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-banner > span {
+  flex: 1 1 240px;
+}
+
+.sui-banner--done {
+  background: var(--green);
+}
+
+/* Raccourcis d'administration : tuiles compactes, icône pastel. */
+.sui-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 14px 8px 8px;
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-shortcut:hover {
+  background: #efedee;
+  transform: translateY(-1px);
+}
+
+.sui-shortcut__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+}
+
+/* ==========================================================================
+   11 ter. DIALOGUES ET FORMULAIRES SOFT UI
+   ========================================================================== */
+
+.sui-dialog-backdrop {
+  position: fixed;
+  z-index: 950;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(11, 10, 15, 0.42);
+}
+
+@supports (backdrop-filter: blur(4px)) {
+  .sui-dialog-backdrop {
+    backdrop-filter: blur(4px);
+  }
+}
+
+.sui-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  max-height: min(88vh, 860px);
+  border-radius: var(--r-kpi);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+}
+
+.sui-dialog--lg {
+  max-width: 680px;
+}
+
+.sui-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px 22px 0;
+}
+
+.sui-dialog__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+}
+
+.sui-dialog__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sui-dialog__eyebrow {
+  margin: 2px 0 4px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-dialog__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+.sui-dialog__desc {
+  margin: 6px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.sui-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px;
+}
+
+.sui-dialog__foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 22px 22px;
+}
+
+.sui-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sui-field__label {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sui-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-body);
+}
+
+textarea.sui-input {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.sui-input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+.sui-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sui-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--shell);
+}
+
+.sui-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sui-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sui-chips .sui-pill {
+  min-height: 34px;
+  padding: 0 14px;
+}
+
+.sui-form__note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--blue);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+/* Contrôle segmenté utilisé comme choix de formulaire. */
+.sui-seg--inline {
+  width: 100%;
+  margin-top: 0;
+}
+
+.sui-cal__views .sui-seg__tab {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0 14px;
+  font-size: var(--fs-small);
+  overflow: visible;
+}
+
+.sui-seg--inline .sui-seg__tab,
+.sui-seg .sui-seg__tab[aria-pressed] {
+  position: relative;
+}
+
+.sui-seg .sui-seg__tab[aria-pressed="true"],
+.sui-seg .sui-seg__tab[aria-checked="true"] {
+  color: var(--ink);
+}
+
+@media (max-width: 560px) {
+  .sui-field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sui-dialog__foot > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* ==========================================================================
+   11 quater. CALENDRIER (Mon agenda, calendrier d'équipe)
+   ========================================================================== */
+
+.sui-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sui-cal__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+@container (min-width: 980px) {
+  .sui-cal__layout {
+    grid-template-columns: 268px minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.sui-cal__side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Écran moyen : le panneau latéral se range en rangée au-dessus. */
+@container (min-width: 640px) and (max-width: 979px) {
+  .sui-cal__side {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sui-cal__upcoming {
+    grid-column: 1 / -1;
+  }
+}
+
+.sui-cal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-cal__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sui-cal__card-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 800;
+}
+
+.sui-cal__late-count {
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--pink);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+}
+
+/* Mini-calendrier */
+.sui-cal__mini-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.sui-cal__mini-title {
+  font-size: var(--fs-small);
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+.sui-cal__mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.sui-cal__mini-dow {
+  padding: 4px 0;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.sui-cal__mini-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sui-cal__mini-day:hover {
+  background: var(--surface);
+}
+
+/* Jours hors du mois : atténués mais lisibles (contraste AA ≈ 4,6:1). */
+.sui-cal__mini-day.is-outside {
+  color: #767176;
+}
+
+.sui-cal__mini-day.is-today {
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+
+.sui-cal__mini-day.is-selected {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-cal__mini-dot {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--fill-lilac);
+}
+
+.sui-cal__mini-day.is-selected .sui-cal__mini-dot {
+  background: #ffffff;
+}
+
+/* Calques */
+.sui-cal__layers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-cal__layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sui-cal__layer-toggle:hover {
+  background: var(--surface);
+}
+
+.sui-cal__layer-toggle[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.sui-cal__swatch {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg);
+  box-shadow: inset 0 0 0 2px var(--tone-fill);
+}
+
+.sui-cal__layer-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sui-cal__layer-label {
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+.sui-cal__layer-hint {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+/* À venir */
+.sui-cal__upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-cal__upcoming-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sui-cal__upcoming-item:hover {
+  background: var(--surface);
+}
+
+.sui-cal__dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-fill);
+}
+
+.sui-cal__upcoming-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sui-cal__upcoming-title {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sui-cal__upcoming-when {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  text-transform: capitalize;
+}
+
+/* Zone principale */
+.sui-cal__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-cal__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+}
+
+.sui-cal__nav,
+.sui-cal__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sui-cal__title {
+  margin: 0 0 0 6px;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  text-transform: capitalize;
+}
+
+.sui-cal__views {
+  margin: 0;
+}
+
+.sui-cal__grid {
+  height: 640px;
+  min-width: 0;
+}
+
+.sui-cal__grid--agenda {
+  height: auto;
+  min-height: 320px;
+}
+
+.sui-cal__hint {
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+/* react-big-calendar, rhabillé : grilles fines, pastels, texte encre. */
+.sui-cal .rbc-calendar {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.sui-cal .rbc-month-view,
+.sui-cal .rbc-time-view,
+.sui-cal .rbc-agenda-view {
+  overflow: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.sui-cal .rbc-header {
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-cal .rbc-header + .rbc-header,
+.sui-cal .rbc-day-bg + .rbc-day-bg,
+.sui-cal .rbc-month-row + .rbc-month-row,
+.sui-cal .rbc-time-content,
+.sui-cal .rbc-time-header-content,
+.sui-cal .rbc-timeslot-group,
+.sui-cal .rbc-time-content > * + * > *,
+.sui-cal .rbc-agenda-view table.rbc-agenda-table tbody > tr > td + td,
+.sui-cal .rbc-agenda-view table.rbc-agenda-table tbody > tr + tr {
+  border-color: var(--line-soft);
+}
+
+.sui-cal .rbc-day-slot .rbc-time-slot {
+  border-top-color: rgba(17, 17, 17, 0.035);
+}
+
+.sui-cal .rbc-date-cell {
+  padding: 6px 8px 2px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sui-cal .rbc-date-cell.rbc-now {
+  font-weight: 800;
+}
+
+.sui-cal .rbc-date-cell.rbc-now > * {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-cal .rbc-off-range {
+  color: #767176;
+}
+
+.sui-cal .rbc-off-range-bg {
+  background: #faf9fa;
+}
+
+.sui-cal .sui-cal__weekend {
+  background: #fbfafb;
+}
+
+.sui-cal .rbc-today {
+  background: #f3f8fd;
+}
+
+.sui-cal .rbc-time-gutter,
+.sui-cal .rbc-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sui-cal .rbc-current-time-indicator {
+  height: 2px;
+  background: #e0566f;
+}
+
+.sui-cal .rbc-show-more {
+  padding: 2px 6px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sui-cal .rbc-event,
+.sui-cal .rbc-day-slot .rbc-background-event {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tone-bg);
+  box-shadow: inset 3px 0 0 var(--tone-fill);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sui-cal .rbc-event.rbc-selected {
+  box-shadow: inset 3px 0 0 var(--tone-fill), 0 0 0 2px var(--ink);
+}
+
+.sui-cal .rbc-event:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.sui-cal .rbc-event.is-overdue {
+  background: var(--pink);
+}
+
+.sui-cal .rbc-event.is-closed {
+  background: #efedee;
+  box-shadow: inset 3px 0 0 var(--track-strong);
+  color: var(--muted);
+}
+
+.sui-cal .rbc-event.is-closed .sui-cal__chip-text {
+  text-decoration: line-through;
+}
+
+.sui-cal .rbc-event.is-editable {
+  cursor: grab;
+}
+
+.sui-cal .rbc-day-slot .rbc-event {
+  border: 0;
+}
+
+.sui-cal .rbc-event-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sui-cal__chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.sui-cal__chip svg {
+  flex: 0 0 auto;
+}
+
+.sui-cal__chip-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Agenda : liste lisible, une ligne par élément. */
+.sui-cal .rbc-agenda-view table.rbc-agenda-table {
+  border: 0;
+}
+
+.sui-cal .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-cal .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  padding: 10px 12px;
+  background: transparent !important;
+  color: var(--ink);
+  vertical-align: middle;
+}
+
+.sui-cal .rbc-agenda-date-cell,
+.sui-cal .rbc-agenda-time-cell {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.sui-cal .rbc-agenda-event-cell {
+  cursor: pointer;
+}
+
+.sui-cal__agenda-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.sui-cal__agenda-item strong {
+  font-size: 13px;
+}
+
+.sui-cal__agenda-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sui-cal .rbc-addons-dnd .rbc-addons-dnd-resizable {
+  height: 100%;
+}
+
+/* Détails d'un élément */
+.sui-cal__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.sui-cal__details > div {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.sui-cal__details > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.sui-cal__details dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-cal__details dd {
+  margin: 4px 0 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--ink);
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.sui-cal__description {
+  margin: 14px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+/* Choix de couleur des calques */
+.sui-cal__tone-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-cal__tones {
+  display: flex;
+  gap: 6px;
+}
+
+.sui-cal__tone {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--tone-bg);
+  box-shadow: inset 0 0 0 2px var(--tone-fill);
+  cursor: pointer;
+}
+
+.sui-cal__tone[aria-checked="true"] {
+  box-shadow: inset 0 0 0 2px var(--tone-fill), 0 0 0 2px #ffffff, 0 0 0 4px var(--ink);
+}
+
+@container (max-width: 639px) {
+  .sui-cal__main {
+    padding: 12px;
+  }
+
+  .sui-cal__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sui-cal__title {
+    flex: 1 0 100%;
+    order: -1;
+    margin: 0;
+  }
+
+  .sui-cal__views {
+    flex: 1 1 auto;
+  }
+
+  .sui-cal__grid {
+    height: 520px;
+  }
+
+  .sui-cal__hint {
+    display: none;
+  }
 }
 
 /* ==========================================================================
@@ -2148,16 +3654,6 @@
     flex-basis: 300px;
     width: 300px;
   }
-
-  /* La recherche globale devient icône seule (son `aria-label` la nomme) :
-     elle ne vole plus la place du champ de recherche locale, qui était
-     tronqué dès que l'en-tête affichait trois contrôles. */
-  .sui-global-search {
-    gap: 0;
-    min-width: 44px;
-    padding: 0 13px;
-    font-size: 0;
-  }
 }
 
 /* < 1024 px : le panneau droit devient un tiroir, le rail disparaît. */
@@ -2236,7 +3732,7 @@
   }
 
   .sui-dockwrap {
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   }
 
   /* Le tiroir occupe toute la coque : navbar masquée, barre d'icônes en bas. */
@@ -2253,8 +3749,7 @@
 
   .sui-dock {
     gap: 6px;
-    padding: 10px 12px;
-    border-radius: 22px;
+    padding: 6px;
   }
 
   .sui-dock__btn {
@@ -2262,13 +3757,28 @@
     height: 40px;
   }
 
-  .sui-dock__fillet {
+  .sui-dock__sep {
+    margin: 0 2px;
+  }
+
+  /* Sur mobile, le minuteur se réduit à son icône (son libellé reste dans
+     l'`aria-label`), sauf quand il compte : le temps reste lisible. */
+  .sui-dock-timer__trigger:not(.is-active) span {
     display: none;
   }
 
+  .sui-dock-timer__trigger {
+    width: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sui-dock-timer__trigger.is-active {
+    width: auto;
+    padding: 0 12px;
+  }
+
   .sui-card__corner {
-    top: -8px;
-    right: 14px;
     width: 36px;
     height: 36px;
   }
@@ -2590,27 +4100,6 @@
   font-weight: 700;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-}
-
-/* Rangée de pilules d'action (démarrer le minuteur sur une tâche). */
-.sui-pills-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sui-pills-list .sui-pill {
-  max-width: 100%;
-}
-
-.sui-pills-list .sui-pill {
-  max-width: 260px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 /* ==========================================================================

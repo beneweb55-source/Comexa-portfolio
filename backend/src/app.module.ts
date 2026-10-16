@@ -16,6 +16,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { ContentModule } from './modules/content/content.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { GoalsModule } from './modules/goals/goals.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
@@ -35,6 +36,7 @@ import { TimerModule } from './modules/timer/timer.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DailyReportsModule } from './modules/daily-reports/daily-reports.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
+import { SpacesModule } from './modules/spaces/spaces.module.js';
 import { UserModule } from './modules/users/user.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -234,6 +236,7 @@ const isProduction = process.env.NODE_ENV === 'production';
      * recoit par injection, pas par position.
      */
     IntegrationsModule,
+    SpacesModule,
 
     /**
      * CRM — pipeline commercial et dossiers clients.
@@ -281,6 +284,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     TimeEntriesModule,
     CalendarModule,
     TimerModule,
+    GoalsModule,
     DailyReportsModule,
 
     /**

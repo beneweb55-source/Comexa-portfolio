@@ -6,13 +6,23 @@ import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
-import { EVERY_CREATOR, creatorNameOf, taskCreatorsPath, taskListPath, tasksPayloadIsOutdated } from "@/lib/tasks";
+import {
+  EVERY_CREATOR,
+  canWriteProjectTask,
+  creatorNameOf,
+  taskAssigneesPath,
+  taskCreatorsPath,
+  taskListPath,
+  tasksPayloadIsOutdated,
+} from "@/lib/tasks";
+import { isClosedStatus, nextStatuses } from "@/lib/task-status.mjs";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
 import { UserAvatar } from "@/components/workspace/UserAvatar";
+import { AssigneeChip, AssigneeSelect } from "@/components/tasks/AssigneeControls";
+import TaskTimerButton from "@/components/timer/TaskTimerButton";
 
-const TASK_STATUSES = ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE", "CANCELLED"];
 const PROJECT_STATUSES = ["DRAFT", "PLANNED", "IN_PROGRESS", "ON_HOLD", "IN_REVIEW", "COMPLETED", "CANCELLED", "ARCHIVED"];
 
 export default function ProjetEquipePage({ params }) {
@@ -20,6 +30,10 @@ export default function ProjetEquipePage({ params }) {
   const { user, download } = useAuth();
   const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((permission) => can(user, permission));
   const canWriteTasks = ["task:write:any", "task:write:own"].some((permission) => can(user, permission));
+  const canAssign = can(user, "task:assign:any");
+  // Même règle que le serveur : `any`, ou `own` sur une tâche qui m'est assignée.
+  const canWriteTask = (task) =>
+    canWriteProjectTask(task, { userId: user?.id, writeAny: can(user, "task:write:any"), writeOwn: can(user, "task:write:own") });
   const canReadMilestones = can(user, "milestone:read:any");
   const canWriteMilestones = can(user, "milestone:write:any");
   const canReadDocuments = ["document:read:any", "document:read:own", "document:read:client"].some((permission) => can(user, permission));
@@ -36,12 +50,14 @@ export default function ProjetEquipePage({ params }) {
   // `AND` avec ce projet : le filtre ne peut pas faire sortir la liste d'ici.
   const tasks = useListing(canReadTasks ? taskListPath(id, { page: taskPage, perPage: 100, reporterId: taskCreatorId }) : null);
   const taskCreators = useListing(canReadTasks ? taskCreatorsPath(id) : null);
+  const assignees = useListing(canAssign ? taskAssigneesPath(id) : null);
   const documents = useListing(canReadDocuments ? `/documents?projectId=${id}&page=${documentPage}&perPage=100` : null);
 
   const reloadAll = async () => {
     const reloads = [project.reload()];
     if (canReadMilestones) reloads.push(milestones.reload());
     if (canReadTasks) reloads.push(tasks.reload(), taskCreators.reload());
+    if (canAssign) reloads.push(assignees.reload());
     await Promise.all(reloads);
   };
   const action = useAction(reloadAll);
@@ -50,6 +66,7 @@ export default function ProjetEquipePage({ params }) {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDue, setTaskDue] = useState("");
   const [taskVisible, setTaskVisible] = useState(false);
+  const [taskAssignee, setTaskAssignee] = useState("");
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDue, setMilestoneDue] = useState("");
   const [taskFormError, setTaskFormError] = useState(null);
@@ -74,13 +91,22 @@ export default function ProjetEquipePage({ params }) {
     const result = await action.run(
       "task-create",
       `/projects/${id}/tasks`,
-      { method: "POST", body: { title: taskTitle.trim(), dueDate: taskDue || null, isClientVisible: taskVisible } },
-      "Tâche créée.",
+      {
+        method: "POST",
+        body: {
+          title: taskTitle.trim(),
+          dueDate: taskDue || null,
+          isClientVisible: taskVisible,
+          ...(canAssign && taskAssignee ? { assigneeId: taskAssignee } : {}),
+        },
+      },
+      taskAssignee ? "Tâche créée et confiée : la personne la retrouve dans ses tâches." : "Tâche créée.",
     );
     if (result) {
       setTaskTitle("");
       setTaskDue("");
       setTaskVisible(false);
+      setTaskAssignee("");
       // Le créateur est le porteur : la tâche qui vient de naître doit être
       // visible, donc on revient sur « Tous » plutôt que de la cacher derrière un
       // filtre resté sur quelqu'un d'autre.
@@ -243,47 +269,86 @@ export default function ProjetEquipePage({ params }) {
         <ul className="flex flex-col gap-2">
           {(tasks.items ?? []).map((task) => (
             <li key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 basis-[420px]">
                 <p className="text-[15px] text-[var(--comexa-ink)]">{task.title}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-[var(--comexa-ink-muted)]">
                   <span>Projet {task.project?.name ?? current?.name ?? "—"}</span>
                   <span>échéance {formatDate(task.dueDate)}</span>
                   {task.isClientVisible ? <span>visible par le client</span> : null}
-                  <span className="inline-flex items-center gap-2 text-[var(--comexa-ink-soft)]">
+                  <span className="inline-flex items-center gap-2 text-[var(--comexa-ink-soft)]" title="Créée par">
                     <UserAvatar profile={task.reporter} size={24} />
-                    {creatorNameOf(task.reporter)}
+                    Créée par {creatorNameOf(task.reporter)}
                   </span>
                 </p>
+                <div className="mt-2 text-[13px]">
+                  {canAssign ? (
+                    <AssigneeSelect
+                      variant="chip"
+                      task={task}
+                      people={assignees.items}
+                      busy={Boolean(action.busy)}
+                      onAssign={(target, assigneeId) =>
+                        action.run(
+                          `assign:${target.id}`,
+                          `/tasks/${target.id}/assign`,
+                          { method: "PATCH", body: { assigneeId } },
+                          assigneeId ? "Tâche confiée : la personne la retrouve dans ses tâches et a été prévenue." : "Tâche désassignée.",
+                        )
+                      }
+                    />
+                  ) : (
+                    <AssigneeChip profile={task.assignee} prefix="Assignée à" />
+                  )}
+                </div>
               </div>
-              {canWriteTasks ? (
-                <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
-                  <span className="sr-only">Statut de la tâche {task.title}</span>
-                  <select
-                    value={task.status}
-                    disabled={Boolean(action.busy)}
-                    onChange={(event) =>
-                      action.run(`task:${task.id}`, `/tasks/${task.id}/status`, { method: "PATCH", body: { status: event.target.value } }, "Statut de la tâche mis à jour.")
-                    }
-                    className={`${inputClass} h-9 w-auto text-[13px]`}
-                  >
-                    {TASK_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {TASK_STATUS[status]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : <Badge>{TASK_STATUS[task.status] ?? task.status}</Badge>}
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {canWriteTask(task) && !isClosedStatus(task.status) ? <TaskTimerButton task={task} size="sm" /> : null}
+                {canWriteTask(task) ? (
+                  <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
+                    <span className="sr-only">Statut de la tâche {task.title}</span>
+                    <select
+                      value={task.status}
+                      disabled={Boolean(action.busy)}
+                      onChange={(event) =>
+                        action.run(`task:${task.id}`, `/tasks/${task.id}/status`, { method: "PATCH", body: { status: event.target.value } }, "Statut de la tâche mis à jour.")
+                      }
+                      className={`${inputClass} h-9 w-auto text-[13px]`}
+                    >
+                      <option value={task.status}>{TASK_STATUS[task.status] ?? task.status}</option>
+                      {nextStatuses({ ...task, isPersonal: false }).map((status) => (
+                        <option key={status} value={status}>
+                          {TASK_STATUS[status]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : <Badge>{TASK_STATUS[task.status] ?? task.status}</Badge>}
+              </div>
             </li>
           ))}
         </ul>
         {canReadTasks ? <Pagination meta={tasks.meta} onPageChange={setTaskPage} loading={tasks.loading} /> : null}
         {canWriteTasks ? (
-          <form onSubmit={createTask} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+          <form onSubmit={createTask} className={`mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:items-end ${canAssign ? "md:grid-cols-[1fr_200px_170px_auto]" : "md:grid-cols-[1fr_180px_auto]"}`}>
             <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
               Nouvelle tâche
               <input value={taskTitle} onChange={(event) => setTaskTitle(event.target.value)} className={inputClass} />
             </label>
+            {canAssign ? (
+              <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
+                Confier à
+                <select value={taskAssignee} onChange={(event) => setTaskAssignee(event.target.value)} className={inputClass}>
+                  <option value="">Personne pour l’instant</option>
+                  {(assignees.items ?? []).map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {`${person.firstName} ${person.lastName}`.trim()}
+                      {person.isMe ? " (moi)" : ""}
+                      {person.isMember ? "" : " — hors équipe"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
               Échéance
               <input type="date" value={taskDue} onChange={(event) => setTaskDue(event.target.value)} className={inputClass} />

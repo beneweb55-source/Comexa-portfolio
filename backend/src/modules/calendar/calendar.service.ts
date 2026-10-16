@@ -246,6 +246,9 @@ export class CalendarService {
     }
     assertChronology(startsAt, endsAt);
 
+    const visibility = dto.visibility ?? (policy.space === 'team' ? 'SHARED' : 'PRIVATE');
+    assertVisibilityFitsSpace(policy, visibility);
+
     const links = await this.resolveLinks(policy, dto.taskId, dto.projectId);
 
     const created = await this.prisma.calendarEvent.create({
@@ -254,7 +257,7 @@ export class CalendarService {
         title: dto.title,
         description: dto.description ?? null,
         kind: dto.kind ?? 'EVENT',
-        visibility: dto.visibility ?? 'PRIVATE',
+        visibility,
         startsAt,
         endsAt,
         allDay: dto.allDay ?? false,
@@ -308,6 +311,7 @@ export class CalendarService {
     // Fermer un evenement participant sur PRIVATE exige d'abord de retirer les
     // invites : la regle « PRIVATE = personne d'autre » vaut aussi dans le temps.
     const nextVisibility = dto.visibility ?? (before.visibility as CalendarVisibility);
+    assertVisibilityFitsSpace(policy, nextVisibility);
     if (nextVisibility === 'PRIVATE' && before.participants.length > 0) {
       throw AppException.unprocessable(
         'CALENDAR_PRIVATE_WITH_PARTICIPANTS',
@@ -459,7 +463,9 @@ export class CalendarService {
     // modifiant un identifiant »), et elle prime sur la moderation : le
     // `calendar:manage:any` s'exerce sur les evenements PARTAGES seuls.
     const isOwner = event.ownerId === policy.userId;
-    const visible = event.visibility === 'SHARED' || isOwner;
+    // Espace equipe : le calendrier COMMUN. Un evenement prive, meme le sien, n'y
+    // existe pas — il se consulte et se modifie depuis l'espace personnel.
+    const visible = event.visibility === 'SHARED' || (isOwner && policy.space !== 'team');
     if (!visible) {
       throw AppException.notFound('CALENDAR_EVENT_NOT_FOUND', "Cet événement n'existe pas.");
     }
@@ -549,5 +555,19 @@ export class CalendarService {
       createdAt: event.createdAt.toISOString(),
       updatedAt: event.updatedAt.toISOString(),
     };
+  }
+}
+
+/**
+ * Espace equipe = calendrier PARTAGE : on n'y cree ni n'y rend prive un
+ * evenement (il disparaitrait aussitot de la vue commune). Les evenements prives
+ * se gerent dans l'espace personnel ; hors espace annonce, rien ne change.
+ */
+function assertVisibilityFitsSpace(policy: AccessPolicy, visibility: string): void {
+  if (policy.space === 'team' && visibility === 'PRIVATE') {
+    throw AppException.unprocessable(
+      'CALENDAR_PRIVATE_IN_TEAM_SPACE',
+      'Le calendrier d’équipe ne contient que des événements partagés. Créez les événements privés depuis votre espace personnel.',
+    );
   }
 }

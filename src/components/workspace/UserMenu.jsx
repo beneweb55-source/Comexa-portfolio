@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Icon from "@/components/dashboard/icons";
-import { can, hasTeamAccess } from "@/lib/access";
+import { can, canOpenSpace, hasTeamAccess, homeFor } from "@/lib/access";
 import { useAuth } from "@/lib/session";
+import { SPACES, spaceForPath } from "@/lib/spaces";
 
 function initialsOf(user) {
   const first = user?.firstName?.trim()?.[0] ?? "";
@@ -28,7 +29,10 @@ function nameOf(user) {
  */
 export default function UserMenu({ variant = "workspace", compact = false, redirectTo }) {
   const soft = variant === "softui";
-  const { status, user, logout } = useAuth();
+  // Dans un espace, `user` porte les droits réduits de l'espace : le menu de
+  // compte raisonne sur le compte complet (`baseUser`).
+  const { status, user: scopedUser, baseUser, logout, space } = useAuth();
+  const user = baseUser ?? scopedUser;
   const router = useRouter();
   const menuId = useId();
   const rootRef = useRef(null);
@@ -69,9 +73,11 @@ export default function UserMenu({ variant = "workspace", compact = false, redir
 
   const team = hasTeamAccess(user);
   const name = nameOf(user);
-  const accountHref = team ? "/espace-equipe/compte" : "/espace-client/compte";
-  const workspaceHref = team ? "/espace-equipe/tableau-de-bord" : "/espace-client";
-  const canOpenSettings = team && can(user, "setting:read:any");
+  const workspaceHref = homeFor(user);
+  const homeSpace = space ?? spaceForPath(workspaceHref);
+  const accountHref = team && SPACES[homeSpace] ? `${SPACES[homeSpace].prefix}/compte` : "/espace-client/compte";
+  const workspaceLabel = team ? (SPACES[spaceForPath(workspaceHref)]?.label ?? "Mon espace de travail") : "Espace client";
+  const canOpenSettings = team && canOpenSpace(user, "comexa") && can(user, "setting:read:any");
 
   async function signOut() {
     setOpen(false);
@@ -115,15 +121,17 @@ export default function UserMenu({ variant = "workspace", compact = false, redir
                 Mon compte
               </Link>
               {canOpenSettings ? (
-                <Link href="/espace-equipe/parametres" onClick={() => setOpen(false)}>
+                <Link href="/espace-comexa/parametres" onClick={() => setOpen(false)}>
                   <Icon name="settings" />
-                  Paramètres
+                  Paramètres de l’organisation
                 </Link>
               ) : null}
-              <Link href={workspaceHref} onClick={() => setOpen(false)}>
-                <Icon name={team ? "home" : "briefcase"} />
-                {team ? "Espace équipe" : "Espace client"}
-              </Link>
+              {variant !== "softui" ? (
+                <Link href={workspaceHref} onClick={() => setOpen(false)}>
+                  <Icon name={team ? "home" : "briefcase"} />
+                  {workspaceLabel}
+                </Link>
+              ) : null}
             </div>
             <button type="button" className="sui-popover__signout" onClick={signOut}>
               <Icon name="logout" />
@@ -169,14 +177,14 @@ export default function UserMenu({ variant = "workspace", compact = false, redir
               Mon compte
             </Link>
             {canOpenSettings ? (
-              <Link href="/espace-equipe/parametres" onClick={() => setOpen(false)}>
+              <Link href="/espace-comexa/parametres" onClick={() => setOpen(false)}>
                 <Icon name="settings" />
-                Paramètres
+                Paramètres de l’organisation
               </Link>
             ) : null}
             <Link href={workspaceHref} onClick={() => setOpen(false)}>
               <Icon name={team ? "home" : "briefcase"} />
-              {team ? "Espace équipe" : "Espace client"}
+              {workspaceLabel}
             </Link>
           </div>
           <button type="button" className="cx-user-menu__signout" onClick={signOut}>

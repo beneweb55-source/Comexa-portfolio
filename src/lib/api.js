@@ -20,10 +20,19 @@ export class ApiError extends Error {
 
 const NETWORK_MESSAGE = "Le serveur est injoignable pour le moment. Réessayez dans un instant.";
 
-export async function apiFetch(path, { method = "GET", body, token, signal } = {}) {
+/** En-tête de l'espace de travail actif (voir `lib/spaces.js`). */
+const SPACE_HEADER = "X-Comexa-Space";
+
+/**
+ * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
+ * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
+ * requête garde les droits du rôle (espace client, site public, connexion).
+ */
+export async function apiFetch(path, { method = "GET", body, token, signal, space } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
+  if (space) headers[SPACE_HEADER] = space;
 
   let response;
   try {
@@ -64,9 +73,9 @@ export async function apiFetch(path, { method = "GET", body, token, signal } = {
 }
 
 /** Telecharge un fichier protege (le jeton doit etre dans l'en-tete). */
-export async function downloadFile(path, { token, filename }) {
+export async function downloadFile(path, { token, filename, space }) {
   const response = await fetch(`/api${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
     credentials: "same-origin",
     cache: "no-store",
   });
@@ -96,6 +105,7 @@ const FRIENDLY = {
   TOKEN_EXPIRED: "Ce lien a expiré. Demandez-en un nouveau.",
   TOKEN_INVALID: "Ce lien n'est plus valide. Demandez-en un nouveau.",
   RATE_LIMITED: "Trop de demandes. Patientez une minute avant de réessayer.",
+  SPACE_FORBIDDEN: "Cet espace de travail ne vous est pas accessible.",
 };
 
 export function messageOf(error) {

@@ -131,4 +131,34 @@
   /* Gabarit public */
   --comexa-container: 1240px;
   --comexa-gutter: clamp(18px, 4vw, 40px);
+  --comexa-margin-mobile: 20px;
+  --comexa-margin-desktop: 40px;
+
+  /*
+   * Jetons utilisés par le site public (comexa.public.css et ses vues) et par
+   * la console IA (workspace-shell.css), mais qui manquaient dans cette v2. Une
+   * variable absente rend la déclaration invalide : le navigateur l'ignore.
+   * Conséquences constatées : menu mobile recouvert par la page (z-index
+   * « auto »), contenu collé aux bords (marges à 0), pied de page et carte
+   * finale en texte blanc sur fond clair (fond « ink » absent), police
+   * officielle jamais appliquée. Ils s'appuient sur l'échelle ci-dessus.
+   */
+  --comexa-font: var(--comexa-font-sans);
+  --comexa-accent-text: var(--comexa-blue-700);
+  --comexa-accent-sky: var(--comexa-blue-400);
+  --comexa-ink-inverse: var(--comexa-white);
+  --comexa-surface-ink: var(--comexa-blue-900);
+  --comexa-border-control: var(--comexa-border-strong);
+  --comexa-error-soft: var(--comexa-error-bg);
+  --comexa-shadow-hard-sm: var(--comexa-shadow-sm);
+  --comexa-shadow-hard: var(--comexa-shadow-lg);
+  --comexa-shadow-hard-lg: var(--comexa-shadow-xl);
+  --comexa-glow-sky: radial-gradient(70% 90% at 100% 0%, rgba(79, 176, 240, 0.3), transparent 70%);
+  --comexa-duration: var(--comexa-duration-normal);
+  --comexa-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Plans d'empilement : l'en-tête public passe au-dessus du contenu de la page ;
+     dans l'en-tête, le voile du tiroir mobile couvre tout sauf la barre. */
+  --comexa-z-header: 40;
+  --comexa-z-drawer: 50;
 }

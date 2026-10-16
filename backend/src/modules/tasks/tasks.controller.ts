@@ -86,6 +86,20 @@ export class TasksController {
     return this.tasks.listCreators(projectId, new AccessPolicy(user));
   }
 
+  /**
+   * Candidats a l'assignation dans ce projet : membres actifs d'abord, puis le
+   * reste de l'equipe de production. Reserve a `task:assign:any`.
+   */
+  @Get('projects/:projectId/tasks/assignees')
+  @RequirePermissions('task:assign:any')
+  @ApiOperation({ summary: "Personnes a qui l'on peut confier une tache de ce projet." })
+  async listAssignees(
+    @Param('projectId') projectId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.tasks.listAssignees(projectId, new AccessPolicy(user));
+  }
+
   @Post('projects/:projectId/tasks')
   @RequireAnyPermission('task:write:any', 'task:write:own')
   @UseInterceptors(IdempotencyInterceptor)

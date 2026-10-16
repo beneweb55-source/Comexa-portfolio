@@ -531,6 +531,53 @@ jamais acces a un autre dossier**. Un client qui appelle `/clients/<autre-id>`
 recoit un 404 — pas la donnee, et pas non plus un 403 qui confirmerait que le
 dossier existe.
 
+### Les espaces de travail (`X-Comexa-Space`)
+
+L'interface d'equipe est decoupee en trois espaces : **Espace personnel**
+(`personal`), **Espace equipe** (`team`) et **Comexa Space** (`comexa`). Le
+frontend annonce l'espace actif dans l'en-tete `X-Comexa-Space` ; le serveur
+recalcule alors les droits du porteur **pour cet espace**, avant
+`PermissionsGuard` (`JwtAuthGuard.applySpace`, regles dans
+`common/spaces/space-policy.ts`). Les routes et les services voient donc les
+memes droits, et les `where` Prisma restent la seule source du perimetre.
+
+Regle d'or : **un espace ne fait que retirer des droits**, jamais en ajouter.
+
+| Espace | Droits effectifs |
+|---|---|
+| `personal` | les portees personnelles (`*:own`, `task:*:personal`, `task:read:assigned`, agenda propre, temps propre, notifications) ; `task:read:any` devient `task:read:assigned`, `time:read:any` devient `time:read:own`, etc. |
+| `team` | les droits du role **moins** l'administration de l'organisation (`COMEXA_ONLY` : comptes, roles, audit, integrations, parametres, contenu du site, `telegram:link:any`) **moins** les taches personnelles et l'agenda prive (`task:*:personal`, `calendar:read:own`) |
+| `comexa` | `COMEXA_ONLY` + les lectures utiles a l'administration (comptes, roles, parametres, contenu) |
+
+Acces (`GET /me/spaces`) : ADMIN, COMMUNICATION_MANAGER et PROJECT_MANAGER
+entrent dans les trois espaces ; DEVELOPER, DESIGNER et SALES dans
+`personal` et `team` ; CLIENT dans aucun (il garde l'espace client, sans
+en-tete).
+
+| Cas | Reponse |
+|---|---|
+| En-tete absent, ou jeton d'integration | droits complets du role / du jeton (compatibilite : espace client, n8n, anciens clients) |
+| Valeur inconnue | **400** `SPACE_INVALID` (jamais de repli silencieux sur tous les droits) |
+| Espace non accessible au porteur | **403** `SPACE_FORBIDDEN` |
+| Creation d'un evenement `PRIVATE` depuis l'espace equipe | **422** `CALENDAR_PRIVATE_IN_TEAM_SPACE` |
+
+Routes dediees :
+
+- `GET /me/spaces` (`@IgnoreSpace()`) : `{ spaces: [{ id, label, description, permissions }], defaultSpace }`
+  — `permissions` = droits effectifs que l'API appliquera dans chaque espace ;
+- `GET /notifications/summary` (`@IgnoreSpace()`) : `{ unread, unreadBySpace: { personal, team, comexa } }`
+  pour les pastilles du selecteur d'espace.
+
+Les notifications sont rattachees a un espace par leur type
+(`NOTIFICATION_TYPES_BY_SPACE`) : `personal` = `TASK_ASSIGNED`,
+`TASK_DUE_SOON` ; `comexa` = `SYSTEM` ; tout le reste (projets, commercial,
+facturation, messages) = `team`. `GET /notifications` et ses compteurs filtrent
+selon l'espace annonce : une cloche ne melange jamais deux espaces.
+
+Aucune donnee n'a ete migree ni dupliquee : l'espace est une **vue** sur les
+donnees existantes (une tache personnelle est une tache `isPersonal`, un
+evenement prive un evenement `PRIVATE`, etc.).
+
 ### L'ordre des gardes
 
 `ThrottlerGuard` → `JwtAuthGuard` → `PermissionsGuard`, tous globaux.
@@ -1395,6 +1442,7 @@ Trois colonnes, trois lectures :
 |---|---|---|
 | `GET /projects/:projectId/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
 | `GET /projects/:projectId/tasks/creators` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
+| `GET /projects/:projectId/tasks/assignees` | `task:assign:any` | 200 |
 | `POST /projects/:projectId/tasks` | `task:write:any` **ou** `task:write:own` | 201 |
 | `GET /me/tasks` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
 | `GET /tasks/:id` | `task:read:any` **ou** `task:read:assigned` **ou** `task:read:own` | 200 |
@@ -1577,3 +1625,39 @@ sont en service et **doivent figurer dans tout contrôle d'accès** :
 | `GET /api/health` | publique | Sondage réel (`SELECT 1`) **et bloc `contract`** (poignée de main de version). |
 
 Chaque réponse porte l'en-tête `X-Comexa-Contract` : voir `src/health/contract.ts`.
+
+
+## Assignation, minuteur v2 et objectifs personnels (contrat `2026-10-16.1`)
+
+| Route | Permission(s) | Notes |
+| --- | --- | --- |
+| `GET /projects/:projectId/tasks/assignees` | `task:assign:any` | Personnes à qui confier une tâche du projet : membres actifs d'abord (`isMember`, `projectRole`), puis le reste de l'équipe de production. |
+| `GET /projects/:projectId/tasks?unassignedOnly=true` | comme la liste | Le travail encore à distribuer (ignoré si `assigneeId` est fourni). |
+| `GET /timer/tasks?scope=mine\|team&search=` | `time:write:own` **ou** `time:write:any` | Tâches CHRONOMÉTRABLES : même filtre d'écriture que `POST /timer/start`, tâches ouvertes seulement. `scope=team` : les autres tâches de projet (y compris non assignées) pour `task:write:any`. |
+| `GET /timer/recent-tasks` | idem | Dernières tâches chronométrées ou saisies (30 jours), encore chronométrables. |
+| `GET /timer/summary` | idem | `{ day, todayMinutes, weekMinutes, entries }` du porteur (jours de la feuille de temps, UTC). Espace équipe : sans le temps des tâches personnelles. |
+| `PATCH /timer` | idem | Session en cours : `taskId` (absent = inchangé, `null` = sans tâche) et/ou `note`. Le temps écoulé est conservé ; un changement de tâche est audité (`TIMER_UPDATED`). |
+| `POST /timer/stop` | idem | Corps facultatif `{ description }` : l'emporte sur la note, elle-même prioritaire sur « Minuteur : <titre> ». |
+| `POST /timer/discard` | idem | Clôt la session SANS saisie de temps (`TIMER_DISCARDED`, durée abandonnée tracée). 409 si rien n'est actif. |
+| `GET /me/goals?status=` | `task:read:personal` | Mes objectifs (par défaut : actifs et atteints), avec `progress` et les tâches visibles. |
+| `GET /me/goals/:id` | `task:read:personal` | 404 pour l'objectif d'un autre. |
+| `POST /me/goals` `PATCH /me/goals/:id` | `task:write:personal` | `title`, `description`, `targetDate`, `color` (`blue`, `green`, `yellow`, `lilac`, `pink`), `status` (`ACTIVE`, `ACHIEVED`, `ARCHIVED`). |
+| `DELETE /me/goals/:id` | `task:write:personal` | Supprime l'objectif ; ses tâches sont conservées. |
+| `PUT /me/goals/:id/tasks/:taskId` `DELETE /me/goals/:id/tasks/:taskId` | `task:write:personal` | Rattacher / retirer une de MES tâches (personnelle, ou de projet assignée au porteur). Une tâche sert au plus un objectif par personne. |
+
+**Règles.**
+
+- *Assignation* : l'assigné doit pouvoir **voir et faire avancer** la tâche — compte
+  actif, humain, non client, dont les rôles donnent une lecture de tâche de projet
+  (`task:read:any|assigned|own`) **et** une écriture (`task:write:any|own`). Sinon
+  422 `TASK_ASSIGNEE_CANNOT_WORK_TASKS` (création comme réassignation). La
+  notification `TASK_ASSIGNED` porte le lien `/taches/:id`, que le frontend ouvre
+  sur la tâche (`/espace-personnel/taches?tache=:id`).
+- *Statuts* : une tâche **personnelle** change librement de statut (case à cocher :
+  DONE → TODO) ; une tâche **de projet** garde la machine à états stricte.
+- *Objectifs* : privés (aucun scope `any` ne les ouvre), absents de l'espace équipe
+  (les deux permissions y sont retirées). La liaison vit dans `goal_tasks` : la tâche
+  de projet n'est pas modifiée. L'avancement se déduit des tâches encore « à moi »
+  (une tâche réassignée sort de l'objectif de l'ancien assigné, sans rien effacer) ;
+  une tâche annulée ne compte ni pour ni contre.
+- `POST /me/tasks` accepte `goalId` (objectif du porteur, non archivé).

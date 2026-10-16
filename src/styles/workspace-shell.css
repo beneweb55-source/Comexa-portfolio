@@ -326,7 +326,7 @@
 .cx-dashboard__welcome-copy { min-width: 0; }
 .cx-dashboard__date { margin: 0; color: #0f65a2; font-size: 10px; font-weight: 700; letter-spacing: 0.11em; line-height: 1.4; text-transform: uppercase; }
 .cx-dashboard__welcome-title { margin: 3px 0 0; color: #152f4d; font-size: clamp(22px, 2.3vw, 28px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.2; }
-.cx-dashboard__welcome-subtitle { margin: 4px 0 0; color: #647991; font-size: 13px; line-height: 1.4; }
+.cx-dashboard__welcome-subtitle { margin: 4px 0 0; color: var(--comexa-ink-muted); font-size: 13px; line-height: 1.4; }
 .cx-dashboard__welcome-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .cx-dashboard__quick-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .cx-dashboard__quick-action,
@@ -355,7 +355,7 @@
 .cx-dashboard__refresh:disabled { cursor: wait; opacity: 0.65; }
 .cx-dashboard__refresh span { padding-inline-start: 3px; color: #8392a3; font-size: 10px; font-weight: 500; }
 .cx-dashboard__grid { min-width: 0; align-items: stretch; }
-.cx-dashboard__muted { margin: 0; color: #71849a; font-size: 11.5px; line-height: 1.45; }
+.cx-dashboard__muted { margin: 0; color: var(--comexa-ink-muted); font-size: 11.5px; line-height: 1.45; }
 .cx-glass-card {
   position: relative;
   min-width: 0;
@@ -403,31 +403,12 @@
    chevauche plus le coin arrondi du dashboard. z-index 40 : sous le voile et les
    tiroirs de la coque (55/56), au-dessus du panneau clair. */
 .cx-timer-pill { position: fixed; right: calc(var(--shell-pad, 16px) + 14px); bottom: calc(var(--shell-pad, 16px) + 14px); z-index: 40; display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
-.cx-timer-pill__panel { width: min(330px, calc(100vw - 24px)); border: 1px solid rgba(255, 255, 255, 0.94); border-radius: 20px; background: rgba(255, 255, 255, 0.97); padding: 17px; color: #405b76; box-shadow: 0 18px 50px rgba(16, 39, 70, 0.18), inset 0 1px 0 #fff; }
-@supports (backdrop-filter: blur(12px)) { .cx-timer-pill__panel { background: rgba(255, 255, 255, 0.91); backdrop-filter: blur(16px) saturate(125%); } }
-.cx-timer-pill__eyebrow { margin: 0; color: #0f65a2; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.cx-timer-pill__title { margin: 0 0 12px; color: #173452; font-size: 15px; font-weight: 600; }
-.cx-timer-pill__time { margin: 5px 0 0; color: #173452; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; }
-.cx-timer-pill__task { overflow: hidden; margin: 3px 0 0; color: #62778e; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.cx-timer-pill__label { display: block; margin: 12px 0 5px; color: #526980; font-size: 11px; font-weight: 600; }
-.cx-timer-pill__select { width: 100%; min-height: 42px; border: 1px solid #b7c6d6; border-radius: 11px; background: #fff; padding: 0 11px; color: #173452; font: inherit; font-size: 12px; }
-.cx-timer-pill__select:focus-visible { border-color: #1e86e0; outline: 2px solid rgba(30, 134, 224, 0.25); outline-offset: 1px; }
-.cx-timer-pill__start,
-.cx-timer-pill__stop { display: inline-flex; width: 100%; min-height: 41px; align-items: center; justify-content: center; gap: 8px; margin-top: 11px; border: 1px solid #0f4e8a; border-radius: 11px; background: #0f4e8a; color: #fff; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; transition: background-color 140ms ease, transform 140ms ease; }
-.cx-timer-pill__stop { border-color: #a32923; background: #a32923; }
-.cx-timer-pill__start:hover:not(:disabled) { transform: translateY(-1px); background: #0b3e69; }
-.cx-timer-pill__stop:hover:not(:disabled) { transform: translateY(-1px); background: #84221d; }
-.cx-timer-pill__start:disabled,
-.cx-timer-pill__stop:disabled { cursor: wait; opacity: 0.55; }
-.cx-timer-pill__start:focus-visible,
-.cx-timer-pill__stop:focus-visible,
 .cx-timer-pill__trigger:focus-visible { outline: 2px solid #1e86e0; outline-offset: 2px; }
 .cx-timer-pill__trigger { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 9px; padding: 0 14px; border: 1px solid rgba(31, 64, 103, 0.13); border-radius: 14px; background: rgba(255, 255, 255, 0.94); color: #234563; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; box-shadow: 0 8px 24px rgba(16, 39, 70, 0.12), inset 0 1px 0 #fff; transition: background-color 140ms ease, transform 140ms ease; }
 .cx-timer-pill__trigger:hover { transform: translateY(-1px); background: #fff; }
 .cx-timer-pill__trigger.is-active { border-color: rgba(14, 122, 74, 0.2); background: #edf8f2; color: #166742; }
 .cx-timer-pill__trigger svg { width: 16px; height: 16px; }
 .cx-timer-pill__trigger-time { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
-.cx-timer-pill__error { margin: 10px 0 0; color: #a32923; font-size: 11px; line-height: 1.4; }
 @media (max-width: 767px) {
   /* Au-dessus de la barre d'icônes mobile (~60 px) et du dock flottant (~64 px). */
   .cx-timer-pill { right: 12px; bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
@@ -493,7 +474,7 @@
 .cx-dashboard__section-eyebrow { margin: 0 0 3px; color: #0f65a2; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; line-height: 1.35; text-transform: uppercase; }
 .cx-dashboard__section-title { margin: 0; color: #152f4d; font-size: 17px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.3; }
 .cx-dashboard__period,
-.cx-dashboard__section-note { display: inline-flex; min-height: 28px; align-items: center; border: 1px solid rgba(31, 64, 103, 0.09); border-radius: 999px; background: rgba(255, 255, 255, 0.78); padding: 5px 10px; color: #647991; font-size: 10px; font-weight: 550; white-space: nowrap; }
+.cx-dashboard__section-note { display: inline-flex; min-height: 28px; align-items: center; border: 1px solid rgba(31, 64, 103, 0.09); border-radius: 999px; background: rgba(255, 255, 255, 0.78); padding: 5px 10px; color: var(--comexa-ink-muted); font-size: 10px; font-weight: 550; white-space: nowrap; }
 .cx-dashboard__period-control { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .cx-dashboard__period-label { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; color: #526980; font-size: 10px; font-weight: 650; }
 .cx-dashboard__period-select { max-width: 100%; min-height: 34px; border: 1px solid rgba(31, 64, 103, 0.15); border-radius: 10px; background: #fff; padding: 0 27px 0 10px; color: #173452; font: inherit; font-size: 11px; font-weight: 600; }
@@ -505,7 +486,7 @@
 .cx-dashboard__kpi-top .cx-dashboard__muted { padding-top: 3px; color: #61788f; font-size: 11px; font-weight: 600; }
 .cx-dashboard__kpi-body { margin-top: auto; padding-top: 12px; }
 .cx-dashboard__kpi-value { overflow-wrap: anywhere; font-size: clamp(25px, 2.15vw, 32px); }
-.cx-dashboard__kpi-sub { min-height: 30px; margin-top: 5px; color: #71849a; font-size: 11px; }
+.cx-dashboard__kpi-sub { min-height: 30px; margin-top: 5px; color: var(--comexa-ink-muted); font-size: 11px; }
 .cx-dashboard__kpi-link-hint { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; color: #0f65a2; font-size: 10px; font-weight: 650; }
 .cx-dashboard__kpi-link-hint span { font-size: 13px; line-height: 1; transition: transform 150ms ease; }
 .cx-dashboard__kpi--link:hover .cx-dashboard__kpi-link-hint span { transform: translate(2px, -2px); }
@@ -537,7 +518,7 @@
 .cx-dashboard__pipeline-details[open] > summary { margin-bottom: 15px; }
 
 .cx-dashboard__details-copy { display: flex; flex-direction: column; gap: 3px; }
-.cx-dashboard__details-description { color: #71849a; font-size: 11px; font-weight: 400; line-height: 1.45; }
+.cx-dashboard__details-description { color: var(--comexa-ink-muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
 .cx-dashboard__details-toggle { display: inline-flex; align-items: center; gap: 8px; }
 .cx-dashboard__details-chevron { display: inline-flex; width: 27px; height: 27px; align-items: center; justify-content: center; border: 1px solid rgba(31, 64, 103, 0.1); border-radius: 9px; background: #fff; color: #45617b; font-size: 17px; line-height: 1; transition: transform 160ms ease; }
 .cx-dashboard__details[open] .cx-dashboard__details-chevron { transform: rotate(180deg); }
@@ -594,7 +575,7 @@
 .cx-prospect-move:focus-visible,
 .cx-prospect-move__option:focus-visible { outline: 2px solid #1e86e0; outline-offset: 2px; }
 .cx-prospect-move:disabled { cursor: not-allowed; opacity: 0.5; }
-.cx-prospect-move__menu { overflow: hidden; margin: 0; border: 1px solid rgba(31, 64, 103, 0.12); border-radius: 14px; background: rgba(255, 255, 255, 0.98); padding: 5px; box-shadow: 0 16px 38px rgba(16, 39, 70, 0.17); list-style: none; }
+.cx-prospect-move__menu { overflow: hidden; margin: 0; border: 1px solid rgba(31, 64, 103, 0.12); border-radius: 14px; background: rgba(255, 255, 255, 0.98); padding: 5px; box-shadow: 0 16px 38px rgba(16, 39, 70, 0.17); font-family: var(--font-sans); list-style: none; }
 @supports (backdrop-filter: blur(12px)) { .cx-prospect-move__menu { background: rgba(255, 255, 255, 0.93); backdrop-filter: blur(12px) saturate(125%); } }
 .cx-prospect-move__option { display: block; width: 100%; min-height: 38px; border: 0; border-radius: 9px; background: transparent; padding: 0 10px; color: #354f6b; cursor: pointer; font: inherit; font-size: 12px; text-align: left; }
 .cx-prospect-move__option:hover { background: #f3f8fe; color: #0f4e8a; }
@@ -746,9 +727,10 @@
 .cx-pub-nav__desktop-account { display: flex; align-items: center; }
 .cx-pub-account-links { display: flex; align-items: center; gap: 2px; }
 .cx-pub-account-links--drawer { display: grid; }
-.cx-pub-drawer__account { margin-top: auto; padding-top: 8px; }
+.cx-pub-drawer__account { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--comexa-border-soft); }
 .cx-pub-drawer__nav { display: flex; flex-direction: column; gap: 2px; }
-.cx-pub-drawer__account .cx-user-menu { display: flex; width: 100%; }
+/* Dans le tiroir, le menu du compte s'ouvre SOUS le bouton (pas à côté). */
+.cx-pub-drawer__account .cx-user-menu { display: flex; flex-direction: column; width: 100%; }
 .cx-pub-drawer__account .cx-user-menu__trigger { width: 100%; max-width: none; }
 .cx-pub-drawer__account .cx-user-menu__popover { position: relative; top: auto; right: auto; width: 100%; margin-top: 8px; box-shadow: none; }
 
@@ -842,7 +824,6 @@
   .cx-workspace .cx-dialog__actions > button { flex: 1 1 auto; }
   .cx-pub-nav__bar { gap: 8px; padding-inline: 12px; }
   .cx-pub-nav__cta { display: none; }
-  .cx-pub-drawer__panel { overflow-y: auto; max-height: calc(100dvh - 12px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -866,13 +847,19 @@
    Les textes et les états métier gardent des couleurs opaques à fort contraste.
    Les filtres sont conditionnels pour laisser un rendu propre sans backdrop-filter.
 */
-.cx-workspace {
-  --workspace-bg: #f1f6fc;
+/* Variables du verre partagées avec la barre de navigation du site public
+   (`.cx-pub-nav__bar` utilise la même règle) : hors de `.cx-workspace`, elles
+   manquaient, d'où une bordure sombre (currentColor) et aucune ombre. */
+.cx-workspace,
+.cx-pub-nav {
   --workspace-glass-fill: rgba(255, 255, 255, 0.74);
   --workspace-glass-strong: rgba(255, 255, 255, 0.86);
   --workspace-glass-edge: rgba(255, 255, 255, 0.86);
   --workspace-glass-hairline: rgba(38, 83, 132, 0.12);
   --workspace-glass-shadow: 0 18px 46px rgba(18, 47, 80, 0.085), 0 3px 10px rgba(18, 47, 80, 0.035), inset 0 1px 0 rgba(255, 255, 255, 0.94);
+}
+.cx-workspace {
+  --workspace-bg: #f1f6fc;
   background:
     radial-gradient(ellipse at 8% 0%, rgba(90, 183, 244, 0.16), transparent 31rem),
     radial-gradient(ellipse at 88% 8%, rgba(139, 177, 246, 0.1), transparent 29rem),
@@ -1180,7 +1167,9 @@
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.82), rgba(236, 245, 255, 0.6));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.94), 0 3px 10px rgba(20, 54, 88, 0.055);
 }
-.cx-pub-drawer__panel { border-radius: 28px 28px 0 0; }
+/* Menu mobile : panneau arrondi sur un fond plein (sous les reflets du verre),
+   pour que la page floutée derrière ne gêne jamais la lecture des liens. */
+.cx-pub-drawer__panel { border-radius: var(--comexa-radius-xl); background-color: var(--comexa-surface); }
 
 /*
  * Filtre « par personne » des tâches, et photo (ou initiales) du créateur.
@@ -1345,6 +1334,10 @@
 }
 
 .cx-console { position: fixed; inset: 0; z-index: 70; display: flex; justify-content: flex-end; }
+/* La console s'ouvre par-dessus l'espace de travail, hors de `.sui-viewport` :
+   elle reprend la police de l'espace plutôt que celle du site public. */
+.cx-console,
+.cx-console-launcher { --comexa-font: var(--font-sans); font-family: var(--font-sans); }
 .cx-console__scrim {
   position: absolute;
   inset: 0;

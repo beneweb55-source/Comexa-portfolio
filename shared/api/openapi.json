@@ -405,6 +405,28 @@
         ]
       }
     },
+    "/api/notifications/summary": {
+      "get": {
+        "operationId": "NotificationController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Nombre de notifications non lues, par espace de travail",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
     "/api/notifications/read-all": {
       "post": {
         "operationId": "NotificationController_markAllRead",
@@ -1170,6 +1192,180 @@
         "summary": "Supprimer un jeton et son compte technique.",
         "tags": [
           "Integrations"
+        ]
+      }
+    },
+    "/api/me/telegram-link": {
+      "get": {
+        "operationId": "TelegramLinkController_getState",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "État de la liaison Telegram du membre connecté.",
+        "tags": [
+          "Telegram"
+        ]
+      },
+      "delete": {
+        "operationId": "TelegramLinkController_revoke",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Révoque la liaison Telegram du membre connecté.",
+        "tags": [
+          "Telegram"
+        ]
+      }
+    },
+    "/api/me/telegram-link/code": {
+      "post": {
+        "operationId": "TelegramLinkController_createCode",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Génère un code d'appairage à 6 chiffres valable 10 minutes.",
+        "tags": [
+          "Telegram"
+        ]
+      }
+    },
+    "/api/integrations/telegram/verify-code": {
+      "post": {
+        "operationId": "TelegramLinkController_verify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyTelegramCodeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Vérifie un code d'appairage soumis par le bot et lie le compte.",
+        "tags": [
+          "Telegram"
+        ]
+      }
+    },
+    "/api/integrations/telegram/command": {
+      "post": {
+        "operationId": "TelegramLinkController_command",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TelegramCommandDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Interprète un message Telegram (commande /lier) et renvoie la réponse du bot.",
+        "tags": [
+          "Telegram"
+        ]
+      }
+    },
+    "/api/integrations/telegram/resolve/{telegramUserId}": {
+      "get": {
+        "operationId": "TelegramLinkController_resolve",
+        "parameters": [
+          {
+            "name": "telegramUserId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Résout un utilisateur Telegram en profil Comexa actif.",
+        "tags": [
+          "Telegram"
+        ]
+      }
+    },
+    "/api/me/spaces": {
+      "get": {
+        "operationId": "SpacesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Espaces de travail accessibles et droits effectifs dans chacun.",
+        "tags": [
+          "Espaces"
         ]
       }
     },
@@ -2272,6 +2468,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "unassignedOnly",
+            "required": false,
+            "in": "query",
+            "description": "Uniquement les taches sans assigne.",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2346,6 +2551,30 @@
           }
         },
         "summary": "Profils ayant cree des taches visibles dans ce projet.",
+        "tags": [
+          "Taches"
+        ]
+      }
+    },
+    "/api/projects/{projectId}/tasks/assignees": {
+      "get": {
+        "operationId": "TasksController_listAssignees",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Personnes a qui l'on peut confier une tache de ce projet.",
         "tags": [
           "Taches"
         ]
@@ -2460,6 +2689,15 @@
             "required": false,
             "in": "query",
             "description": "Uniquement les taches personnelles.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "unassignedOnly",
+            "required": false,
+            "in": "query",
+            "description": "Uniquement les taches sans assigne.",
             "schema": {
               "type": "boolean"
             }
@@ -3294,6 +3532,126 @@
         "tags": [
           "Minuteur"
         ]
+      },
+      "patch": {
+        "operationId": "TimerController_update",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTimerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Corriger la session en cours (tache, note) sans perdre le temps ecoule.",
+        "tags": [
+          "Minuteur"
+        ]
+      }
+    },
+    "/api/timer/tasks": {
+      "get": {
+        "operationId": "TimerController_tasks",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 160,
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mine",
+                "team"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Taches que le porteur peut chronometrer (meme filtre que le demarrage).",
+        "tags": [
+          "Minuteur"
+        ]
+      }
+    },
+    "/api/timer/recent-tasks": {
+      "get": {
+        "operationId": "TimerController_recentTasks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Dernieres taches chronometrees, encore ouvertes.",
+        "tags": [
+          "Minuteur"
+        ]
+      }
+    },
+    "/api/timer/summary": {
+      "get": {
+        "operationId": "TimerController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mon temps du jour et de la semaine, et mes saisies du jour.",
+        "tags": [
+          "Minuteur"
+        ]
       }
     },
     "/api/timer/start": {
@@ -3355,6 +3713,16 @@
       "post": {
         "operationId": "TimerController_stop",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopTimerDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -3363,6 +3731,214 @@
         "summary": "Terminer la session et enregistrer la saisie de temps.",
         "tags": [
           "Minuteur"
+        ]
+      }
+    },
+    "/api/timer/discard": {
+      "post": {
+        "operationId": "TimerController_discard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Abandonner la session en cours SANS enregistrer de temps.",
+        "tags": [
+          "Minuteur"
+        ]
+      }
+    },
+    "/api/me/goals": {
+      "get": {
+        "operationId": "GoalsController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ACHIEVED",
+                "ARCHIVED",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mes objectifs, avec leurs taches et leur avancement.",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      },
+      "post": {
+        "operationId": "GoalsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGoalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Definir un objectif.",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      }
+    },
+    "/api/me/goals/{id}": {
+      "get": {
+        "operationId": "GoalsController_getOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Un de mes objectifs.",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      },
+      "patch": {
+        "operationId": "GoalsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGoalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Modifier un objectif (titre, date cible, teinte, statut).",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      },
+      "delete": {
+        "operationId": "GoalsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer un objectif (ses taches sont conservees).",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      }
+    },
+    "/api/me/goals/{id}/tasks/{taskId}": {
+      "put": {
+        "operationId": "GoalsController_linkTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Rattacher une de mes taches a l'objectif.",
+        "tags": [
+          "Objectifs personnels"
+        ]
+      },
+      "delete": {
+        "operationId": "GoalsController_unlinkTask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Retirer une tache de l'objectif (la tache est conservee).",
+        "tags": [
+          "Objectifs personnels"
         ]
       }
     },
@@ -8073,6 +8649,85 @@
           }
         }
       },
+      "VerifyTelegramCodeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "description": "Code à 6 chiffres reçu par le membre via son interface Comexa. Espaces, tirets et chiffres arabes sont tolérés.",
+            "example": "482913"
+          },
+          "telegramUserId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identifiant numérique Telegram du compte (id utilisateur)."
+          },
+          "telegramChatId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identifiant de chat Telegram (privé avec le bot)."
+          },
+          "telegramUsername": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Nom d'utilisateur Telegram (sans le @)."
+          }
+        },
+        "required": [
+          "code",
+          "telegramUserId",
+          "telegramChatId"
+        ]
+      },
+      "TelegramCommandDto": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "description": "Texte exact du message Telegram (`message.text`).",
+            "example": "/lier 944330"
+          },
+          "telegramUserId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identifiant numérique Telegram de l’expéditeur (`message.from.id`)."
+          },
+          "telegramChatId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identifiant du chat (`message.chat.id`)."
+          },
+          "telegramUsername": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Pseudo Telegram (`message.from.username`), sans le @."
+          },
+          "chatType": {
+            "type": "string",
+            "enum": [
+              "private",
+              "group",
+              "supergroup",
+              "channel"
+            ],
+            "description": "Type de conversation (`message.chat.type`). Une liaison est refusée hors conversation privée."
+          }
+        },
+        "required": [
+          "text",
+          "telegramUserId",
+          "telegramChatId"
+        ]
+      },
       "CreateClientDto": {
         "type": "object",
         "properties": {
@@ -8812,6 +9467,11 @@
           "dueDate": {
             "type": "string",
             "nullable": true
+          },
+          "goalId": {
+            "type": "string",
+            "description": "Objectif personnel de rattachement.",
+            "maxLength": 64
           }
         },
         "required": [
@@ -9139,6 +9799,22 @@
           "userIds"
         ]
       },
+      "UpdateTimerDto": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 64,
+            "description": "Nouvelle tache, ou null pour aucune."
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          }
+        }
+      },
       "StartTimerDto": {
         "type": "object",
         "properties": {
@@ -9147,6 +9823,91 @@
             "maxLength": 64,
             "example": "clx123abc",
             "description": "Tache a chronometrer (projet ou personnelle) — omise pour un suivi sans tache."
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Sur quoi je travaille."
+          }
+        }
+      },
+      "StopTimerDto": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "CreateGoalDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160,
+            "example": "Livrer la boutique Maison Vasseur"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "targetDate": {
+            "type": "string",
+            "nullable": true,
+            "description": "Date cible (jour)."
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "blue",
+              "green",
+              "yellow",
+              "lilac",
+              "pink"
+            ],
+            "default": "blue"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "UpdateGoalDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          },
+          "targetDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "blue",
+              "green",
+              "yellow",
+              "lilac",
+              "pink"
+            ]
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "ACHIEVED",
+              "ARCHIVED"
+            ],
+            "type": "string"
           }
         }
       },

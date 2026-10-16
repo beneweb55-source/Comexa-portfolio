@@ -5,7 +5,6 @@
 @import "tailwindcss";
 @import "../styles/comexa.tokens.css";
 @import "../styles/comexa.components.css";
-@import "../styles/workspace-glass.css";
 @import "../styles/comexa.public.css";
 @import "../styles/workspace-shell.css";
 @import "../styles/workspace-team-glass.css";
@@ -14,6 +13,9 @@
    dernier : elle a le dernier mot sur les classes `sui-*` partagées avec les
    anciennes feuilles de l'espace de travail. */
 @import "../styles/softui.components.css";
+/* Minuteur, cases à cocher, objectifs, assignation : la couche « productivité »
+   s'appuie sur les jetons et primitives ci-dessus. */
+@import "../styles/softui.productivity.css";
 
 :root {
   --background: #ffffff;
@@ -23,8 +25,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Les polices Geist du modèle de départ ne sont pas chargées : sans ces
+     correspondances, `font-mono` n'affichait pas de chasse fixe. */
+  --font-sans: var(--comexa-font-sans);
+  --font-mono: var(--comexa-font-mono);
 }
 
 body {

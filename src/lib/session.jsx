@@ -89,13 +89,13 @@ export function AuthProvider({ children }) {
 
   /** Telechargement protege : meme regle de rafraichissement que `request`. */
   const download = useCallback(
-    async (path, filename) => {
+    async (path, filename, options = {}) => {
       try {
-        return await downloadFile(path, { token: tokenRef.current, filename });
+        return await downloadFile(path, { token: tokenRef.current, filename, space: options.space });
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           const user = await refresh();
-          if (user) return downloadFile(path, { token: tokenRef.current, filename });
+          if (user) return downloadFile(path, { token: tokenRef.current, filename, space: options.space });
         }
         throw error;
       }
@@ -107,6 +107,10 @@ export function AuthProvider({ children }) {
     () => ({
       status: state.status,
       user: state.user,
+      /** Compte complet, droits du rôle, même à l'intérieur d'un espace. */
+      baseUser: state.user,
+      /** Espace de travail actif (`null` hors espaces). */
+      space: null,
       login,
       logout,
       request,
@@ -114,6 +118,39 @@ export function AuthProvider({ children }) {
     }),
     [state, login, logout, request, download],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/**
+ * Session VUE DEPUIS UN ESPACE DE TRAVAIL.
+ *
+ * Posé par le layout de chaque espace, ce fournisseur republie la session avec :
+ *  - `user.permissions` réduit aux droits effectifs de l'espace : tous les
+ *    `can(user, …)` existants (menus, boutons, pages) deviennent ainsi
+ *    cohérents avec l'espace, sans modifier chaque page ;
+ *  - `request`/`download` qui annoncent l'espace au serveur (`X-Comexa-Space`),
+ *    lequel applique la MÊME restriction : l'interface n'est jamais la seule
+ *    barrière.
+ * `baseUser` garde le compte complet (sélecteur d'espace, menu de compte).
+ */
+export function SpaceScopedAuth({ space, permissions, children }) {
+  const parent = useAuth();
+  const { request: parentRequest, download: parentDownload } = parent;
+
+  const request = useCallback(
+    (path, options = {}) => parentRequest(path, { space, ...options }),
+    [parentRequest, space],
+  );
+  const download = useCallback(
+    (path, filename, options = {}) => parentDownload(path, filename, { space, ...options }),
+    [parentDownload, space],
+  );
+
+  const value = useMemo(() => {
+    const user = parent.user && permissions ? { ...parent.user, permissions: [...permissions] } : parent.user;
+    return { ...parent, user, baseUser: parent.user, space, request, download };
+  }, [parent, permissions, space, request, download]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

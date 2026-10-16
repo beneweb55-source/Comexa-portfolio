@@ -6,6 +6,7 @@ import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import {
   ActivityType,
+  GoalStatus,
   NotificationType,
   RoleCode,
   TaskStatus,
@@ -31,8 +32,9 @@ import {
   PERSONAL_TASK_WRITE_CODE,
   TASK_READ_ORDER,
   TASK_WRITE_ORDER,
+  assignableUserWhere,
   canAttachSubTask,
-  canTransitionTask,
+  canTransitionTaskFor,
   hasOpenSubTasks,
   isClosedTaskStatus,
   isTaskEditable,
@@ -82,6 +84,16 @@ const TASK_PROFILE_SELECT = {
   lastName: true,
   avatarKey: true,
 } as const;
+
+/** Libelles des statuts dans les messages envoyes aux personnes (notifications). */
+const STATUS_LABEL_FR: Readonly<Record<TaskStatus, string>> = {
+  TODO: 'à faire',
+  IN_PROGRESS: 'en cours',
+  BLOCKED: 'bloquée',
+  IN_REVIEW: 'en revue',
+  DONE: 'terminée',
+  CANCELLED: 'annulée',
+};
 
 /** Detail d'une tache. Commun a la lecture et aux retours d'ecriture. */
 const TASK_DETAIL_SELECT = {
@@ -261,6 +273,45 @@ export class TasksService {
   }
 
   /**
+   * PERSONNES A QUI CONFIER UNE TACHE DE CE PROJET.
+   *
+   * Reserve a qui peut assigner (`task:assign:any`) : la liste dit qui travaille
+   * dans l'agence et sur quoi, ce n'est pas une information pour tout le monde.
+   * Les candidats sont exactement ceux que `requireAssignableUser` acceptera
+   * (`assignableUserWhere`) — l'ecran ne propose jamais un choix refuse ensuite.
+   * Les membres actifs de l'equipe du projet passent en tete ; les autres
+   * restent proposes, puisque l'assignation les ajoutera a l'equipe.
+   */
+  async listAssignees(projectId: string, policy: AccessPolicy) {
+    policy.requireScope('task', 'assign', ['any']);
+    this.refuseClientSpace(policy);
+    const project = await this.projects.requireReadable(projectId, policy);
+
+    const [users, members] = await Promise.all([
+      this.prisma.user.findMany({
+        where: assignableUserWhere(),
+        select: TASK_PROFILE_SELECT,
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        take: 200,
+      }),
+      this.prisma.projectMember.findMany({
+        where: { projectId: project.id, leftAt: null },
+        select: { userId: true, projectRole: true },
+      }),
+    ]);
+
+    const roleOf = new Map(members.map((member) => [member.userId, member.projectRole]));
+    return users
+      .map((user) => ({
+        ...user,
+        isMember: roleOf.has(user.id),
+        projectRole: roleOf.get(user.id) ?? null,
+        isMe: user.id === policy.userId,
+      }))
+      .sort((left, right) => Number(right.isMember) - Number(left.isMember));
+  }
+
+  /**
    * « Mes taches », tous projets confondus.
    *
    * C'EST LA ROUTE QU'UN DEVELOPPEUR OU UN DESIGNER OUVRE LE MATIN. Elle force
@@ -294,22 +345,36 @@ export class TasksService {
         select: {
           id: true,
           title: true,
+          description: true,
           status: true,
           priority: true,
+          startDate: true,
           dueDate: true,
           completedAt: true,
           estimateMinutes: true,
           projectId: true,
           isPersonal: true,
           parentTaskId: true,
+          assigneeId: true,
           project: { select: { id: true, reference: true, name: true } },
           milestone: { select: { id: true, title: true } },
+          reporter: { select: TASK_PROFILE_SELECT },
+          // L'objectif du PORTEUR, et de lui seul : la liaison d'un collegue
+          // vers la meme tache de projet (son propre objectif) reste privee.
+          goalLinks: {
+            where: { ownerId: policy.userId },
+            select: { goal: { select: { id: true, title: true, color: true, status: true } } },
+          },
         },
       }),
       this.prisma.task.count({ where }),
     ]);
 
-    return paginated(items, total, p);
+    return paginated(
+      items.map(({ goalLinks, ...task }) => ({ ...task, goal: goalLinks[0]?.goal ?? null })),
+      total,
+      p,
+    );
   }
 
   async getOne(taskId: string, policy: AccessPolicy) {
@@ -425,8 +490,8 @@ export class TasksService {
           assigneeId,
           {
             type: NotificationType.TASK_ASSIGNED,
-            title: `Nouvelle tache : ${task.title}`,
-            body: `Projet « ${project.name} »`,
+            title: `Nouvelle tâche : ${task.title}`,
+            body: `Projet « ${project.name} » · confiée par ${policy.displayName}`,
             link: `/taches/${task.id}`,
             entityType: 'Task',
             entityId: task.id,
@@ -481,24 +546,35 @@ export class TasksService {
       );
     }
 
-    const created = await this.prisma.task.create({
-      data: {
-        projectId: null,
-        isPersonal: true,
-        milestoneId: null,
-        parentTaskId: null,
-        title: dto.title,
-        description: dto.description ?? null,
-        priority: dto.priority,
-        assigneeId: policy.userId,
-        reporterId: policy.userId,
-        estimateMinutes: dto.estimateMinutes ?? null,
-        startDate: dto.startDate ? new Date(dto.startDate) : null,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        isClientVisible: false,
-        order: 0,
-      },
-      select: { id: true },
+    // L'objectif doit etre celui du PORTEUR, et ouvert : 404 sinon (meme
+    // reponse qu'un objectif inexistant, l'existence d'un objectif d'autrui ne
+    // se confirme pas).
+    const goalId = dto.goalId ? await this.requireOwnOpenGoal(dto.goalId, policy.userId) : null;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const task = await tx.task.create({
+        data: {
+          projectId: null,
+          isPersonal: true,
+          milestoneId: null,
+          parentTaskId: null,
+          title: dto.title,
+          description: dto.description ?? null,
+          priority: dto.priority,
+          assigneeId: policy.userId,
+          reporterId: policy.userId,
+          estimateMinutes: dto.estimateMinutes ?? null,
+          startDate: dto.startDate ? new Date(dto.startDate) : null,
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+          isClientVisible: false,
+          order: 0,
+        },
+        select: { id: true },
+      });
+      if (goalId) {
+        await tx.goalTask.create({ data: { goalId, taskId: task.id, ownerId: policy.userId } });
+      }
+      return task;
     });
 
     await this.audit.record({
@@ -506,7 +582,7 @@ export class TasksService {
       action: 'TASK_CREATED',
       entityType: 'Task',
       entityId: created.id,
-      after: { isPersonal: true, title: dto.title, assigneeId: policy.userId },
+      after: { isPersonal: true, title: dto.title, assigneeId: policy.userId, goalId },
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
@@ -646,7 +722,8 @@ export class TasksService {
       );
     }
 
-    if (!canTransitionTask(before.status, dto.status)) {
+    // Tache personnelle : transitions libres (voir `canTransitionTaskFor`).
+    if (!canTransitionTaskFor(before, before.status, dto.status)) {
       throw AppException.unprocessable(
         'TASK_STATUS_TRANSITION_REFUSED',
         `Passer de ${before.status} a ${dto.status} n'est pas une transition autorisee.`,
@@ -725,8 +802,8 @@ export class TasksService {
           {
             type: completing ? NotificationType.TASK_COMPLETED : NotificationType.SYSTEM,
             title: completing
-              ? `Tache terminee : ${before.title}`
-              : `Tache « ${before.title} » : statut ${dto.status}`,
+              ? `Tâche terminée : ${before.title}`
+              : `Tâche « ${before.title} » : ${STATUS_LABEL_FR[dto.status] ?? dto.status}`,
             // Pour une tache personnelle, `recipients` est vide : cette branche
             // ne s'atteint jamais et le repli ne sert qu'au typage.
             body: projectOfTask ? `Projet « ${projectOfTask.name} »` : 'Tache personnelle',
@@ -831,8 +908,10 @@ export class TasksService {
           dto.assigneeId,
           {
             type: NotificationType.TASK_ASSIGNED,
-            title: `Nouvelle tache : ${before.title}`,
-            body: projectOfTask ? `Projet « ${projectOfTask.name} »` : 'Tache',
+            title: `Nouvelle tâche : ${before.title}`,
+            body: projectOfTask
+              ? `Projet « ${projectOfTask.name} » · confiée par ${policy.displayName}`
+              : `Confiée par ${policy.displayName}`,
             link: `/taches/${taskId}`,
             entityType: 'Task',
             entityId: taskId,
@@ -1003,6 +1082,11 @@ export class TasksService {
    * CLIENT. Ce dernier point est le plus important : assigner une tache interne a
    * un compte client la ferait entrer dans le perimetre de quelqu'un qui ne doit
    * jamais en voir une seule, et la faute serait invisible a l'ecran.
+   *
+   * IL DOIT AUSSI POUVOIR TRAVAILLER LA TACHE : la voir dans « Mes taches » et
+   * la faire avancer (statut, temps, minuteur). Voir `assignableUserWhere` :
+   * sans ce controle, une assignation a un compte sans droit de tache etait
+   * acceptee puis ne s'affichait nulle part.
    */
   private async requireAssignableUser(userId: string): Promise<void> {
     const user = await this.prisma.user.findFirst({
@@ -1023,6 +1107,34 @@ export class TasksService {
         'Une tache ne peut pas etre assignee a un compte client.',
       );
     }
+
+    const eligible = await this.prisma.user.count({
+      where: { id: userId, ...assignableUserWhere() },
+    });
+    if (eligible === 0) {
+      throw AppException.unprocessable(
+        'TASK_ASSIGNEE_CANNOT_WORK_TASKS',
+        "Ce compte ne peut pas travailler sur une tache de projet (son role ne permet ni de la voir ni de la faire avancer). Choisissez un membre de l'equipe de production.",
+      );
+    }
+  }
+
+  /** Objectif du porteur, encore ouvert (ni atteint ni archive). 404 sinon. */
+  private async requireOwnOpenGoal(goalId: string, ownerId: string): Promise<string> {
+    const goal = await this.prisma.goal.findFirst({
+      where: { id: goalId, ownerId },
+      select: { id: true, status: true },
+    });
+    if (!goal) {
+      throw AppException.notFound('GOAL_NOT_FOUND', 'Cet objectif est introuvable.');
+    }
+    if (goal.status === GoalStatus.ARCHIVED) {
+      throw AppException.unprocessable(
+        'GOAL_ARCHIVED',
+        "Cet objectif est archive : reactivez-le avant d'y ajouter une tache.",
+      );
+    }
+    return goal.id;
   }
 
   private async requireMilestoneOfProject(milestoneId: string, projectId: string): Promise<void> {

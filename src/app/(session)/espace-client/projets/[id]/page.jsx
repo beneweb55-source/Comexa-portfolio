@@ -3,12 +3,13 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/session";
+import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
 import { MILESTONE_STATUS, PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
 import { Badge, Card, Empty, Notice, Pagination, ProgressBar, secondaryButton } from "@/components/workspace/ui";
 
-const MILESTONE_TONE = { PLANNED: "neutral", REACHED: "success", MISSED: "danger", CANCELLED: "neutral" };
+const MILESTONE_TONE = { PENDING: "neutral", IN_PROGRESS: "info", PLANNED: "neutral", REACHED: "success", MISSED: "danger", CANCELLED: "neutral" };
 
 /**
  * Suivi d'un projet, cote client. Chaque bloc est charge a part : un bloc refuse
@@ -16,19 +17,23 @@ const MILESTONE_TONE = { PLANNED: "neutral", REACHED: "success", MISSED: "danger
  */
 export default function ProjetClientPage({ params }) {
   const { id } = use(params);
-  const { download } = useAuth();
+  const { download, user } = useAuth();
+  /* Le rôle CLIENT n'a, par conception, aucune permission `task:*` : on ne
+     demande donc pas une liste que le serveur refusera (403), ce qui évitait
+     aussi l'éclair « Chargement des tâches… » avant de masquer le bloc. */
+  const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((code) => can(user, code));
   const [milestonePage, setMilestonePage] = useState(1);
   const [taskPage, setTaskPage] = useState(1);
   const [documentPage, setDocumentPage] = useState(1);
   const project = useListing(`/projects/${encodeURIComponent(id)}`);
   const milestones = useListing(`/projects/${encodeURIComponent(id)}/milestones?page=${milestonePage}&perPage=100`);
-  const tasks = useListing(`/projects/${encodeURIComponent(id)}/tasks?page=${taskPage}&perPage=100`);
+  const tasks = useListing(canReadTasks ? `/projects/${encodeURIComponent(id)}/tasks?page=${taskPage}&perPage=100` : null);
   const documents = useListing(`/documents?projectId=${encodeURIComponent(id)}&page=${documentPage}&perPage=100`);
   const [downloadError, setDownloadError] = useState(null);
 
   const current = project.items;
-  // Taches : un compte sans droit recoit un refus, le bloc est alors masque.
-  const tasksVisible = tasks.errorStatus !== 403;
+  // Taches : sans droit (ou refus du serveur), le bloc est masque.
+  const tasksVisible = canReadTasks && tasks.errorStatus !== 403;
   const documentsList = documents.items ?? [];
   const milestoneList = milestones.items ?? [];
 

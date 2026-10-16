@@ -8,9 +8,11 @@ export const metadata = {
 
 /** Page d'accueil : données lues côté serveur (SEO), cache 1 h. */
 export default async function Page() {
-  const [apiServices, apiTestimonials] = await Promise.all([
+  const [apiServices, apiTestimonials, apiCaseStudies] = await Promise.all([
     getPublicList("/public/services"),
     getPublicList("/public/testimonials"),
+    // Même requête que la page Réalisations : une seule entrée de cache pour les deux pages.
+    getPublicList("/public/case-studies?perPage=100"),
   ]);
-  return <HomeView apiServices={apiServices} apiTestimonials={apiTestimonials} />;
+  return <HomeView apiServices={apiServices} apiTestimonials={apiTestimonials} apiCaseStudies={apiCaseStudies} />;
 }

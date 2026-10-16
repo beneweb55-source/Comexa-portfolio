@@ -516,10 +516,13 @@ describe('Projets, taches, jalons et temps (bout en bout, base reelle)', () => {
     const miennes = dataOf<TaskData[]>(mine);
     assert.ok(miennes.length > 0, 'le developpeur doit voir au moins sa tache');
 
-    // `/me/tasks` ne renvoie pas `assigneeId` (la liste est volontairement
-    // legere) : la propriete se verifie donc par l'ENSEMBLE. Le collegue, qui
-    // detient le meme role et le meme scope `assigned`, ne doit voir AUCUNE des
-    // lignes que le porteur voit.
+    // `/me/tasks` renvoie `assigneeId`, qui vaut toujours le porteur ; la
+    // propriete se verifie AUSSI par l'ENSEMBLE : le collegue, qui detient le
+    // meme role et le meme scope `assigned`, ne doit voir AUCUNE des lignes que
+    // le porteur voit.
+    for (const task of miennes) {
+      assert.equal(task.assigneeId, devUserId, `${task.id} doit etre assignee au porteur`);
+    }
     const ids = new Set(miennes.map((task) => task.id));
 
     const collegue = await as(otherDevToken).get('/me/tasks');

@@ -6,7 +6,7 @@ import {
   type ScopeName,
 } from '../../common/auth/principal.js';
 import type { Prisma } from '../../generated/prisma/client.js';
-import { TaskStatus, type Priority } from '../../generated/prisma/enums.js';
+import { RoleCode, TaskStatus, UserStatus, type Priority } from '../../generated/prisma/enums.js';
 import { subjectOf, type ScopeSubject } from '../projects/project-scope.js';
 
 /**
@@ -111,6 +111,8 @@ export interface TaskFilterInput {
   readonly milestoneId?: string;
   readonly rootOnly?: boolean;
   readonly personalOnly?: boolean;
+  /** Uniquement les taches sans assigne : le travail encore a distribuer. */
+  readonly unassignedOnly?: boolean;
   readonly search?: string;
 }
 
@@ -125,6 +127,9 @@ export function taskFilterWhere(query: TaskFilterInput): Prisma.TaskWhereInput {
   // `null` en Prisma signifie « IS NULL » : uniquement les taches sans parent.
   if (query.rootOnly) filters.parentTaskId = null;
   if (query.personalOnly) filters.isPersonal = true;
+  // `assigneeId` explicite l'emporte : « assignees a X » ET « sans assigne »
+  // n'ont pas d'intersection, et la demande la plus precise gagne.
+  if (query.unassignedOnly && !query.assigneeId) filters.assigneeId = null;
   if (query.search) filters.title = { contains: query.search, mode: 'insensitive' };
 
   return filters;
@@ -178,10 +183,32 @@ export function taskReadWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
     ? personalTaskWhere(policy.userId)
     : null;
 
+  return withinSpace(policy, combine(standard, personal));
+}
+
+/** `standard OU personnel`, ou le filtre impossible si aucun des deux. */
+function combine(
+  standard: Prisma.TaskWhereInput | null,
+  personal: Prisma.TaskWhereInput | null,
+): Prisma.TaskWhereInput {
   if (standard && personal) return { OR: [standard, personal] };
   if (standard) return standard;
   if (personal) return personal;
   return MATCH_NOTHING;
+}
+
+/**
+ * ESPACE EQUIPE : AUCUNE TACHE PERSONNELLE, MEME LA SIENNE.
+ *
+ * L'espace equipe retire deja `task:read:personal` (voir `space-policy.ts`),
+ * mais les portees `assigned`/`own` designent aussi les taches personnelles du
+ * porteur (elles lui sont assignees). Sans ce filtre, sa liste privee
+ * reapparaitrait dans le tableau partage par la porte `assigned`. Hors espace
+ * annonce (integrations, anciens clients), rien ne change.
+ */
+function withinSpace(policy: AccessPolicy, where: Prisma.TaskWhereInput): Prisma.TaskWhereInput {
+  if (policy.space !== 'team') return where;
+  return { AND: [{ isPersonal: false }, where] };
 }
 
 /**
@@ -205,10 +232,7 @@ export function taskWriteWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
     ? personalTaskWhere(policy.userId)
     : null;
 
-  if (standard && personal) return { OR: [standard, personal] };
-  if (standard) return standard;
-  if (personal) return personal;
-  return MATCH_NOTHING;
+  return withinSpace(policy, combine(standard, personal));
 }
 
 /**
@@ -273,6 +297,29 @@ export function canTransitionTask(from: TaskStatus, to: TaskStatus): boolean {
   return TASK_STATUS_TRANSITIONS[from].includes(to);
 }
 
+/**
+ * TACHE PERSONNELLE : TOUT CHANGEMENT DE STATUT EST PERMIS (sauf vers le meme).
+ *
+ * La machine a etats ci-dessus protege la FIABILITE d'un suivi de projet : un
+ * chef de projet et un client lisent l'avancement, et un `DONE` qui revient en
+ * `TODO` sans passer par la reouverture fausserait ce qu'ils lisent. Une tache
+ * personnelle n'a AUCUN autre lecteur que son proprietaire — c'est la meme
+ * raison qui la laisse modifiable une fois close (voir `TasksService.update`).
+ *
+ * Le cas concret qui l'exige : une case a cocher. Decocher une tache terminee
+ * doit la remettre « a faire », pas « en cours » ; et l'ecran proposait deja
+ * tous les statuts, que le serveur refusait ensuite (DONE -> TODO, BLOCKED ->
+ * DONE...). Les taches DE PROJET gardent exactement la machine stricte.
+ */
+export function canTransitionTaskFor(
+  task: { readonly isPersonal: boolean },
+  from: TaskStatus,
+  to: TaskStatus,
+): boolean {
+  if (from === to) return false;
+  return task.isPersonal ? true : canTransitionTask(from, to);
+}
+
 /** Statuts clos : le travail est fini, abandonne, ou les deux. */
 export const CLOSED_TASK_STATUSES: readonly TaskStatus[] = [TaskStatus.DONE, TaskStatus.CANCELLED];
 
@@ -329,4 +376,55 @@ export function canAttachSubTask(parentStatus: TaskStatus): boolean {
  */
 export function isTaskEditable(status: TaskStatus, hasWideScope: boolean): boolean {
   return hasWideScope || !isClosedTaskStatus(status);
+}
+
+// -----------------------------------------------------------------------------
+// ASSIGNATION : qui peut recevoir une tache de projet
+// -----------------------------------------------------------------------------
+
+/** Lire une tache qui nous est assignee : chacun de ces scopes la couvre. */
+export const ASSIGNEE_READ_CODES = ['task:read:any', 'task:read:assigned', 'task:read:own'] as const;
+/** Faire avancer une tache qui nous est assignee (statut, temps, minuteur). */
+export const ASSIGNEE_WRITE_CODES = ['task:write:any', 'task:write:own'] as const;
+
+/**
+ * Un compte ASSIGNABLE peut voir ET faire avancer la tache qu'on lui confie.
+ *
+ * Avant cette regle, seul « actif et non client » etait verifie : on pouvait
+ * donc confier une tache a un gerant communication (aucune lecture de tache de
+ * projet : la tache disparaissait de tous ses ecrans) ou a un commercial (il la
+ * voyait, mais ne pouvait ni la cocher, ni y saisir du temps). L'assignation
+ * etait acceptee et ne menait nulle part. Les droits sont lus sur les ROLES EN
+ * BASE (le catalogue est modifiable), jamais deduits d'un nom de role.
+ *
+ * Les comptes de service (jetons d'integration) n'ont pas d'espace de travail :
+ * ils sont exclus aussi.
+ */
+export function assignableUserWhere(): Prisma.UserWhereInput {
+  const holdsOneOf = (codes: readonly string[]): Prisma.UserWhereInput => ({
+    roles: { some: { role: { permissions: { some: { permission: { code: { in: [...codes] } } } } } } },
+  });
+  return {
+    deletedAt: null,
+    status: UserStatus.ACTIVE,
+    isServiceAccount: false,
+    AND: [
+      { roles: { none: { role: { code: RoleCode.CLIENT } } } },
+      holdsOneOf(ASSIGNEE_READ_CODES),
+      holdsOneOf(ASSIGNEE_WRITE_CODES),
+    ],
+  };
+}
+
+/**
+ * « MES TACHES » : assignees au porteur, dans son perimetre de lecture, sur un
+ * projet vivant ou sans projet. C'est exactement le `where` de `GET /me/tasks`,
+ * ecrit une fois pour les objectifs et le minuteur.
+ */
+export function mineTaskWhere(policy: AccessPolicy): Prisma.TaskWhereInput {
+  return {
+    deletedAt: null,
+    OR: [{ project: { deletedAt: null } }, { projectId: null }],
+    AND: [{ assigneeId: policy.userId }, taskReadWhereFor(policy)],
+  };
 }

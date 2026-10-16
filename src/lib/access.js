@@ -1,8 +1,11 @@
 /**
  * Helpers de navigation côté client. Ils améliorent les parcours, mais ne sont
  * jamais une frontière de sécurité : les contrôleurs Nest et les services
- * vérifient les mêmes permissions sur chaque requête.
+ * vérifient les mêmes permissions sur chaque requête — et, dans un espace de
+ * travail, les restreignent à cet espace (en-tête `X-Comexa-Space`).
  */
+
+import { SPACES, canEnterSpace, effectivePermissions, lastSpace, spaceForPath } from "./spaces.js";
 
 const TEAM_ROLES = new Set([
   "ADMIN",
@@ -48,7 +51,24 @@ const TEAM_PERMISSIONS = [
   "invoice:read:any",
 ];
 
-const TEAM_ROUTE_ACCESS = [
+const TASK_READ = ["task:read:any", "task:read:assigned", "task:read:own"];
+const PROJECT_READ = ["project:read:any", "project:read:own", "project:read:assigned"];
+const CONTENT_READ = ["service:read:any", "package:read:any", "testimonial:read:any", "partner:read:any", "faq:read:any", "casestudy:read:any"];
+
+/**
+ * Droit d'entrée de chaque rubrique, évalué avec les droits EFFECTIFS de son
+ * espace (une rubrique sans règle est ouverte à tout membre de l'espace).
+ */
+const ROUTE_ACCESS = [
+  // Espace personnel : uniquement ce qui appartient au compte.
+  ["/espace-personnel/taches", [...TASK_READ, "task:read:personal", "task:write:personal"]],
+  ["/espace-personnel/calendrier", ["calendar:read:own", ...TASK_READ, "task:read:personal"]],
+  ["/espace-personnel/temps", ["time:read:own", "time:write:own"]],
+  ["/espace-personnel/rapports-journaliers", ["time:write:own", "time:read:own"]],
+  ["/espace-personnel/notifications", ["notification:read:own"]],
+  ["/espace-personnel/compte", ["user:read:own"]],
+
+  // Espace équipe : le travail partagé.
   ["/espace-equipe/tableau-de-bord", ["dashboard:read:any", "dashboard:read:own"]],
   ["/espace-equipe/notifications", ["notification:read:own"]],
   ["/espace-equipe/contacts", ["contactrequest:read:any"]],
@@ -58,23 +78,29 @@ const TEAM_ROUTE_ACCESS = [
   ["/espace-equipe/factures", ["invoice:read:any"]],
   ["/espace-equipe/commandes", ["order:read:any"]],
   ["/espace-equipe/demandes", ["project_request:read:any"]],
-  ["/espace-equipe/projets", ["project:read:any", "project:read:own", "project:read:assigned"]],
+  ["/espace-equipe/projets", PROJECT_READ],
   ["/espace-equipe/clients", ["client:read:any"]],
-  ["/espace-equipe/taches", ["task:read:any", "task:read:assigned", "task:read:own", "task:read:personal", "task:write:any", "task:write:own", "task:write:personal"]],
-  ["/espace-equipe/calendrier", ["task:read:any", "task:read:assigned", "task:read:own", "project:read:any", "project:read:assigned", "project:read:own", "calendar:read:own", "calendar:read:team"]],
-  ["/espace-equipe/rapports-journaliers", ["time:write:own", "time:read:any"]],
+  ["/espace-equipe/taches", [...TASK_READ, "task:write:any", "task:write:own"]],
+  ["/espace-equipe/calendrier", ["calendar:read:team", ...TASK_READ, ...PROJECT_READ]],
+  // Les feuilles et rapports de TOUTE l'équipe ; chacun remplit les siens dans
+  // son espace personnel.
+  ["/espace-equipe/rapports-journaliers", ["time:read:any"]],
+  ["/espace-equipe/temps", ["time:read:any"]],
   ["/espace-equipe/analytique", ["report:read:any"]],
-  ["/espace-equipe/temps", ["time:write:own", "time:read:own", "time:read:any"]],
   ["/espace-equipe/modifications", ["modificationrequest:decide:any"]],
   ["/espace-equipe/rapports", ["report:read:any", "report:read:own"]],
   ["/espace-equipe/messagerie", ["conversation:read:own"]],
-  ["/espace-equipe/contenu", ["service:read:any", "package:read:any", "testimonial:read:any", "partner:read:any", "faq:read:any", "casestudy:read:any"]],
-  ["/espace-equipe/membres", ["user:read:any"]],
-  ["/espace-equipe/roles", ["role:read:any"]],
-  ["/espace-equipe/integrations", ["integration:read:any", "integration:manage:any"]],
-  ["/espace-equipe/journal", ["audit:read:any"]],
-  ["/espace-equipe/parametres", ["setting:read:any"]],
   ["/espace-equipe/compte", ["user:read:own"]],
+
+  // Comexa Space : l'organisation.
+  ["/espace-comexa/contenu", CONTENT_READ],
+  ["/espace-comexa/membres", ["user:read:any"]],
+  ["/espace-comexa/roles", ["role:read:any"]],
+  ["/espace-comexa/integrations", ["integration:read:any", "integration:manage:any"]],
+  ["/espace-comexa/journal", ["audit:read:any"]],
+  ["/espace-comexa/parametres", ["setting:read:any"]],
+  ["/espace-comexa/notifications", ["notification:read:own"]],
+  ["/espace-comexa/compte", ["user:read:own"]],
 ].sort(([a], [b]) => b.length - a.length);
 
 export function can(user, permission) {
@@ -92,29 +118,42 @@ export function hasTeamAccess(user) {
   return TEAM_PERMISSIONS.some((permission) => can(user, permission));
 }
 
-/** Destination de connexion et repli sûr pour une route d'équipe non autorisée. */
-export function homeFor(user) {
-  if (!hasTeamAccess(user)) return "/espace-client";
+/** Profil ancien sans `roles` : on le considère membre s'il porte des droits d'équipe. */
+function withRoles(user) {
+  if ((user?.roles ?? []).length > 0 || !hasTeamAccess(user)) return user;
+  return { ...user, roles: ["TEAM_MEMBER"] };
+}
 
-  const destinations = [
-    ["/espace-equipe/tableau-de-bord", ["dashboard:read:any", "dashboard:read:own"]],
-    ["/espace-equipe/commandes", ["order:read:any"]],
-    ["/espace-equipe/projets", ["project:read:any", "project:read:own", "project:read:assigned"]],
-    ["/espace-equipe/taches", ["task:read:any", "task:read:assigned", "task:read:own", "task:read:personal", "task:write:own", "task:write:personal"]],
-    ["/espace-equipe/contacts", ["contactrequest:read:any"]],
-    ["/espace-equipe/compte", ["user:read:own"]],
-  ];
-  return destinations.find(([, permissions]) => canAny(user, permissions))?.[0] ?? "/espace-equipe/compte";
+/** L'espace est-il ouvert à ce compte (droits du rôle, non restreints) ? */
+export function canOpenSpace(user, space) {
+  return canEnterSpace(space, withRoles(user));
 }
 
 /**
- * Vérifie le rôle et la permission d'entrée de la route. C'est un confort UX,
- * pas une protection des données : le backend reste l'autorité.
+ * Destination de connexion : le dernier espace utilisé s'il est encore ouvert,
+ * sinon l'espace équipe, puis l'espace personnel, puis Comexa Space. Un client
+ * retrouve son espace client.
+ */
+export function homeFor(user) {
+  if (!hasTeamAccess(user)) return "/espace-client";
+  const remembered = lastSpace(user?.id);
+  const order = [remembered, "team", "personal", "comexa"].filter(Boolean);
+  const space = order.find((candidate) => canOpenSpace(user, candidate));
+  return space ? SPACES[space].home : "/espace-equipe/compte";
+}
+
+/**
+ * Vérifie le rôle, l'accès à l'espace et la permission d'entrée de la route,
+ * avec les droits EFFECTIFS de l'espace. C'est un confort UX, pas une
+ * protection des données : le backend reste l'autorité.
  */
 export function allowedPath(user, pathname) {
-  if (!pathname?.startsWith("/espace-equipe")) return true;
+  const space = spaceForPath(pathname);
+  if (!space) return true;
   if (!hasTeamAccess(user)) return false;
+  if (!canOpenSpace(user, space)) return false;
 
-  const rule = TEAM_ROUTE_ACCESS.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
-  return !rule || canAny(user, rule[1]);
+  const effective = { ...user, permissions: [...effectivePermissions(space, user?.permissions ?? [])] };
+  const rule = ROUTE_ACCESS.find(([path]) => pathname === path || pathname.startsWith(`${path}/`));
+  return !rule || canAny(effective, rule[1]);
 }

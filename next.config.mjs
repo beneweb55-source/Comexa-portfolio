@@ -13,6 +13,16 @@ const nextConfig = {
   // `127.0.0.1` : en développement, on passe indifféremment par localhost ou 127.0.0.1 ;
   // Next bloque sinon le JavaScript (HMR) pour cette origine. Sans effet en production.
   allowedDevOrigins: ["**.e2b.app", "127.0.0.1", "localhost"],
+  // Les rubriques d'administration de l'organisation vivent dans Comexa Space.
+  // Les anciens liens (favoris, notifications déjà envoyées, documentation)
+  // continuent de fonctionner : redirection temporaire vers la nouvelle adresse.
+  async redirects() {
+    const moved = ["contenu", "membres", "roles", "integrations", "journal", "parametres"];
+    return moved.flatMap((section) => [
+      { source: `/espace-equipe/${section}`, destination: `/espace-comexa/${section}`, permanent: false },
+      { source: `/espace-equipe/${section}/:path*`, destination: `/espace-comexa/${section}/:path*`, permanent: false },
+    ]);
+  },
   async rewrites() {
     return [
       {

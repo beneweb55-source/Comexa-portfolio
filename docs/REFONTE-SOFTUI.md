@@ -61,11 +61,11 @@ tangents au bord noir.
 
 | Page | Ce qui change (visuel uniquement) |
 | --- | --- |
-| `espace-equipe/tableau-de-bord` (`dashboard/ControlCenter.jsx`) | Control Center : 4 KPI pastel dont la carte fantôme « À traiter », accès direct en pilules + bascule « Vue agence / Ma journée », file de validation en cartes (impayés, projets, devis, échéances), activité récente + santé de l'espace. Les données détaillées (facturation, échéances à 7 jours, minuteur, encaissements 6 mois, pipeline, vues agence/journée) restent accessibles, repliées en bas de page. |
+| `espace-equipe/tableau-de-bord` (`dashboard/ControlCenter.jsx`) | Control Center : 4 KPI pastel (sans accès facturation : échéances à 7 jours et tâches assignées au lieu des montants) dont la carte fantôme « Points d’attention » (factures en retard, projets en retard, tâches échues, avec le détail), accès direct en pilules, « À suivre » en cartes (factures ouvertes, projets, devis, échéances ; client réel, montant affiché une seule fois), activité récente des projets (fil réel `/projects/:id/activities`) + santé des projets. Repliées en bas : facturation, échéances, minuteur, encaissements 6 mois **datés par paiement**, pipeline, vue agence. « Ma journée » vit dans l’Espace personnel. |
 | `espace-equipe/clients` | Grille de cartes : initiales en pastille, référence, secteur/ville/pays, statut ; filtres en pilules ; la recherche du bandeau alimente le paramètre `search` de l'API. |
-| `espace-equipe/projets` | Grille de cartes avec barre de progression 4 px et ratio, pilule de statut, action principale noire vers la fiche. |
+| `espace-equipe/projets` | Bandeau de KPI, filtres de statut avec compteurs, progression teintée par statut, bascule **Cartes / Liste** (`softui/ListView`, choix mémorisé). |
 | `espace-equipe/devis` | Filtres en pilules, montant en pilule blanche, bouton principal noir conditionné à `quote:write:any`. |
-| `espace-equipe/factures` | Idem, avec total et reste à payer (`remainingDue`). |
+| `espace-equipe/factures` | KPI par devise (facturé, encaissé, reste à encaisser, en retard), filtres avec compteurs, échéance dépassée signalée, vue **Liste** par défaut (tableau) ou cartes. |
 | `espace-equipe/commandes` | Reste un **tableau** (file d'actions), habillé soft UI : pilules de filtre, alertes pastel, boutons secondaire/principal, statuts en pilules. Toute la logique (validation, démarrage, paiement, confirmations) est conservée. |
 | Autres pages `espace-equipe/*` et `espace-client/*` | Bénéficient de la coque (navbar, rail, en-tête, Admin Desk, dock, tiroirs) sans modification de page. |
 
@@ -174,3 +174,30 @@ Pour voir la coque remplie sans le backend Nest : le tableau de bord et les
 pages liste consomment l'API relayée par `/api/*` (`BACKEND_URL`, défaut
 `http://localhost:3001`). `/refonte-apercu` (développement uniquement) montre
 tous les composants avec des données de démonstration, sans session.
+
+---
+
+## 7. Espaces de travail (octobre 2026)
+
+- **Trois espaces**, chacun avec son préfixe d’URL : `/espace-personnel`,
+  `/espace-equipe`, `/espace-comexa`. Le sélecteur (`softui/SpaceSwitcher`) vit
+  dans la navbar à la place de l’ancien badge de rôle ; il n’affiche que les
+  espaces autorisés par `GET /me/spaces`, avec le nombre de notifications non
+  lues de chacun (`GET /notifications/summary`).
+- **Le contexte suit l’URL** (rechargement, lien partagé) ; le dernier espace
+  est mémorisé par utilisateur (`comexa:last-space:<userId>`) pour la page
+  d’accueil. Les anciennes URL d’administration (`/espace-equipe/membres`…)
+  redirigent vers Comexa Space (`next.config.mjs`).
+- **Chaque requête annonce l’espace** (`X-Comexa-Space`, `lib/api.js`) et le
+  serveur réduit les droits en conséquence (voir `backend/docs/API.md`, §4) :
+  recherches, compteurs, tableaux de bord et notifications ne mélangent jamais
+  deux espaces. `SpaceScopedAuth` republie dans React les droits effectifs, pour
+  que l’interface n’affiche que ce que l’API acceptera.
+- **Dock flottant** : actions de l’espace, minuteur et console, masqué au
+  défilement vers le bas et réaffiché en remontant ; le contenu garde une marge
+  basse suffisante pour ne jamais être caché.
+- **Calendrier** (`calendar/CalendarWorkspace.jsx`) : mini-mois, calques colorés
+  et préférences par espace (`comexa:calendar:<userId>:<space>`),
+  glisser-déposer, raccourcis clavier, chargement par plage visible.
+- **Listes** : `softui/ListView` (bascule Cartes / Liste, tableau `.sui-table`
+  à défilement horizontal confiné dans sa carte).

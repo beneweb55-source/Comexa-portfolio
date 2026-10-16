@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  EVERY_ASSIGNEE,
   EVERY_CREATOR,
+  UNASSIGNED,
+  assigneeNameOf,
+  canWriteProjectTask,
   creatorAvatarUrlOf,
   creatorInitialsOf,
   creatorNameOf,
@@ -73,4 +77,29 @@ test("tasksPayloadIsOutdated signale une reponse d'API anterieure au filtre par 
   assert.equal(tasksPayloadIsOutdated([null, undefined]), false);
   assert.equal(tasksPayloadIsOutdated(null), false);
   assert.equal(tasksPayloadIsOutdated([]), false);
+});
+
+test("taskListPath : filtre d'assignation (les miennes, non assignées, toutes)", () => {
+  assert.equal(
+    taskListPath("prj-1", { assignee: "usr-9" }),
+    "/projects/prj-1/tasks?page=1&perPage=100&assigneeId=usr-9",
+  );
+  assert.equal(
+    taskListPath("prj-1", { assignee: UNASSIGNED }),
+    "/projects/prj-1/tasks?page=1&perPage=100&unassignedOnly=true",
+  );
+  assert.equal(taskListPath("prj-1", { assignee: EVERY_ASSIGNEE }), "/projects/prj-1/tasks?page=1&perPage=100");
+});
+
+test("assigneeNameOf : nom, sinon « Non assignée »", () => {
+  assert.equal(assigneeNameOf({ firstName: "Inès", lastName: "Moreau" }), "Inès Moreau");
+  assert.equal(assigneeNameOf(null), "Non assignée");
+});
+
+test("canWriteProjectTask : même règle que le serveur", () => {
+  const task = { assigneeId: "usr-1" };
+  assert.equal(canWriteProjectTask(task, { userId: "usr-2", writeAny: true }), true);
+  assert.equal(canWriteProjectTask(task, { userId: "usr-1", writeOwn: true }), true);
+  assert.equal(canWriteProjectTask(task, { userId: "usr-2", writeOwn: true }), false);
+  assert.equal(canWriteProjectTask({ assigneeId: null }, { userId: "usr-2", writeOwn: true }), false);
 });

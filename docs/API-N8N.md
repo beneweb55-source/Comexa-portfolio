@@ -135,7 +135,7 @@ puis un nœud `IF` sur `dueDate < now` et `status != DONE`.
 
 **Alerter quand une tâche est créée** (polling) — `GET
 /api/v1/projects/{projectId}/tasks?perPage=100` avec un nœud de dédoublonnement
-sur `id` (l'API ne diffuse pas encore d'événements, voir §8).
+sur `id` (l'API ne diffuse pas encore d'événements, voir §9).
 
 **Rapport hebdomadaire** — `GET /api/v1/time-entries?from=…&to=…&perPage=100`,
 agrégation dans un nœud `Code`.
@@ -299,7 +299,132 @@ est refusé dans `scopes`. Une machine ne se distribue pas d'accès à elle-mêm
 
 ---
 
-## 8. État d'avancement
+## 8. Bot Telegram @ComexaWork_bot : commande `/lier`
+
+Le bot vit dans n8n (aucun code du bot n'est dans ce dépôt). Il lie un compte
+Telegram à un compte Comexa avec un **code à 6 chiffres** généré par le membre
+dans *Mon compte → Bot Telegram* (valable 10 minutes, usage unique, seule son
+empreinte SHA-256 est stockée). Le jeton du workflow doit porter
+`telegram:link:any` (profil « Bot Telegram » de la page *API & Intégrations*) :
+sans lui, toutes les routes ci-dessous répondent **403**.
+
+### 8.1 La route à appeler : `POST /api/v1/integrations/telegram/command`
+
+Le workflow transmet **chaque message reçu** ; c'est le serveur qui reconnaît
+`/lier`, l'exécute avec le mécanisme de liaison et renvoie la phrase à
+afficher. n8n n'a plus à analyser la commande lui-même.
+
+```http
+POST /api/v1/integrations/telegram/command
+Authorization: Bearer cxi_…
+Content-Type: application/json
+
+{
+  "text": "/lier 944330",
+  "telegramUserId": "{{ $json.message.from.id }}",
+  "telegramChatId": "{{ $json.message.chat.id }}",
+  "telegramUsername": "{{ $json.message.from.username }}",
+  "chatType": "{{ $json.message.chat.type }}"
+}
+```
+
+Réponse **toujours 200** pour un message correctement transmis, y compris quand
+le code est refusé (c'est une réponse normale du bot, pas une panne) :
+
+```json
+{
+  "success": true,
+  "data": {
+    "handled": true,
+    "command": "lier",
+    "status": "linked",
+    "ok": true,
+    "reply": "C'est fait, Awa : votre compte Telegram est maintenant lié…",
+    "profile": { "userId": "…", "firstName": "Awa", "email": "…", "roles": ["ADMIN"], "permissions": ["…"] }
+  }
+}
+```
+
+| `status` | `ok` | Signification |
+|---|---|---|
+| `linked` | oui | première liaison réussie |
+| `relinked` | oui | le compte était lié à un autre Telegram : liaison déplacée |
+| `refreshed` | oui | même compte, même Telegram : liaison confirmée |
+| `already_linked` | oui | code refusé, mais ce Telegram est déjà lié (on ne demande pas de nouveau code) |
+| `usage` | non | `/lier` sans code |
+| `invalid_format` | non | le code n'a pas 6 chiffres |
+| `invalid_code` | non | code inconnu ou déjà utilisé |
+| `expired_code` | non | code de plus de 10 minutes |
+| `conflict` | non | ce Telegram est déjà lié à un **autre** compte Comexa |
+| `account_inactive` | non | le compte Comexa est désactivé |
+| `group_chat` | non | commande envoyée dans un groupe (refusée par sécurité) |
+| `server_error` | non | erreur inattendue côté serveur (journalisée) |
+
+Formes acceptées : `/lier 944330`, `/lier@ComexaWork_bot 944330` (menu des
+commandes), `/LIER`, `/lier 944 330`, `/lier 944-330`, les chiffres arabes
+(`٩٤٤٣٣٠`), la barre oubliée (`lier 944330`, code complet exigé) et le lien
+profond `https://t.me/ComexaWork_bot?start=lier_944330` (reçu comme
+`/start lier_944330`). Une commande adressée à un autre bot et tout autre
+message répondent `"handled": false` avec `reply: null`.
+
+**Le succès n'est annoncé que si `ok` vaut `true`** : la phrase de `reply` est
+écrite par le serveur après l'écriture en base, jamais avant.
+
+### 8.2 Workflow n8n recommandé
+
+1. **Telegram Trigger** (message).
+2. **HTTP Request** → `POST …/integrations/telegram/command` (corps ci-dessus,
+   credential du jeton « Bot Telegram »).
+3. **IF** `{{ $json.data.handled }}` est vrai → **Telegram : Send Message** avec
+   `{{ $json.data.reply }}`. Fin.
+4. Sinon → la branche habituelle (résolution du membre puis agent IA).
+
+Une réponse **non 2xx** (400 champ Telegram manquant, 401 jeton, 403 scope,
+5xx) signifie que le workflow est mal câblé ou que l'API est indisponible :
+activer *Settings → On Error → Continue (using error output)* sur le nœud HTTP
+et router cette sortie vers un message « Service momentanément indisponible,
+réessayez dans un instant » — **jamais** vers l'agent, qui inventerait une
+réponse (« je ne comprends pas »).
+
+Sans mise à jour du workflow, un code **valide** fonctionne de nouveau avec
+l'ancienne route `verify-code` (cause n° 1 ci-dessous corrigée côté serveur) ;
+seuls les messages d'erreur précis demandent le passage à `command`.
+
+### 8.3 Autres routes du bot
+
+| Route | Usage |
+|---|---|
+| `GET /api/v1/integrations/telegram/resolve/{telegramUserId}` | à chaque message : profil Comexa actif (droits compris) du membre lié ; **404** `TELEGRAM_LINK_NOT_FOUND` sinon |
+| `POST /api/v1/integrations/telegram/verify-code` | ancienne route de liaison, conservée : `{ code, telegramUserId, telegramChatId, telegramUsername? }` (un `code` reçu en nombre JSON retrouve ses zéros initiaux) ; erreurs **404** `TELEGRAM_CODE_INVALID`, **410** `TELEGRAM_CODE_EXPIRED`, **409** `TELEGRAM_ALREADY_LINKED`, **403** (compte inactif), **400** si `telegramUserId`/`telegramChatId` manquent. Préférer `command`, qui transforme ces refus en réponses lisibles |
+
+Côté membre : `GET /api/v1/me/telegram-link` (état), `POST
+/api/v1/me/telegram-link/code` (nouveau code ; remplace le précédent),
+`DELETE /api/v1/me/telegram-link` (déliaison). La page *Mon compte* interroge
+l'état toutes les 3 secondes tant qu'un code attend, et n'affiche « Lié » que
+sur confirmation du serveur.
+
+### 8.4 Cause de l'incident du 15/10/2026 (`/lier 944330` → « je ne comprends pas »)
+
+- Après une **déliaison**, chaque nouveau code était refusé : la génération ne
+  levait pas la révocation (`revokedAt`) que la vérification exigeait nulle.
+  Corrigé : générer un code lève la révocation (sans rétablir l'ancienne liaison).
+- Le refus (4xx) de `verify-code` faisait échouer le nœud HTTP de n8n, et le
+  message retombait sur l'agent IA, d'où la réponse générique. La route
+  `command` répond 200 avec une phrase précise pour chaque cas.
+- Le profil « Pilotage » des jetons ne contenait pas `telegram:link:any` :
+  utiliser le profil « Bot Telegram ».
+
+> **Base neuve** : la migration `20261014000000_telegram_links` insère la
+> permission `telegram:link:any` sans `updatedAt` (colonne obligatoire) et
+> échoue donc sur une base vide. Elle n'a pas été modifiée ici (une migration
+> déjà appliquée ne se réécrit pas). Sur une base neuve, appliquer les
+> migrations jusqu'à la précédente, puis cette migration avec
+> `"updatedAt"` / `CURRENT_TIMESTAMP` ajoutés à l'`INSERT`, et la marquer
+> appliquée (`prisma migrate resolve --applied 20261014000000_telegram_links`).
+
+---
+
+## 9. État d'avancement
 
 **En place** : jetons d'intégration (création, liste, renouvellement,
 révocation, suppression), vérification serveur, permissions par jeton,
@@ -319,7 +444,7 @@ créations, documentation.
 
 ---
 
-## 9. Ce qui reste à faire côté hébergement
+## 10. Ce qui reste à faire côté hébergement
 
 Le code est prêt ; il reste des actions **manuelles**, impossibles depuis ce
 dépôt :

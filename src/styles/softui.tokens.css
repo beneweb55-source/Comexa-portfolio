@@ -45,6 +45,14 @@
   --line-soft: rgba(17, 17, 17, 0.06);
   --track: #e9e6e8;            /* piste des barres de progression */
   --fill: #9dc76a;             /* remplissage vert doux */
+  /* Remplissages des barres selon l'état (versions soutenues des pastels,
+     lisibles sur la piste --track). */
+  --fill-green: #9dc76a;
+  --fill-blue: #7fb2e5;
+  --fill-yellow: #e3b94f;
+  --fill-lilac: #c49ae0;
+  --fill-pink: #e79aab;
+  --track-strong: #c9c4c7;     /* valeur figée d'un élément clos (annulé, archivé) */
   --focus: #1e86e0;            /* anneau de focus (clair) */
   --focus-on-shell: #ffffff;   /* anneau de focus dans la coque noire */
 

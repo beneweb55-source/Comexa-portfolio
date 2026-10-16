@@ -232,6 +232,19 @@
   border-radius: 10px;
 }
 
+/* Appel à l'action principal d'une section (site public, tiroir mobile) :
+   cible tactile de 48 px et libellé plus lisible. */
+.cx-btn--lg {
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 15px;
+  border-radius: var(--comexa-radius-md);
+}
+
+.cx-btn--block {
+  width: 100%;
+}
+
 /* Cartes et panneaux — Rayons 22px, Liquid Glass subtil, ombres multicouches */
 .cx-card {
   position: relative;
@@ -289,6 +302,14 @@
   margin-bottom: 18px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--comexa-border-soft);
+}
+
+/* Carte sans contenu sous l'en-tête (ex. sélecteur de projet sans pagination) :
+   ni filet ni marge, sinon une bande vide restait en bas de la carte. */
+.cx-panel__header:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .cx-panel__title {

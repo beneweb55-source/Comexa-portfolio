@@ -40,7 +40,13 @@ export const PROJECT_STATUS = {
   ARCHIVED: "Archivé",
 };
 
+/* Miroir de l'enum Prisma `MilestoneStatus` (PENDING, IN_PROGRESS, REACHED,
+   MISSED, CANCELLED). `PENDING` et `IN_PROGRESS` manquaient : les jalons à
+   venir s'affichaient en anglais brut (« PENDING ») sur les fiches projet.
+   `PLANNED` reste pour d'éventuelles données anciennes. */
 export const MILESTONE_STATUS = {
+  PENDING: "À venir",
+  IN_PROGRESS: "En cours",
   PLANNED: "Prévu",
   REACHED: "Atteint",
   MISSED: "En retard",

@@ -22,11 +22,15 @@
  */
 import 'dotenv/config';
 import 'reflect-metadata';
+import type { Server } from 'node:http';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module.js';
 import { configureApp } from './app.setup.js';
+
+/** Au-dela des 60 s d'inactivite usuelles des repartiteurs de charge. */
+const KEEP_ALIVE_TIMEOUT_MS = 65_000;
 
 /**
  * Demarrage du processus.
@@ -51,6 +55,17 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const { apiPrefix } = configureApp(app);
+
+  // Connexions inactives : le serveur doit les garder PLUS longtemps que les
+  // relais places devant lui (relais `/api` de Next, proxy de Render, ...).
+  // Par defaut Node les ferme apres 5 s ; un relais qui reutilise la connexion
+  // a cet instant recoit `ECONNRESET` et renvoie une 500 au navigateur
+  // (constate sur `/api/me/spaces` et `/api/notifications/summary`). Render
+  // recommande d'augmenter ces deux valeurs pour ce symptome precis.
+  // `headersTimeout` doit rester superieur a `keepAliveTimeout`.
+  const server = app.getHttpServer() as Server;
+  server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+  server.headersTimeout = KEEP_ALIVE_TIMEOUT_MS + 1_000;
 
   const port = app.get(ConfigService).get<number>('PORT') ?? 3001;
   await app.listen(port);

@@ -15,7 +15,8 @@ import { TimerService } from './timer.service.js';
  * PAS DE `NotificationModule`, PAS DE `ActivityModule` : arreter un minuteur ne
  * previent personne et n'ecrit rien dans le fil d'activite du projet — la trace
  * est le journal d'AUDIT (`TIMER_STARTED`, `TIMER_PAUSED`, `TIMER_RESUMED`,
- * `TIMER_STOPPED`) et la saisie de temps elle-meme. Un « X a arrete son
+ * `TIMER_UPDATED`, `TIMER_STOPPED`, `TIMER_DISCARDED`) et la saisie de temps
+ * elle-meme. Un « X a arrete son
  * minuteur » dans le fil d'un projet serait du bruit : le fil raconte le
  * projet, pas la presence de chacun.
  *

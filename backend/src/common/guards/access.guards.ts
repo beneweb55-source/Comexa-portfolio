@@ -11,6 +11,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import {
   ALLOW_PASSWORD_CHANGE_REQUIRED_KEY,
+  IGNORE_SPACE_KEY,
   PERMISSIONS_ALL_KEY,
   PERMISSIONS_ANY_KEY,
   REQUEST_USER_KEY,
@@ -21,6 +22,13 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { AppException, ErrorCode } from '../errors/app-error.js';
 import { looksLikeIntegrationToken } from '../auth/integration-token.js';
 import { AccessPolicy, type AuthenticatedUser } from '../auth/principal.js';
+import {
+  SPACE_HEADER,
+  SPACES,
+  canEnterSpace,
+  effectivePermissions,
+  isSpaceId,
+} from '../spaces/space-policy.js';
 
 /**
  * PORTE D'ENTREE UNIQUE DE L'AUTORISATION.
@@ -169,7 +177,8 @@ export class JwtAuthGuard implements CanActivate {
       throw AppException.unauthenticated();
     }
 
-    const user = await this.resolvePrincipal(token);
+    const resolved = await this.resolvePrincipal(token);
+    const user = this.applySpace(resolved, request, context);
     (request as Request & Record<string, unknown>)[REQUEST_USER_KEY] = user;
 
     // Une integration n'a pas de mot de passe a changer : le test ci-dessous la
@@ -197,6 +206,61 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return true;
+  }
+
+  /**
+   * ESPACE DE TRAVAIL ANNONCE PAR LE FRONTEND (`X-Comexa-Space`).
+   *
+   * Applique ICI, avant `PermissionsGuard`, pour que la route ET le service
+   * voient les memes droits : ceux de l'espace, toujours inclus dans ceux du
+   * role (voir `space-policy.ts`). Une route de l'espace equipe appelee depuis
+   * l'espace personnel echoue donc en 403, et une liste partagee n'y renvoie
+   * que les lignes du porteur.
+   *
+   *  - sans en-tete, ou pour une integration : aucun changement ;
+   *  - valeur inconnue : 400, plutot qu'un repli silencieux sur tous les droits ;
+   *  - espace non accessible : 403 `SPACE_FORBIDDEN`.
+   */
+  private applySpace(
+    user: AuthenticatedUser,
+    request: Request,
+    context: ExecutionContext,
+  ): AuthenticatedUser {
+    const raw = request.headers?.[SPACE_HEADER];
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (value === undefined || value === '' || user.isIntegration) {
+      return user;
+    }
+
+    const ignore = this.reflector.getAllAndOverride<boolean>(IGNORE_SPACE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (ignore) {
+      return user;
+    }
+
+    if (!isSpaceId(value)) {
+      throw AppException.badRequest(
+        'SPACE_INVALID',
+        `Espace de travail inconnu : « ${String(value)} ».`,
+      );
+    }
+
+    if (!canEnterSpace(value, user)) {
+      throw new AppException(
+        'SPACE_FORBIDDEN',
+        `${SPACES[value].label} ne vous est pas accessible.`,
+        HttpStatus.FORBIDDEN,
+      );
+    }
+
+    return {
+      ...user,
+      space: value,
+      rolePermissions: user.permissions,
+      permissions: effectivePermissions(value, user.permissions),
+    };
   }
 
   /**

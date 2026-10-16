@@ -26,14 +26,16 @@ const hm = (minutes) => `${Math.floor(minutes / 60)} h ${String(minutes % 60).pa
  * saisi. Les rapports passés se lisent sous forme de cartes en verre.
  */
 export default function RapportsJournaliersPage() {
-  const { user } = useAuth();
+  const { user, space } = useAuth();
   const [day, setDay] = useState(() => isoDay(new Date()));
   // Incrémenté à chaque enregistrement ou suppression : recharge l'historique et la vue d'équipe.
   const [version, setVersion] = useState(0);
   const bump = () => setVersion((v) => v + 1);
-  const canSeeOwn = can(user, "time:read:own") || can(user, "time:write:own");
+  // Espace personnel : MON rapport. Espace équipe : les rapports de l'équipe.
+  // Hors espace (compatibilité), les deux blocs restent affichés selon les droits.
+  const canSeeOwn = space !== "team" && (can(user, "time:read:own") || can(user, "time:write:own"));
   const canWriteOwn = can(user, "time:write:own");
-  const canSeeTeam = can(user, "time:read:any");
+  const canSeeTeam = space !== "personal" && can(user, "time:read:any");
 
   return (
     <div className="cx-daily-reports">
@@ -289,7 +291,7 @@ function ReportCard({ report, author, active, onOpen }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[12px] uppercase tracking-[0.14em] text-[#0f65a2]">{formatDate(`${report.reportDate}T12:00:00`)}</p>
-          {author ? <p className="mt-1 text-[13px] text-[#71849a]">{author}</p> : null}
+          {author ? <p className="mt-1 text-[13px] text-[var(--comexa-ink-muted)]">{author}</p> : null}
         </div>
         <button type="button" onClick={onOpen} className="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-[12px] text-[#526980] hover:bg-[#eef3f8] hover:text-[#152f4d]">
           {active ? "Ouvert" : "Ouvrir"}
@@ -310,7 +312,7 @@ const SAFE_PROTOCOLS = /^(https?:|mailto:)/i;
 
 function RichDoc({ doc }) {
   const content = doc && Array.isArray(doc.content) ? doc.content : [];
-  if (!content.length) return <p className="text-[#8292a5]">Rapport vide.</p>;
+  if (!content.length) return <p className="text-[var(--comexa-ink-muted)]">Rapport vide.</p>;
   return <>{content.map((node, index) => <Block key={index} node={node} />)}</>;
 }
 
@@ -330,7 +332,7 @@ function Block({ node }) {
     case "listItem":
       return <li>{children}</li>;
     case "blockquote":
-      return <blockquote className="mb-2 border-l-2 border-[#93c7f5] pl-3 italic text-[#637991]">{children}</blockquote>;
+      return <blockquote className="mb-2 border-l-2 border-[#93c7f5] pl-3 italic text-[var(--comexa-ink-muted)]">{children}</blockquote>;
     case "codeBlock":
       return <pre className="mb-2 overflow-x-auto rounded-xl bg-[#f4f7fb] p-3 text-[12.5px] text-[#405b76]"><code>{renderInline(node.content)}</code></pre>;
     case "horizontalRule":

@@ -190,7 +190,7 @@ before(async () => {
       reference: REF_PROJET,
       name: 'Projet e2e n8n',
       clientId: client.id,
-      status: 'ACTIVE',
+      status: 'IN_PROGRESS',
       managerId: admin.id,
       createdById: admin.id,
     },
