@@ -129,7 +129,7 @@ export default function AnalytiquePage() {
       <div className="mt-5 grid gap-5 xl:grid-cols-12">
         <GlassCard className="flex flex-col p-6 xl:col-span-8">
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Temps travaillé par jour</h3>
-          <p className="text-[13px] text-[#71849a]">Somme des saisies de l’équipe</p>
+          <p className="text-[13px] text-[var(--comexa-ink-muted)]">Somme des saisies de l’équipe</p>
           <div className="mt-4 h-[280px]">
             {timeDataReady ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -146,13 +146,13 @@ export default function AnalytiquePage() {
                   <Area type="monotone" dataKey="heures" name="Heures" stroke="#4fb0f0" strokeWidth={2.5} fill="url(#gHours)" isAnimationActive={false} />
                 </AreaChart>
               </ResponsiveContainer>
-            ) : <p className="pt-24 text-center text-[13px] text-[#71849a]" role="status">{entries.loading ? "Chargement des heures…" : "Données non disponibles pour ce compte."}</p>}
+            ) : <p className="pt-24 text-center text-[13px] text-[var(--comexa-ink-muted)]" role="status">{entries.loading ? "Chargement des heures…" : "Données non disponibles pour ce compte."}</p>}
           </div>
         </GlassCard>
 
         <GlassCard className="flex flex-col p-6 xl:col-span-12">
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Tâches : complétées contre en retard</h3>
-          <p className="text-[13px] text-[#71849a]">Hors tâches annulées, tous projets confondus</p>
+          <p className="text-[13px] text-[var(--comexa-ink-muted)]">Hors tâches annulées, tous projets confondus</p>
           {tasksDataReady ? (
             <>
               <div className="mt-5 flex h-4 overflow-hidden rounded-full bg-[#edf2f7]" role="img" aria-label={`${data.doneCount} terminées, ${data.openCount} en cours, ${data.lateCount} en retard`}>
@@ -170,15 +170,15 @@ export default function AnalytiquePage() {
                 <li className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#c0271f]" aria-hidden="true" />En retard · <span className="font-semibold text-[#152f4d]">{data.lateCount}</span></li>
               </ul>
             </>
-          ) : <p className="mt-8 text-[13px] text-[#71849a]" role="status">{tasksLoading ? "Chargement des tâches…" : "Données non disponibles pour ce compte."}</p>}
+          ) : <p className="mt-8 text-[13px] text-[var(--comexa-ink-muted)]" role="status">{tasksLoading ? "Chargement des tâches…" : "Données non disponibles pour ce compte."}</p>}
         </GlassCard>
 
         <GlassCard className="flex flex-col p-6 xl:col-span-4">
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Répartition des tâches</h3>
-          <p className="text-[13px] text-[#71849a]">Par statut, tous projets confondus</p>
+          <p className="text-[13px] text-[var(--comexa-ink-muted)]">Par statut, tous projets confondus</p>
           <div className="mt-4 h-[200px]">
             {!tasksDataReady ? (
-              <p className="pt-16 text-center text-[13px] text-[#71849a]" role="status">{tasksLoading ? "Chargement des tâches…" : "Données non disponibles pour ce compte."}</p>
+              <p className="pt-16 text-center text-[13px] text-[var(--comexa-ink-muted)]" role="status">{tasksLoading ? "Chargement des tâches…" : "Données non disponibles pour ce compte."}</p>
             ) : data.statusSlices.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -188,7 +188,7 @@ export default function AnalytiquePage() {
                   <Tooltip content={<DarkTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
-            ) : <p className="pt-16 text-center text-[13px] text-[#71849a]">Aucune tâche.</p>}
+            ) : <p className="pt-16 text-center text-[13px] text-[var(--comexa-ink-muted)]">Aucune tâche.</p>}
           </div>
           {tasksDataReady ? (
             <ul className="mt-3 grid grid-cols-2 gap-1.5 text-[12.5px] text-[#526980]">
@@ -207,7 +207,7 @@ export default function AnalytiquePage() {
             <GlowIcon tone="accent"><Icon name="users" /></GlowIcon>
             <div>
               <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Heures par membre</h3>
-              <p className="text-[13px] text-[#71849a]">Sur la période</p>
+              <p className="text-[13px] text-[var(--comexa-ink-muted)]">Sur la période</p>
             </div>
           </div>
           <div className="mt-4 h-[260px]">
@@ -226,13 +226,13 @@ export default function AnalytiquePage() {
                   </defs>
                 </BarChart>
               </ResponsiveContainer>
-            ) : <p className="pt-16 text-center text-[13px] text-[#71849a]">Aucune saisie sur la période.</p>}
+            ) : <p className="pt-16 text-center text-[13px] text-[var(--comexa-ink-muted)]">Aucune saisie sur la période.</p>}
           </div>
         </GlassCard>
 
         <GlassCard className="flex flex-col p-6 xl:col-span-6">
           <h3 className="!text-[16px] !font-bold !text-[#152f4d]">Avancement des projets</h3>
-          <p className="text-[13px] text-[#71849a]">Progression déclarée</p>
+          <p className="text-[13px] text-[var(--comexa-ink-muted)]">Progression déclarée</p>
           <ul className="mt-5 flex flex-col gap-4">
             {data.projects.length ? data.projects.map((p) => (
               <li key={p.id}>
@@ -244,7 +244,7 @@ export default function AnalytiquePage() {
                   <div className="h-full rounded-full bg-gradient-to-r from-sky-300 to-blue-500" style={{ width: `${p.progress}%` }} />
                 </div>
               </li>
-            )) : <p className="text-center text-[13px] text-[#71849a]">Aucun projet.</p>}
+            )) : <p className="text-center text-[13px] text-[var(--comexa-ink-muted)]">Aucun projet.</p>}
           </ul>
         </GlassCard>
       </div>
@@ -257,9 +257,9 @@ function Kpi({ label, value, sub, icon, tone }) {
     <GlassCard className="flex items-center gap-4 p-5">
       <GlowIcon tone={tone}><Icon name={icon} /></GlowIcon>
       <div>
-        <p className="text-[12.5px] text-[#71849a]">{label}</p>
+        <p className="text-[12.5px] text-[var(--comexa-ink-muted)]">{label}</p>
         <p className="text-[24px] font-semibold tracking-tight">{value}</p>
-        {sub ? <p className="mt-0.5 text-[12px] text-[#71849a]">{sub}</p> : null}
+        {sub ? <p className="mt-0.5 text-[12px] text-[var(--comexa-ink-muted)]">{sub}</p> : null}
       </div>
     </GlassCard>
   );

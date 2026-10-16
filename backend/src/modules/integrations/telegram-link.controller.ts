@@ -1,16 +1,9 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
-import { VerifyTelegramCodeDto } from './dto/telegram-link.dto.js';
+import { TelegramCommandDto, VerifyTelegramCodeDto } from './dto/telegram-link.dto.js';
 import { TelegramLinkService } from './telegram-link.service.js';
 
 /**
@@ -34,7 +27,7 @@ export class TelegramLinkController {
   // ---------------------------------------------------------------------------
 
   @Get('me/telegram-link')
-  @ApiOperation({ summary: "État de la liaison Telegram du membre connecté." })
+  @ApiOperation({ summary: 'État de la liaison Telegram du membre connecté.' })
   async getState(@CurrentUser() actor: AuthenticatedUser) {
     return this.links.getState(actor);
   }
@@ -49,10 +42,7 @@ export class TelegramLinkController {
 
   @Delete('me/telegram-link')
   @ApiOperation({ summary: 'Révoque la liaison Telegram du membre connecté.' })
-  async revoke(
-    @CurrentUser() actor: AuthenticatedUser,
-    @RequestMeta() meta: RequestContext,
-  ) {
+  async revoke(@CurrentUser() actor: AuthenticatedUser, @RequestMeta() meta: RequestContext) {
     return this.links.revokeForSelf(actor, meta);
   }
 
@@ -71,6 +61,25 @@ export class TelegramLinkController {
     @RequestMeta() meta: RequestContext,
   ) {
     return this.links.verifyCode(dto, actor, meta);
+  }
+
+  /**
+   * Aiguillage d'un message reçu par le bot : exécute `/lier <code>` avec le
+   * mécanisme ci-dessus et renvoie la phrase à afficher. Tout autre message
+   * répond `handled: false` (le workflow le confie alors à son agent).
+   */
+  @Post('integrations/telegram/command')
+  @HttpCode(200)
+  @RequirePermissions('telegram:link:any')
+  @ApiOperation({
+    summary: 'Interprète un message Telegram (commande /lier) et renvoie la réponse du bot.',
+  })
+  async command(
+    @Body() dto: TelegramCommandDto,
+    @CurrentUser() actor: AuthenticatedUser,
+    @RequestMeta() meta: RequestContext,
+  ) {
+    return this.links.handleCommand(dto, actor, meta);
   }
 
   @Get('integrations/telegram/resolve/:telegramUserId')

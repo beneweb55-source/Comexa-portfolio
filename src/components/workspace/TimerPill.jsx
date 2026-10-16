@@ -9,13 +9,20 @@ import { canUseTimer } from "@/lib/timer-access";
 import { Pagination } from "@/components/workspace/ui";
 import Icon from "@/components/dashboard/icons";
 
-/** Minuteur flottant Comexa, avec des surfaces claires et un menu clavier accessible. */
-export default function TimerPill() {
+/**
+ * Minuteur Comexa, avec des surfaces claires et un menu clavier accessible.
+ *
+ * `variant="dock"` : rendu DANS le dock de la coque (segment de droite), au lieu
+ * de flotter seul dans le coin de l'écran, où il débordait de la coque et
+ * recouvrait le panneau de suivi.
+ */
+export default function TimerPill({ variant = "floating" }) {
   const pathname = usePathname() ?? "/";
-  return <TimerPillContent key={pathname} pathname={pathname} />;
+  return <TimerPillContent key={pathname} pathname={pathname} variant={variant} />;
 }
 
-function TimerPillContent({ pathname }) {
+function TimerPillContent({ pathname, variant }) {
+  const docked = variant === "dock";
   const { timer, elapsedSeconds, start, pause, resume, stop, saving, error } = useTimer();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState("");
@@ -79,11 +86,12 @@ function TimerPillContent({ pathname }) {
     } else setOpen(false);
   }
 
-  // Sur le tableau de bord, le minuteur est déjà une tuile : éviter le doublon.
-  if (!allowed || pathname === "/espace-equipe/tableau-de-bord") return null;
+  // Sur le tableau de bord, le minuteur flottant ferait doublon avec la tuile ;
+  // dans le dock, il reste à sa place (c'est la barre d'outils globale).
+  if (!allowed || (!docked && pathname === "/espace-equipe/tableau-de-bord")) return null;
 
   return (
-    <div ref={rootRef} className="cx-timer-pill" data-theme="team-glass">
+    <div ref={rootRef} className={docked ? "sui-dock-timer" : "cx-timer-pill"} data-theme="team-glass">
       {open ? (
         <section ref={panelRef} id={dialogId} role="dialog" aria-labelledby={`${dialogId}-title`} className="cx-timer-pill__panel">
           {timer ? (
@@ -153,10 +161,11 @@ function TimerPillContent({ pathname }) {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls={dialogId}
-        className={`cx-timer-pill__trigger${timer ? " is-active" : ""}`}
+        aria-label={timer ? `Minuteur ${timer.status === "PAUSED" ? "en pause" : "en cours"} : ${formatElapsed(elapsedSeconds)}` : "Ouvrir le minuteur"}
+        className={docked ? `sui-dock-timer__trigger${timer ? " is-active" : ""}${timer?.status === "PAUSED" ? " is-paused" : ""}` : `cx-timer-pill__trigger${timer ? " is-active" : ""}`}
       >
         <Icon name={timer ? "clock" : "play"} />
-        {timer ? <span className="cx-timer-pill__trigger-time">{formatElapsed(elapsedSeconds)}</span> : "Minuteur"}
+        {timer ? <span className="cx-timer-pill__trigger-time">{formatElapsed(elapsedSeconds)}</span> : <span>Minuteur</span>}
       </button>
     </div>
   );

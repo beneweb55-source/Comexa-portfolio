@@ -1,35 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useState } from "react";
 import { formatDate } from "@/lib/api";
 import { useAction, useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
 import { hasTeamAccess } from "@/lib/access";
+import { resolveNotificationHref } from "@/lib/notification-links";
+import { spaceForPath } from "@/lib/spaces";
 import { Badge, Card, Empty, Notice, Pagination, secondaryButton } from "@/components/workspace/ui";
 
 /*
- * Le backend produit des liens qui ne correspondent pas toujours aux routes du front
- * (ex. /espace/demandes/:id, /admin/projets/:id). On les ramène à la page de liste
- * correspondante de l'espace de l'utilisateur ; à défaut, à l'accueil de cet espace.
+ * Le serveur produit des liens courts (`/factures/:id`, `/taches/:id`…) qui ne
+ * sont pas des routes du frontend : `resolveNotificationHref` les traduit vers
+ * la fiche ou la liste correspondante de l'espace COURANT (personnel, équipe,
+ * Comexa Space ou espace client).
  */
-const TEAM_TARGETS = {
-  "espace/demandes": "modifications", "espace/messages": "messagerie", devis: "devis", factures: "factures",
-  "admin/demandes": "demandes", projets: "projets", "admin/projets": "projets", taches: "projets", clients: "clients",
-};
-const CLIENT_TARGETS = {
-  "espace/demandes": "modifications", "espace/messages": "messagerie", devis: "devis", projets: "projets",
-};
-
-export function resolveLink(link, team) {
-  if (!link) return null;
-  const segments = link.split("?")[0].split("/").filter(Boolean);
-  const base = team ? "/espace-equipe" : "/espace-client";
-  const targets = team ? TEAM_TARGETS : CLIENT_TARGETS;
-  const two = segments.slice(0, 2).join("/");
-  const one = segments[0] ?? "";
-  const target = targets[two] ?? targets[one];
-  return target ? `${base}/${target}` : base;
+export function resolveLink(link, area) {
+  return link ? resolveNotificationHref(link, area) : null;
 }
 
 /**
@@ -38,7 +27,8 @@ export function resolveLink(link, team) {
  */
 export default function NotificationsPanel() {
   const { user } = useAuth();
-  const team = hasTeamAccess(user);
+  const pathname = usePathname();
+  const area = hasTeamAccess(user) ? (spaceForPath(pathname) ?? "team") : "client";
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [page, setPage] = useState(1);
   const path = `/notifications?page=${page}&perPage=30${onlyUnread ? "&read=false" : ""}`;
@@ -105,7 +95,7 @@ export default function NotificationsPanel() {
               {item.body ? <p className="mt-1 text-[14px] text-[var(--comexa-ink-soft)]">{item.body}</p> : null}
               <p className="mt-1 text-[12.5px] text-[var(--comexa-ink-muted)]">{formatDate(item.createdAt)}</p>
               {item.link ? (
-                <Link href={resolveLink(item.link, team)} className="mt-2 inline-block text-[14px] font-medium text-[var(--comexa-ink)] underline" onClick={() => !item.readAt && markRead(item)}>
+                <Link href={resolveLink(item.link, area)} className="mt-2 inline-block text-[14px] font-medium text-[var(--comexa-ink)] underline" onClick={() => !item.readAt && markRead(item)}>
                   Voir
                 </Link>
               ) : null}

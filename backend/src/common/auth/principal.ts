@@ -1,5 +1,6 @@
 import type { RoleCode } from '../../generated/prisma/enums.js';
 import { AppException } from '../errors/app-error.js';
+import type { SpaceId } from '../spaces/space-policy.js';
 
 /**
  * LE PORTEUR DE LA REQUETE, tel qu'il est attache a `request.authenticatedUser`.
@@ -37,6 +38,18 @@ export interface AuthenticatedUser {
    * machine comme un collegue dans le fil d'activite.
    */
   readonly isIntegration?: boolean;
+  /**
+   * Espace de travail actif de la requete (`X-Comexa-Space`), s'il est annonce.
+   *
+   * Quand il est present, `permissions` contient deja les droits EFFECTIFS de
+   * cet espace (voir `common/spaces/space-policy.ts`) : un service n'a rien a
+   * recalculer. Le champ sert seulement aux rares regles qui dependent de
+   * l'espace au-dela des droits (exclure les taches personnelles de l'espace
+   * equipe, par exemple). Absent : comportement historique, droits du role.
+   */
+  readonly space?: SpaceId;
+  /** Droits du role AVANT restriction par l'espace (lecture des espaces accessibles). */
+  readonly rolePermissions?: ReadonlySet<string>;
 }
 
 export const SCOPE_ANY = 'any';
@@ -86,6 +99,11 @@ export class AccessPolicy {
 
   get mustChangePassword(): boolean {
     return this.user.mustChangePassword;
+  }
+
+  /** Espace de travail actif, ou `null` sans en-tete (comportement historique). */
+  get space(): SpaceId | null {
+    return this.user.space ?? null;
   }
 
   /** Detient exactement ce code. */

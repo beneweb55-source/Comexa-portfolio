@@ -381,6 +381,13 @@ export class TimeEntriesService {
    * va le chercher.
    */
   private perimeter(policy: AccessPolicy, action: 'read' | 'write'): Prisma.TimeEntryWhereInput {
+    return this.withinSpace(policy, this.rolePerimeter(policy, action));
+  }
+
+  private rolePerimeter(
+    policy: AccessPolicy,
+    action: 'read' | 'write',
+  ): Prisma.TimeEntryWhereInput {
     const scope = policy.requireScope(
       'time',
       action,
@@ -397,6 +404,19 @@ export class TimeEntriesService {
       subjectOf(policy),
       projectScopeWhere(projectScope, subjectOf(policy)),
     );
+  }
+
+  /**
+   * Espace equipe : seulement le temps passe SUR DES PROJETS. Les saisies sans
+   * projet (taches personnelles) restent dans l'espace personnel de leur
+   * auteur, meme pour la portee `own`. Hors espace annonce, rien ne change.
+   */
+  private withinSpace(
+    policy: AccessPolicy,
+    where: Prisma.TimeEntryWhereInput,
+  ): Prisma.TimeEntryWhereInput {
+    if (policy.space !== 'team') return where;
+    return { AND: [{ projectId: { not: null } }, where] };
   }
 
   private async load(

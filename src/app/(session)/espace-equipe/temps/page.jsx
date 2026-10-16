@@ -23,10 +23,12 @@ function getServerLocalDate() {
  * et nouvelle saisie sur une de mes tâches. L'API borne déjà les lignes au périmètre du porteur.
  */
 export default function TempsPage() {
-  const { user } = useAuth();
+  const { user, space } = useAuth();
   const canReadTime = can(user, "time:read:any") || can(user, "time:read:own");
   const canWriteTime = can(user, "time:write:any") || can(user, "time:write:own");
-  const canAddEntry = canUseTimer(user);
+  // Une nouvelle saisie est MON temps : elle se fait dans l'espace personnel.
+  // L'espace équipe consulte et corrige le temps de l'équipe.
+  const canAddEntry = space !== "team" && canUseTimer(user);
   const [range, setRange] = useState({ from: "", to: "" });
   const [applied, setApplied] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);

@@ -44,6 +44,14 @@ const N8N_PILOT_PRESET = [
   "calendar:manage:any",
 ];
 
+/*
+ * Jeton du workflow n8n de @ComexaWork_bot : le pilotage ci-dessus, plus
+ * `telegram:link:any`, sans lequel les routes `/integrations/telegram/*`
+ * (commande `/lier`, vérification du code, résolution du membre) répondent 403
+ * — et le bot retombe alors sur sa réponse générique.
+ */
+const TELEGRAM_BOT_PRESET = [...N8N_PILOT_PRESET, "telegram:link:any"];
+
 const RESOURCE_LABEL = {
   user: "Comptes",
   role: "Rôles",
@@ -377,6 +385,9 @@ function PermissionPicker({ idPrefix, permissions, selected, onChange }) {
           </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(N8N_PILOT_PRESET)}>
             Pilotage projets, tâches et calendrier
+          </button>
+          <button type="button" className={secondaryButton} onClick={() => applyPreset(TELEGRAM_BOT_PRESET)}>
+            Bot Telegram (pilotage + liaison /lier)
           </button>
           <button type="button" className={secondaryButton} onClick={() => applyPreset(readOnlyPreset(allowedPermissions))}>
             Lecture seule

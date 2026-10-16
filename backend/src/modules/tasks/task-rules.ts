@@ -178,10 +178,32 @@ export function taskReadWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
     ? personalTaskWhere(policy.userId)
     : null;
 
+  return withinSpace(policy, combine(standard, personal));
+}
+
+/** `standard OU personnel`, ou le filtre impossible si aucun des deux. */
+function combine(
+  standard: Prisma.TaskWhereInput | null,
+  personal: Prisma.TaskWhereInput | null,
+): Prisma.TaskWhereInput {
   if (standard && personal) return { OR: [standard, personal] };
   if (standard) return standard;
   if (personal) return personal;
   return MATCH_NOTHING;
+}
+
+/**
+ * ESPACE EQUIPE : AUCUNE TACHE PERSONNELLE, MEME LA SIENNE.
+ *
+ * L'espace equipe retire deja `task:read:personal` (voir `space-policy.ts`),
+ * mais les portees `assigned`/`own` designent aussi les taches personnelles du
+ * porteur (elles lui sont assignees). Sans ce filtre, sa liste privee
+ * reapparaitrait dans le tableau partage par la porte `assigned`. Hors espace
+ * annonce (integrations, anciens clients), rien ne change.
+ */
+function withinSpace(policy: AccessPolicy, where: Prisma.TaskWhereInput): Prisma.TaskWhereInput {
+  if (policy.space !== 'team') return where;
+  return { AND: [{ isPersonal: false }, where] };
 }
 
 /**
@@ -205,10 +227,7 @@ export function taskWriteWhereFor(policy: AccessPolicy): Prisma.TaskWhereInput {
     ? personalTaskWhere(policy.userId)
     : null;
 
-  if (standard && personal) return { OR: [standard, personal] };
-  if (standard) return standard;
-  if (personal) return personal;
-  return MATCH_NOTHING;
+  return withinSpace(policy, combine(standard, personal));
 }
 
 /**

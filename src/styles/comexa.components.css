@@ -291,6 +291,14 @@
   border-bottom: 1px solid var(--comexa-border-soft);
 }
 
+/* Carte sans contenu sous l'en-tête (ex. sélecteur de projet sans pagination) :
+   ni filet ni marge, sinon une bande vide restait en bas de la carte. */
+.cx-panel__header:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .cx-panel__title {
   margin: 0;
   font-family: var(--comexa-font-display);

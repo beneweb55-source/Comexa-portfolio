@@ -326,7 +326,7 @@
 .cx-dashboard__welcome-copy { min-width: 0; }
 .cx-dashboard__date { margin: 0; color: #0f65a2; font-size: 10px; font-weight: 700; letter-spacing: 0.11em; line-height: 1.4; text-transform: uppercase; }
 .cx-dashboard__welcome-title { margin: 3px 0 0; color: #152f4d; font-size: clamp(22px, 2.3vw, 28px); font-weight: 600; letter-spacing: -0.04em; line-height: 1.2; }
-.cx-dashboard__welcome-subtitle { margin: 4px 0 0; color: #647991; font-size: 13px; line-height: 1.4; }
+.cx-dashboard__welcome-subtitle { margin: 4px 0 0; color: var(--comexa-ink-muted); font-size: 13px; line-height: 1.4; }
 .cx-dashboard__welcome-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .cx-dashboard__quick-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .cx-dashboard__quick-action,
@@ -355,7 +355,7 @@
 .cx-dashboard__refresh:disabled { cursor: wait; opacity: 0.65; }
 .cx-dashboard__refresh span { padding-inline-start: 3px; color: #8392a3; font-size: 10px; font-weight: 500; }
 .cx-dashboard__grid { min-width: 0; align-items: stretch; }
-.cx-dashboard__muted { margin: 0; color: #71849a; font-size: 11.5px; line-height: 1.45; }
+.cx-dashboard__muted { margin: 0; color: var(--comexa-ink-muted); font-size: 11.5px; line-height: 1.45; }
 .cx-glass-card {
   position: relative;
   min-width: 0;
@@ -493,7 +493,7 @@
 .cx-dashboard__section-eyebrow { margin: 0 0 3px; color: #0f65a2; font-size: 9px; font-weight: 750; letter-spacing: 0.1em; line-height: 1.35; text-transform: uppercase; }
 .cx-dashboard__section-title { margin: 0; color: #152f4d; font-size: 17px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.3; }
 .cx-dashboard__period,
-.cx-dashboard__section-note { display: inline-flex; min-height: 28px; align-items: center; border: 1px solid rgba(31, 64, 103, 0.09); border-radius: 999px; background: rgba(255, 255, 255, 0.78); padding: 5px 10px; color: #647991; font-size: 10px; font-weight: 550; white-space: nowrap; }
+.cx-dashboard__section-note { display: inline-flex; min-height: 28px; align-items: center; border: 1px solid rgba(31, 64, 103, 0.09); border-radius: 999px; background: rgba(255, 255, 255, 0.78); padding: 5px 10px; color: var(--comexa-ink-muted); font-size: 10px; font-weight: 550; white-space: nowrap; }
 .cx-dashboard__period-control { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .cx-dashboard__period-label { display: inline-flex; min-height: 34px; align-items: center; gap: 7px; color: #526980; font-size: 10px; font-weight: 650; }
 .cx-dashboard__period-select { max-width: 100%; min-height: 34px; border: 1px solid rgba(31, 64, 103, 0.15); border-radius: 10px; background: #fff; padding: 0 27px 0 10px; color: #173452; font: inherit; font-size: 11px; font-weight: 600; }
@@ -505,7 +505,7 @@
 .cx-dashboard__kpi-top .cx-dashboard__muted { padding-top: 3px; color: #61788f; font-size: 11px; font-weight: 600; }
 .cx-dashboard__kpi-body { margin-top: auto; padding-top: 12px; }
 .cx-dashboard__kpi-value { overflow-wrap: anywhere; font-size: clamp(25px, 2.15vw, 32px); }
-.cx-dashboard__kpi-sub { min-height: 30px; margin-top: 5px; color: #71849a; font-size: 11px; }
+.cx-dashboard__kpi-sub { min-height: 30px; margin-top: 5px; color: var(--comexa-ink-muted); font-size: 11px; }
 .cx-dashboard__kpi-link-hint { display: inline-flex; align-items: center; gap: 5px; margin-top: 11px; color: #0f65a2; font-size: 10px; font-weight: 650; }
 .cx-dashboard__kpi-link-hint span { font-size: 13px; line-height: 1; transition: transform 150ms ease; }
 .cx-dashboard__kpi--link:hover .cx-dashboard__kpi-link-hint span { transform: translate(2px, -2px); }
@@ -537,7 +537,7 @@
 .cx-dashboard__pipeline-details[open] > summary { margin-bottom: 15px; }
 
 .cx-dashboard__details-copy { display: flex; flex-direction: column; gap: 3px; }
-.cx-dashboard__details-description { color: #71849a; font-size: 11px; font-weight: 400; line-height: 1.45; }
+.cx-dashboard__details-description { color: var(--comexa-ink-muted); font-size: 11px; font-weight: 400; line-height: 1.45; }
 .cx-dashboard__details-toggle { display: inline-flex; align-items: center; gap: 8px; }
 .cx-dashboard__details-chevron { display: inline-flex; width: 27px; height: 27px; align-items: center; justify-content: center; border: 1px solid rgba(31, 64, 103, 0.1); border-radius: 9px; background: #fff; color: #45617b; font-size: 17px; line-height: 1; transition: transform 160ms ease; }
 .cx-dashboard__details[open] .cx-dashboard__details-chevron { transform: rotate(180deg); }

@@ -12,6 +12,8 @@ import Navbar from "@/components/Navbar";
 const SESSION_PREFIXES = [
   "/espace-client",
   "/espace-equipe",
+  "/espace-personnel",
+  "/espace-comexa",
   "/connexion",
   "/inscription",
   "/verify-email",

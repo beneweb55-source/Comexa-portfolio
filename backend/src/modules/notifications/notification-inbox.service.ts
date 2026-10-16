@@ -7,6 +7,28 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import type { NotificationType } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { ListNotificationsQueryDto } from './dto/notification.dto.js';
+import {
+  NOTIFICATION_TYPES_BY_SPACE,
+  SPACE_IDS,
+  spaceOfNotificationType,
+  type SpaceId,
+} from '../../common/spaces/space-policy.js';
+
+/** Non lues par espace, pour les pastilles du sélecteur d'espace. */
+export interface NotificationSummary {
+  readonly unread: number;
+  readonly unreadBySpace: Readonly<Record<SpaceId, number>>;
+}
+
+/**
+ * Filtre d'ESPACE : la cloche et ses compteurs ne mélangent jamais deux
+ * espaces. Sans espace annoncé, toute la boîte (comportement historique).
+ */
+function spaceWhere(policy: AccessPolicy): Prisma.NotificationWhereInput {
+  const space = policy.space;
+  if (!space) return {};
+  return { type: { in: [...NOTIFICATION_TYPES_BY_SPACE[space]] as NotificationType[] } };
+}
 
 /**
  * BOITE DE NOTIFICATIONS — la LECTURE.
@@ -83,6 +105,7 @@ export class NotificationInboxService {
     const p = resolvePagination(query);
     const where: Prisma.NotificationWhereInput = {
       userId: policy.userId,
+      ...spaceWhere(policy),
       ...(query.read === undefined ? {} : { readAt: query.read ? { not: null } : null }),
     };
 
@@ -140,12 +163,43 @@ export class NotificationInboxService {
   async markAllRead(policy: AccessPolicy): Promise<{ updated: number }> {
     policy.requireScope('notification', 'read', ['own']);
 
+    // Dans un espace, « tout marquer comme lu » ne touche que CET espace : un
+    // membre ne doit pas perdre en silence les alertes d'un autre espace.
     const { count } = await this.prisma.notification.updateMany({
-      where: { userId: policy.userId, readAt: null },
+      where: { userId: policy.userId, readAt: null, ...spaceWhere(policy) },
       data: { readAt: new Date() },
     });
 
     return { updated: count };
+  }
+
+  /**
+   * Non lues du porteur, réparties par espace (lecture seule, hors espace).
+   *
+   * Sert aux pastilles du sélecteur : « 3 dans l'espace équipe » s'affiche à
+   * côté de l'espace concerné, sans jamais additionner deux espaces dans un même
+   * compteur.
+   */
+  async summary(policy: AccessPolicy): Promise<NotificationSummary> {
+    policy.requireScope('notification', 'read', ['own']);
+
+    const groups = await this.prisma.notification.groupBy({
+      by: ['type'],
+      where: { userId: policy.userId, readAt: null },
+      _count: { _all: true },
+    });
+
+    const unreadBySpace = Object.fromEntries(SPACE_IDS.map((space) => [space, 0])) as Record<
+      SpaceId,
+      number
+    >;
+    let unread = 0;
+    for (const group of groups) {
+      const count = group._count._all;
+      unread += count;
+      unreadBySpace[spaceOfNotificationType(group.type)] += count;
+    }
+    return { unread, unreadBySpace };
   }
 
   /**

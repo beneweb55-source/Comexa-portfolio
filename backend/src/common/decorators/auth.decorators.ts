@@ -65,6 +65,8 @@ export const PERMISSIONS_ANY_KEY = 'requiredPermissionsAny';
 export const ALLOW_PASSWORD_CHANGE_REQUIRED_KEY = 'allowPasswordChangeRequired';
 /** Route de LISTE dont le service restreint les lignes : tout compte authentifie y accede. */
 export const SCOPED_BY_SERVICE_KEY = 'scopedByService';
+/** Route qui lit le compte LUI-MEME, hors de tout espace (voir `IgnoreSpace`). */
+export const IGNORE_SPACE_KEY = 'ignoreSpace';
 
 /**
  * Autorise cette route meme si un changement de mot de passe est du.
@@ -136,3 +138,10 @@ export const RequireAnyPermission = (...codes: string[]): CustomDecorator<string
  */
 export const ScopedByService = (): CustomDecorator<string> =>
   SetMetadata(SCOPED_BY_SERVICE_KEY, true);
+
+/**
+ * La route ignore l'en-tete `X-Comexa-Space` : le porteur y garde les droits de
+ * son role. Reserve aux routes qui decrivent le compte lui-meme et servent dans
+ * tous les espaces (liste des espaces accessibles, profil, liaison Telegram).
+ */
+export const IgnoreSpace = (): CustomDecorator<string> => SetMetadata(IGNORE_SPACE_KEY, true);

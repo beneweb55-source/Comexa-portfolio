@@ -45,12 +45,14 @@ const REQUEST_REASON_HINT = {
 export default function EspaceClientPage() {
   const [quotePage, setQuotePage] = useState(1);
   const [orderPage, setOrderPage] = useState(1);
-  const [requestPage, setRequestPage] = useState(1);
   const [projectPage, setProjectPage] = useState(1);
 
   const quotes = useListing(`/quotes?page=${quotePage}&perPage=50`);
   const orders = useListing(`/orders?page=${orderPage}&perPage=50`);
-  const requests = useListing(`/project-requests?page=${requestPage}&perPage=50`);
+  /* Les demandes DU client : `GET /project-requests` est la file de l'équipe
+     (`project_request:read:any`) et répondait 403 ici — le compteur restait
+     bloqué sur « … » et la carte affichait « Droit insuffisant ». */
+  const requests = useListing("/project-requests/mine");
   const projects = useListing(`/projects?page=${projectPage}&perPage=50`);
 
   const quotesVisible = quotes.errorStatus !== 403;
@@ -153,7 +155,7 @@ export default function EspaceClientPage() {
           <div>
             <p className="text-[12.5px] font-semibold text-[#4a607a]">Demandes sur mesure</p>
             <p className="cx-tabular mt-0.5 text-[26px] font-bold tracking-tight text-[#0b2545]">
-              {requests.items === null ? "…" : requestList.length}
+              {requests.error ? "—" : requests.items === null ? "…" : requestList.length}
             </p>
           </div>
           <div className="flex items-center gap-2 text-[12px]">
@@ -367,7 +369,6 @@ export default function EspaceClientPage() {
               </li>
             ))}
           </ul>
-          <Pagination meta={requests.meta} onPageChange={setRequestPage} loading={requests.loading} />
         </Card>
 
         {quotesVisible ? (

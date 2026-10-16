@@ -531,6 +531,53 @@ jamais acces a un autre dossier**. Un client qui appelle `/clients/<autre-id>`
 recoit un 404 — pas la donnee, et pas non plus un 403 qui confirmerait que le
 dossier existe.
 
+### Les espaces de travail (`X-Comexa-Space`)
+
+L'interface d'equipe est decoupee en trois espaces : **Espace personnel**
+(`personal`), **Espace equipe** (`team`) et **Comexa Space** (`comexa`). Le
+frontend annonce l'espace actif dans l'en-tete `X-Comexa-Space` ; le serveur
+recalcule alors les droits du porteur **pour cet espace**, avant
+`PermissionsGuard` (`JwtAuthGuard.applySpace`, regles dans
+`common/spaces/space-policy.ts`). Les routes et les services voient donc les
+memes droits, et les `where` Prisma restent la seule source du perimetre.
+
+Regle d'or : **un espace ne fait que retirer des droits**, jamais en ajouter.
+
+| Espace | Droits effectifs |
+|---|---|
+| `personal` | les portees personnelles (`*:own`, `task:*:personal`, `task:read:assigned`, agenda propre, temps propre, notifications) ; `task:read:any` devient `task:read:assigned`, `time:read:any` devient `time:read:own`, etc. |
+| `team` | les droits du role **moins** l'administration de l'organisation (`COMEXA_ONLY` : comptes, roles, audit, integrations, parametres, contenu du site, `telegram:link:any`) **moins** les taches personnelles et l'agenda prive (`task:*:personal`, `calendar:read:own`) |
+| `comexa` | `COMEXA_ONLY` + les lectures utiles a l'administration (comptes, roles, parametres, contenu) |
+
+Acces (`GET /me/spaces`) : ADMIN, COMMUNICATION_MANAGER et PROJECT_MANAGER
+entrent dans les trois espaces ; DEVELOPER, DESIGNER et SALES dans
+`personal` et `team` ; CLIENT dans aucun (il garde l'espace client, sans
+en-tete).
+
+| Cas | Reponse |
+|---|---|
+| En-tete absent, ou jeton d'integration | droits complets du role / du jeton (compatibilite : espace client, n8n, anciens clients) |
+| Valeur inconnue | **400** `SPACE_INVALID` (jamais de repli silencieux sur tous les droits) |
+| Espace non accessible au porteur | **403** `SPACE_FORBIDDEN` |
+| Creation d'un evenement `PRIVATE` depuis l'espace equipe | **422** `CALENDAR_PRIVATE_IN_TEAM_SPACE` |
+
+Routes dediees :
+
+- `GET /me/spaces` (`@IgnoreSpace()`) : `{ spaces: [{ id, label, description, permissions }], defaultSpace }`
+  — `permissions` = droits effectifs que l'API appliquera dans chaque espace ;
+- `GET /notifications/summary` (`@IgnoreSpace()`) : `{ unread, unreadBySpace: { personal, team, comexa } }`
+  pour les pastilles du selecteur d'espace.
+
+Les notifications sont rattachees a un espace par leur type
+(`NOTIFICATION_TYPES_BY_SPACE`) : `personal` = `TASK_ASSIGNED`,
+`TASK_DUE_SOON` ; `comexa` = `SYSTEM` ; tout le reste (projets, commercial,
+facturation, messages) = `team`. `GET /notifications` et ses compteurs filtrent
+selon l'espace annonce : une cloche ne melange jamais deux espaces.
+
+Aucune donnee n'a ete migree ni dupliquee : l'espace est une **vue** sur les
+donnees existantes (une tache personnelle est une tache `isPersonal`, un
+evenement prive un evenement `PRIVATE`, etc.).
+
 ### L'ordre des gardes
 
 `ThrottlerGuard` → `JwtAuthGuard` → `PermissionsGuard`, tous globaux.

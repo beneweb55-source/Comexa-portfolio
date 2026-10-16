@@ -35,6 +35,7 @@ import { TimerModule } from './modules/timer/timer.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { DailyReportsModule } from './modules/daily-reports/daily-reports.module.js';
 import { IntegrationsModule } from './modules/integrations/integrations.module.js';
+import { SpacesModule } from './modules/spaces/spaces.module.js';
 import { UserModule } from './modules/users/user.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -234,6 +235,7 @@ const isProduction = process.env.NODE_ENV === 'production';
      * recoit par injection, pas par position.
      */
     IntegrationsModule,
+    SpacesModule,
 
     /**
      * CRM — pipeline commercial et dossiers clients.

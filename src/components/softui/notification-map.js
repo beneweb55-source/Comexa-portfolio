@@ -41,7 +41,6 @@ export function notificationMeta(type) {
   return NOTIFICATION_META[type] ?? { label: "Notification", icon: Bell, tone: "plain", group: "system" };
 }
 
-export function resolveNotificationHref(link, isTeam = true) {
-  if (typeof link === "string" && link.startsWith("/")) return link;
-  return isTeam ? "/espace-equipe/notifications" : "/espace-client/notifications";
-}
+/* Lien d'une notification : traduit vers une vraie page de l'espace courant
+   (voir `lib/notification-links.js`). Réexporté pour les appels existants. */
+export { notificationsPageFor, resolveNotificationHref } from "@/lib/notification-links";

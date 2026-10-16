@@ -1,10 +1,18 @@
 import { Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
-import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import {
+  CurrentUser,
+  IgnoreSpace,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators.js';
 import type { Paginated } from '../../common/interceptors/transform.interceptor.js';
 import { ListNotificationsQueryDto } from './dto/notification.dto.js';
-import { NotificationInboxService, type NotificationView } from './notification-inbox.service.js';
+import {
+  NotificationInboxService,
+  type NotificationSummary,
+  type NotificationView,
+} from './notification-inbox.service.js';
 
 /**
  * ROUTES DE LA BOITE DE NOTIFICATIONS.
@@ -33,6 +41,15 @@ export class NotificationController {
     @Query() query: ListNotificationsQueryDto,
   ): Promise<Paginated<NotificationView>> {
     return this.inbox.list(new AccessPolicy(user), query);
+  }
+
+  /** Non lues par espace de travail (pastilles du sélecteur d'espace). */
+  @Get('summary')
+  @IgnoreSpace()
+  @RequirePermissions('notification:read:own')
+  @ApiOperation({ summary: 'Nombre de notifications non lues, par espace de travail' })
+  summary(@CurrentUser() user: AuthenticatedUser): Promise<NotificationSummary> {
+    return this.inbox.summary(new AccessPolicy(user));
   }
 
   /**

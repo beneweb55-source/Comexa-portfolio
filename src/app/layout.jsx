@@ -6,6 +6,7 @@ import "@fontsource/space-grotesk/600.css";
 import PublicChrome from "@/components/PublicChrome";
 import RouteHistory from "@/components/RouteHistory";
 import { AuthProvider } from "@/lib/session";
+import { SpacesProvider } from "@/lib/spaces-context";
 
 
 export const metadata = {
@@ -43,8 +44,10 @@ export default function RootLayout({ children }) {
         className="flex min-h-full flex-col overflow-x-hidden bg-white text-gray-900"
       >
         <AuthProvider>
-          <RouteHistory />
-          <PublicChrome>{children}</PublicChrome>
+          <SpacesProvider>
+            <RouteHistory />
+            <PublicChrome>{children}</PublicChrome>
+          </SpacesProvider>
         </AuthProvider>
       </body>
     </html>

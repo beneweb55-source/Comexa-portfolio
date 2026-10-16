@@ -77,6 +77,22 @@ export const PAYMENT_RECORD_STATUS = {
 /** Un devis peut être accepté ou refusé par le client tant qu'il n'a pas été tranché. */
 export const QUOTE_OPEN_STATUSES = ["SENT", "VIEWED"];
 
+/**
+ * Destinataire d'un devis : le client s'il existe, sinon le prospect (signalé
+ * comme tel). Même libellé dans la liste des devis et sur le tableau de bord.
+ */
+export function quoteRecipient(quote, fallback = "Destinataire non renseigné") {
+  if (quote?.client?.companyName) return quote.client.companyName;
+  if (quote?.prospect) {
+    const name =
+      quote.prospect.companyName ||
+      [quote.prospect.contactFirstName, quote.prospect.contactLastName].filter(Boolean).join(" ") ||
+      quote.prospect.email;
+    if (name) return `${name} (prospect)`;
+  }
+  return fallback;
+}
+
 /** Montant restant à régler sur une facture (saisi par chaîne côté API). */
 export function remainingDue(invoice) {
   const total = Number(invoice?.total ?? 0);

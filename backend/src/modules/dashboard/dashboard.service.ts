@@ -6,12 +6,14 @@ import {
   type AuthenticatedUser,
 } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
+import { NOTIFICATION_TYPES_BY_SPACE, type SpaceId } from '../../common/spaces/space-policy.js';
 import {
   DocumentVisibility,
   InvoiceStatus,
   MilestoneStatus,
   PaymentStatus,
   QuoteStatus,
+  type NotificationType,
 } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import {
@@ -527,7 +529,7 @@ export class DashboardService {
       sections.tasks ? this.personalTasks(policy.userId, now) : null,
       sections.tasks ? this.personalUpcoming(policy.userId, now) : null,
       sections.timeEntries ? this.personalTime(policy.userId, now) : null,
-      sections.notifications ? this.personalNotifications(policy.userId) : null,
+      sections.notifications ? this.personalNotifications(policy.userId, policy.space) : null,
     ]);
 
     return { asOf: now.toISOString(), sections, tasks, upcoming, timeEntries, notifications };
@@ -609,11 +611,23 @@ export class DashboardService {
     };
   }
 
-  private async personalNotifications(userId: string): Promise<PersonalDashboard['notifications']> {
+  private async personalNotifications(
+    userId: string,
+    space: SpaceId | null,
+  ): Promise<PersonalDashboard['notifications']> {
+    // Dans un espace, seules les notifications de CET espace sont comptées :
+    // un tableau de bord ne mélange jamais deux espaces.
+    const where = {
+      userId,
+      readAt: null,
+      ...(space
+        ? { type: { in: [...NOTIFICATION_TYPES_BY_SPACE[space]] as NotificationType[] } }
+        : {}),
+    };
     const [unread, recent] = await Promise.all([
-      this.prisma.notification.count({ where: { userId, readAt: null } }),
+      this.prisma.notification.count({ where }),
       this.prisma.notification.findMany({
-        where: { userId, readAt: null },
+        where,
         select: { id: true, type: true, title: true, link: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
         take: HIGHLIGHT_LIMIT,

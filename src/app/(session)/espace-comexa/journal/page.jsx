@@ -4,6 +4,7 @@ import { useState } from "react";
 import { formatDate } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
 import { Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { auditActionLabel } from "@/lib/audit-labels";
 
 const ENTITY_TYPES = ["User", "Role", "Quote", "Invoice", "Payment", "Project", "Client", "Prospect", "Setting", "Service", "Package", "Testimonial", "Partner", "Faq"];
 
@@ -94,7 +95,7 @@ export default function JournalPage() {
                 <tr key={entry.id} className="border-b border-[var(--comexa-border-soft)] align-top">
                   <td className="py-2 pr-4 whitespace-nowrap">{formatDate(entry.createdAt)}</td>
                   <td className="py-2 pr-4">{entry.actorEmail ?? "Système"}</td>
-                  <td className="py-2 pr-4"><code className="text-[12.5px]">{entry.action}</code></td>
+                  <td className="py-2 pr-4"><span className="block font-semibold">{auditActionLabel(entry.action)}</span><code className="text-[12px] text-[var(--muted)]">{entry.action}</code></td>
                   <td className="py-2 pr-4">{entry.entityType ? `${entry.entityType}` : "—"}</td>
                   <td className="py-2 text-[var(--comexa-ink-muted)]">{entry.ipAddress ?? "—"}</td>
                 </tr>

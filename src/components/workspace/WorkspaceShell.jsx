@@ -1,26 +1,23 @@
 "use client";
 
 /*
- * WorkspaceShell — passerelle entre les layouts d'espace et la nouvelle coque.
+ * WorkspaceShell — passerelle entre les layouts et la coque plein écran
+ * (`src/components/softui/Shell.jsx`).
  *
- * L'API publique n'a pas changé : les layouts appellent toujours
- * `<WorkspaceShell space="…" groups={…}>{children}</WorkspaceShell>`. Seule
- * l'implémentation convertit les groupes autorisés en liens pour la coque
- * plein écran (`src/components/softui/Shell.jsx`). Le thème clair Liquid Glass
- * est partagé, sans confondre les actions des espaces équipe et client.
+ *  - espaces de travail : `space` vaut `personal`, `team` ou `comexa`, et
+ *    `groups` contient les rubriques déjà filtrées par les droits de l'espace ;
+ *  - espace client : `space="Espace client"` (libellé historique), inchangé.
  */
 
 import Shell from "@/components/softui/Shell";
-import { hasTeamAccess } from "@/lib/access";
-import { useAuth } from "@/lib/session";
+import { SPACES } from "@/lib/spaces";
 
-export default function WorkspaceShell({ space, groups, children }) {
-  const { user } = useAuth();
-  const label = space ?? (hasTeamAccess(user) ? "Espace équipe" : "Espace client");
-  const area = label === "Espace équipe" ? "equipe" : "client";
-  const links = (groups ?? []).flatMap((group) => group.items);
+export default function WorkspaceShell({ space, groups, children, dockEnd = null, consoleAvailable = false }) {
+  const workspace = SPACES[space] ? space : null;
+  const area = workspace ?? "client";
+  const title = workspace ? SPACES[workspace].label : (space ?? "Espace client");
   return (
-    <Shell area={area} title={label} links={links}>
+    <Shell area={area} title={title} groups={groups ?? []} dockEnd={dockEnd} consoleAvailable={consoleAvailable}>
       {children}
     </Shell>
   );
