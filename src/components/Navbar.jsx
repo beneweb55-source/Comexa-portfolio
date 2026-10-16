@@ -113,7 +113,7 @@ function NavbarContent({ pathname }) {
     <header className="cx-pub-nav">
       <div className="cx-pub-nav__bar">
         <Link href="/" aria-label="Comexa, accueil" onClick={() => setIsMenuOpen(false)} style={{ display: "flex", alignItems: "center", minHeight: 44 }}>
-          <Image src={logo} alt="Comexa" width={130} height={30} className="h-auto w-[min(130px,38vw)]" priority />
+          <Image src={logo} alt="Comexa" width={130} height={30} className="h-auto w-[min(130px,38vw)]" loading="eager" />
         </Link>
 
         <nav aria-label="Navigation principale" className="cx-pub-nav__links" style={{ marginInlineStart: "auto" }}>
@@ -133,7 +133,11 @@ function NavbarContent({ pathname }) {
           <div className="cx-pub-nav__desktop-account">
             <AccountActions status={status} />
           </div>
-          <Link href="/contact" className="cx-btn cx-btn--primary cx-btn--sm cx-pub-nav__cta">
+          <Link
+            href="/contact"
+            className="cx-btn cx-btn--primary cx-btn--sm cx-pub-nav__cta"
+            aria-current={isCurrent(pathname, "/contact") ? "page" : undefined}
+          >
             Parlons de votre projet
           </Link>
           <button
@@ -181,7 +185,12 @@ function NavbarContent({ pathname }) {
             <div className="cx-pub-drawer__account">
               <AccountActions status={status} inDrawer />
             </div>
-            <Link href="/contact" className="cx-btn cx-btn--accent cx-btn--lg cx-btn--block" onClick={() => setIsMenuOpen(false)}>
+            <Link
+              href="/contact"
+              className="cx-btn cx-btn--accent cx-btn--lg cx-btn--block"
+              aria-current={isCurrent(pathname, "/contact") ? "page" : undefined}
+              onClick={() => setIsMenuOpen(false)}
+            >
               Parlons de votre projet
             </Link>
           </div>

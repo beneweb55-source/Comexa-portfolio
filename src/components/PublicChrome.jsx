@@ -29,8 +29,13 @@ export default function PublicChrome({ children }) {
     return children;
   }
 
+  // Chaque page publique rend un <main id="contenu"> : le lien d'évitement permet
+  // aux personnes qui naviguent au clavier de passer directement au contenu.
   return (
     <div className="cx-pub flex min-h-full flex-1 flex-col">
+      <a href="#contenu" className="cx-pub-skip">
+        Aller au contenu
+      </a>
       <Navbar />
       {children}
       <Footer />

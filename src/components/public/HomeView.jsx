@@ -3,35 +3,19 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Check,
-  CodeXml,
-  Database,
-  Gauge,
-  Globe,
-  LayoutTemplate,
-  Layers,
-  Mail,
-  MapPin,
-  Megaphone,
-  Palette,
-  PenTool,
-  Quote,
-  Rocket,
-  Search,
-  Server,
-  ShieldCheck,
-  ShoppingCart,
-  Smartphone,
-  Sparkles,
-  Store,
-  Wrench,
-  Zap,
-} from "lucide-react";
-import { initialsOf } from "@/lib/public-api";
+import { ArrowRight, ArrowUpRight, Check, Mail, MapPin, ShieldCheck, Zap } from "lucide-react";
 import { apiFetch, formatMoney, messageOf } from "@/lib/api";
+import { SITE_CONTACT } from "@/lib/site";
+import {
+  QuoteCard,
+  SectionHead,
+  ServiceIcon,
+  Steps,
+  WorkCard,
+  columnsFor,
+  pad,
+  testimonialFromApi,
+} from "@/components/public/PublicBlocks";
 import heroVisual from "../../../public/image.png";
 
 /*
@@ -72,34 +56,6 @@ const FALLBACK_SERVICES = [
   },
 ];
 
-// Le champ « Icône » d'un service est un texte libre (espace équipe › Contenu) :
-// les noms courants sont reconnus, sinon la carte affiche son numéro.
-const SERVICE_ICONS = {
-  globe: Globe,
-  web: Globe,
-  layout: LayoutTemplate,
-  layers: Layers,
-  "shopping-cart": ShoppingCart,
-  cart: ShoppingCart,
-  store: Store,
-  palette: Palette,
-  "pen-tool": PenTool,
-  search: Search,
-  seo: Search,
-  shield: ShieldCheck,
-  "shield-check": ShieldCheck,
-  wrench: Wrench,
-  code: CodeXml,
-  smartphone: Smartphone,
-  mobile: Smartphone,
-  rocket: Rocket,
-  megaphone: Megaphone,
-  gauge: Gauge,
-  server: Server,
-  database: Database,
-  sparkles: Sparkles,
-};
-
 const SKILLS = ["Stratégie", "UX / UI", "Front-end", "Back-end", "Optimisation"];
 
 const VALUES = ["Écoute active", "Choix transparents", "Code maintenable"];
@@ -136,23 +92,12 @@ const NEEDS = ["Site vitrine", "E-commerce", "Application web", "Maintenance"];
 
 const EMPTY_CONTACT = { firstName: "", lastName: "", companyName: "", email: "", phone: "", message: "" };
 
-/** Colonnes sur grand écran : jamais de carte orpheline sur une ligne. */
-function columnsFor(count) {
-  if (count <= 2) return Math.max(count, 1);
-  return count === 4 ? 2 : 3;
-}
-
-function ServiceIcon({ name, fallback }) {
-  const Picto = SERVICE_ICONS[String(name ?? "").trim().toLowerCase()];
-  if (!Picto) return <span className="cx-home-service__num">{fallback}</span>;
-  return <Picto size={22} strokeWidth={1.75} aria-hidden="true" />;
-}
-
 export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies }) {
   // Contenu issu de l'espace équipe (Contenu du site), avec repli tant que l'API ne renvoie rien.
   const serviceCards = apiServices?.items?.length
     ? apiServices.items.map((service) => ({
         key: service.id ?? service.slug ?? service.title,
+        slug: service.slug ?? null,
         title: service.title,
         description: service.shortDescription,
         tags: (service.features ?? []).slice(0, 2),
@@ -166,11 +111,7 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
     : FALLBACK_SERVICES.map((service) => ({ ...service, key: service.title, startingPrice: null }));
 
   const testimonialCards = apiTestimonials?.items?.length
-    ? apiTestimonials.items.map((item) => ({
-        name: item.authorName,
-        role: [item.authorRole, item.authorCompany].filter(Boolean).join(", "),
-        text: item.quote,
-      }))
+    ? apiTestimonials.items.map(testimonialFromApi)
     : FALLBACK_TESTIMONIALS;
 
   // Réalisations : uniquement les études de cas publiées (mises en avant d'abord).
@@ -247,7 +188,7 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
   }
 
   return (
-    <main className="cx-home">
+    <main id="contenu" tabIndex={-1} className="cx-home">
       {/* 1. HERO */}
       <section className="cx-home-hero">
         <div className="cx-pub-container">
@@ -269,7 +210,7 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
                   Voir nos réalisations <ArrowRight size={16} aria-hidden="true" />
                 </Link>
               </div>
-              <ul className="cx-home-hero__facts">
+              <ul className="cx-pub-facts">
                 <li>
                   <Check aria-hidden="true" />
                   Un interlocuteur dédié
@@ -312,35 +253,31 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
       </section>
 
       {/* 2. SERVICES */}
-      <section id="services" className="cx-home-section cx-home-section--alt" aria-labelledby="home-services-title">
+      <section id="services" className="cx-pub-section cx-pub-section--alt" aria-labelledby="home-services-title">
         <div className="cx-pub-container">
-          <header className="cx-home-head">
-            <div>
-              <p className="cx-pub-eyebrow">Nos services</p>
-              <h2 id="home-services-title" className="cx-home-h2">
-                Tout ce qu’il faut pour construire et faire vivre votre projet web.
-              </h2>
-            </div>
-            <div className="cx-home-head__aside">
-              <p>Un périmètre volontairement clair : nous concevons, développons et améliorons des produits web.</p>
-              <Link href="/services" className="cx-pub-link">
-                Tous nos services <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </div>
-          </header>
+          <SectionHead
+            eyebrow="Nos services"
+            titleId="home-services-title"
+            title="Tout ce qu’il faut pour construire et faire vivre votre projet web."
+          >
+            <p>Un périmètre volontairement clair : nous concevons, développons et améliorons des produits web.</p>
+            <Link href="/services" className="cx-pub-link">
+              Tous nos services <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </SectionHead>
 
           <ul className="cx-home-services" style={{ "--cx-cols": columnsFor(serviceCards.length) }}>
             {serviceCards.map((service, index) => (
               <li key={service.key}>
                 <article className="cx-home-service">
                   <div className="cx-home-service__top">
-                    <span className="cx-home-service__icon">
-                      <ServiceIcon name={service.icon} fallback={String(index + 1).padStart(2, "0")} />
+                    <span className="cx-pub-icon">
+                      <ServiceIcon name={service.icon} fallback={pad(index + 1)} />
                     </span>
                     <ArrowUpRight className="cx-home-service__arrow" size={20} aria-hidden="true" />
                   </div>
                   <h3>
-                    <Link href="/services" className="cx-home-service__link">
+                    <Link href={service.slug ? `/services#service-${service.slug}` : "/services"} className="cx-home-service__link">
                       {service.title}
                     </Link>
                   </h3>
@@ -364,49 +301,31 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
 
       {/* 3. RÉALISATIONS — études de cas publiées uniquement */}
       {works.length ? (
-        <section id="realisations" className="cx-home-section" aria-labelledby="home-works-title">
+        <section id="realisations" className="cx-pub-section" aria-labelledby="home-works-title">
           <div className="cx-pub-container">
-            <header className="cx-home-head">
-              <div>
-                <p className="cx-pub-eyebrow">Projets récents</p>
-                <h2 id="home-works-title" className="cx-home-h2">
-                  Des réalisations pensées pour les usages, pas pour la galerie.
-                </h2>
-              </div>
-              <div className="cx-home-head__aside">
-                <p>
-                  Chaque projet associe exigence visuelle, solidité technique et autonomie pour les équipes qui le font
-                  vivre.
-                </p>
-                <Link href="/realisations" className="cx-pub-link">
-                  Toutes nos réalisations <ArrowRight size={16} aria-hidden="true" />
-                </Link>
-              </div>
-            </header>
+            <SectionHead
+              eyebrow="Projets récents"
+              titleId="home-works-title"
+              title="Des réalisations pensées pour les usages, pas pour la galerie."
+            >
+              <p>
+                Chaque projet associe exigence visuelle, solidité technique et autonomie pour les équipes qui le font
+                vivre.
+              </p>
+              <Link href="/realisations" className="cx-pub-link">
+                Toutes nos réalisations <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </SectionHead>
 
-            <ul className="cx-home-works" style={{ "--cx-cols": columnsFor(works.length) }}>
+            <ul className="cx-pub-works" style={{ "--cx-cols": columnsFor(works.length) }}>
               {works.map((study, index) => (
                 <li key={study.id}>
-                  <article className={`cx-home-work cx-home-work--tone-${(index % 3) + 1}`}>
-                    <div className="cx-home-work__cover">
-                      <span className="cx-home-work__cat">{study.category?.name ?? "Réalisation"}</span>
-                      <span className="cx-home-work__index" aria-hidden="true">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                    </div>
-                    <div className="cx-home-work__body">
-                      {study.clientName ? <p className="cx-home-work__client">{study.clientName}</p> : null}
-                      <h3>
-                        <Link href={`/realisations#cas-${study.slug}`} className="cx-home-work__link">
-                          {study.title}
-                        </Link>
-                      </h3>
-                      {study.excerpt ? <p className="cx-home-work__excerpt">{study.excerpt}</p> : null}
-                      <span className="cx-home-work__more" aria-hidden="true">
-                        Lire le cas <ArrowUpRight size={16} />
-                      </span>
-                    </div>
-                  </article>
+                  <WorkCard
+                    study={study}
+                    number={pad(index + 1)}
+                    tone={(index % 3) + 1}
+                    href={`/realisations#cas-${study.slug}`}
+                  />
                 </li>
               ))}
             </ul>
@@ -417,13 +336,13 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
       {/* 4. AGENCE + MÉTHODE */}
       <section
         id="agence"
-        className={`cx-home-section${works.length ? " cx-home-section--alt" : ""}`}
+        className={`cx-pub-section${works.length ? " cx-pub-section--alt" : ""}`}
         aria-labelledby="home-agency-title"
       >
         <div className="cx-pub-container cx-home-agency">
           <div className="cx-home-agency__intro">
             <p className="cx-pub-eyebrow">Qui sommes-nous ?</p>
-            <h2 id="home-agency-title" className="cx-home-h2">
+            <h2 id="home-agency-title" className="cx-pub-h2">
               Un partenaire technique qui parle votre langage.
             </h2>
             <p className="cx-home-agency__text">
@@ -441,63 +360,34 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
             </ul>
           </div>
 
-          <div className="cx-home-method">
-            <p className="cx-home-method__kicker">Notre méthode</p>
-            <h3 className="cx-home-method__title">Un projet lisible, du premier atelier à la mise en ligne.</h3>
-            <p className="cx-home-method__lead">
+          <div className="cx-pub-panel">
+            <p className="cx-pub-panel__kicker">Notre méthode</p>
+            <h3 className="cx-pub-panel__title">Un projet lisible, du premier atelier à la mise en ligne.</h3>
+            <p className="cx-pub-panel__lead">
               Des étapes courtes, des décisions partagées et un suivi régulier : vous savez toujours où en est le
               projet.
             </p>
-            <ol className="cx-home-steps">
-              {STEPS.map((step, index) => (
-                <li key={step.title} className="cx-home-step">
-                  <span className="cx-home-step__num" aria-hidden="true">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div>
-                    <h4>{step.title}</h4>
-                    <p>{step.description}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <Steps items={STEPS} level="h4" />
           </div>
         </div>
       </section>
 
       {/* 5. TÉMOIGNAGES + TECHNOLOGIES */}
       <section
-        className={`cx-home-section${works.length ? "" : " cx-home-section--alt"}`}
+        className={`cx-pub-section${works.length ? "" : " cx-pub-section--alt"}`}
         aria-labelledby="home-quotes-title"
       >
         <div className="cx-pub-container">
-          <header className="cx-home-head cx-home-head--single">
-            <div>
-              <p className="cx-pub-eyebrow">Ils en parlent</p>
-              <h2 id="home-quotes-title" className="cx-home-h2">
-                Des collaborations qui restent simples et humaines.
-              </h2>
-            </div>
-          </header>
+          <SectionHead
+            eyebrow="Ils en parlent"
+            titleId="home-quotes-title"
+            title="Des collaborations qui restent simples et humaines."
+          />
 
-          <ul className="cx-home-quotes" style={{ "--cx-cols": Math.min(testimonialCards.length, 3) || 1 }}>
+          <ul className="cx-pub-quotes" style={{ "--cx-cols": Math.min(testimonialCards.length, 3) || 1 }}>
             {testimonialCards.map((testimonial) => (
               <li key={`${testimonial.name}-${testimonial.text.slice(0, 16)}`}>
-                <figure className="cx-home-quote">
-                  <Quote className="cx-home-quote__mark" aria-hidden="true" />
-                  <blockquote>
-                    <p>{testimonial.text}</p>
-                  </blockquote>
-                  <figcaption>
-                    <span className="cx-home-avatar" aria-hidden="true">
-                      {initialsOf(testimonial.name)}
-                    </span>
-                    <span>
-                      <strong>{testimonial.name}</strong>
-                      {testimonial.role ? <span>{testimonial.role}</span> : null}
-                    </span>
-                  </figcaption>
-                </figure>
+                <QuoteCard {...testimonial} />
               </li>
             ))}
           </ul>
@@ -514,12 +404,12 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
       </section>
 
       {/* 6. CONTACT — seule carte « ink » de la page */}
-      <section id="contact" className="cx-home-section cx-home-section--contact" aria-labelledby="home-contact-title">
+      <section id="contact" className="cx-pub-section cx-pub-section--cta" aria-labelledby="home-contact-title">
         <div className="cx-pub-container">
           <div className="cx-home-contact">
             <div className="cx-home-contact__intro">
               <p className="cx-pub-eyebrow">Un premier échange</p>
-              <h2 id="home-contact-title" className="cx-home-h2">
+              <h2 id="home-contact-title" className="cx-pub-h2">
                 Un projet web à lancer ou à faire évoluer ?
               </h2>
               <p className="cx-home-contact__lead">
@@ -529,11 +419,11 @@ export default function HomeView({ apiServices, apiTestimonials, apiCaseStudies 
               <ul className="cx-home-contact__points">
                 <li>
                   <Mail aria-hidden="true" />
-                  <a href="mailto:bonjour@comexa.dz">bonjour@comexa.dz</a>
+                  <a href={`mailto:${SITE_CONTACT.email}`}>{SITE_CONTACT.email}</a>
                 </li>
                 <li>
                   <MapPin aria-hidden="true" />
-                  <span>Algérie · Projets partout en Algérie et à l’international</span>
+                  <span>{SITE_CONTACT.location}</span>
                 </li>
               </ul>
             </div>

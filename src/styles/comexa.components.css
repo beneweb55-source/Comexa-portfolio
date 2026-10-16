@@ -232,6 +232,19 @@
   border-radius: 10px;
 }
 
+/* Appel à l'action principal d'une section (site public, tiroir mobile) :
+   cible tactile de 48 px et libellé plus lisible. */
+.cx-btn--lg {
+  min-height: 48px;
+  padding: 12px 22px;
+  font-size: 15px;
+  border-radius: var(--comexa-radius-md);
+}
+
+.cx-btn--block {
+  width: 100%;
+}
+
 /* Cartes et panneaux — Rayons 22px, Liquid Glass subtil, ombres multicouches */
 .cx-card {
   position: relative;
