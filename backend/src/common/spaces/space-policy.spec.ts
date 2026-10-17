@@ -62,7 +62,7 @@ describe('space-policy — acces aux espaces', () => {
     ]);
     assert.deepEqual(accessibleSpaces(principal('SALES')), ['personal', 'team']);
     assert.deepEqual(accessibleSpaces(principal('DEVELOPER')), ['personal', 'team']);
-    assert.deepEqual(accessibleSpaces(principal('DESIGNER')), ['personal', 'team']);
+    assert.deepEqual(accessibleSpaces(principal('SOCIAL_MEDIA_MANAGER')), ['personal', 'team']);
   });
 
   it("n'ouvre aucun espace a un client ni a une machine", () => {
@@ -95,9 +95,9 @@ describe('space-policy — droits effectifs', () => {
   });
 
   it("espace personnel : une retrogradation n'ajoute rien a qui n'avait pas le droit large", () => {
-    const designer = effectivePermissions('personal', permissionsOf('DESIGNER'));
-    assert.ok(!designer.has('time:write:any'));
-    assert.ok(!designer.has('dashboard:read:any'));
+    const socialMedia = effectivePermissions('personal', permissionsOf('SOCIAL_MEDIA_MANAGER'));
+    assert.ok(!socialMedia.has('time:write:any'));
+    assert.ok(!socialMedia.has('dashboard:read:any'));
     const sales = effectivePermissions('personal', permissionsOf('SALES'));
     assert.ok(!sales.has('task:read:assigned'), "SALES n'a ni task:read:any ni task:read:assigned");
     assert.ok(sales.has('task:read:own'));

@@ -24,9 +24,9 @@ import { ReportsService } from './reports.service.js';
  *
  * La lecture est ouverte aux deux scopes parce que le catalogue leur donne un
  * sens distinct : un chef de projet, un commercial et un gerant communication
- * lisent tous les rapports (`report:read:any`), un developpeur ou un designer ne
- * lisent que les leurs (`report:read:own`). La generation, elle, reste reservee
- * a `report:generate:any`.
+ * lisent tous les rapports (`report:read:any`) ; un developpeur ou un
+ * gestionnaire reseaux sociaux ne lisent que les leurs (`report:read:own`).
+ * La generation, elle, reste reservee a `report:generate:any`.
  */
 @ApiTags('Rapports')
 @Controller('reports')

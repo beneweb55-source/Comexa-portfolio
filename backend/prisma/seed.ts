@@ -718,7 +718,7 @@ interface DossierIds {
   readonly salesUserId: string | null;
   readonly projectManagerUserId: string | null;
   readonly developerUserId: string | null;
-  readonly designerUserId: string | null;
+  readonly socialMediaUserId: string | null;
 }
 
 async function seedBusinessDossier(ids: DossierIds): Promise<void> {
@@ -915,7 +915,7 @@ async function seedBusinessDossier(ids: DossierIds): Promise<void> {
       allocationPercent: 30,
     },
     { userId: ids.developerUserId, projectRole: 'Developpeur full-stack', allocationPercent: 60 },
-    { userId: ids.designerUserId, projectRole: 'Designer UI', allocationPercent: 25 },
+    { userId: ids.socialMediaUserId, projectRole: 'Reseaux sociaux', allocationPercent: 25 },
   ];
 
   for (const member of members) {
@@ -999,11 +999,11 @@ async function seedBusinessDossier(ids: DossierIds): Promise<void> {
         {
           projectId: project.id,
           milestoneId: cadrageId,
-          title: 'Maquettes des parcours de commande',
+          title: 'Calendrier de contenus reseaux sociaux',
           status: TaskStatus.DONE,
           completedAt: daysAgo(22),
           estimateMinutes: 720,
-          assigneeId: ids.designerUserId,
+          assigneeId: ids.socialMediaUserId,
           reporterId: ids.projectManagerUserId,
           isClientVisible: true,
           order: 1,
@@ -1038,7 +1038,7 @@ async function seedBusinessDossier(ids: DossierIds): Promise<void> {
           status: TaskStatus.BLOCKED,
           dueDate: daysAhead(6),
           estimateMinutes: 600,
-          assigneeId: ids.designerUserId,
+          assigneeId: ids.socialMediaUserId,
           reporterId: ids.projectManagerUserId,
           isClientVisible: false,
           order: 4,
@@ -1075,12 +1075,12 @@ async function seedBusinessDossier(ids: DossierIds): Promise<void> {
         billable: true,
       });
     }
-    if (ids.designerUserId !== null) {
+    if (ids.socialMediaUserId !== null) {
       timeEntryRows.push({
-        userId: ids.designerUserId,
+        userId: ids.socialMediaUserId,
         spentOn: daysAgo(18),
         minutes: 240,
-        description: 'Declinaisons des maquettes validees.',
+        description: 'Declinaisons des visuels reseaux sociaux valides.',
         billable: true,
       });
     }
@@ -1352,8 +1352,8 @@ async function main(): Promise<void> {
       email: 'ines.moreau@comexa.example',
       firstName: 'Ines',
       lastName: 'Moreau',
-      role: RoleCode.DESIGNER,
-      jobTitle: 'Designer',
+      role: RoleCode.SOCIAL_MEDIA_MANAGER,
+      jobTitle: 'Gestion reseaux sociaux',
     },
     {
       email: 'sofia.benali@comexa.example',
@@ -1373,7 +1373,7 @@ async function main(): Promise<void> {
   // verite pour la meme ligne.
   let projectManagerUserId: string | null = null;
   let developerUserId: string | null = null;
-  let designerUserId: string | null = null;
+  let socialMediaUserId: string | null = null;
 
   for (const spec of team) {
     const result = await upsertAccount(spec, demoHash);
@@ -1381,7 +1381,7 @@ async function main(): Promise<void> {
     if (spec.role === RoleCode.SALES) salesUserId = result.id;
     if (spec.role === RoleCode.PROJECT_MANAGER) projectManagerUserId = result.id;
     if (spec.role === RoleCode.DEVELOPER) developerUserId = result.id;
-    if (spec.role === RoleCode.DESIGNER) designerUserId = result.id;
+    if (spec.role === RoleCode.SOCIAL_MEDIA_MANAGER) socialMediaUserId = result.id;
     console.log(`  ${spec.email.padEnd(34)} ${spec.role}`);
   }
 
@@ -1508,7 +1508,7 @@ async function main(): Promise<void> {
     salesUserId,
     projectManagerUserId,
     developerUserId,
-    designerUserId,
+    socialMediaUserId,
   });
 
   // --- Numerotation ---------------------------------------------------------

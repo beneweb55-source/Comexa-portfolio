@@ -29,7 +29,7 @@ const ROLE_LABEL = {
   COMMUNICATION_MANAGER: "Gérant communication",
   PROJECT_MANAGER: "Chef de projet",
   DEVELOPER: "Développeur",
-  DESIGNER: "Designer",
+  SOCIAL_MEDIA_MANAGER: "Gestion réseaux sociaux",
   SALES: "Commercial",
   CLIENT: "Client",
 };

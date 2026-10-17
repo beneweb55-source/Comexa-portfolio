@@ -49,7 +49,8 @@ import {
  *
  * TROIS REGLES DURES, ET ELLES SONT APPLIQUEES DANS LE `where`, PAS APRES.
  *
- * 1. UN DEVELOPPEUR OU UN DESIGNER NE MODIFIE QUE CE QUI LUI EST ASSIGNE.
+ * 1. UN DEVELOPPEUR OU UN GESTIONNAIRE RESEAUX SOCIAUX NE MODIFIE QUE CE QUI
+ *    LUI EST ASSIGNE.
  *    `task:write:own` se traduit par `assigneeId: <porteur>` dans le filtre de
  *    `TaskAccessService.requireWritable`. La ligne n'est donc jamais chargee si
  *    elle n'est pas a lui : il n'y a pas de « je lis puis je verifie », qui
@@ -314,7 +315,8 @@ export class TasksService {
   /**
    * « Mes taches », tous projets confondus.
    *
-   * C'EST LA ROUTE QU'UN DEVELOPPEUR OU UN DESIGNER OUVRE LE MATIN. Elle force
+   * C'EST LA ROUTE QU'UN DEVELOPPEUR OU UN GESTIONNAIRE RESEAUX SOCIAUX OUVRE
+   * LE MATIN. Elle force
    * `assigneeId: <porteur>` — y compris pour un chef de projet qui detient
    * `task:read:any`, sans quoi l'ecran « mes taches » afficherait le travail de
    * toute l'agence et ne servirait plus a rien.
@@ -418,8 +420,8 @@ export class TasksService {
    *
    * DEUX SCOPES D'ECRITURE, DEUX COMPORTEMENTS DIFFERENTS POUR L'ASSIGNATION.
    *
-   *  - `task:write:own` (developpeur, designer) : la tache creee est
-   *    NECESSAIREMENT a soi. Assigner a quelqu'un d'autre est refuse, et
+   *  - `task:write:own` (developpeur, gestion reseaux sociaux) : la tache
+   *    creee est NECESSAIREMENT a soi. Assigner a quelqu'un d'autre est refuse, et
    *    l'omission du champ vaut auto-assignation — un developpeur qui note une
    *    tache a faire la note pour lui.
    *  - `task:write:any` (chef de projet) : l'assignation est libre, mais

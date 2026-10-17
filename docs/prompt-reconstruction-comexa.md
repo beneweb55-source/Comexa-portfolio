@@ -78,7 +78,7 @@ ce qui engage (devis accepté, facture, paiement, décision).
 | **Gérant communication** | Anime le site public et ses contenus, traite les demandes entrantes, gère prospects et clients légers. |
 | **Chef de projet** | Pilote projets, équipes, jalons, tâches, temps ; valide commandes ; devis et factures en lecture/écriture ; rapports. |
 | **Développeur** | Travaille sur les tâches qui lui sont assignées ; saisit son temps ; dépose des documents sur ses projets. |
-| **Designer** | Même accès que Développeur (deux métiers, mêmes besoins d'accès). |
+| **Gestion réseaux sociaux** | Même accès que Développeur (deux métiers, mêmes besoins d'accès). |
 | **Commercial** | Qualifie prospects, convertit en clients, émet et envoie devis, suit factures et paiements, valide commandes. |
 | **Client** | Accès strictement limité à son propre dossier : ses projets, ses devis (accepter/refuser), ses factures, ses paiements, ses documents partagés, sa messagerie, ses demandes de modification. |
 

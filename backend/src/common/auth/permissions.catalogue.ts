@@ -274,10 +274,10 @@ export function parsePermissionCode(code: string): ParsedPermission {
  * l'administrateur. Les six autres roles sont enumeres, et le typage
  * `PermissionCode` fait qu'un code mal orthographie ne compile pas.
  *
- * Note sur DESIGNER et DEVELOPER : les deux ont le meme jeu de permissions. Ce
- * n'est pas un oubli — ce sont deux metiers differents qui ont besoin du meme
- * ACCES (taches assignees, temps, documents). Ce qui les distingue releve du
- * projet et de l'equipe, pas du role.
+ * Note sur SOCIAL_MEDIA_MANAGER et DEVELOPER : les deux ont le meme jeu de
+ * permissions. Ce n'est pas un oubli — ce sont deux metiers differents qui
+ * ont besoin du meme ACCES (taches assignees, temps, documents). Ce qui les
+ * distingue releve du projet et de l'equipe, pas du role.
  */
 export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL'> = {
   [RoleCode.ADMIN]: 'ALL',
@@ -410,7 +410,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'calendar:read:team',
   ],
 
-  [RoleCode.DESIGNER]: [
+  [RoleCode.SOCIAL_MEDIA_MANAGER]: [
     'user:read:own',
     'project:read:assigned',
     'milestone:read:any',
@@ -546,9 +546,10 @@ export const ROLES: Record<RoleCode, { name: string; description: string }> = {
     name: 'Developpeur',
     description: 'Travaille sur les taches qui lui sont assignees.',
   },
-  [RoleCode.DESIGNER]: {
-    name: 'Designer',
-    description: 'Travaille sur les taches qui lui sont assignees.',
+  [RoleCode.SOCIAL_MEDIA_MANAGER]: {
+    name: 'Gestion reseaux sociaux',
+    description:
+      'Gere les reseaux sociaux ; travaille sur les taches qui lui sont assignees.',
   },
   [RoleCode.SALES]: {
     name: 'Commercial',

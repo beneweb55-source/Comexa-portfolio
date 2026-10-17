@@ -488,7 +488,7 @@ sans aucun moyen de revenir en arriere par l'API.
 
 ### Les sept roles
 
-`ADMIN` · `COMMUNICATION_MANAGER` · `PROJECT_MANAGER` · `DEVELOPER` · `DESIGNER`
+`ADMIN` · `COMMUNICATION_MANAGER` · `PROJECT_MANAGER` · `DEVELOPER` · `SOCIAL_MEDIA_MANAGER`
 · `SALES` · `CLIENT`
 
 ### Les permissions
@@ -550,7 +550,7 @@ Regle d'or : **un espace ne fait que retirer des droits**, jamais en ajouter.
 | `comexa` | `COMEXA_ONLY` + les lectures utiles a l'administration (comptes, roles, parametres, contenu) |
 
 Acces (`GET /me/spaces`) : ADMIN, COMMUNICATION_MANAGER et PROJECT_MANAGER
-entrent dans les trois espaces ; DEVELOPER, DESIGNER et SALES dans
+entrent dans les trois espaces ; DEVELOPER, SOCIAL_MEDIA_MANAGER et SALES dans
 `personal` et `team` ; CLIENT dans aucun (il garde l'espace client, sans
 en-tete).
 
@@ -829,7 +829,7 @@ n'elargit un droit**. Un seul, cependant, s'est revele **nuisible** :
 | `contact:read:own` / `contact:write:own` | `client:read:own` plus une restriction au niveau du service. |
 | `contact:delete:any` | Reemploi de `contact:write:any`. |
 | `client:write:own` | Absent par conception : un client ne modifie pas son propre dossier. |
-| `report:generate:own` | Absent. Un DEVELOPER/DESIGNER detient `report:read:own` mais pas `report:generate:any` (porte par PROJECT_MANAGER seul) : il ne peut donc pas produire son propre rapport. Verifie : le code n'existe nulle part dans le catalogue. |
+| `report:generate:own` | Absent. Un DEVELOPER/SOCIAL_MEDIA_MANAGER detient `report:read:own` mais pas `report:generate:any` (porte par PROJECT_MANAGER seul) : il ne peut donc pas produire son propre rapport. Verifie : le code n'existe nulle part dans le catalogue. |
 | `setting:write:any` | Declare (ligne 174) mais accorde a AUCUN role nomme : seul ADMIN le detient, par `'ALL'`. Un COMMUNICATION_MANAGER lit les parametres sans pouvoir les modifier — probablement voulu, mais c'est implicite. |
 | `invoice:cancel:any` | Absent. L'annulation d'une facture passe par `invoice:write:any` — que **seul ADMIN** detient, par `'ALL'` : mesure sur `permissions.catalogue.ts`, **aucun role nomme** ne porte ce code, SALES compris. La version precedente de ce document ecrivait « detenu par ADMIN et SALES » ; c'etait faux. L'ecart reste **de nom seulement** (le geste est possible), mais il n'est ouvert qu'a ADMIN, et rien ne distingue « modifier une facture » de « l'annuler ». |
 | `payment:write:own` | Absent — et c'est **volontaire**. Un porteur de l'espace client detient `payment:read:own` : il voit ses encaissements, il ne les declare pas. C'est l'agence qui enregistre un paiement (`payment:write:any`). A rouvrir seulement si le client doit un jour declarer un virement lui-meme. |
