@@ -139,6 +139,12 @@ export function formatDate(value) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(new Date(value));
 }
 
+/** Formate l'heure d'une date */
+export function formatTime(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("fr-FR", { timeStyle: "short" }).format(new Date(value));
+}
+
 /** Formate une journée métier stockée à minuit UTC sans la décaler au fuseau local. */
 export function formatDateOnly(value) {
   if (!value) return "—";
