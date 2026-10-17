@@ -7,6 +7,7 @@ import { hasTeamAccess } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import BalancePanel from "@/components/workspace/BalancePanel";
 import TelegramLinkCard from "@/components/workspace/TelegramLinkCard";
 
 const MIN_PASSWORD = 12;
@@ -103,6 +104,9 @@ export default function AccountPanel() {
           <p className="cx-small">Chargement du profil…</p>
         )}
       </Card>
+
+      {/* Solde : visible seulement pour un porteur qui a le droit de le lire. */}
+      <BalancePanel />
 
       <Card title="Changer le mot de passe">
         <form onSubmit={changePassword} className="grid max-w-[520px] gap-4">

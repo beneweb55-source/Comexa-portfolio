@@ -19,7 +19,6 @@
  * - Le composant gère automatiquement tous les modes
  */
 
-import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { ChatWrapper } from "./chat/ChatWrapper";
@@ -37,27 +36,21 @@ import { ChatWrapper } from "./chat/ChatWrapper";
  */
 export default function MessagingPanel() {
   const { user } = useAuth();
-  const [isMounted, setIsMounted] = useState(false);
 
   const canRead = can(user, "conversation:read:own");
 
-  // Éviter le rendu SSR pour éviter les erreurs avec window
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Si pas d'accès en lecture, ne rien afficher
+  // Si pas d'accès en lecture, ne rien afficher.
+  // Rien n'est rendu tant que la session n'est pas chargee : sans compte,
+  // il n'y a ni conversation a lire ni donneur de permission.
   if (!canRead) {
     return null;
   }
 
-  // Pendant le chargement
-  if (!isMounted) {
-    return null;
-  }
-
-  // Utiliser le nouveau composant ChatWrapper
-  return <ChatWrapper />;
+  // Utiliser le nouveau composant ChatWrapper.
+  // Mode « page » : la messagerie remplit la rubrique. Le mode flottant
+  // (pastille dans un coin) est fait pour un chat qu'on survole, pas pour une
+  // page dediee a la messagerie.
+  return <ChatWrapper defaultMinimized={false} variant="page" />;
 }
 
 /**

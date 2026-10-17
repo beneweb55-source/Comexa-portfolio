@@ -19,19 +19,22 @@ import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ status: "loading", user: null });
+  // Le jeton vit dans l'etat (il doit etre PUBLIQUE : la messagerie temps
+  // reel le presente dans la poignee de main du WebSocket) ET dans une ref
+  // (les appels HTTP le lisent sans provoquer de rendu).
+  const [state, setState] = useState({ status: "loading", user: null, token: null });
   const tokenRef = useRef(null);
   const refreshing = useRef(null);
 
   const applySession = useCallback((data) => {
     tokenRef.current = data.accessToken;
-    setState({ status: "authenticated", user: data.user });
+    setState({ status: "authenticated", user: data.user, token: data.accessToken });
     return data.user;
   }, []);
 
   const clearSession = useCallback(() => {
     tokenRef.current = null;
-    setState({ status: "anonymous", user: null });
+    setState({ status: "anonymous", user: null, token: null });
   }, []);
 
   const refresh = useCallback(() => {
@@ -118,6 +121,20 @@ export function AuthProvider({ children }) {
       baseUser: state.user,
       /** Espace de travail actif (`null` hors espaces). */
       space: null,
+      /**
+       * Jeton d'acces, en memoire comme le reste de la session.
+       *
+       * Il est EXPOSE parce que la messagerie temps reel doit le presenter
+       * dans la poignee de main du WebSocket (`handshake.auth.token`) : un
+       * navigateur ne peut pas poser un en-tete `Authorization` sur une
+       * connexion WebSocket, et le jeton de rafraichissement, lui, est un
+       * cookie HttpOnly inaccessible au script. Sans ce jeton, le socket ne
+       * s'ouvrait jamais et la messagerie n'etait jamais temps reel.
+       *
+       * Il ne quitte jamais le navigateur : il n'est ni dans un cookie lisible
+       * par le script, ni dans le localStorage.
+       */
+      token: state.token,
       login,
       logout,
       request,

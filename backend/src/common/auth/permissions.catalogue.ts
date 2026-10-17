@@ -144,6 +144,37 @@ export const PERMISSIONS = {
   'payment:write:any': 'Enregistrer et corriger les paiements',
 
   // ---------------------------------------------------------------------------
+  // Soldes des membres
+  //
+  // Le solde est ce que l'AGENCE DOIT a un membre (repartitions, commissions) :
+  // il est par devise, sans conversion implicite, et se lit comme un compte
+  // courant. `own` designe le solde du PORTEUR, `any` celui de n'importe quel
+  // membre, `manage` l'ajustement manuel. Sans ces codes, `/balances/me` ne
+  // pouvait etre appele par PERSONNE : le module existe, mais aucun role ne
+  // portait le droit de le lire.
+  // ---------------------------------------------------------------------------
+  'balance:read:own': 'Consulter son propre solde',
+  'balance:read:any': 'Consulter les soldes des membres',
+  'balance:manage:any': 'Ajuster les soldes des membres',
+
+  // ---------------------------------------------------------------------------
+  // Devises, taux de change, repartitions
+  //
+  // La famille financiere est monetaire : une repartition se calcule en
+  // DEVISE, et un taux de change convertit cette devise. Les trois modules
+  // etaient ecrits, mais leurs droits n'etaient pas au catalogue : leurs
+  // services appelaient `requireScope('currency' | 'exchangerate' |
+  // 'distribution', ...)`, et aucun role ne pouvait les posseder. Meme cause
+  // que les soldes : un module vivant, mais inaccessible a tout le monde.
+  // ---------------------------------------------------------------------------
+  'currency:read:any': 'Consulter les devises',
+  'currency:manage:any': 'Gerer les devises',
+  'exchangerate:read:any': 'Consulter les taux de change',
+  'exchangerate:manage:any': 'Gerer les taux de change',
+  'distribution:read:any': 'Consulter les repartitions de gains',
+  'distribution:manage:any': 'Creer et appliquer les repartitions de gains',
+
+  // ---------------------------------------------------------------------------
   // Messagerie et notifications
   // ---------------------------------------------------------------------------
   'conversation:read:own': 'Lire les conversations dont on est participant',
@@ -284,6 +315,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:any',
+    'balance:read:own',
     'setting:read:any',
     // Taches personnelles et minuteur : un espace propre a chaque membre,
     // meme pour un role sans taches de projet.
@@ -325,6 +357,10 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'project_request:manage:any',
     'quote:send:any',
     'invoice:read:any',
+    'currency:read:any',
+    'exchangerate:read:any',
+    'distribution:read:any',
+    'balance:read:own',
     'document:read:any',
     'document:write:any',
     'report:read:any',
@@ -366,6 +402,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:own',
+    'balance:read:own',
     'task:read:personal',
     'task:write:personal',
     'calendar:read:own',
@@ -394,6 +431,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'notification:manage:own',
     'dashboard:read:own',
     'report:read:own',
+    'balance:read:own',
     'task:read:personal',
     'task:write:personal',
     'calendar:read:own',
@@ -426,6 +464,9 @@ export const ROLE_PERMISSIONS: Record<RoleCode, readonly PermissionCode[] | 'ALL
     'invoice:read:any',
     'payment:read:any',
     'payment:write:any',
+    'currency:read:any',
+    'exchangerate:read:any',
+    'balance:read:own',
     'document:read:any',
     'document:read:client',
     'document:write:any',

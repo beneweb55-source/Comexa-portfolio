@@ -4,11 +4,12 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { messageOf } from "@/lib/api";
-import { useListing } from "@/lib/use-listing";
 import useSocketIO from "@/lib/hooks/useWebSocket";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { conversationTitle, isGroupConversation, participantName } from "@/lib/conversation-labels";
+import { appendUnique, messagesFromPage } from "@/lib/chat-messages";
 import { Empty } from "@/components/workspace/ui";
 import { useActionNotification } from "@/components/workspace/ui/ActionNotification";
 
@@ -30,6 +31,7 @@ export function ChatPanel({
   isExpanded = false,
   onToggleExpand,
   defaultMinimized = false,
+  variant = "floating",
 }) {
   const { request, user } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -52,6 +54,8 @@ export function ChatPanel({
 
   const canWrite = can(user, "message:write:own");
   const canRead = can(user, "conversation:read:own");
+  // Mode « page » : la messagerie remplit la rubrique au lieu de flotter.
+  const pageMode = variant === "page";
 
   // Charger une conversation
   const loadConversation = useCallback(async (conversationId) => {
@@ -68,7 +72,9 @@ export function ChatPanel({
       ]);
 
       setSelectedConversation(conversation);
-      setMessages([...(page.data ?? [])].reverse());
+      // L'API renvoie les messages du plus recent au plus ancien : le helper
+      // les remet dans l'ordre de lecture (du plus ancien en haut).
+      setMessages(messagesFromPage(page));
       setNextCursor(page.meta?.nextCursor ?? null);
       setHasMoreMessages(!!page.meta?.nextCursor);
 
@@ -95,7 +101,7 @@ export function ChatPanel({
         `/conversations/${selectedConversation.id}/messages?perPage=50&cursor=${encodeURIComponent(nextCursor)}`
       );
 
-      setMessages((prev) => [...[...(page.data ?? [])].reverse(), ...prev]);
+      setMessages((prev) => [...messagesFromPage(page), ...prev]);
       setNextCursor(page.meta?.nextCursor ?? null);
       setHasMoreMessages(!!page.meta?.nextCursor);
     } catch (caught) {
@@ -108,50 +114,51 @@ export function ChatPanel({
     }
   }, [selectedConversation, nextCursor, loadingMessages, request, showNotification]);
 
+  // Faire défiler vers le bas
+  // ATTENTION A L'ORDRE : ce callback est APPele par `handleSend` et listé dans
+  // ses dependances. Le declarer APRÈS `handleSend` le faisait lire dans la
+  // zone morte temporelle (TDZ) — la page de messagerie plantait au premier
+  // rendu, avant meme l'affichage des conversations.
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  // Ajouter un message SANS le dupliquer.
+  //
+  // Un message ecrit par CE poste peut arriver deux fois : par la reponse de
+  // l'API, et par le WebSocket — l'emetteur fait partie de la room de sa
+  // conversation. Sans deduplication, la bulle s'affiche en double.
+  const appendMessage = useCallback((message) => {
+    setMessages((prev) => appendUnique(prev, message));
+  }, []);
+
   // Envoyer un message
   const handleSend = useCallback(async (content) => {
-    if (!selectedConversation?.id || !content.trim() || sending) return;
+    if (!selectedConversation?.id || !content.trim() || sending) return null;
 
     setSending(true);
 
     try {
-      const response = await request(`/conversations/${selectedConversation.id}/messages`, {
-        method: "POST",
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: content }),
-      });
+      // `request` renvoie `{ data, meta }` : la reponse n'a pas de `.ok` ni de
+      // `.json()`. Et le corps se donne en OBJET — `apiFetch` le serialise.
+      const { data: message } = await request(
+        `/conversations/${selectedConversation.id}/messages`,
+        { method: "POST", body: { body: content } },
+      );
 
-      if (response.ok) {
-        const newMessage = await response.json();
-        setMessages((prev) => [...prev, newMessage.data]);
-        
-        // Si la réponse contient une URL de redirection
-        if (newMessage.redirectUrl) {
-          showNotification({
-            message: 'Message envoyé avec succès !',
-            redirectUrl: newMessage.redirectUrl,
-            action: newMessage.action,
-            duration: 5000,
-          });
-        }
-        
-        scrollToBottom();
-        return newMessage;
-      }
+      appendMessage(message);
+      scrollToBottom();
+      return message;
     } catch (caught) {
       showNotification({
         message: messageOf(caught),
         duration: 5000,
       });
+      return null;
     } finally {
       setSending(false);
     }
-  }, [selectedConversation, sending, request, scrollToBottom, showNotification]);
-
-  // Faire défiler vers le bas
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
+  }, [selectedConversation, sending, request, scrollToBottom, showNotification, appendMessage]);
 
   // Gérer les événements WebSocket
   useEffect(() => {
@@ -159,18 +166,10 @@ export function ChatPanel({
 
     const handleNewMessage = (event) => {
       if (event.conversationId === selectedConversation.id) {
-        setMessages((prev) => [...prev, event.message]);
+        // `appendMessage` ignore un message deja present : l'expediteur
+        // recoit son propre message par le WebSocket ET par l'API.
+        appendMessage(event.message);
         scrollToBottom();
-        
-        // Si le message contient une URL de redirection
-        if (event.message.redirectUrl) {
-          showNotification({
-            message: 'Nouveau message reçu',
-            redirectUrl: event.message.redirectUrl,
-            action: event.message.action,
-            duration: 5000,
-          });
-        }
       }
     };
 
@@ -190,7 +189,7 @@ export function ChatPanel({
       socket.off("message:new", handleNewMessage);
       socket.off("typing", handleTyping);
     };
-  }, [socket, selectedConversation, scrollToBottom, showNotification]);
+  }, [socket, selectedConversation, scrollToBottom, appendMessage]);
 
   // Rejoindre la room de conversation via WebSocket
   useEffect(() => {
@@ -232,14 +231,23 @@ export function ChatPanel({
 
   // Créer une nouvelle conversation
   const handleCreateConversation = useCallback((created) => {
+    // La conversation creee est directement affichee : pas de renvoi vers une
+    // URL de messagerie qui n'existe pas sur ce site.
     setSelectedConversation(created);
-    
     showNotification({
-      message: 'Conversation créée avec succès !',
-      redirectUrl: `${window.location.origin}/dashboard/messages/${created.id}`,
-      duration: 5000,
+      message: "Conversation creee.",
+      duration: 4000,
     });
   }, [showNotification]);
+
+  // Indicateur de frappe : le serveur le relaie aux participants de la room.
+  const notifyTyping = useCallback(
+    (isTyping) => {
+      if (!socket || !selectedConversation?.id) return;
+      socket.emit("typing", { conversationId: selectedConversation.id, isTyping });
+    },
+    [socket, selectedConversation],
+  );
 
   // Basculer entre minimaliste et normal
   const toggleMinimized = useCallback(() => {
@@ -260,9 +268,9 @@ export function ChatPanel({
     .map(([userId]) => {
       if (userId === user?.id) return null;
       if (selectedConversation?.participants) {
-        const participant = selectedConversation.participants.find(p => p.userId === userId);
+        const participant = selectedConversation.participants.find((p) => p.userId === userId);
         if (participant) {
-          return `${participant.firstName || ""} ${participant.lastName || ""}`.trim() || participant.email;
+          return participantName(participant) || "Quelqu'un";
         }
       }
       return "Quelqu'un";
@@ -271,12 +279,26 @@ export function ChatPanel({
 
   // Déterminer la classe de taille en fonction du mode
   const getSizeClasses = () => {
+    // Page pleine : la messagerie occupe l'ecran de la rubrique, au lieu de
+    // flotter dans un coin. C'est le mode attendu sur `/messagerie`, ou une
+    // simple pastille flottante ne montrait... une pastille.
+    if (pageMode) {
+      return {
+        container: "w-full",
+        chat: "w-full h-[calc(100vh-300px)] min-h-[480px] rounded-2xl border border-[var(--comexa-border-soft)] overflow-hidden flex flex-col bg-[var(--comexa-surface-elevated)]",
+        sidebar: "w-full md:w-80 flex-shrink-0 md:border-r border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
+        content: "flex-1 flex flex-col min-w-0",
+        header: "p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
+        messages: "flex-1 overflow-y-auto p-4",
+      };
+    }
+
     if (isExpanded) {
       return {
         container: "fixed inset-0 z-50",
         chat: "h-screen w-screen flex flex-col",
         sidebar: "w-80 flex-shrink-0",
-        content: "flex-1 flex flex-col",
+        content: "flex-1 flex flex-col min-w-0",
         header: "p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
         messages: "flex-1 overflow-y-auto p-4",
       };
@@ -326,7 +348,7 @@ export function ChatPanel({
       <div
         className={`${sizeClasses.container}`}
         style={{
-          boxShadow: isExpanded ? "none" : "var(--comexa-shadow-xl)",
+          boxShadow: isExpanded || pageMode ? "none" : "var(--comexa-shadow-xl)",
         }}
       >
         <div
@@ -340,7 +362,7 @@ export function ChatPanel({
             <div className={sizeClasses.header}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  {!isExpanded && (
+                  {!isExpanded && !pageMode && (
                     <button
                       type="button"
                       onClick={toggleMinimized}
@@ -408,7 +430,9 @@ export function ChatPanel({
                       <button
                         type="button"
                         onClick={() => setSelectedConversation(null)}
-                        className="p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors lg:hidden"
+                        className={`p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors ${
+                          pageMode ? "md:hidden" : "lg:hidden"
+                        }`}
                       >
                         <svg className="w-5 h-5 text-[var(--comexa-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -418,21 +442,20 @@ export function ChatPanel({
                     
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[var(--comexa-blue-100)] flex items-center justify-center text-sm font-semibold text-[var(--comexa-blue-600)]">
-                        {selectedConversation.isGroup
-                          ? selectedConversation.groupName?.charAt(0).toUpperCase() || "G"
-                          : selectedConversation.participants?.[0]?.firstName?.charAt(0).toUpperCase() || "U"
-                        }
+                        {conversationTitle(selectedConversation, user?.id).charAt(0).toUpperCase() || "U"}
                       </div>
                       <div>
                         <h3 className="font-semibold text-[var(--comexa-ink)] truncate max-w-[200px]">
-                          {selectedConversation.subject || selectedConversation.groupName || "Sans sujet"}
+                          {conversationTitle(selectedConversation, user?.id)}
                         </h3>
                         {isExpanded && (
                           <p className="text-xs text-[var(--comexa-ink-muted)]">
-                            {selectedConversation.isGroup
+                            {isGroupConversation(selectedConversation)
                               ? `${selectedConversation.participants?.length || 0} participants`
-                              : selectedConversation.participants?.[0]?.email
-                            }
+                              : (selectedConversation.participants ?? [])
+                                  .filter((participant) => participant.userId !== user?.id)
+                                  .map((participant) => participant.email)
+                                  .join(", ")}
                           </p>
                         )}
                       </div>
@@ -453,9 +476,15 @@ export function ChatPanel({
           )}
 
           <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar - Liste des conversations */}
+            {/* Sidebar - Liste des conversations.
+                En mode page, sur petit ecran, la liste et le fil ne se partagent
+                pas la place : on affiche l'un ou l'autre. */}
             {showSidebar && !isMinimized && (
-              <div className={sizeClasses.sidebar}>
+              <div
+                className={`${sizeClasses.sidebar} ${
+                  pageMode && selectedConversation ? "hidden md:block" : ""
+                }`}
+              >
                 <ChatSidebar
                   selectedConversationId={selectedConversation?.id}
                   onSelectConversation={loadConversation}
@@ -467,7 +496,11 @@ export function ChatPanel({
             )}
 
             {/* Zone de chat */}
-            <div className={sizeClasses.content}>
+            <div
+              className={`${sizeClasses.content} ${
+                pageMode && !selectedConversation ? "hidden md:flex" : ""
+              }`}
+            >
               {/* Bouton pour ouvrir la sidebar (mobile) */}
               {!showSidebar && !isExpanded && !isMinimized && (
                 <button
@@ -536,6 +569,7 @@ export function ChatPanel({
                 <ChatInput
                   conversationId={selectedConversation.id}
                   onSend={handleSend}
+                  onTyping={notifyTyping}
                   disabled={sending}
                   placeholder={isMinimized ? "Écrivez..." : "Écrivez un message..."}
                 />
@@ -543,7 +577,7 @@ export function ChatPanel({
 
               {selectedConversation && !canWrite && (
                 <div className="p-4 text-center text-sm text-[var(--comexa-ink-muted)]">
-                  Votre rôle ne permet pas d'envoyer des messages.
+                  Votre rôle ne permet pas d&apos;envoyer des messages.
                 </div>
               )}
             </div>
@@ -551,7 +585,7 @@ export function ChatPanel({
         </div>
 
         {/* Bouton pour ouvrir le chat (mode réduit) */}
-        {isMinimized && !isExpanded && (
+        {isMinimized && !isExpanded && !pageMode && (
           <button
             type="button"
             onClick={toggleMinimized}
@@ -566,7 +600,7 @@ export function ChatPanel({
       </div>
 
       {/* Bouton flottant pour ouvrir le chat (quand tout est fermé) */}
-      {isMinimized && !isExpanded && !selectedConversation && (
+      {isMinimized && !isExpanded && !pageMode && !selectedConversation && (
         <button
           type="button"
           onClick={toggleMinimized}
@@ -579,13 +613,6 @@ export function ChatPanel({
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          
-          {/* Badge de notifications (à implémenter) */}
-          {false && ( // Remplacer par le compte réel
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--comexa-error)] text-white text-xs rounded-full flex items-center justify-center">
-              3
-            </span>
-          )}
         </button>
       )}
     </>

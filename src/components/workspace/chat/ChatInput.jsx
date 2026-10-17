@@ -18,6 +18,7 @@ import { useActionNotification } from "@/components/workspace/ui/ActionNotificat
 export function ChatInput({
   conversationId,
   onSend,
+  onTyping,
   disabled = false,
   placeholder = "Écrivez un message...",
   maxLength = 10000,
@@ -42,26 +43,48 @@ export function ChatInput({
   }, [content]);
 
   // Gestion de l'indicateur de frappe
-  const handleTyping = useCallback((value) => {
-    const isNowTyping = value.length > 0;
-    
-    if (isNowTyping !== isTyping) {
-      setIsTyping(isNowTyping);
-      
+  //
+  // L'indicateur est annonce AU SERVEUR, qui le relaie aux autres
+  // participants de la conversation. Il se referme tout seul : sans cela,
+  // l'indicateur resterait allume chez le destinataire si l'expediteur
+  // s'arretait de taper sans envoyer.
+  const handleTyping = useCallback(
+    (value) => {
+      const isNowTyping = value.length > 0;
+
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
       }
-    }
-  }, [isTyping]);
+
+      if (isNowTyping !== isTyping) {
+        setIsTyping(isNowTyping);
+        onTyping?.(isNowTyping);
+      }
+
+      if (isNowTyping) {
+        typingTimeoutRef.current = setTimeout(() => {
+          typingTimeoutRef.current = null;
+          setIsTyping(false);
+          onTyping?.(false);
+        }, 3000);
+      }
+    },
+    [isTyping, onTyping],
+  );
 
   // Nettoyage du timeout
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
       }
+      // On previent le serveur qu'on ne tape plus : l'indicateur ne doit pas
+      // rester allume chez les autres apres avoir quitté la conversation.
+      onTyping?.(false);
     };
-  }, []);
+  }, [onTyping]);
 
   // Gestion de l'envoi avec notification
   const handleSend = async () => {
@@ -69,23 +92,14 @@ export function ChatInput({
 
     setIsSending(true);
     setIsTyping(false);
+    onTyping?.(false);
 
     try {
-      const message = await onSend(content.trim());
+      await onSend(content.trim());
       setContent("");
-      
-      // Si l'API retourne une URL de redirection, afficher la notification
-      if (message?.redirectUrl) {
-        showNotification({
-          message: 'Message envoyé avec succès !',
-          redirectUrl: message.redirectUrl,
-          action: message.action,
-          duration: 5000,
-        });
-      }
     } catch (error) {
       showNotification({
-        message: 'Erreur lors de l\'envoi du message',
+        message: "Erreur lors de l'envoi du message",
         duration: 5000,
       });
     } finally {
@@ -117,7 +131,7 @@ export function ChatInput({
   if (!canWrite) {
     return (
       <div className="p-4 text-center text-[var(--comexa-ink-muted)] text-sm">
-        Votre rôle ne permet pas d'envoyer des messages.
+        Votre rôle ne permet pas d&apos;envoyer des messages.
       </div>
     );
   }

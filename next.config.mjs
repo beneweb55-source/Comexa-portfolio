@@ -29,6 +29,15 @@ const nextConfig = {
         source: "/api/:path*",
         destination: `${BACKEND_URL}/api/:path*`,
       },
+      // SOCKET.IO — la poignee de main temps reel passe par le meme proxy que
+      // l'API. Le navigateur se connecte a la racine du site (donc meme
+      // origine, donc aucune question de CORS), et Next relaie `/socket.io`
+      // vers le backend. Sans cette regle, la connexion socket echoue et la
+      // messagerie ne rafraichit plus en temps reel.
+      {
+        source: "/socket.io/:path*",
+        destination: `${BACKEND_URL}/socket.io/:path*`,
+      },
     ];
   },
 };
