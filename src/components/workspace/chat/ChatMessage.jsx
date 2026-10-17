@@ -94,7 +94,16 @@ export function ChatMessage({
     return (
       <div className="whitespace-pre-wrap break-words">
         {message.body}
-        
+
+        {/* Pieces jointes : l'API renvoie les documents lies au message. */}
+        {message.attachments?.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {message.attachments.map((attachment) => (
+              <DocumentPreview key={attachment.documentId ?? attachment.id} attachment={attachment} />
+            ))}
+          </div>
+        )}
+
         {/* Afficher les ressources partagées */}
         {message.sharedResources?.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -160,6 +169,26 @@ export function ChatMessage({
           {senderName.charAt(0).toUpperCase()}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Apercu d'une piece jointe (document lie au message).
+ */
+function DocumentPreview({ attachment }) {
+  const document = attachment?.document;
+  const name = document?.name ?? "Document";
+
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--comexa-white)] border border-[var(--comexa-border-soft)]">
+      <span className="text-xl" aria-hidden="true">📎</span>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-[var(--comexa-ink)] truncate">{name}</p>
+        {document?.mimeType ? (
+          <p className="text-xs text-[var(--comexa-ink-muted)] truncate">{document.mimeType}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

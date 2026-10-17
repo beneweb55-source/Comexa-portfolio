@@ -1,33 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ChatPanel } from "./ChatPanel";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 
 /**
- * Wrapper pour le composant Chat
- * 
- * Gère les modes:
- * - Minimaliste : Bouton flottant
- * - Normal : Panel avec sidebar
- * - Plein écran : Masque le dashboard
- * 
- * Ce composant est conçu pour être utilisé directement dans le layout
- * et permet une intégration transparente avec l'aesthetic du dashboard.
+ * Enveloppe du chat — ajoute le mode « pastille flottante » et le plein ecran.
+ *
+ * `variant` :
+ *  - `floating` (defaut) : le chat flotte dans un coin, reduit en pastille ;
+ *  - `page` : le chat remplit la rubrique — c'est le mode des pages
+ *    `/messagerie`, ou une pastille flottante ne montrait qu'un bouton.
  */
-export function ChatWrapper() {
+export function ChatWrapper({ defaultMinimized = true, variant = "floating" }) {
   const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [isMinimized, setIsMinimized] = useState(defaultMinimized);
 
   const canRead = can(user, "conversation:read:own");
-
-  // Si l'utilisateur n'a pas les permissions, ne rien afficher
-  if (!canRead) {
-    return null;
-  }
+  const pageMode = variant === "page";
 
   // Toggle pour le mode plein écran
   const toggleExpand = () => {
@@ -42,16 +34,10 @@ export function ChatWrapper() {
     setIsMinimized((prev) => !prev);
   };
 
-  // Récupérer le nombre de messages non lus (à implémenter)
-  useEffect(() => {
-    // TODO: Implémenter la récupération du nombre de messages non lus
-    // via WebSocket ou polling
-    // const fetchUnreadCount = async () => {
-    //   const count = await getUnreadMessagesCount();
-    //   setUnreadCount(count);
-    // };
-    // fetchUnreadCount();
-  }, []);
+  // Si l'utilisateur n'a pas les permissions, ne rien afficher
+  if (!canRead) {
+    return null;
+  }
 
   // Si mode plein écran, afficher le panel plein écran
   if (isExpanded) {
@@ -65,7 +51,7 @@ export function ChatWrapper() {
   }
 
   // Si mode minimaliste, afficher juste le bouton flottant
-  if (isMinimized) {
+  if (isMinimized && !pageMode) {
     return (
       <button
         type="button"
@@ -79,13 +65,6 @@ export function ChatWrapper() {
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
         </svg>
-        
-        {/* Badge de notifications */}
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--comexa-error)] text-white text-xs rounded-full flex items-center justify-center">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
       </button>
     );
   }
@@ -96,13 +75,14 @@ export function ChatWrapper() {
       isExpanded={false}
       onToggleExpand={toggleExpand}
       defaultMinimized={false}
+      variant={variant}
     />
   );
 }
 
 /**
  * Version alternative qui s'intègre directement dans le layout
- * 
+ *
  * Cette version est conçue pour être utilisée dans une barre latérale
  * ou une zone dédiée du dashboard.
  */

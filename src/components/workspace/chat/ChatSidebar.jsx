@@ -5,14 +5,21 @@ import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Empty, Notice } from "@/components/workspace/ui";
+import { Empty, Notice } from "@/components/workspace/ui";
+import { conversationTitle, isGroupConversation, participantName } from "@/lib/conversation-labels";
 
 /**
- * Composant de la barre latérale du chat
- * Affiche la liste des conversations avec:
- * - Recherche
- * - Filtres (toutes, non lues, archivées)
- * - Création de nouvelle conversation
+ * Barre laterale du chat : la liste des conversations du porteur.
+ *
+ * DEUX REGLES TIENTENT CETTE LISTE.
+ *
+ * 1. L'API n'accepte que `page`, `perPage` et `includeArchived` : tout autre
+ *    parametre fait echouer la requete (400), et la liste entiere disparait.
+ *    La recherche et le filtre « non lues » se font donc ICI, sur la page
+ *    chargee — pas cote serveur.
+ * 2. La liste ne se recharge que lorsqu'il le faut. Un rechargement declenche
+ *    par un changement d'identite de l'objet `conversations` (qui change a
+ *    chaque rendu) relancerait une requete a chaque rendu, sans fin.
  */
 export function ChatSidebar({
   selectedConversationId,
@@ -26,52 +33,67 @@ export function ChatSidebar({
   const [conversationPage, setConversationPage] = useState(1);
 
   const canCreate = can(user, "conversation:create:own");
-  const canReadAll = can(user, "conversation:read:any");
 
-  // Récupérer les conversations
+  // Seuls `page`, `perPage` et `includeArchived` sont acceptes par l'API.
   const conversations = useListing(
-    `/conversations?page=${conversationPage}&perPage=50${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ""}&filter=${filter}`
+    `/conversations?page=${conversationPage}&perPage=50${filter === "archived" ? "&includeArchived=true" : ""}`,
   );
+  const { reload } = conversations;
 
-  // Recharger après sélection
+  // Recharger apres selection : la liste contient le compteur de non-lus, qui
+  // doit repasser a zero une fois la conversation ouverte.
   useEffect(() => {
     if (selectedConversationId) {
-      conversations.reload();
+      reload();
     }
-  }, [selectedConversationId, conversations]);
+    // `reload` est stable tant que le chemin ne change pas : l'inclure evite
+    // de reconstruire la liste a chaque rendu.
+  }, [selectedConversationId, reload]);
 
-  // Gestion de la sélection
-  const handleSelect = useCallback((conversation) => {
-    onSelectConversation(conversation);
-    
-    // Marquer comme lu
-    if (conversation.unreadCount > 0) {
-      request(`/conversations/${conversation.id}/read`, { method: "POST" }).catch(() => null);
-    }
-  }, [onSelectConversation, request]);
+  // Gestion de la selection : le panneau attend un IDENTIFIANT de conversation.
+  const handleSelect = useCallback(
+    (conversation) => {
+      onSelectConversation(conversation.id);
 
-  // Filtrer les conversations
-  const filteredConversations = conversations.items || [];
+      // Marquer comme lu (l'echec n'empeche pas l'ouverture du fil).
+      if (conversation.unreadCount > 0) {
+        request(`/conversations/${conversation.id}/read`, { method: "POST" }).catch(() => null);
+      }
+    },
+    [onSelectConversation, request],
+  );
 
-  // Compter les conversations non lues
-  const unreadCount = filteredConversations.reduce(
-    (sum, conv) => sum + (conv.unreadCount || 0),
-    0
+  // Filtres appliques a la page chargee (voir la regle 1 ci-dessus).
+  const visibleConversations = (conversations.items ?? []).filter((conversation) => {
+    if (filter === "unread" && !(conversation.unreadCount > 0)) return false;
+    if (filter === "archived" && !conversation.isArchived) return false;
+
+    const needle = searchQuery.trim().toLowerCase();
+    if (!needle) return true;
+    const haystack = [
+      conversation.subject ?? "",
+      conversation.lastMessagePreview ?? "",
+      ...(conversation.participants ?? []).map((participant) => participantName(participant)),
+    ]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
+
+  // Compter les conversations non lues de la page chargee.
+  const unreadCount = (conversations.items ?? []).reduce(
+    (sum, conversation) => sum + (conversation.unreadCount || 0),
+    0,
   );
 
   const TYPE_LABEL = { DIRECT: "Direct", PROJECT: "Projet", CLIENT: "Client", SUPPORT: "Support" };
-
-  function fullName(person) {
-    if (!person) return "Inconnu";
-    return `${person.firstName ?? ""} ${person.lastName ?? ""}`.trim() || person.email || "Inconnu";
-  }
 
   return (
     <div className="flex flex-col h-full border-r border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]">
       {/* En-tête */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--comexa-border-soft)]">
         <h2 className="text-lg font-bold text-[var(--comexa-ink)]">Messages</h2>
-        
+
         {/* Bouton nouvelle conversation */}
         {canCreate && (
           <button
@@ -156,40 +178,43 @@ export function ChatSidebar({
           </div>
         ) : null}
 
-        {conversations.items !== null && filteredConversations.length === 0 ? (
+        {conversations.items !== null && visibleConversations.length === 0 ? (
           <div className="p-4">
-            <Empty>Aucune conversation trouvée.</Empty>
+            <Empty>
+              {searchQuery
+                ? "Aucune conversation ne correspond a cette recherche."
+                : "Aucune conversation trouvee."}
+            </Empty>
           </div>
         ) : null}
 
         <div className="divide-y divide-[var(--comexa-border-soft)]">
-          {filteredConversations.map((conversation) => {
+          {visibleConversations.map((conversation) => {
             const isSelected = conversation.id === selectedConversationId;
             const hasUnread = conversation.unreadCount > 0;
+            const isGroup = isGroupConversation(conversation);
+            const title = conversationTitle(conversation, user?.id);
 
             return (
               <button
                 key={conversation.id}
                 type="button"
                 onClick={() => handleSelect(conversation)}
-                className={`w-full p-4 text-left transition-colors hover:bg-[var(--comexa-neutral-50)] ${
+                className={`relative w-full p-4 text-left transition-colors hover:bg-[var(--comexa-neutral-50)] ${
                   isSelected ? "bg-[var(--comexa-blue-50)]" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">
                   {/* Avatar de groupe ou utilisateur */}
                   <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[var(--comexa-blue-100)] flex items-center justify-center text-sm font-semibold text-[var(--comexa-blue-600)]">
-                    {conversation.isGroup 
-                      ? conversation.groupName?.charAt(0).toUpperCase() || "G"
-                      : conversation.participants?.[0]?.firstName?.charAt(0).toUpperCase() || "U"
-                    }
+                    {title.charAt(0).toUpperCase() || "U"}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    {/* Ligne 1: Sujet et badge */}
-                    <div className="flex items-center justify-between gap-2">
+                    {/* Ligne 1: Sujet et date */}
+                    <div className="flex items-center justify-between gap-2 pr-6">
                       <span className="text-sm font-semibold text-[var(--comexa-ink)] truncate">
-                        {conversation.subject || conversation.groupName || "Sans sujet"}
+                        {title}
                       </span>
                       {conversation.lastMessageAt && (
                         <span className="text-xs text-[var(--comexa-ink-muted)] whitespace-nowrap">
@@ -198,20 +223,19 @@ export function ChatSidebar({
                       )}
                     </div>
 
-                    {/* Ligne 2: Aperçu et type */}
+                    {/* Ligne 2: type et participants */}
                     <div className="flex items-center gap-2 mt-1">
-                      {conversation.isGroup ? (
-                        <span className="text-xs text-[var(--comexa-ink-muted)]">
-                          Groupe · {conversation.participants?.length || 0} membres
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[var(--comexa-ink-muted)]">
-                          {TYPE_LABEL[conversation.type] ?? conversation.type}
-                        </span>
-                      )}
+                      <span className="text-xs text-[var(--comexa-ink-muted)]">
+                        {isGroup
+                          ? `Groupe · ${conversation.participants?.length || 0} membres`
+                          : TYPE_LABEL[conversation.type] ?? conversation.type}
+                      </span>
+                      {conversation.isArchived ? (
+                        <span className="text-xs text-[var(--comexa-ink-subtle)]">Archivée</span>
+                      ) : null}
                     </div>
 
-                    {/* Ligne 3: Dernier message */}
+                    {/* Ligne 3: dernier message */}
                     {conversation.lastMessagePreview && (
                       <p className="text-xs text-[var(--comexa-ink-subtle)] truncate mt-1">
                         {conversation.lastMessagePreview}
@@ -265,6 +289,8 @@ export function ChatSidebar({
           onCreated={(created) => {
             setCreating(false);
             onCreateConversation(created);
+            // La nouvelle conversation doit apparaitre dans la liste.
+            reload();
           }}
           onError={(text) => {
             // Afficher une erreur
@@ -298,8 +324,8 @@ function NewConversationModal({ onCreated, onError, onClose }) {
   const members = (directory.items ?? []).filter((member) => member.id !== user?.id);
 
   function toggle(id) {
-    setParticipantIds((current) => 
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    setParticipantIds((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
     );
   }
 
@@ -309,7 +335,7 @@ function NewConversationModal({ onCreated, onError, onClose }) {
       onError("Le sujet est obligatoire.");
       return;
     }
-    
+
     setBusy(true);
     try {
       const { data } = await request("/conversations", {
@@ -382,7 +408,7 @@ function NewConversationModal({ onCreated, onError, onClose }) {
                     onChange={(event) => setSearchDraft(event.target.value)}
                     onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }}
                     placeholder="Nom ou adresse e-mail"
-                    className="flex-1 px-3 py-2 text-sm bg-[var(--comexa-neutral-50)] rounded-lg border border-[var(--comexa-border-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--comexa-blue-500)]"
+                    className="flex-1 px-3 py-2 text-sm bg-[var(--comexa-neutral-50)] rounded-lg border border-[var(--comexa-border-soft)] focus:outline-none focus:ring-2 focus:ring-[var(--comexa-blue-500)] transition-colors"
                   />
                   <button
                     type="button"

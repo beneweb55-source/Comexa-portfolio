@@ -92,6 +92,8 @@ const PERSONAL_KEEP = new Set([
   "notification:read:own",
   "notification:manage:own",
   "dashboard:read:own",
+  // Son solde : ce que l'agence lui doit.
+  "balance:read:own",
   "project:read:assigned",
   "project:read:own",
 ]);
@@ -137,6 +139,8 @@ const COMEXA_READS = new Set([
   "faq:read:any",
   "notification:read:own",
   "notification:manage:own",
+  // Son solde : une donnee « a moi », lisible partout ou l'on ouvre son compte.
+  "balance:read:own",
 ]);
 
 const COMEXA_ENTRY = new Set([

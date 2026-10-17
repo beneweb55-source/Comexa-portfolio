@@ -4,13 +4,31 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/session";
 
 /**
- * Hook pour gérer la connexion WebSocket avec Socket.IO
- * 
- * Ce hook gère:
- * - La connexion au serveur Socket.IO
- * - La reconnexion automatique
- * - L'abonnement aux rooms de conversation
- * - Les événements de temps réel
+ * Connexion temps reel — Socket.IO, namespace `/rt`.
+ *
+ * TROIS CHOSES QUI ONT FAIT QUE LA MESSAGERIE N'ETAIT PAS TEMPS REEL.
+ *
+ * 1. LE NAMESPACE. La passerelle du backend est declaree sur `/rt`
+ *    (`REALTIME_NAMESPACE`) : le client doit s'y connecter avec
+ *    `io(origin + '/rt', ...)`. Brancher sur la racine aurait ouvert une
+ *    connexion sur le namespace par defaut, ou personne n'ecoute : la
+ *    connexion « reussit » et aucun message n'arrive jamais.
+ *
+ * 2. LE CHEMIN. Le serveur socket.io du backend est monte par Nest sur le
+ *    chemin engine.io par defaut (`/socket.io`) ; le namespace ne change que
+ *    le routage, pas le chemin. Le client annonce donc `path: '/socket.io'` —
+ *    et `/rt/socket.io` ne repondrait a personne.
+ *
+ * 3. LA BOUCLE DE RECONNEXION. Le callback `connect` dependait de l'etat
+ *    `socket`, et l'effet qui l'appelle nettoyait en coupant la connexion :
+ *    chaque connexion changeait l'etat, donc l'effet se relancait, donc il
+ *    coupait, donc il reconnectait — sans fin. Ici, `connect` ne depend QUE du
+ *    jeton, et la connexion courante est suivie dans une ref : l'effet ne
+ *    tourne qu'une fois par jeton.
+ *
+ * Le jeton voyage dans `handshake.auth.token` (c'est ce que le navigateur
+ * envoie), et l'URL reste celle du site : le proxy Next relaie `/socket.io`
+ * vers le backend, comme il relaie `/api`.
  */
 export function useSocketIO() {
   const { token } = useAuth();
@@ -19,103 +37,101 @@ export function useSocketIO() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
   const socketRef = useRef(null);
-  const reconnectAttempts = useRef(0);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 3000;
 
-  // Conserver la référence à jour
-  useEffect(() => {
-    socketRef.current = socket;
-  }, [socket]);
+  // Deconnexion : on coupe la connexion courante et on libere la ref.
+  const disconnect = useCallback(() => {
+    const current = socketRef.current;
+    socketRef.current = null;
+    if (current) {
+      current.removeAllListeners?.();
+      current.disconnect();
+    }
+    setSocket(null);
+    setIsConnected(false);
+    setIsConnecting(false);
+  }, []);
 
-  // Connexion
-  const connect = useCallback(() => {
-    if (!token || socket) return;
+  // Connexion. Ne depend QUE du jeton : c'est ce qui casse la boucle.
+  const connect = useCallback(async () => {
+    if (!token || socketRef.current) return;
+
+    let io;
+    try {
+      // Import dynamique : le module n'est charge que dans le navigateur, et
+      // son absence ne casse pas le rendu (le temps reel devient indisponible,
+      // la messagerie reste lisible).
+      const socketModule = await import("socket.io-client");
+      io = socketModule.io ?? socketModule.default;
+    } catch {
+      setError("Le temps reel n'est pas disponible sur ce poste.");
+      return;
+    }
+
+    // Le jeton a pu changer (ou la session finir) pendant l'import.
+    if (!token || socketRef.current) {
+      return;
+    }
 
     setIsConnecting(true);
     setError(null);
 
-    try {
-      // Importer dynamiquement socket.io-client
-      // Cela permet d'éviter les erreurs SSR
-      let io;
-      try {
-        // @ts-ignore - Dynamic import
-        io = require("socket.io-client");
-      } catch (e) {
-        // Si socket.io-client n'est pas installé, on simule une connexion réussie
-        // mais sans fonctionnalités WebSocket
-        console.warn("socket.io-client non installé. Utilisation du mode dégradé (polling).");
-        setIsConnected(true);
-        setIsConnecting(false);
-        setSocket({
-          on: () => {},
-          off: () => {},
-          emit: () => {},
-          disconnect: () => {},
-        });
-        return;
-      }
+    const origin = window.location.origin;
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host;
-      const socketUrl = `${protocol}//${host}`;
+    const newSocket = io(`${origin}/rt`, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000,
+      timeout: 20000,
+      autoConnect: false,
+    });
 
-      const newSocket = io(socketUrl, {
-        path: "/rt/socket.io",
-        transports: ["websocket", "polling"],
-        auth: {
-          token: token,
-        },
-        reconnection: true,
-        reconnectionAttempts: maxReconnectAttempts,
-        reconnectionDelay: reconnectDelay,
-        timeout: 20000,
-        autoConnect: false,
-      });
+    socketRef.current = newSocket;
 
-      // Gestion des événements de connexion
-      newSocket.on("connect", () => {
-        setIsConnected(true);
-        setIsConnecting(false);
-        reconnectAttempts.current = 0;
-        setSocket(newSocket);
-      });
-
-      newSocket.on("disconnect", () => {
-        setIsConnected(false);
-        setIsConnecting(false);
-        // Ne pas réinitialiser socket ici, car la reconnexion est automatique
-      });
-
-      newSocket.on("connect_error", (err) => {
-        setIsConnecting(false);
-        setError(err.message || "Erreur de connexion");
-        reconnectAttempts.current++;
-      });
-
-      newSocket.on("rt:error", (data) => {
-        setError(data.message || "Erreur serveur");
-      });
-
-      // Se connecter
-      newSocket.connect();
-      setSocket(newSocket);
-    } catch (err) {
+    newSocket.on("connect", () => {
+      setIsConnected(true);
       setIsConnecting(false);
-      setError(err.message || "Erreur lors de la connexion");
-    }
-  }, [token, socket]);
+      setError(null);
+    });
 
-  // Déconnexion
-  const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      setSocket(null);
+    newSocket.on("disconnect", () => {
       setIsConnected(false);
       setIsConnecting(false);
+    });
+
+    newSocket.on("connect_error", (err) => {
+      setIsConnecting(false);
+      setError(err?.message || "Erreur de connexion");
+    });
+
+    newSocket.on("rt:error", (data) => {
+      setError(data?.message || "Erreur serveur");
+    });
+
+    newSocket.connect();
+    setSocket(newSocket);
+  }, [token]);
+
+  // Une seule connexion par jeton.
+  useEffect(() => {
+    // Sans jeton, il n'y a rien a connecter. La fermeture de la connexion
+    // precedente est faite par le nettoyage de l'effet precedent.
+    if (!token) {
+      return undefined;
     }
-  }, []);
+
+    // La connexion demarre dans une tache, pas dans le corps de l'effet :
+    // l'effet ne fait que synchroniser l'etat du composant avec celui du
+    // socket, et le rendu n'est jamais declenche en cascade par lui.
+    const timer = setTimeout(() => connect(), 0);
+
+    return () => {
+      clearTimeout(timer);
+      disconnect();
+    };
+  }, [token, connect, disconnect]);
 
   // Rejoindre une conversation
   const joinConversation = useCallback((conversationId) => {
@@ -135,21 +151,18 @@ export function useSocketIO() {
   // Quitter une conversation
   const leaveConversation = useCallback((conversationId) => {
     if (!socketRef.current || !conversationId) return;
-
     socketRef.current.emit("conversation:leave", { conversationId });
   }, []);
 
   // Envoyer un indicateur de frappe
   const sendTyping = useCallback((conversationId, isTyping) => {
     if (!socketRef.current || !conversationId) return;
-
     socketRef.current.emit("typing", { conversationId, isTyping });
   }, []);
 
-  // Écouter les événements
+  // Ecouter un evenement
   const on = useCallback((event, callback) => {
     if (!socketRef.current) {
-      // Si pas de socket, on retourne une fonction de nettoyage vide
       return () => {};
     }
 
@@ -160,22 +173,8 @@ export function useSocketIO() {
   // Retirer un listener
   const off = useCallback((event, callback) => {
     if (!socketRef.current) return;
-
     socketRef.current.off(event, callback);
   }, []);
-
-  // Gestion du token
-  useEffect(() => {
-    if (token) {
-      connect();
-    } else {
-      disconnect();
-    }
-
-    return () => {
-      disconnect();
-    };
-  }, [token, connect, disconnect]);
 
   return {
     socket,
@@ -189,26 +188,6 @@ export function useSocketIO() {
     sendTyping,
     on,
     off,
-  };
-}
-
-/**
- * Hook simplifié qui retourne toujours une connexion "simulée"
- * Utile pour le développement sans WebSocket
- */
-export function useMockWebSocket() {
-  return {
-    socket: null,
-    isConnected: true,
-    isConnecting: false,
-    error: null,
-    connect: () => {},
-    disconnect: () => {},
-    joinConversation: () => Promise.resolve(true),
-    leaveConversation: () => {},
-    sendTyping: () => {},
-    on: () => () => {},
-    off: () => {},
   };
 }
 

@@ -83,6 +83,9 @@ const PERSONAL_KEEP: ReadonlySet<string> = new Set([
   'notification:read:own',
   'notification:manage:own',
   'dashboard:read:own',
+  // Son solde : ce que l'agence lui doit. C'est une donnee « a moi », au meme
+  // titre que ses taches et son agenda.
+  'balance:read:own',
   // Libellés des projets de mes tâches et de mes saisies de temps.
   'project:read:assigned',
   'project:read:own',
@@ -144,6 +147,8 @@ const COMEXA_READS: ReadonlySet<string> = new Set([
   'faq:read:any',
   'notification:read:own',
   'notification:manage:own',
+  // Son solde : une donnee « a moi », lisible partout ou l'on ouvre son compte.
+  'balance:read:own',
 ]);
 
 /**
