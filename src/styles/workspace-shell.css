@@ -1866,3 +1866,13 @@
   .cx-console__body { padding: 22px 16px; }
   .cx-console__foot { padding-inline: 12px; }
 }
+
+/* Sources et détails d’opération : périmètre Console uniquement. */
+.cx-console-link { overflow-wrap: anywhere; text-underline-offset: 3px; }
+.cx-console-link--source { font-weight: 600; text-decoration-thickness: 1px; }
+.cx-console-link:hover { text-decoration-thickness: 2px; }
+.cx-console-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 2px; }
+.cx-console-op__details { display: grid; gap: 8px; margin: 0; font-size: 13px; }
+.cx-console-op__details dt { color: var(--comexa-ink-muted); font-size: 11px; font-weight: 600; }
+.cx-console-op__details dd { margin: 2px 0 0; color: var(--comexa-ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.cx-console-op__notice { margin: 0; font-size: 12px; color: var(--comexa-ink-muted); }

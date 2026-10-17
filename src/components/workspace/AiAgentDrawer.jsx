@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { consoleLink, operationDetails } from "@/lib/console-display.mjs";
 import Icon from "@/components/dashboard/icons";
 import { messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
@@ -140,11 +141,15 @@ function renderInline(text, keyPrefix) {
       );
     } else if (link) {
       const parsed = link.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-      nodes.push(
-        <a key={key} className="cx-console-link" href={parsed?.[2] ?? "#"} target="_blank" rel="noreferrer noopener">
-          {parsed?.[1] ?? link}
-        </a>,
-      );
+      const destination = consoleLink(parsed?.[2]);
+      nodes.push(destination ? (
+        <a key={key} className={`cx-console-link${destination.internal ? " cx-console-link--source" : ""}`}
+          href={destination.href} target="_blank" rel="noreferrer noopener"
+          title="Ouvrir la source dans un nouvel onglet">
+          {parsed?.[1] ?? link}<span aria-hidden="true"> ↗</span>
+          <span className="sr-only"> (nouvel onglet)</span>
+        </a>
+      ) : <span key={key}>{parsed?.[1] ?? link}</span>);
     } else if (reference) {
       nodes.push(
         <span key={key} className="cx-console-ref">
@@ -348,7 +353,7 @@ function extractOperation(content, data) {
   const proposed = data?.proposedAction ?? data?.action ?? null;
   const proposedId = typeof proposed === "string" ? proposed : (proposed?.actionId ?? proposed?.id ?? null);
   if (typeof proposedId === "string" && proposedId.length > 0) {
-    return { id: proposedId, label: proposed?.label ?? proposed?.description ?? null };
+    return { id: proposedId, ...operationDetails(proposed) };
   }
 
   const match = typeof content === "string" ? content.match(CONFIRM_PATTERN) : null;
@@ -384,6 +389,14 @@ function OperationCard({ operation, state, busy, onConfirm, onCancel }) {
           <MessageContent content={operation.label} />
         </div>
       ) : null}
+
+      {operation.entityName || operation.consequences ? (
+        <dl className="cx-console-op__details">
+          {operation.entityName ? <div><dt>Entité visée</dt><dd>{operation.entityName}</dd></div> : null}
+          {operation.consequences ? <div><dt>Conséquences</dt><dd>{operation.consequences}</dd></div> : null}
+        </dl>
+      ) : null}
+      {!settled ? <p className="cx-console-op__notice">Aucune action exécutée sans votre confirmation.</p> : null}
 
       <p className="cx-console-op__id">
         Référence <code>{operation.id}</code>
