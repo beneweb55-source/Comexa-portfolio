@@ -262,6 +262,54 @@ export class EnvironmentVariables {
   @IsString()
   SMTP_FROM = 'Comexa <no-reply@comexa.example>';
 
+  // --- Génération PDF ---------------------------------------------------------
+  //
+  // Ces variables sont optionnelles et permettent de personnaliser les PDF
+  // générés. Sans elles, les valeurs par défaut seront utilisées.
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_NAME = 'Comexa';
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_ADDRESS?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_CITY?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_POSTAL?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_COUNTRY = 'Algérie';
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_PHONE?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_EMAIL = 'contact@comexa.dz';
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_WEBSITE = 'https://comexa.dz';
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_TAX_ID?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_COMPANY_REGISTRATION?: string;
+
+  @IsOptional()
+  @IsString()
+  PDF_LOGO_PATH?: string;
+
   /**
    * Derogation explicite au refus de demarrer sans moyen d'envoi.
    *

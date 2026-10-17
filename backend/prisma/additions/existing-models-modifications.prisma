@@ -1,0 +1,128 @@
+// =============================================================================
+// COMEXA - MODIFICATIONS DES MODÈLES EXISTANTS
+// À intégrer dans le schema.prisma existant
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. MODIFICATIONS DU MODÈLE User
+// -----------------------------------------------------------------------------
+
+// Ajouter dans model User (après le champ `country`):
+//   /// Devise préférée pour l'affichage (ne modifie pas les données financières)
+//   preferredCurrency String?    @db.VarChar(3)
+//
+//   // Relations inverses pour les soldes
+//   balances BalanceTransaction[] @relation("UserBalanceTransactions")
+//   memberBalances MemberBalance[]
+
+
+// -----------------------------------------------------------------------------
+// 2. MODIFICATIONS DU MODÈLE Client
+// -----------------------------------------------------------------------------
+
+// Ajouter dans model Client (après le champ `country`):
+//   /// Devise par défaut pour ce client (DZD ou EUR)
+//   /// À l'avenir, le client choisira entre DZD et EUR
+//   currency String @default("DZD")
+//
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)
+
+
+// -----------------------------------------------------------------------------
+// 3. MODIFICATIONS DU MODÈLE Project
+// -----------------------------------------------------------------------------
+
+// Modifier dans model Project:
+//   /// Devise du projet - SOURCE DE VÉRITÉ
+//   /// Par défaut: DZD (marché principal = Algérie)
+//   /// Ne JAMAIS modifier les projets existants sans validation
+//   currency String @default("DZD")  // CHANGÉ DE "EUR" À "DZD"
+//
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)
+//
+//   /// Répartitions des gains pour ce projet
+//   distributions ProjectDistribution[]
+
+
+// -----------------------------------------------------------------------------
+// 4. MODIFICATIONS DU MODÈLE Quote
+// -----------------------------------------------------------------------------
+
+// Modifier dans model Quote:
+//   /// Devise du devis - SOURCE DE VÉRITÉ
+//   currency String @default("DZD")  // CHANGÉ DE "EUR" À "DZD"
+//
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)
+
+
+// -----------------------------------------------------------------------------
+// 5. MODIFICATIONS DU MODÈLE Invoice
+// -----------------------------------------------------------------------------
+
+// Modifier dans model Invoice:
+//   /// Devise de la facture - SOURCE DE VÉRITÉ
+//   currency String @default("DZD")  // CHANGÉ DE "EUR" À "DZD"
+//
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)
+
+
+// -----------------------------------------------------------------------------
+// 6. MODIFICATIONS DU MODÈLE Payment
+// -----------------------------------------------------------------------------
+
+// Modifier dans model Payment:
+//   /// Devise du paiement - SOURCE DE VÉRITÉ
+//   currency String @default("DZD")  // CHANGÉ DE "EUR" À "DZD"
+//
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)
+//
+//   /// Transactions de solde liées à ce paiement
+//   balanceTransactions BalanceTransaction[] @relation("PaymentBalanceTransactions")
+
+
+// -----------------------------------------------------------------------------
+// 7. MODIFICATIONS DU MODÈLE Conversation
+// -----------------------------------------------------------------------------
+
+// Ajouter dans model Conversation (après le champ `lastMessagePreview`):
+//   /// Est-ce un groupe ?
+//   isGroup Boolean @default(false)
+//   /// Nom du groupe (si isGroup = true)
+//   groupName String?
+//   /// Description du groupe
+//   groupDescription String?
+//
+//   /// Ressources partagées dans cette conversation
+//   sharedResources MessageResource[]
+
+
+// -----------------------------------------------------------------------------
+// 8. MODIFICATIONS DU MODÈLE Message
+// -----------------------------------------------------------------------------
+
+// Ajouter dans model Message (après le champ `deletedAt`):
+//   /// Statut de livraison par défaut (SENT)
+//   deliveryStatus MessageDeliveryStatus @default(SENT)
+//
+//   /// Ressources partagées dans ce message
+//   sharedResources MessageResource[]
+
+
+// -----------------------------------------------------------------------------
+// 9. MODIFICATIONS DU MODÈLE PackageRate
+// -----------------------------------------------------------------------------
+
+// Ajouter dans model PackageRate (après le champ `currency`):
+//   /// Lien vers Currency (optionnel, pour navigation)
+//   currencyId String?
+//   currencyObj Currency? @relation(fields: [currencyId], references: [id], onDelete: SetNull)

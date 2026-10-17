@@ -1,0 +1,526 @@
+// =============================================================================
+// COMEXA - FONDATIONS FINANCIÈRES
+// Ajouts pour la gestion des devises, répartitions et soldes
+// =============================================================================
+
+// =============================================================================
+// NOUVELLES ÉNUMÉRATIONS
+// =============================================================================
+
+enum DistributionBaseType {
+  /// Montant total facturé (toutes factures du projet)
+  INVOICED_AMOUNT
+  /// Montant réellement encaissé (paiements reçus) - RECOMMANDÉ
+  COLLECTED_AMOUNT
+  /// Bénéfice après dépenses (nécessite module comptabilité)
+  PROFIT_AFTER_EXPENSES
+}
+
+enum BeneficiaryType {
+  /// Membre de l'équipe (lié à un User)
+  MEMBER
+  /// Entreprise Comexa (pas de solde, tracking seulement)
+  COMPANY
+  /// Réserve (pas de solde, tracking seulement)
+  RESERVE
+}
+
+enum DistributionStatus {
+  /// Calcul en attente de validation
+  PENDING
+  /// Calcul validé mais non appliqué
+  CALCULATED
+  /// Appliquée et vérifiée
+  APPLIED
+  /// Annulée
+  CANCELLED
+}
+
+enum DistributionItemStatus {
+  /// En attente de crédit
+  PENDING
+  /// Crédité dans le solde interne
+  CREDITED
+  /// Effectivement payé au bénéficiaire
+  PAID
+  /// Annulé
+  CANCELLED
+}
+
+enum DistributionChangeType {
+  /// Configuration des pourcentages modifiée
+  CONFIG_CHANGED
+  /// Montant de base mis à jour
+  BASE_AMOUNT_UPDATED
+  /// Ajustement manuel
+  MANUAL_ADJUSTMENT
+  /// Paiement reçu (trigger la répartition)
+  PAYMENT_RECEIVED
+  /// Répartition appliquée
+  DISTRIBUTION_APPLIED
+}
+
+enum BalanceTransactionType {
+  /// Crédit (gain, répartition)
+  CREDIT
+  /// Débit (retrait, remboursement)
+  DEBIT
+  /// Correction (ajustement manuel)
+  CORRECTION
+}
+
+enum BalanceTransactionStatus {
+  /// En attente de confirmation
+  PENDING
+  /// Confirmée et appliquée
+  CONFIRMED
+  /// Annulée
+  CANCELLED
+}
+
+enum MessageDeliveryStatus {
+  /// Message envoyé mais non livré
+  SENT
+  /// Message livré au client
+  DELIVERED
+  /// Message lu par le destinataire
+  READ
+}
+
+enum SharedResourceType {
+  PROJECT
+  TASK
+  QUOTE
+  INVOICE
+  PAYMENT
+  DOCUMENT
+  CLIENT
+}
+
+// =============================================================================
+// NOUVEAUX MODÈLES - DEVISES ET TAUX DE CHANGE
+// =============================================================================
+
+/// Devise monétaire (ISO 4217)
+///
+/// Source de vérité pour les codes de devise. Le champ `currency` (String) dans
+/// les documents reste la référence principale, mais `currencyId` permet de
+/// naviguer vers les métadonnées de la devise.
+model Currency {
+  id        String   @id @default(cuid())
+  /// Code ISO 4217 (3 lettres majuscules)
+  code      String   @unique @db.VarChar(3)
+  /// Nom complet de la devise
+  name      String
+  /// Symbole monétaire
+  symbol    String
+  /// Devise active pour les nouveaux documents
+  isActive  Boolean  @default(true)
+  /// Devise par défaut du système (DZD pour Comexa Algérie)
+  isDefault Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations inverses (optionnelles pour navigation)
+  clients         Client[]
+  projects        Project[]
+  quotes          Quote[]
+  invoices        Invoice[]
+  payments        Payment[]
+  packageRates    PackageRate[]
+
+  // Taux de change
+  exchangeRatesFrom ExchangeRate[] @relation("FromCurrency")
+  exchangeRatesTo   ExchangeRate[] @relation("ToCurrency")
+
+  @@map("currencies")
+}
+
+/// Taux de change historique entre deux devises
+///
+/// Aucun taux fictif n'est inséré : chaque taux doit avoir une source vérifiable.
+/// Les taux sont utilisés pour la conversion manuelle et l'audit.
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  /// Devise source (code ISO 4217)
+  fromCurrency  String   @db.VarChar(3)
+  from          Currency @relation("FromCurrency", fields: [fromCurrency], references: [code])
+  /// Devise cible (code ISO 4217)
+  toCurrency    String   @db.VarChar(3)
+  to            Currency @relation("ToCurrency", fields: [toCurrency], references: [code])
+  /// Taux de change : 1 fromCurrency = X toCurrency
+  /// Précision élevée pour éviter les erreurs d'arrondi
+  rate          Decimal  @db.Decimal(19, 6)
+  /// Date d'effet du taux
+  effectiveDate DateTime @default(now())
+  /// Source du taux (ex: "BCA", "Banque d'Algérie", "Manuel", "ECB")
+  source        String
+  /// Référence externe (URL, document, numéro de transaction)
+  reference     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Un seul taux par paire de devises et par date d'effet
+  @@unique([fromCurrency, toCurrency, effectiveDate])
+  @@index([fromCurrency, toCurrency])
+  @@index([effectiveDate])
+  @@map("exchange_rates")
+}
+
+// =============================================================================
+// NOUVEAUX MODÈLES - RÉPARTITION DES GAINS
+// =============================================================================
+
+/// Configuration des pourcentages de répartition
+///
+/// Une seule configuration peut être active à la fois. Les pourcentages doivent
+/// toujours totaliser 100%. La base de calcul est configurable (par défaut:
+/// COLLECTED_AMOUNT = montants réellement encaissés).
+model DistributionConfig {
+  id            String   @id @default(cuid())
+  /// Nom de la configuration
+  name          String
+  /// Description (optionnelle)
+  description   String?
+  /// Configuration active (une seule peut être active à la fois)
+  isActive      Boolean  @default(true)
+  /// Base de calcul pour les répartitions
+  baseType      DistributionBaseType @default(COLLECTED_AMOUNT)
+  /// Date d'effet
+  effectiveDate DateTime @default(now())
+  /// Date de fin (optionnelle)
+  endDate       DateTime?
+
+  /// Bénéficiaires de cette configuration
+  beneficiaries DistributionBeneficiary[]
+  /// Répartitions utilisant cette configuration
+  distributions ProjectDistribution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@map("distribution_configs")
+}
+
+/// Bénéficiaire d'une configuration de répartition
+///
+/// Pour les membres (BeneficiaryType.MEMBER), `userId` doit être renseigné.
+/// Pour COMPANY et RESERVE, `userId` est NULL et seul le `name` est utilisé.
+model DistributionBeneficiary {
+  id              String   @id @default(cuid())
+  /// Configuration à laquelle appartient ce bénéficiaire
+  configId        String
+  config          DistributionConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  /// ID de l'utilisateur (NULL pour COMPANY ou RESERVE)
+  userId          String?
+  /// Utilisateur (relation optionnelle)
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Type de bénéficiaire
+  beneficiaryType BeneficiaryType
+  /// Nom affiché (pour COMPANY/RESERVE, ou nom du membre)
+  name            String
+  /// Pourcentage (0-100, 2 décimales max)
+  percentage      Decimal  @db.Decimal(5, 2)
+  /// Ordre d'affichage
+  order           Int      @default(0)
+  /// Actif dans cette configuration
+  isActive        Boolean  @default(true)
+
+  /// Items de répartition pour ce bénéficiaire
+  distributionItems DistributionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([configId, order])
+  @@map("distribution_beneficiaries")
+}
+
+/// Répartition des gains pour un projet spécifique
+///
+/// Une répartition est calculée sur la base des montants encaissés (par défaut)
+/// et peut être appliquée pour créditer les soldes des membres. Chaque répartition
+/// est liée à une configuration de pourcentages.
+model ProjectDistribution {
+  id              String   @id @default(cuid())
+  /// Projet concerné
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Configuration utilisée
+  configId        String
+  config          DistributionConfig @relation(fields: [configId], references: [id], onDelete: Restrict)
+
+  /// Montant de base pour le calcul (selon baseType)
+  baseAmount      Decimal  @db.Decimal(14, 2)
+  /// Devise du montant de base
+  baseCurrency    String   @db.VarChar(3)
+  /// Total des pourcentages (doit être 100)
+  totalPercentage Decimal  @db.Decimal(5, 2) @default(100)
+
+  /// Statut de la répartition
+  status          DistributionStatus @default(PENDING)
+  /// Date du calcul
+  calculatedAt    DateTime?
+  /// Date d'application (quand status = APPLIED)
+  appliedAt      DateTime?
+  /// Appliquée par (qui a déclenché l'application)
+  appliedById    String?
+  appliedBy      User?     @relation(fields: [appliedById], references: [id], onDelete: SetNull)
+
+  /// Items de répartition (par bénéficiaire)
+  items           DistributionItem[]
+  /// Historique des changements
+  history         DistributionHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Une seule répartition par projet et par configuration
+  @@unique([projectId, configId])
+  @@index([projectId])
+  @@index([configId])
+  @@index([status])
+  @@map("project_distributions")
+}
+
+/// Part de répartition pour un bénéficiaire spécifique
+///
+/// Distingue clairement :
+/// - calculatedAmount: montant théorique calculé selon le pourcentage
+/// - creditedAmount: montant effectivement crédité dans le solde interne
+/// - paidAmount: montant effectivement versé au bénéficiaire
+///
+/// Pour COMPANY et RESERVE, seul calculatedAmount est utilisé (tracking).
+model DistributionItem {
+  id                String   @id @default(cuid())
+  /// Répartition parente
+  distributionId    String
+  distribution      ProjectDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+  /// Bénéficiaire
+  beneficiaryId     String
+  beneficiary      DistributionBeneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Restrict)
+
+  /// Montant calculé théoriquement (selon %)
+  calculatedAmount   Decimal  @db.Decimal(14, 2)
+  /// Montant effectivement crédité dans le système (solde interne)
+  creditedAmount     Decimal  @db.Decimal(14, 2) @default(0)
+  /// Montant effectivement payé au bénéficiaire (paiement réel)
+  paidAmount         Decimal  @db.Decimal(14, 2) @default(0)
+  /// Devise de tous les montants
+  currency          String   @db.VarChar(3)
+
+  /// Statut de cet item
+  status            DistributionItemStatus @default(PENDING)
+
+  /// Date du calcul
+  calculatedAt     DateTime?
+  /// Date de créditation
+  creditedAt       DateTime?
+  /// Date de paiement
+  paidAt           DateTime?
+  /// Référence du paiement (si applicable)
+  paymentReference String?
+  /// Notes
+  notes             String?
+
+  /// Lien vers les transactions de solde (pour les membres seulement)
+  balanceTransactions BalanceTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Un item par distribution ET par bénéficiaire
+  @@unique([distributionId, beneficiaryId])
+  @@index([distributionId])
+  @@index([beneficiaryId])
+  @@map("distribution_items")
+}
+
+/// Historique des changements sur une répartition
+///
+/// Chaque modification (calcul, application, annulation) est enregistrée
+/// pour permettre un audit complet des opérations financières.
+model DistributionHistory {
+  id                String   @id @default(cuid())
+  /// Répartition concernée
+  distributionId    String
+  distribution      ProjectDistribution @relation(fields: [distributionId], references: [id], onDelete: Cascade)
+
+  /// Configuration précédente (si changement de config)
+  previousConfigId   String?
+  previousConfig     DistributionConfig? @relation(fields: [previousConfigId], references: [id], onDelete: SetNull)
+
+  /// Qui a effectué le changement
+  changedById        String
+  changedBy         User @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  /// Type de changement
+  changeType        DistributionChangeType
+
+  /// Anciennes valeurs (JSON)
+  oldValues         Json?
+  /// Nouvelles valeurs (JSON)
+  newValues         Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([distributionId, createdAt])
+  @@index([changedById])
+  @@map("distribution_histories")
+}
+
+// =============================================================================
+// NOUVEAUX MODÈLES - SOLDES DES MEMBRES
+// =============================================================================
+
+/// Solde courant d'un membre pour une devise spécifique
+///
+/// Un membre peut avoir plusieurs soldes (un par devise). Le solde est
+/// toujours calculé à partir de l'historique des transactions et n'est
+/// jamais modifié directement.
+model MemberBalance {
+  id              String   @id @default(cuid())
+  /// Membre concerné
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Devise du solde
+  currency        String   @db.VarChar(3)
+  /// Solde courant (calculé à partir des transactions)
+  currentBalance  Decimal  @default(0) @db.Decimal(14, 2)
+  /// Dernière mise à jour
+  lastUpdatedAt   DateTime?
+  /// Mis à jour par
+  updatedById     String?
+  updatedBy       User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  /// Transactions de ce solde
+  transactions    BalanceTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Un solde par membre ET par devise (pas de conversion implicite)
+  @@unique([userId, currency])
+  @@index([userId])
+  @@index([currency])
+  @@map("member_balances")
+}
+
+/// Transaction financière sur le solde d'un membre
+///
+/// Chaque mouvement (crédit, débit, correction) est enregistré pour permettre
+/// un historique complet et vérifiable. Le solde est toujours dérivé de ces
+/// transactions.
+model BalanceTransaction {
+  id                String   @id @default(cuid())
+  /// Membre concerné
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Lien vers l'item de répartition (optionnel)
+  distributionItemId String?
+  distributionItem   DistributionItem? @relation(fields: [distributionItemId], references: [id], onDelete: SetNull)
+
+  /// Lien vers le projet (optionnel)
+  projectId         String?
+  project           Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  /// Lien vers le paiement (optionnel)
+  paymentId         String?
+  payment           Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  /// Type de transaction
+  type              BalanceTransactionType
+  /// Montant (toujours positif, le signe est dans le type)
+  amount            Decimal  @db.Decimal(14, 2)
+  /// Devise
+  currency          String   @db.VarChar(3)
+
+  /// Solde AVANT la transaction (pour vérification)
+  previousBalance   Decimal  @db.Decimal(14, 2)
+  /// Solde APRÈS la transaction
+  newBalance        Decimal  @db.Decimal(14, 2)
+
+  /// Référence (numéro de transaction, référence externe)
+  reference         String?
+  /// Description
+  description       String?
+
+  /// Statut
+  status            BalanceTransactionStatus @default(CONFIRMED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, currency, createdAt])
+  @@index([projectId])
+  @@index([distributionItemId])
+  @@index([paymentId])
+  @@map("balance_transactions")
+}
+
+// =============================================================================
+// NOUVEAUX MODÈLES - MESSAGERIE AMÉLIORÉE
+// =============================================================================
+
+/// Ressource partagée dans un message
+///
+/// Une ressource (projet, tâche, devis, facture, etc.) peut être partagée dans
+/// un message. La relation est OBLIGATOIRE avec le message et OPTIONNELLE
+/// avec la ressource (pour permettre le partage même si la ressource est supprimée).
+model MessageResource {
+  id               String   @id @default(cuid())
+  /// Message parent - RELATION OBLIGATOIRE
+  messageId        String
+  message          Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  /// Type de ressource
+  resourceType     SharedResourceType
+  /// ID de la ressource
+  resourceId       String
+
+  /// Métadonnées pour l'aperçu
+  previewTitle     String?
+  previewText      String?
+
+  /// Qui a partagé cette ressource
+  sharedById       String
+  sharedBy         User    @relation(fields: [sharedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  /// Clé unique: un message ne peut pas partager 2 fois la même ressource
+  @@unique([messageId, resourceType, resourceId])
+  @@index([messageId])
+  @@index([resourceType, resourceId])
+  @@index([sharedById])
+  @@map("message_resources")
+}
+
+/// Accusé de lecture d'un message par un destinataire
+///
+/// Dans les conversations de groupe, chaque participant peut marquer un message
+/// comme lu. Cela permet de savoir qui a lu quoi.
+model MessageReadReceipt {
+  id               String   @id @default(cuid())
+  /// Message concerné
+  messageId        String
+  message          Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /// Destinataire
+  userId           String
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Date de lecture
+  readAt           DateTime @default(now())
+  /// IP de lecture (optionnelle)
+  ipAddress        String?
+
+  /// Un seul accusé de lecture par message ET par utilisateur
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId, readAt])
+  @@map("message_read_receipts")
+}
