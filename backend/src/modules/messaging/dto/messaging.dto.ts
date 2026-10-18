@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -11,6 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import { BooleanFilter } from '../../../common/dto/boolean-filter.js';
 import {
@@ -18,7 +20,16 @@ import {
   MAX_PER_PAGE,
   PaginationQueryDto,
 } from '../../../common/dto/pagination.dto.js';
-import { ConversationType, MessageType, ParticipantRole } from '../../../generated/prisma/enums.js';
+import {
+  ConversationType,
+  MessageType,
+  ParticipantRole,
+  SharedResourceType,
+} from '../../../generated/prisma/enums.js';
+import {
+  MAX_SHARED_RESOURCES_PER_MESSAGE,
+  MAX_SHARED_RESOURCES_PER_RESOLVE,
+} from '../shared-resource-card.js';
 
 /**
  * Contrats d'ENTREE de la messagerie.
@@ -117,10 +128,28 @@ export class AddParticipantDto {
   role?: ParticipantRole;
 }
 
+export class SharedResourceRefDto {
+  @ApiProperty({
+    enum: SharedResourceType,
+    description: 'Type de ressource partagee : la carte est relue dans le perimetre du lecteur.',
+  })
+  @IsEnum(SharedResourceType, { message: 'Type de ressource partageable inconnu.' })
+  resourceType!: SharedResourceType;
+
+  @ApiProperty({ description: 'Identifiant INTERNE de la ressource — jamais une URL.' })
+  @IsString()
+  @MinLength(1, { message: "L'identifiant de la ressource est obligatoire." })
+  @MaxLength(ID_MAX_LENGTH)
+  resourceId!: string;
+}
+
 export class SendMessageDto {
-  @ApiProperty({ description: 'Contenu du message. Persiste en base.', maxLength: 10_000 })
+  @ApiProperty({
+    description:
+      'Contenu du message. Peut etre vide UNIQUEMENT si le message porte au moins une ressource partagee.',
+    maxLength: 10_000,
+  })
   @IsString({ message: 'Le message est obligatoire.' })
-  @MinLength(1, { message: 'Le message ne peut pas etre vide.' })
   @MaxLength(10_000)
   body!: string;
 
@@ -145,6 +174,42 @@ export class SendMessageDto {
   @IsString({ each: true })
   @MaxLength(ID_MAX_LENGTH, { each: true })
   attachmentIds?: string[];
+
+  @ApiPropertyOptional({
+    type: [SharedResourceRefDto],
+    description:
+      `Ressources existantes de Comexa partagees dans ce message (${MAX_SHARED_RESOURCES_PER_MESSAGE} maximum). ` +
+      "Chaque reference est verifiee dans le perimetre de l'emetteur : partager ce qu'on ne peut pas lire echoue.",
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Au moins une ressource, ou aucun partage.' })
+  @ArrayMaxSize(MAX_SHARED_RESOURCES_PER_MESSAGE, {
+    message: `Maximum ${MAX_SHARED_RESOURCES_PER_MESSAGE} ressources partagees par message.`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => SharedResourceRefDto)
+  sharedResources?: SharedResourceRefDto[];
+}
+
+/**
+ * Corps de `POST /shared-resources/resolve` — la relecture des cartes.
+ *
+ * Le frontend envoie la liste des couples (type, id) visibles a l'ecran ; le
+ * serveur repond une carte par couple, dans l'ordre, avec `available: false`
+ * pour tout ce que le LECTEUR ne peut pas ouvrir. C'est la materialisation de
+ * la regle « la carte ne montre jamais plus que la page dashboard ».
+ */
+export class ResolveSharedResourcesDto {
+  @ApiProperty({ type: [SharedResourceRefDto] })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Aucune ressource a resoudre.' })
+  @ArrayMaxSize(MAX_SHARED_RESOURCES_PER_RESOLVE, {
+    message: `Maximum ${MAX_SHARED_RESOURCES_PER_RESOLVE} ressources par requete.`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => SharedResourceRefDto)
+  resources!: SharedResourceRefDto[];
 }
 
 /**

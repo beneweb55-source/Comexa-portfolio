@@ -13,8 +13,10 @@ import { useAuth } from "@/lib/session";
  * poste de commande qui interroge les donnees de l'agence (projets, agenda,
  * CRM, facturation) et propose des operations que l'utilisateur confirme.
  * Aucun emoji, aucune paillette : des pictogrammes en trait fin (voir
- * `components/dashboard/icons.jsx`) et un monogramme `CX` pour les reponses
- * du systeme.
+ * `components/dashboard/icons.jsx`) et L'EMPREINTE OFFICIELLE de Comexa — le
+ * « singe » du logo (`app/icon.svg`, le fichier du favicon, jamais une
+ * re-création) — comme avatar du systeme. L'IA de la maison se reconnait a la
+ * marque de la maison.
  *
  * Les messages passent par la route Next.js `/api/agent-chat`, qui relaie vers
  * le webhook n8n avec le JWT de session : l'agent agit donc avec les droits de
@@ -729,7 +731,8 @@ export default function AiAgentDrawer({ showLauncher = true }) {
           >
             <header className="cx-console__header">
               <span className="cx-console__monogram" aria-hidden="true">
-                CX
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icon.svg" alt="" draggable="false" />
               </span>
               <div className="cx-console__identity">
                 <h3 className="cx-console__title">Console Comexa</h3>
@@ -768,7 +771,8 @@ export default function AiAgentDrawer({ showLauncher = true }) {
               {!hasMessages ? (
                 <div className="cx-console__welcome">
                   <span className="cx-console__monogram cx-console__monogram--lg" aria-hidden="true">
-                    CX
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/icon.svg" alt="" draggable="false" />
                   </span>
                   <span className="cx-console__eyebrow">Un peu de clarté dans votre journée</span>
                   <h4 className="cx-console__welcome-title">Comment puis-je vous aider ?</h4>
@@ -815,7 +819,14 @@ export default function AiAgentDrawer({ showLauncher = true }) {
                           .join(" ")}
                       >
                         <span className="cx-console-row__avatar" aria-hidden="true">
-                          {isUser ? <Icon name="user" className="h-4 w-4" /> : "CX"}
+                          {isUser ? (
+                            <Icon name="user" className="h-4 w-4" />
+                          ) : (
+                            /* L'IA Comexa parle sous la marque Comexa : logo
+                               officiel, net a 28 px comme a 56. */
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src="/icon.svg" alt="" draggable="false" />
+                          )}
                         </span>
 
                         <div className="cx-console-row__content">
@@ -852,7 +863,8 @@ export default function AiAgentDrawer({ showLauncher = true }) {
                   {busy ? (
                     <li className="cx-console-row cx-console-row--agent cx-console-row--thinking" aria-live="polite">
                       <span className="cx-console-row__avatar" aria-hidden="true">
-                        CX
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/icon.svg" alt="" draggable="false" />
                       </span>
                       <div className="cx-console-row__content">
                         <div className="cx-console-row__meta">

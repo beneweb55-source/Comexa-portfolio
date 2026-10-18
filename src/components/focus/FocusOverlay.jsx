@@ -47,8 +47,27 @@ import { useFocus } from "./FocusProvider";
 export default function FocusOverlay() {
   const focus = useFocus();
   if (!focus.open) return null;
+
+  /* L'ambiance suit l'etat : le fond n'est pas decore, il informe. Setup reste
+     neutre, la session en cours respire le bleu de l'app, la pause passe a
+     l'ambre, le depassement au rose, le bilan au vert. Tout le reste (couleurs
+     du cadran, liseres) se lit sur ce seul attribut. */
+  const phase = !focus.session
+    ? "setup"
+    : !focus.running
+      ? "paused"
+      : focus.over
+        ? "over"
+        : "running";
+
   return (
-    <div className="sui-focus" role="dialog" aria-modal="true" aria-label="Mode concentration">
+    <div
+      className="sui-focus"
+      data-phase={focus.justFinished ? "done" : phase}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mode concentration"
+    >
       <div className="sui-focus__inner">
         {focus.justFinished ? (
           <FinishedView />
@@ -60,6 +79,24 @@ export default function FocusOverlay() {
       </div>
     </div>
   );
+}
+
+/* Le cadran se dimensionne sur la fenetre, pas sur un 320 fixe : sur un
+   ordinateur portable en height 720, un cadran de 320 poussait les commandes
+   hors ecran — le geste « terminer » devenait une chasse au scroll. */
+function useDialSize() {
+  const [size, setSize] = useState(320);
+  useEffect(() => {
+    function measure() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      setSize(Math.round(Math.max(232, Math.min(360, Math.min(vw, vh) - 300, vw - 88))));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, []);
+  return size;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -76,7 +113,6 @@ function SetupView() {
   const noteId = useId();
   const customId = useId();
 
-  const stats = focus.stats;
   const planned = custom.trim() ? Number(custom) : minutes;
 
   async function begin() {
@@ -217,6 +253,7 @@ function SetupView() {
 
 function RunningView() {
   const focus = useFocus();
+  const dialSize = useDialSize();
   const noteId = useId();
   const session = focus.session;
   const task = focus.task;
@@ -245,7 +282,10 @@ function RunningView() {
   return (
     <>
       <header className="sui-focus__head">
-        <span className={`sui-focus__state${paused ? " is-paused" : " is-running"}`}>
+        {/* aria-live : « En pause » / « Concentration » s'annoncent au lecteur
+            d'ecran — l'etat change sans que le focus bouge, rien d'autre ne
+            le dirait. */}
+        <span className={`sui-focus__state${paused ? " is-paused" : " is-running"}`} aria-live="polite">
           <span className="sui-focus__pulse" aria-hidden="true" />
           {paused ? "En pause" : "Concentration"}
         </span>
@@ -265,7 +305,7 @@ function RunningView() {
           elapsedSeconds={focus.remaining}
           status={paused ? "PAUSED" : "RUNNING"}
           progress={progress}
-          size={320}
+          size={dialSize}
           caption={focus.over ? "Temps dépassé" : "Reste"}
         />
       </div>

@@ -16,11 +16,30 @@
  * pour un banc d'essai.
  */
 
-import { BellOff, Check, Clock3, Flame, Inbox, Pause, Play, Square, Target, Trash2, TrendingUp, X } from "lucide-react";
+import {
+  BellOff,
+  Check,
+  Clock3,
+  Flame,
+  Inbox,
+  Paperclip,
+  Pause,
+  Play,
+  Plus,
+  Search,
+  SearchX,
+  SendHorizontal,
+  Square,
+  Target,
+  Trash2,
+  TrendingUp,
+  X,
+} from "lucide-react";
 import TimerDial from "@/components/timer/TimerDial";
 import { formatRelativeTime } from "@/components/softui/time";
 import { notificationMeta } from "@/components/softui/notification-map";
 import { FOCUS_PRESETS, formatFocus, formatPlanned } from "@/lib/focus-store.mjs";
+import { SharedResourceCard } from "@/components/workspace/chat/SharedResourceCard";
 
 /* -------------------------------------------------------------------------- */
 /* Minuteur — le cadran, dans ses trois états                                 */
@@ -298,5 +317,210 @@ export function FocusPreview() {
         </div>
       </div>
     </section>
+  );
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Messagerie — recherche affinée, composeur et cartes de ressources          */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * LES CARTES SONT LES VRAIES. Contrairement au reste de l'aperçu (balisage
+ * recopié), les trois états de la carte ci-dessous montent le VRAI composant
+ * `SharedResourceCard` avec de fausses vues : si le composant casse, cette page
+ * casse avec lui, en construction. Le picker et le composeur restent des
+ * maquettes en classes `sui-*` — eux lisent une session et une API.
+ */
+
+const DEMO_VIEWS = {
+  invoice: {
+    available: true,
+    title: "Facture 2026-041 · Agence Nord",
+    subtitle: "Échéance 12 nov. 2026",
+    statusKey: "SENT",
+    link: "/factures/demo",
+    amount: "4 800,00 EUR",
+  },
+  task: {
+    available: true,
+    title: "Reluire la page tarifs avant recette",
+    subtitle: "Projet Vitrine · échéance vendredi",
+    statusKey: "IN_PROGRESS",
+    link: "/taches/demo",
+    amount: null,
+  },
+  gone: { available: false, title: null, subtitle: null, statusKey: null, link: null, amount: null },
+  network: { available: false, transient: true },
+};
+
+export function ChatResourcesPreview() {
+  return (
+    <div className="sui-split" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+      <div className="sui-panel" style={{ display: "grid", alignContent: "start", gap: 16, padding: 18 }}>
+        <strong style={{ fontSize: "var(--fs-body)" }}>Dans le fil — trois états d&#39;une carte</strong>
+
+        <div className="sui-chat__msg" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+          <div className="sui-chat__sender">Nadia · 09:41</div>
+          <div className="sui-chat__bubble" style={{ maxWidth: "100%" }}>
+            La relecture de la facture est faite — je la partage ici.
+            <div className="sui-chat__cards">
+              <SharedResourceCard
+                resource={{ resourceType: "INVOICE", resourceId: "i-1" }}
+                view={DEMO_VIEWS.invoice}
+                onOpen={(event) => event.preventDefault()}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="sui-chat__msg sui-chat__msg--mine" style={{ flexDirection: "column", alignItems: "flex-end" }}>
+          <div className="sui-chat__sender" style={{ textAlign: "right" }}>Vous · 09:44</div>
+          <div className="sui-chat__bubble" style={{ maxWidth: "100%" }}>
+            Et la tâche part ce soir.
+            <div className="sui-chat__cards">
+              <SharedResourceCard
+                resource={{ resourceType: "TASK", resourceId: "t-1" }}
+                view={DEMO_VIEWS.task}
+                onOpen={(event) => event.preventDefault()}
+              />
+              {/* Relecture en vol : squelette, jamais un titre deviné. */}
+              <SharedResourceCard resource={{ resourceType: "PROJECT", resourceId: "p-1" }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="sui-chat__msg" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+          <div className="sui-chat__bubble" style={{ maxWidth: "100%" }}>
+            <div className="sui-chat__cards sui-chat__cards--alone">
+              {/* Hors périmètre / supprimée : un seul mot pour les deux cas. */}
+              <SharedResourceCard resource={{ resourceType: "CLIENT", resourceId: "c-9" }} view={DEMO_VIEWS.gone} />
+              {/* Échec reseau : la carte le dit et propose de relire. */}
+              <SharedResourceCard resource={{ resourceType: "QUOTE", resourceId: "q-3" }} view={DEMO_VIEWS.network} onRetry={() => {}} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="sui-panel" style={{ display: "grid", alignContent: "start", gap: 16, padding: 18 }}>
+        <strong style={{ fontSize: "var(--fs-body)" }}>Composeur — l&#39;aperçu avant envoi</strong>
+
+        <div className="sui-chat__composer-shell">
+          <div className="sui-chat__staged" aria-label="Ressources jointes au message">
+            <span className="sui-chat__ref-chip">
+              <Check size={12} strokeWidth={2.6} aria-hidden="true" />
+              <span className="sui-chat__ref-chip__type">Facture</span>
+              <strong>Facture 2026-041 · Agence Nord</strong>
+              <button type="button" className="sui-chat__ref-chip__remove" aria-label="Retirer la facture">
+                <X size={12} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </span>
+            <span className="sui-chat__ref-chip">
+              <Check size={12} strokeWidth={2.6} aria-hidden="true" />
+              <span className="sui-chat__ref-chip__type">Tâche</span>
+              <strong>Reluire la page tarifs avant recette</strong>
+              <button type="button" className="sui-chat__ref-chip__remove" aria-label="Retirer la tâche">
+                <X size={12} strokeWidth={2.4} aria-hidden="true" />
+              </button>
+            </span>
+          </div>
+
+          <div className="sui-chat__composer">
+            <button type="button" className="sui-iconbtn sui-chat__attach is-active" aria-label="Joindre une ressource Comexa">
+              <Paperclip size={18} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+            <textarea className="sui-input" rows={1} readOnly defaultValue="Je vous joins la facture et la tâche du soir." style={{ width: "100%", resize: "none" }} />
+            <button type="button" className="sui-iconbtn sui-chat__send" aria-label="Envoyer le message">
+              <SendHorizontal size={19} strokeWidth={1.9} aria-hidden="true" />
+            </button>
+          </div>
+
+          {/* Le picker, ouvert au-dessus du composeur (maquette statique — il
+              lit une session et l'API, indisponibles ici). */}
+          <div className="sui-res-picker" style={{ position: "relative", bottom: "auto", inset: "auto" }}>
+            <div className="sui-res-picker__head">
+              <span className="sui-res-picker__search-icon" aria-hidden="true">
+                <Search size={15} strokeWidth={2} />
+              </span>
+              <input className="sui-res-picker__input" type="search" defaultValue="tarifs" placeholder="Projets, tâches, clients, factures…" aria-label="Rechercher une ressource Comexa" />
+              <button type="button" className="sui-iconbtn sui-iconbtn--ghost sui-res-picker__close" aria-label="Fermer la recherche de ressources">
+                <X size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="sui-res-picker__tabs" role="group" aria-label="Filtrer par type">
+              <button type="button" className="sui-pill sui-res-picker__tab" aria-pressed="true">Tous</button>
+              <button type="button" className="sui-pill sui-res-picker__tab" aria-pressed="false">Projet</button>
+              <button type="button" className="sui-pill sui-res-picker__tab" aria-pressed="false">Tâche</button>
+              <button type="button" className="sui-pill sui-res-picker__tab" aria-pressed="false">Devis</button>
+            </div>
+            <div className="sui-res-picker__results">
+              <section className="sui-res-picker__group" aria-label="Tâche">
+                <h4 className="sui-res-picker__group-title">Tâche</h4>
+                <ul className="sui-res-picker__list">
+                  <li>
+                    <button type="button" className="sui-res-picker__item is-selected" aria-pressed="true">
+                      <span className="sui-res-picker__copy">
+                        <strong>Reluire la page tarifs avant recette</strong>
+                        <span>Projet Vitrine · en cours</span>
+                      </span>
+                      <span className="sui-res-picker__mark" aria-hidden="true">
+                        <Check size={15} strokeWidth={2.4} />
+                      </span>
+                    </button>
+                  </li>
+                  <li>
+                    <button type="button" className="sui-res-picker__item" aria-pressed="false">
+                      <span className="sui-res-picker__copy">
+                        <strong>Mettre à jour la grille tarifaire 2027</strong>
+                        <span>Projet Tarifs · à faire</span>
+                      </span>
+                      <span className="sui-res-picker__mark" aria-hidden="true">
+                        <Plus size={15} strokeWidth={2.2} />
+                      </span>
+                    </button>
+                  </li>
+                </ul>
+              </section>
+            </div>
+            <footer className="sui-res-picker__foot">
+              <span>1 référence prête</span>
+              <button type="button" className="sui-btn sui-btn--sm">Terminer</button>
+            </footer>
+          </div>
+        </div>
+      </div>
+
+      <div className="sui-panel" style={{ display: "grid", alignContent: "start", gap: 14, padding: 18 }}>
+        <strong style={{ fontSize: "var(--fs-body)" }}>Recherche du fil — ses états</strong>
+
+        <div className="sui-search sui-search--chat">
+          <span className="sui-search__icon" aria-hidden="true">
+            <Search size={16} strokeWidth={2.1} />
+          </span>
+          <input type="search" placeholder="Rechercher une conversation, un membre…" aria-label="Rechercher une conversation" />
+          <kbd className="sui-search__kbd" aria-hidden="true">/</kbd>
+        </div>
+
+        <div className="sui-search sui-search--chat is-filled">
+          <span className="sui-search__icon" aria-hidden="true">
+            <Search size={16} strokeWidth={2.1} />
+          </span>
+          <input type="search" defaultValue="factor" aria-label="Rechercher une conversation" />
+          <button type="button" className="sui-search__clear" aria-label="Effacer la recherche">
+            <SearchX size={14} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="sui-chat__row">
+          <span className="sui-chat__avatar" aria-hidden="true">F</span>
+          <div className="sui-chat__meta">
+            <span className="sui-chat__top">
+              <span className="sui-chat__title"><mark className="sui-chat__hit">Factor</mark>ie — refonte vitrine</span>
+            </span>
+            <span className="sui-chat__preview">Nadia : je pousse la <mark className="sui-chat__hit">factor</mark>isation ce soir</span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

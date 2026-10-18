@@ -42,8 +42,7 @@ import {
   TrendingUp,
   UserPlus,
   Users,
-  Wallet,
-} from "lucide-react";
+  Wallet, MessageSquare } from "lucide-react";
 import AdminDeskPanel from "@/components/softui/AdminDeskPanel";
 import Dock from "@/components/softui/Dock";
 import { ItemCard, ItemGrid } from "@/components/softui/ItemCard";
@@ -55,7 +54,7 @@ import SideRail from "@/components/softui/SideRail";
 import { ActivityList, HealthList, Panel } from "@/components/softui/panels";
 import { Button, FilterPills, SectionHead, StatusPill } from "@/components/softui/primitives";
 import { SoftMotionProvider } from "@/components/softui/motion";
-import { FocusPreview, NotificationsPreview, TimerPreview } from "./ApercuExtras";
+import { ChatResourcesPreview, FocusPreview, NotificationsPreview, TimerPreview } from "./ApercuExtras";
 
 const NAV_ITEMS = [
   { href: "#", label: "Control Center", icon: LayoutDashboard },
@@ -370,6 +369,16 @@ export default function ApercuClient() {
                     <span className="sui-panel__sub">Un bloc de travail, une tâche, « ne pas déranger ». Le temps part dans la feuille de temps.</span>
                   </SectionHead>
                   <FocusPreview />
+                </section>
+
+                <section className="sui-section">
+                  <SectionHead icon={MessageSquare} title="Messagerie — partager Comexa">
+                    <span className="sui-panel__sub">
+                      Une carte, trois états : vivante, en relecture, hors d&#39;atteinte. Les références voyagent par
+                      identifiant interne — jamais par lien collé — et se relisent dans le périmètre de chaque lecteur.
+                    </span>
+                  </SectionHead>
+                  <ChatResourcesPreview />
                 </section>
 
                 <section className="sui-section">

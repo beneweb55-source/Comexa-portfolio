@@ -141,7 +141,10 @@ export class MessagingController {
     @Param('id') id: string,
     @Body() dto: SendMessageDto,
   ): Promise<MessageRow> {
-    return this.messages.send(new AccessPolicy(user), id, dto);
+    // Le porteur complet est passe EN PLUS de la politique : la validation des
+    // ressources partagees delegue aux services metier (documents notamment),
+    // qui reçoivent le porteur et reconstruisent eux-memes leur perimetre.
+    return this.messages.send(new AccessPolicy(user), id, dto, user);
   }
 
   /**

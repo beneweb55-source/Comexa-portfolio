@@ -5102,6 +5102,828 @@ select.sui-input {
   }
 }
 
+
+/* --------------------------------------------------------------------------
+   22bis. RECHERCHE AFFINEE, COMPOSEUR ET CARTES DE RESSOURCES
+   --------------------------------------------------------------------------
+   TROIS OBJETS VIVENT ICI, et ils partagent une meme idee : un outil de
+   recherche et une piece jointe metier ne sont pas du texte colore, ce sont
+   des surfaces avec un etat. D'ou :
+
+   - la recherche (`sui-search--chat`) : anneau concentre, icone qui s'allume,
+     bouton d'effacement, rappel du raccourci « / » ; les correspondances sont
+     peintes en `<mark>` (`sui-chat__hit`) — le terme cherche doit rester
+     visible dans le resultat, sinon on re-verifie chaque ligne a l'oeil ;
+   - le composeur : le trombone, les puces de ressources selectionnees (l'apercu
+     avant envoi) ;
+   - la carte de ressource partagee (`sui-chat__ref-card`) et son picker : une
+     carte se lit (type, titre, statut), s'ouvre (tout le corps est lien) et se
+     retire proprement si l'acces a change (etat `--off`). Le fond reste clair
+     y compris dans la bulle noire : la carte est un objet qu'on ouvre, pas un
+     fragment du message.
+
+   Les tuiles d'icone suivent la palette de la charte via `data-tone` — memes
+   pastels que les KPI, aucun rose invente.
+   -------------------------------------------------------------------------- */
+
+/* --- La recherche de conversations ---------------------------------------- */
+.sui-search--chat {
+  position: relative;
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: none;
+  min-height: 42px;
+  padding: 0 12px 0 14px;
+  border-radius: var(--r-pill);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgba(17, 17, 17, 0.04);
+  color: var(--muted);
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    background var(--dur-fast) linear,
+    transform var(--dur-base) var(--ease-out);
+}
+
+.sui-search--chat:hover {
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.16), 0 2px 6px rgba(17, 17, 17, 0.06);
+}
+
+.sui-search--chat:focus-within {
+  background: #ffffff;
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px transparent,
+    0 0 0 3px rgba(30, 134, 224, 0.22),
+    0 8px 20px rgba(17, 17, 17, 0.08);
+}
+
+.sui-search--chat .sui-search__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--muted);
+  transition: color var(--dur-fast) linear;
+}
+
+.sui-search--chat:focus-within .sui-search__icon {
+  color: var(--focus);
+}
+
+.sui-search--chat input {
+  font-size: var(--fs-body);
+}
+
+.sui-search--chat input[type="search"]::-webkit-search-cancel-button {
+  display: none; /* l'effacement a son propre bouton, aligne sur la charte */
+}
+
+.sui-search--chat .sui-search__clear {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear, transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-search--chat .sui-search__clear:hover {
+  background: #eceaec;
+  color: var(--ink);
+}
+
+.sui-search--chat .sui-search__clear:active {
+  transform: scale(0.92);
+}
+
+.sui-search--chat .sui-search__kbd {
+  flex: none;
+  padding: 2px 7px 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--muted);
+  transition: opacity var(--dur-fast) linear;
+}
+
+.sui-search--chat:focus-within .sui-search__kbd,
+.sui-search--chat.is-filled .sui-search__kbd {
+  opacity: 0;
+}
+
+@media (hover: none) {
+  /* un clavier physique est rarement branche sur un tactile : le rappel « / »
+     n'a rien a faire la — place prise, pas decoration. */
+  .sui-search--chat .sui-search__kbd {
+    display: none;
+  }
+}
+
+/* Correspondances de recherche : un surlignage, pas un remplacement de style. */
+.sui-chat__hit {
+  padding: 0 1px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--fill-blue) 38%, #ffffff);
+  color: inherit;
+}
+
+/* --- Le composeur et ses pieces jointes ----------------------------------- */
+.sui-chat__composer-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sui-chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Le trombone : a l'etage des outils du champ, jamais un bouton-navigateur. */
+.sui-chat__attach,
+.sui-chat__send {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    background var(--dur-fast) linear,
+    color var(--dur-fast) linear,
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.sui-chat__attach {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+}
+
+.sui-chat__attach:hover {
+  background: var(--blue);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+.sui-chat__attach.is-active {
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: none;
+  transform: rotate(-45deg); /* le trombone « arme » : l'ouverture du picker se voit sans legende */
+}
+
+.sui-chat__send {
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-chat__send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(11, 10, 15, 0.24);
+}
+
+.sui-chat__send:disabled {
+  background: #eceaec;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* Les puces « ce qui partira » : entre la liste des joints et le champ. */
+.sui-chat__staged {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 16px 16px 6px 6px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  animation: sui-staged-in var(--dur-base) var(--ease-out) both;
+}
+
+@keyframes sui-staged-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.sui-chat__ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 6px 5px 9px;
+  border-radius: var(--r-pill);
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: var(--fs-micro);
+  color: var(--ink);
+}
+
+.sui-chat__ref-chip > svg {
+  flex: none;
+  color: var(--fill-green);
+}
+
+.sui-chat__ref-chip__type {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-chat__ref-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-chat__ref-chip__remove {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear;
+}
+
+.sui-chat__ref-chip__remove:hover {
+  background: var(--pink);
+  color: #7c2434;
+}
+
+/* --- Cartes de ressources dans le fil -------------------------------------- */
+.sui-chat__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sui-chat__cards--alone {
+  margin-top: 0;
+}
+
+.sui-chat__ref-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--line), 0 2px 8px rgba(17, 17, 17, 0.05);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    transform var(--dur-base) var(--ease-out);
+}
+
+.sui-chat__ref-card--link:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 1px rgba(30, 134, 224, 0.35), 0 10px 22px rgba(17, 17, 17, 0.1);
+}
+
+.sui-chat__ref-card--link:focus-visible {
+  outline: 2px solid var(--focus-on-shell);
+  outline-offset: 2px;
+}
+
+.sui-chat__ref-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sui-chat__ref-card strong {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-chat__ref-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.sui-chat__ref-line em {
+  font-size: 10.5px;
+  font-weight: 800;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-chat__ref-sub {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La teinte du type ne peint pas la carte entiere : elle la respire au survol,
+   comme un libelle de chemin dans un fichier bien range. */
+.sui-chat__ref-card--blue { --ref-tint: var(--blue); }
+.sui-chat__ref-card--green { --ref-tint: var(--green); }
+.sui-chat__ref-card--yellow { --ref-tint: var(--yellow); }
+.sui-chat__ref-card--lilac { --ref-tint: var(--lilac); }
+.sui-chat__ref-card--pink { --ref-tint: var(--pink); }
+.sui-chat__ref-card--plain { --ref-tint: #eceaec; }
+
+.sui-chat__ref-card--link:hover {
+  background: color-mix(in srgb, var(--ref-tint, #eceaec) 24%, #ffffff);
+}
+
+.sui-chat__ref-card.is-loading {
+  cursor: default;
+}
+
+.sui-chat__ref-open {
+  flex: none;
+  color: var(--muted);
+  transition: color var(--dur-fast) linear, transform var(--dur-base) var(--ease-out);
+}
+
+.sui-chat__ref-card--link:hover .sui-chat__ref-open {
+  color: var(--focus);
+  transform: translate(1px, -1px);
+}
+
+/* Tuiles d'icone — la palette de la charte, pas de teinte inventee. */
+.sui-chat__ref-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sui-chat__ref-icon[data-tone="blue"] { background: var(--blue); }
+.sui-chat__ref-icon[data-tone="green"] { background: var(--green); }
+.sui-chat__ref-icon[data-tone="yellow"] { background: var(--yellow); }
+.sui-chat__ref-icon[data-tone="lilac"] { background: var(--lilac); }
+.sui-chat__ref-icon[data-tone="pink"] { background: var(--pink); }
+.sui-chat__ref-icon[data-tone="plain"] { background: #eceaec; }
+
+/* Etat indisponible : la ressource existe peut-etre encore, le lecteur n'y a
+   plus acces (ou elle a ete supprimee) — c'est volontairement identique. */
+.sui-chat__ref-card--off {
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--muted);
+  cursor: default;
+}
+
+.sui-chat__ref-card--off strong {
+  font-weight: 600;
+  font-style: italic;
+}
+
+.sui-chat__ref-retry {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--dur-fast) linear;
+}
+
+.sui-chat__ref-retry:hover {
+  background: var(--surface);
+}
+
+/* Chargement : un motif, pas de texte — le titre reel n'est pas encore lu. */
+.sui-chat__ref-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #eceaec;
+}
+
+.sui-chat__ref-card .sui-chat__ref-skeleton {
+  height: 12px;
+}
+
+.sui-chat__ref-card .sui-chat__ref-skeleton--title {
+  width: 62%;
+  height: 14px;
+}
+
+.sui-chat__ref-card .sui-chat__ref-skeleton--meta {
+  width: 38%;
+}
+
+.sui-chat__ref-card .sui-chat__ref-skeleton--icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 11px;
+}
+
+.sui-chat__ref-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.75) 50%, transparent 100%);
+  transform: translateX(-100%);
+  animation: sui-res-shimmer 1.25s var(--ease-out) infinite;
+}
+
+@keyframes sui-res-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* --- Le picker de ressources -------------------------------------------------
+   Ancre au composeur, ferme a l'Echap et au clic hors de lui. Les types sont
+   filtres par les DROITS du porteur : une source sans permission n'apparait
+   meme pas — un champ vide mentirait moins bien qu'une liste d'objets refusant
+   l'ouverture. */
+/* Voile de fermeture : un clic hors du picker le referme, sans rien jeter. */
+.sui-res-picker__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: rgba(11, 10, 15, 0.24);
+  cursor: default;
+  animation: sui-scrim-in var(--dur-fast) linear both;
+}
+
+@keyframes sui-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.sui-res-picker {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(460px, 68dvh);
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: var(--shadow-pop);
+  color: var(--ink);
+  animation: sui-picker-in var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes sui-picker-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+.sui-res-picker__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 12px 10px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-res-picker__search-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--muted);
+}
+
+.sui-res-picker__head:focus-within .sui-res-picker__search-icon {
+  color: var(--focus);
+}
+
+.sui-res-picker__input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+
+.sui-res-picker__input::placeholder {
+  color: var(--muted);
+}
+
+.sui-res-picker__input[type="search"]::-webkit-search-cancel-button {
+  display: none;
+}
+
+.sui-res-picker__close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+}
+
+.sui-res-picker__tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sui-res-picker__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sui-res-picker__tab {
+  flex: none;
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: var(--fs-micro);
+}
+
+.sui-res-picker__results {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sui-res-picker__group + .sui-res-picker__group {
+  margin-top: 4px;
+}
+
+.sui-res-picker__group-title {
+  position: sticky;
+  top: -8px;
+  z-index: 1;
+  margin: 0;
+  padding: 8px 6px 4px;
+  background: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-res-picker__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-res-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
+}
+
+.sui-res-picker__item:hover {
+  background: var(--surface);
+}
+
+.sui-res-picker__item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.sui-res-picker__item.is-selected {
+  background: color-mix(in srgb, var(--blue) 52%, #ffffff);
+  box-shadow: inset 0 0 0 1px rgba(30, 134, 224, 0.3);
+}
+
+.sui-res-picker__item > .sui-res-picker__copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sui-res-picker__copy strong {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-res-picker__copy span {
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-res-picker__mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+  color: var(--muted);
+  transition: background var(--dur-fast) linear, color var(--dur-fast) linear, box-shadow var(--dur-fast) linear;
+}
+
+.sui-res-picker__item.is-selected .sui-res-picker__mark {
+  background: var(--focus);
+  box-shadow: none;
+  color: #ffffff;
+}
+
+.sui-res-picker__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 26px 18px 22px;
+  text-align: center;
+}
+
+.sui-res-picker__empty p {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+.sui-res-picker__empty span {
+  max-width: 40ch;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.sui-res-picker__notice {
+  margin: 14px 8px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  text-align: center;
+  color: var(--muted);
+}
+
+.sui-res-picker__notice[role="alert"] {
+  color: #a5303f;
+}
+
+.sui-res-picker__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface);
+}
+
+.sui-res-picker__foot > span {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+@media (max-width: 560px) {
+  /* dans une colonne etroite, le picker devient un panneau bas : le champ de
+     recherche reste sous le pouce, la liste au-dessus. */
+  .sui-res-picker {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+}
+
+/* --- La marque et la pastille ------------------------------------------------
+   Le logo garde ses couleurs officielles y compris sur la pastille noire : la
+   regle de l'identite interdit l'inversion, et le bleu se lit tres bien sur
+   le fond sombre. */
+.sui-chat__brand {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--line), 0 1px 2px rgba(17, 17, 17, 0.06);
+}
+
+.sui-chat__brand img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.sui-chat__fab img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.sui-chat__fab:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.sui-chat__fab--left {
+  right: auto;
+  left: 22px;
+}
+
+/* Le surlignage et les animations de ce bloc obeissent a `prefers-reduced-motion`
+   via la regle globale de la charte ; le scintillement du chargement est coupe
+   explicitement car il est infini (les regles globales ne visent que durees). */
+@media (prefers-reduced-motion: reduce) {
+  .sui-chat__ref-skeleton::after {
+    animation: none;
+    transform: none;
+    opacity: 0.5;
+  }
+}
+
 /* ==========================================================================
    23. PONT AVEC LES ANCIENS JETONS (`cx-*`) DANS LA COQUE
    --------------------------------------------------------------------------
@@ -5398,17 +6220,30 @@ body:has(.sui-shell) .cx-settings__links a:hover {
 .sui-focus {
   position: fixed;
   inset: 0;
-  z-index: 90;
-  display: grid;
-  place-items: start center;
+  /* Au-dessus de la messagerie flottante (940-960) et des chrome de la coque,
+     sous les bulbes de notification (9999) : un ecran de concentration qui
+     laisse la bulle du chat flotter par-dessus n'est plus un plein ecran. */
+  z-index: 965;
+  display: flex;
   overflow-y: auto;
   padding: clamp(20px, 5vh, 64px) clamp(16px, 4vw, 40px);
   background:
-    radial-gradient(90% 60% at 50% 0%, #1c1a24 0%, rgba(28, 26, 36, 0) 60%),
+    radial-gradient(120% 70% at 50% -12%, #232030 0%, rgba(35, 32, 48, 0) 55%),
+    radial-gradient(90% 55% at 50% 118%, var(--focus-glow, rgba(196, 154, 224, 0.09)) 0%, rgba(0, 0, 0, 0) 60%),
     var(--shell);
   color: var(--shell-ink);
   animation: sui-focus-in var(--dur-slow) var(--ease-out);
 }
+
+/* L'ambiance est INFORMATION, pas decoration : la lueur du bas de l'ecran
+   prend la couleur de l'etat de la session — bleue pendant le bloc, ambrée en
+   pause, rose quand le temps est depasse, verte au bilan. Le `data-phase` est
+   pose par le composant, a partir du store : une seule source d'etat. */
+.sui-focus[data-phase="running"] { --focus-glow: rgba(30, 134, 224, 0.17); }
+.sui-focus[data-phase="paused"] { --focus-glow: rgba(227, 185, 79, 0.14); }
+.sui-focus[data-phase="over"] { --focus-glow: rgba(231, 154, 171, 0.16); }
+.sui-focus[data-phase="done"] { --focus-glow: rgba(157, 199, 106, 0.15); }
+.sui-focus[data-phase="setup"] { --focus-glow: rgba(196, 154, 224, 0.09); }
 
 @keyframes sui-focus-in {
   from {
@@ -5424,8 +6259,30 @@ body:has(.sui-shell) .cx-settings__links a:hover {
 .sui-focus__inner {
   display: flex;
   width: min(640px, 100%);
+  /* `margin: auto` dans un conteneur flex qui scrolle = centre quand ca tient,
+     aligne en haut quand ca ne tient pas — `place-items: center` decoupait le
+     haut de l'ecran sur les fenetres hautes de 600 px. */
+  margin: auto;
   flex-direction: column;
-  gap: 22px;
+  gap: clamp(18px, 3.4vh, 26px);
+}
+
+/* Entree en cascade : l'ecran se monte, il ne clignote pas. Un temps de
+   decalage par bloc, courts, pour que l'oeil aille du titre au cadran puis
+   aux commandes dans l'ordre ou l'on lit l'ecran. */
+.sui-focus__inner > * {
+  animation: sui-focus-rise var(--dur-slow) var(--ease-out) both;
+}
+.sui-focus__inner > :nth-child(2) { animation-delay: 40ms; }
+.sui-focus__inner > :nth-child(3) { animation-delay: 80ms; }
+.sui-focus__inner > :nth-child(4) { animation-delay: 120ms; }
+.sui-focus__inner > :nth-child(n + 5) { animation-delay: 160ms; }
+
+@keyframes sui-focus-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
 /* --- En-tête -------------------------------------------------------------- */
@@ -5756,9 +6613,28 @@ body:has(.sui-shell) .cx-settings__links a:hover {
 /* --- En cours ------------------------------------------------------------- */
 
 .sui-focus__stage {
+  position: relative;
   display: grid;
   place-items: center;
-  padding: 8px 0 2px;
+  padding: clamp(10px, 2.4vh, 22px) 0 clamp(6px, 1.4vh, 12px);
+}
+
+.sui-focus__stage::before {
+  /* Le halo ne porte pas le cadran : il le pose. */
+  content: "";
+  position: absolute;
+  width: clamp(300px, 66vmin, 520px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--focus-glow, rgba(30, 134, 224, 0.14)), rgba(0, 0, 0, 0) 72%);
+  animation: sui-focus-halo var(--dur-slow) var(--ease-out) both;
+}
+
+@keyframes sui-focus-halo {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
 }
 
 .sui-focus__task {
@@ -5770,9 +6646,10 @@ body:has(.sui-shell) .cx-settings__links a:hover {
 
 .sui-focus__task-title {
   margin: 0;
-  font-size: var(--fs-title);
+  font-size: clamp(19px, 2.6vw, var(--fs-hero));
   font-weight: 700;
   letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
 }
 
 .sui-focus__task-meta {
@@ -5780,12 +6657,14 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   color: var(--shell-muted);
   font-size: var(--fs-micro);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .sui-focus__controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
 }
 
 .sui-focus__round {
@@ -6199,10 +7078,13 @@ html[data-focus-dnd="on"] .sui-toast {
    reprend la forme du toast de la charte, avec l'icône et la couleur du type :
    on sait ce qu'on a reçu sans lire. */
 .sui-notif-live {
+  /* Au-dessus du mode concentration (965) quand « ne pas deranger » est eteint :
+     un ping important doit pouvoir joindre l'utilisateur ; le drapeau dnd, lui,
+     le masque completement (regle html[data-focus-dnd] plus bas). */
   position: fixed;
   right: clamp(12px, 2vw, 24px);
   bottom: calc(var(--shell-pad, 16px) + 92px);
-  z-index: 80;
+  z-index: 970;
   width: min(360px, calc(100vw - 24px));
   padding: 14px 15px;
   border-radius: 20px;
@@ -6329,5 +7211,21 @@ html[data-focus-dnd="on"] .sui-notif-live {
 @media (prefers-reduced-motion: reduce) {
   .sui-notif-live {
     animation: none;
+  }
+}
+
+/* Mode concentration : pas de halo qui pulse, pas de cascade a l'entree —
+   l'etat se voit par la couleur, le mouvement n'est pas requis. (La regle
+   globale de la charte coupe les durees ; celles-ci sont infinies, donc coupees
+   explicitement.) */
+@media (prefers-reduced-motion: reduce) {
+  .sui-focus__pulse::after,
+  .sui-focus__stage::before,
+  .sui-focus__inner > * {
+    animation: none;
+  }
+
+  .sui-focus__stage::before {
+    opacity: 1;
   }
 }
