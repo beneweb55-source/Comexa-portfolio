@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { AccessPolicy, SCOPE_ANY } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
-import type { Prisma } from '../../generated/prisma/client.js';
+import type { Currency } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
 /**
@@ -34,7 +34,7 @@ export class CurrencyService {
   /**
    * Obtenir toutes les devises actives
    */
-  async getAllActive(policy: AccessPolicy): Promise<Prisma.Currency[]> {
+  async getAllActive(policy: AccessPolicy): Promise<Currency[]> {
     policy.requireScope('currency', 'read', [SCOPE_ANY]);
 
     return this.prisma.currency.findMany({
@@ -46,7 +46,7 @@ export class CurrencyService {
   /**
    * Obtenir toutes les devises (y compris inactives)
    */
-  async getAll(policy: AccessPolicy): Promise<Prisma.Currency[]> {
+  async getAll(policy: AccessPolicy): Promise<Currency[]> {
     policy.requireScope('currency', 'read', [SCOPE_ANY]);
 
     return this.prisma.currency.findMany({
@@ -57,7 +57,7 @@ export class CurrencyService {
   /**
    * Obtenir une devise par son code
    */
-  async getByCode(code: string, policy: AccessPolicy): Promise<Prisma.Currency | null> {
+  async getByCode(code: string, policy: AccessPolicy): Promise<Currency | null> {
     policy.requireScope('currency', 'read', [SCOPE_ANY]);
 
     const normalizedCode = code.toUpperCase();
@@ -69,7 +69,7 @@ export class CurrencyService {
   /**
    * Obtenir la devise par défaut
    */
-  async getDefault(policy: AccessPolicy): Promise<Prisma.Currency> {
+  async getDefault(policy: AccessPolicy): Promise<Currency> {
     policy.requireScope('currency', 'read', [SCOPE_ANY]);
 
     const defaultCurrency = await this.prisma.currency.findFirst({
@@ -88,6 +88,9 @@ export class CurrencyService {
         where: { isActive: true },
         orderBy: { code: 'asc' },
       });
+      if (!firstActive) {
+        throw AppException.notFound('CURRENCY_NOT_FOUND', 'Aucune devise active disponible');
+      }
       return firstActive;
     }
 
@@ -102,7 +105,7 @@ export class CurrencyService {
    * Valider qu'une devise existe et est active
    * @throws AppException si la devise est invalide
    */
-  async validate(code: string, policy: AccessPolicy): Promise<Prisma.Currency> {
+  async validate(code: string, policy: AccessPolicy): Promise<Currency> {
     const currency = await this.getByCode(code, policy);
 
     if (!currency) {
@@ -125,7 +128,7 @@ export class CurrencyService {
   /**
    * Valider plusieurs devises
    */
-  async validateMultiple(codes: string[], policy: AccessPolicy): Promise<Prisma.Currency[]> {
+  async validateMultiple(codes: string[], policy: AccessPolicy): Promise<Currency[]> {
     return Promise.all(codes.map(code => this.validate(code, policy)));
   }
 
@@ -145,7 +148,7 @@ export class CurrencyService {
     },
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.Currency> {
+  ): Promise<Currency> {
     policy.requireScope('currency', 'manage', [SCOPE_ANY]);
 
     const normalizedCode = data.code.toUpperCase();
@@ -212,7 +215,7 @@ export class CurrencyService {
     },
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.Currency> {
+  ): Promise<Currency> {
     policy.requireScope('currency', 'manage', [SCOPE_ANY]);
 
     const existing = await this.prisma.currency.findUniqueOrThrow({
@@ -252,7 +255,7 @@ export class CurrencyService {
   /**
    * Supprimer une devise (la désactiver, pas la supprimer physiquement)
    */
-  async deactivate(id: string, actor: { id: string }, policy: AccessPolicy): Promise<Prisma.Currency> {
+  async deactivate(id: string, actor: { id: string }, policy: AccessPolicy): Promise<Currency> {
     policy.requireScope('currency', 'manage', [SCOPE_ANY]);
 
     // Ne pas permettre la désactivation de la devise par défaut

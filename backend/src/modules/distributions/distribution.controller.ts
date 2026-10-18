@@ -6,7 +6,8 @@ import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.de
 import type {
   DistributionConfig,
   ProjectDistribution,
-  Prisma,
+  DistributionBaseType,
+  BeneficiaryType,
 } from '../../generated/prisma/client.js';
 import { UrlBuilderService } from '../../common/services/url-builder.service.js';
 
@@ -94,16 +95,16 @@ export class DistributionController {
       }[];
     },
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DistributionConfig> {
+  ) {
     const config = await this.distributionService.createConfig(
       {
         name: body.name,
         description: body.description,
-        baseType: body.baseType as Prisma.DistributionBaseType,
+        baseType: body.baseType as DistributionBaseType,
         effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
         beneficiaries: body.beneficiaries.map((b) => ({
-          beneficiaryType: b.beneficiaryType as Prisma.BeneficiaryType,
+          beneficiaryType: b.beneficiaryType as BeneficiaryType,
           name: b.name,
           percentage: b.percentage,
           userId: b.userId,

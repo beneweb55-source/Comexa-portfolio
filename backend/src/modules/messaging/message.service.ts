@@ -44,6 +44,7 @@ const MESSAGE_SELECT = {
   editedAt: true,
   createdAt: true,
   deletedAt: true,
+  deliveryStatus: true,
   sender: { select: { id: true, firstName: true, lastName: true, email: true } },
   attachments: {
     select: {

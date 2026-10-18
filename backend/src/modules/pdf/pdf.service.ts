@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Prisma } from '@prisma/client';
+import { Prisma, type QuoteItem } from '../../generated/prisma/client.js';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { MailService } from '../../common/mail/mail.service.js';
@@ -571,7 +571,9 @@ export class PdfService {
     this.drawSeparator(doc, y);
     y += 8;
 
-    const items = (document.items ?? []) as Array<Record<string, unknown>>;
+    const items = (document.items ?? []) as Array<
+      Pick<QuoteItem, 'description' | 'quantity' | 'unitPrice' | 'lineTotal'>
+    >;
 
     items.forEach((item, index) => {
       doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
@@ -882,7 +884,12 @@ export class PdfService {
             });
 
       const client = document.client || ('prospect' in document ? document.prospect : null);
-      const clientName = client ? `${client.firstName || ''} ${client.lastName || ''}`.trim() : 'Client';
+      const clientName = client
+        ? client.companyName ||
+          ('contactFirstName' in client
+            ? `${client.contactFirstName} ${client.contactLastName}`.trim() || client.email
+            : 'Client')
+        : 'Client';
       const currency = document.currency || 'DZD';
       const total = this.formatCurrency(document.total || 0, currency);
       const reference = document.reference;
