@@ -27,6 +27,7 @@ import {
   MAX_CONVERSATION_ROOMS,
   REALTIME_NAMESPACE,
   extractHandshakeToken,
+  isSocketOriginAllowed,
   readConversationIdFromPayload,
   readTypingFlag,
   roomForConversation,
@@ -96,6 +97,15 @@ export interface RealtimeAck {
   // du module, donc lue dans l'environnement du PROCESSUS et pas dans le `.env`
   // charge plus tard par `ConfigModule`.
   cors: { origin: socketCorsOrigins(process.env.CORS_ORIGIN), credentials: true },
+  // Le transport `websocket` ne traverse AUCUN middleware CORS : sans ce
+  // controle, l'en-tete `Origin` du navigateur ne serait lu par personne et
+  // n'importe quel site pourrait ouvrir un socket vers l'API. La regle est la
+  // meme que pour HTTP, et elle est evaluee a chaque requete.
+  allowRequest: (req, callback) => {
+    const origin = req.headers.origin;
+    const host = req.headers.host;
+    callback(null, isSocketOriginAllowed(origin, host));
+  },
 })
 export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
@@ -269,6 +279,30 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     await client.join(roomForConversation(conversationId));
     return { joined: true };
+  }
+
+  /**
+   * Quitte la room d'une conversation.
+   *
+   * Symetrique de `conversation:join`, et sans aucune incidence sur les
+   * droits : quitter une room ne retire aucun droit, cela arrete seulement
+   * la reception des evenements de ce fil. Un client qui n'y etait pas ne
+   * perd rien — `leave` sur une room inconnue ne fait rien.
+   */
+  @SubscribeMessage('conversation:leave')
+  async onConversationLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: unknown,
+  ): Promise<RealtimeAck> {
+    const conversationId = readConversationIdFromPayload(payload);
+
+    if (!conversationId) {
+      return { joined: false };
+    }
+
+    await client.leave(roomForConversation(conversationId));
+
+    return { joined: false };
   }
 
   /**

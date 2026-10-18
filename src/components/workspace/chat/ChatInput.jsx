@@ -107,6 +107,19 @@ export function ChatInput({
   const canSend = (content.trim().length > 0 || staged.length > 0) && !isSending && !disabled;
 
   // Gestion de l'envoi, avec les ressources jointes.
+  //
+  // LE COMPOSEUR NE SE VIDE QU'APRES CONFIRMATION DU SERVEUR.
+  //
+  // Le vide se faisait SANS REGARDER la reponse : `await onSend(...)` puis
+  // `setContent("")`, quel que soit le resultat. Or `onSend` renvoie `null`
+  // quand l'API refuse (permission, reseau, session expiree) — le texte et
+  // les ressources jointes disparaissaient alors du composeur alors que rien
+  // n'etait parti. C'etait la cause directe du symptome « mon message et ma
+  // piece jointe disparaissent » : rien n'etait perdu, mais l'utilisateur
+  // croyait que l'envoi etait passe, et ne le repassait pas.
+  //
+  // La regle est simple : on ne vide que sur un message CONFIRME par le
+  // serveur. En cas d'echec, le contenu reste, l'utilisateur peut reessayer.
   const handleSend = async () => {
     if (!canSend || !canWrite) return;
 
@@ -118,14 +131,26 @@ export function ChatInput({
       // Corps vide + ressources : le service autorise (message « partage pur »)
       // et l'apercu de liste est reconstruit par le serveur.
       const refs = staged.map((item) => ({ resourceType: item.resourceType, resourceId: item.resourceId }));
-      await onSend(content.trim(), refs);
+      const sent = await onSend(content.trim(), refs);
+
+      if (!sent) {
+        // Le serveur n'a pas confirme : on garde tout, et on dit pourquoi.
+        // `ChatPanel` a deja affiche le message d'erreur precis ; celui-ci
+        // rappelle que rien n'a ete perdu.
+        showNotification({
+          message: "Message non envoyé — il est conservé dans le composeur.",
+          duration: 5000,
+        });
+        return;
+      }
+
       setContent("");
       setStaged([]);
       setPickerOpen(false);
       textareaRef.current?.focus();
     } catch (error) {
       showNotification({
-        message: "Erreur lors de l'envoi du message",
+        message: "Erreur lors de l'envoi du message — le texte est conservé.",
         duration: 5000,
       });
     } finally {

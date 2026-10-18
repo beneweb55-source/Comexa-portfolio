@@ -62,11 +62,28 @@ variable en cause.
 2. Variables d'environnement (Production) :
    - `BACKEND_URL` = `https://<service>.onrender.com` (sans slash final)
    - `REVALIDATE_SECRET` = **la même valeur** que sur Render
+   - `NEXT_PUBLIC_SOCKET_URL` = `https://<service>.onrender.com` — **obligatoire pour le
+     temps réel** (voir ci-dessous)
 3. Déployer.
 
 Le navigateur n'appelle jamais Render directement : `next.config.mjs` relaie `/api/*` vers
 `BACKEND_URL`. Le cookie de rafraîchissement reste donc sur le domaine du front
 (`COOKIE_SAMESITE=lax` suffit).
+
+### 3.1 Pourquoi `NEXT_PUBLIC_SOCKET_URL` est obligatoire
+
+Le relais Next relaie `/api/*` et `/socket.io/*`… mais un relais HTTP **ne relaie pas la
+montée en WebSocket** : l'en-tête `Upgrade` ne traverse pas une fonction Vercel. La
+messagerie temps réel ne fonctionne alors qu'en `polling` (HTTP long-poll), ce qui marche
+mais double le nombre de requêtes et ajoute de la latence.
+
+En renseignant `NEXT_PUBLIC_SOCKET_URL`, le navigateur ouvre le socket **directement sur
+Render** : c'est un vrai WebSocket, et le relais Next n'est plus sur le chemin. L'origine du
+front (URL Vercel) doit figurer dans `CORS_ORIGIN` **côté Render** — c'est déjà le cas : la
+même liste sert à l'API HTTP et à la poignée de main temps réel.
+
+Sans cette variable, tout fonctionne quand même (repli en `polling`), mais le temps réel
+n'est plus temps réel.
 
 ## 4. Boucle finale
 
@@ -74,6 +91,9 @@ Le navigateur n'appelle jamais Render directement : `next.config.mjs` relaie `/a
   exacte (schéma et domaine), puis **redéployer** le service.
 - Tester : connexion d'un compte, déconnexion, mot de passe oublié (le courriel doit arriver),
   modification d'un service (la page publique doit se mettre à jour : c'est la revalidation).
+- Tester le temps réel : ouvrir la messagerie, l'indicateur doit passer de « Connexion… » à
+  « Connecté ». S'il reste sur « Connexion… », `NEXT_PUBLIC_SOCKET_URL` est absente ou mal
+  renseignée côté Vercel.
 
 ## 5. Points connus à garder en tête
 

@@ -139,6 +139,58 @@ export function socketCorsOrigins(raw: string | undefined): string[] | false {
 }
 
 /**
+ * Verifie l'origine d'une poignee de main temps reel, AU MOMENT DE LA REQUETE.
+ *
+ * Le transport `websocket` ne passe par aucun middleware CORS : l'en-tete
+ * `Origin` du navigateur n'est examine par PERSONNE si on ne le fait pas ici.
+ * C'est le controle d'acces reel du temps reel — celui qui empeche un site
+ * tiers d'ouvrir un socket vers l'API avec un jeton vole ou intercepte.
+ *
+ * Trois cas sont acceptes :
+ *
+ *  - PAS D'ORIGINE : client non-navigateur (test d'integration, script de
+ *    supervision). Le navigateur envoie TOUJOURS `Origin`, y compris sur un
+ *    WebSocket : son absence ne peut pas venir d'une page.
+ *  - ORIGINE AUTORISEE : elle figure dans `CORS_ORIGIN`, la meme liste que
+ *    celle de l'API HTTP. Les deux portes s'ouvrent donc ensemble.
+ *  - MEME HOTE : l'origine porte exactement l'hote de la requete. C'est le
+ *    cas du relais (front et API derriere le meme nom de domaine), ou le front
+ *    appelle l'API par son propre nom de domaine public.
+ *
+ * La liste est lue AU MOMENT DE LA REQUETE, pas au chargement du module : le
+ * `.env` de developpement est lu apres les decorateurs, et une variable
+ * d'environnement peut etre reinjectee sans redemarrer le processus.
+ */
+export function isSocketOriginAllowed(
+  origin: string | undefined | null,
+  requestHost?: string | undefined,
+): boolean {
+  const value = (origin ?? '').trim();
+
+  if (value.length === 0) {
+    return true;
+  }
+
+  const allowed = socketCorsOrigins(process.env.CORS_ORIGIN);
+
+  if (allowed !== false && allowed.includes(value)) {
+    return true;
+  }
+
+  const host = (requestHost ?? '').trim();
+
+  if (host.length === 0) {
+    return false;
+  }
+
+  try {
+    return new URL(value).host === host;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * L'identifiant de conversation porte par un evenement recu du client.
  *
  * Le client ne fournit JAMAIS de donnee d'autorisation — seulement des
