@@ -20,6 +20,9 @@ import WorkspaceShell from "@/components/workspace/WorkspaceShell";
 import ApiContractBanner from "@/components/ApiContractBanner";
 import AiAgentDrawer from "@/components/workspace/AiAgentDrawer";
 import TimerPill from "@/components/workspace/TimerPill";
+import FocusDockButton from "@/components/focus/FocusDockButton";
+import FocusOverlay from "@/components/focus/FocusOverlay";
+import { FocusProvider } from "@/components/focus/FocusProvider";
 import { SpaceScopedAuth, useAuth } from "@/lib/session";
 import { useSpaces } from "@/lib/spaces-context";
 import { effectivePermissions, rememberSpace } from "@/lib/spaces";
@@ -57,7 +60,14 @@ export default function SpaceLayout({ space, children, withTimer = true, withCon
     <WorkspaceShell
       space={space}
       groups={groups}
-      dockEnd={timerAllowed ? <TimerPill variant="dock" /> : null}
+      dockEnd={
+        timerAllowed ? (
+          <>
+            <TimerPill variant="dock" />
+            <FocusDockButton />
+          </>
+        ) : null
+      }
       consoleAvailable={withConsole}
     >
       <ApiContractBanner />
@@ -70,7 +80,10 @@ export default function SpaceLayout({ space, children, withTimer = true, withCon
       <SpaceScopedAuth space={space} permissions={permissions}>
         {withTimer ? (
           <TimerProvider>
-            {shell}
+            <FocusProvider>
+              {shell}
+              <FocusOverlay />
+            </FocusProvider>
             {withConsole ? <AiAgentDrawer showLauncher={false} /> : null}
           </TimerProvider>
         ) : (

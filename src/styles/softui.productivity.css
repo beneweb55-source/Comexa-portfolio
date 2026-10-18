@@ -195,31 +195,83 @@
 
 /* --- Cadran ------------------------------------------------------------- */
 
+/* ==========================================================================
+   Cadran — « comme Apple »
+   --------------------------------------------------------------------------
+   La référence visuelle est le chronomètre de l'app Horloge d'iOS : un disque
+   quasi noir, un anneau FIN qui se remplit, et des chiffres clairs en poids
+   LÉGER. Trois choses changent donc par rapport à un cadran de jauge :
+
+   1. L'ANNEAU EST FIN. Un trait épais avec une boule au bout se lit comme un
+      compteur de vitesse ; iOS trace un fil de 2 à 3 px, bout rond, sans
+      tête d'aiguille. Le knob disparaît, et le trait suit la progression.
+   2. LES CHIFFRES SONT LÉGERS. SF Pro affiche les grandes durées en poids 300
+      (parfois 200) : à 60 pt, un gras 800 devient une tache noire. Le
+      `font-weight: 300` et le `letter-spacing` resserré font le même travail.
+   3. LE FOND EST NOIR, PAS PASTEL. Le dégradé vert donnait un cadran « toy ».
+      Un disque sombre avec un filet de lumière en haut fait une montre.
+
+   Le reste (les états vert / jaune / rose) suit la charte du produit : la
+   couleur porte une information, elle n'est pas décorative.
+   ========================================================================== */
+
 .sui-timer-dial {
+  --dial-face: var(--shell);
+  --dial-ink: #ffffff;
+  --dial-ring: rgba(255, 255, 255, 0.16);
+  --dial-thickness: 3px;
   position: relative;
   flex: 0 0 auto;
   width: var(--dial-size);
   height: var(--dial-size);
   border-radius: 50%;
+  isolation: isolate;
 }
 
+/* Le disque. Un dégradé très court donne la courbure ; le filet clair en haut
+   et l'ombre intérieure en bas font le verre. */
 .sui-timer-dial::before {
   content: "";
   position: absolute;
-  inset: 16%;
+  inset: 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, var(--card) 0%, var(--surface) 100%);
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, #1b1922 0%, var(--dial-face) 62%);
   box-shadow:
-    0 10px 26px rgba(11, 10, 15, 0.08),
-    inset 0 1px 0 #ffffff;
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -12px 28px rgba(0, 0, 0, 0.45),
+    0 18px 38px rgba(11, 10, 15, 0.22);
 }
 
-.sui-timer-dial.is-running::before {
-  background: radial-gradient(circle at 50% 35%, #ffffff 0%, var(--green) 140%);
+/* Halo d'ambiance : il ne se voit que quand le temps tourne. */
+.sui-timer-dial::after {
+  content: "";
+  position: absolute;
+  inset: -14%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--dial-glow, transparent) 0%, transparent 62%);
+  opacity: 0;
+  transition: opacity var(--dur-slow) var(--ease-out);
 }
 
-.sui-timer-dial.is-paused::before {
-  background: radial-gradient(circle at 50% 35%, #ffffff 0%, var(--yellow) 140%);
+.sui-timer-dial.is-running {
+  --dial-glow: rgba(157, 199, 106, 0.3);
+}
+
+.sui-timer-dial.is-paused {
+  --dial-glow: rgba(227, 185, 79, 0.26);
+}
+
+.sui-timer-dial.is-over {
+  --dial-glow: rgba(231, 154, 171, 0.3);
+}
+
+.sui-timer-dial.is-running::after,
+.sui-timer-dial.is-paused::after,
+.sui-timer-dial.is-over::after {
+  opacity: 1;
 }
 
 .sui-timer-dial svg {
@@ -230,12 +282,15 @@
 
 .sui-timer-dial__track {
   fill: none;
-  stroke: var(--track);
+  stroke: var(--dial-ring);
 }
 
+/* L'anneau de progression : fin, bouts ronds, et une seule transition — celle
+   du décalage. La couleur change d'état, pas à chaque image. */
 .sui-timer-dial__arc {
   fill: none;
-  stroke: var(--track-strong);
+  stroke: var(--fill-green);
+  stroke-width: var(--dial-thickness);
   stroke-linecap: round;
   transition:
     stroke-dashoffset 900ms linear,
@@ -254,20 +309,10 @@
   stroke: var(--fill-pink);
 }
 
+/* Plus de knob : la pointe de l'anneau suffit, et elle ne « saute » plus d'un
+   côté à l'autre au passage de minuit. */
 .sui-timer-dial__knob {
-  fill: #ffffff;
-  stroke: var(--fill-green);
-  stroke-width: 3;
-  filter: drop-shadow(0 2px 4px rgba(11, 10, 15, 0.2));
-  transition: cx 900ms linear, cy 900ms linear;
-}
-
-.sui-timer-dial.is-paused .sui-timer-dial__knob {
-  stroke: var(--fill-yellow);
-}
-
-.sui-timer-dial.is-over .sui-timer-dial__knob {
-  stroke: var(--fill-pink);
+  display: none;
 }
 
 .sui-timer-dial__face {
@@ -277,36 +322,43 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 0 22%;
+  gap: 5px;
+  padding: 0 20%;
   text-align: center;
 }
 
+/* Les chiffres. Poids léger, chiffres tabulaires pour que le décompte ne
+   tremble pas, et une taille qui suit le cadran plutôt qu'une valeur en dur. */
 .sui-timer-dial__digits {
-  font-size: calc(var(--dial-size) * 0.19);
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  color: var(--dial-ink);
+  font-size: calc(var(--dial-size) * 0.235);
+  font-weight: 300;
+  letter-spacing: -0.035em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 .sui-timer-dial__seconds {
-  font-size: 0.5em;
-  font-weight: 700;
+  font-size: 0.62em;
+  font-weight: 400;
   letter-spacing: -0.02em;
-  color: var(--muted);
+  opacity: 0.72;
 }
 
 .sui-timer-dial__caption {
   max-width: 100%;
-  color: var(--muted);
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.62);
   font-size: var(--fs-micro);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sui-timer-dial.is-over .sui-timer-dial__caption {
-  color: #9c2440;
+  color: #f4a9b8;
 }
 
 /* --- Tâche, note --------------------------------------------------------- */
@@ -470,11 +522,13 @@
   border: 0;
   border-radius: 50%;
   background: #e7e4e6;
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.07);
   color: var(--ink);
   cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 
 .sui-timer__round:hover:not(:disabled) {
@@ -484,6 +538,12 @@
 
 .sui-timer__round.is-resume {
   background: var(--green);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.07);
+}
+
+/* Pression : le bouton s'enfonce au lieu de grossir. Meme geste qu'iOS. */
+.sui-timer__round:active:not(:disabled) {
+  transform: scale(0.94);
 }
 
 .sui-timer__stop {
@@ -507,6 +567,7 @@
 
 .sui-timer__ghost:hover:not(:disabled) {
   background: var(--pink);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.07);
   color: var(--ink);
 }
 
@@ -1016,8 +1077,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .sui-dock-timer__panel,
-  .sui-timer-dial__arc,
-  .sui-timer-dial__knob {
+  .sui-timer-dial__arc {
     animation: none;
     transition: none;
   }

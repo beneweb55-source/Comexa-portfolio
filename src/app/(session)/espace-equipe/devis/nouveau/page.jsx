@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/session";
 import { daysFromToday, lineTotal } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
 import { Card, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
+import CurrencySelect, { DEFAULT_CURRENCY } from "@/components/workspace/CurrencySelect";
 
 const EMPTY_LINE = { title: "", description: "", quantity: "1", unitPrice: "", discountPercent: "0" };
 
@@ -34,7 +35,7 @@ function Form() {
     subject: "",
     issueDate: new Date().toISOString().slice(0, 10),
     validUntil: daysFromToday(30),
-    currency: "EUR",
+    currency: DEFAULT_CURRENCY,
     taxRate: "20",
     notes: "",
     terms: "",
@@ -173,7 +174,11 @@ function Form() {
             <input id="valid" type="date" className={inputClass} value={header.validUntil} onChange={setHeaderField("validUntil")} />
           </Field>
           <Field id="currency" label="Devise">
-            <input id="currency" className={inputClass} value={header.currency} onChange={setHeaderField("currency")} maxLength={3} />
+            <CurrencySelect
+              id="currency"
+              value={header.currency}
+              onChange={(value) => setHeader((current) => ({ ...current, currency: value }))}
+            />
           </Field>
           <Field id="tax" label="TVA (%)">
             <input id="tax" type="number" min="0" step="0.01" className={inputClass} value={header.taxRate} onChange={setHeaderField("taxRate")} />

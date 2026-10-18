@@ -284,7 +284,7 @@ export class QuotesService {
           status: QuoteStatus.DRAFT,
           issueDate: dto.issueDate ? new Date(dto.issueDate) : new Date(),
           validUntil: dto.validUntil ? new Date(dto.validUntil) : null,
-          currency: (dto.currency ?? 'EUR').toUpperCase(),
+          currency: (dto.currency ?? 'DZD').toUpperCase(),
           subtotal: totals.subtotal,
           discountAmount: totals.discountAmount,
           taxRate: totals.taxRate,

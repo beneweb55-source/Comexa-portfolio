@@ -224,7 +224,7 @@ export class ProjectsService {
           startDate: dto.startDate ? new Date(dto.startDate) : null,
           dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
           budget: dto.budget ?? null,
-          currency: dto.currency ?? 'EUR',
+          currency: dto.currency ?? 'DZD',
         },
         select: { id: true, name: true, reference: true },
       });

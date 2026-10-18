@@ -5381,3 +5381,953 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   border-color: var(--line);
   background: #efedee;
 }
+
+/* ==========================================================================
+   25. MODE CONCENTRATION
+   --------------------------------------------------------------------------
+   Un écran nu, décidé comme tel : pas de navigation, une seule action
+   visible à la fois. La référence est le mode « Focus » d'iOS — un fond
+   sombre, un cadran, et rien d'autre.
+
+   Le fond est le noir de la coque (`--shell`) plutôt qu'un blanc : le mode
+   concentration sert justement à ne plus regarder le reste de l'interface,
+   et un fond sombre dit « on sort de l'application » là où un fond blanc
+   dirait « encore un panneau ».
+   ========================================================================== */
+
+.sui-focus {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: start center;
+  overflow-y: auto;
+  padding: clamp(20px, 5vh, 64px) clamp(16px, 4vw, 40px);
+  background:
+    radial-gradient(90% 60% at 50% 0%, #1c1a24 0%, rgba(28, 26, 36, 0) 60%),
+    var(--shell);
+  color: var(--shell-ink);
+  animation: sui-focus-in var(--dur-slow) var(--ease-out);
+}
+
+@keyframes sui-focus-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sui-focus__inner {
+  display: flex;
+  width: min(640px, 100%);
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* --- En-tête -------------------------------------------------------------- */
+
+.sui-focus__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.sui-focus__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.sui-focus__title {
+  margin: 12px 0 0;
+  font-size: var(--fs-hero);
+  font-weight: 300;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.sui-focus__lead {
+  max-width: 52ch;
+  margin: 10px 0 0;
+  color: var(--shell-muted);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+}
+
+.sui-focus__close {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--shell-ink);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-focus__close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.sui-focus__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px 6px 11px;
+  border-radius: var(--r-pill);
+  background: var(--green);
+  color: var(--ink);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+}
+
+.sui-focus__state.is-paused {
+  background: var(--yellow);
+}
+
+.sui-focus__state.is-done {
+  background: var(--lilac-strong);
+}
+
+.sui-focus__dnd {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-focus__pulse {
+  position: relative;
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6f9a45;
+}
+
+.sui-focus__pulse::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(111, 154, 69, 0.5);
+  animation: sui-focus-pulse 1800ms var(--ease-out) infinite;
+}
+
+@keyframes sui-focus-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* --- Blocs ---------------------------------------------------------------- */
+
+.sui-focus__block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sui-focus__label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sui-focus__label-hint {
+  color: rgba(255, 255, 255, 0.38);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+/* Sur fond sombre, les champs de la charte s'inversent : ils gardent leur
+   forme (rayons, hauteur, filet) et non leur fond clair. */
+.sui-focus .sui-input {
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--shell-ink);
+}
+
+.sui-focus .sui-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.sui-focus .sui-input:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 0 0 3px rgba(255, 255, 255, 0.14);
+}
+
+.sui-focus__presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sui-focus__preset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 15px 16px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  color: var(--shell-ink);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-focus__preset strong {
+  font-size: 26px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-focus__preset span {
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-focus__preset:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.sui-focus__preset.is-active {
+  background: var(--shell-ink);
+  box-shadow: none;
+  color: var(--shell);
+}
+
+.sui-focus__preset.is-active span {
+  color: rgba(11, 10, 15, 0.6);
+}
+
+.sui-focus__custom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sui-focus__chosen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.sui-focus__chosen-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sui-focus__chosen-copy strong {
+  overflow: hidden;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-focus__chosen-copy span {
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+}
+
+.sui-focus__chosen-clear {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--shell-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-focus__chosen-clear:hover {
+  color: var(--shell-ink);
+}
+
+.sui-focus__note {
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  line-height: 1.6;
+}
+
+/* --- Bascule « ne pas déranger » ----------------------------------------- */
+
+.sui-focus__toggle {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--shell-ink);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-focus__toggle:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.sui-focus__toggle-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sui-focus__toggle.is-on .sui-focus__toggle-icon {
+  background: var(--lilac-strong);
+  color: var(--ink);
+}
+
+.sui-focus__toggle-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sui-focus__toggle-copy strong {
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+
+.sui-focus__toggle-copy span {
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+}
+
+/* --- En cours ------------------------------------------------------------- */
+
+.sui-focus__stage {
+  display: grid;
+  place-items: center;
+  padding: 8px 0 2px;
+}
+
+.sui-focus__task {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: center;
+}
+
+.sui-focus__task-title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-focus__task-meta {
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-focus__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-focus__round {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--shell-ink);
+  cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.sui-focus__round:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.sui-focus__round:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.sui-focus__finish {
+  flex: 1;
+  min-width: 0;
+}
+
+.sui-focus__ghost {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--shell-muted);
+  cursor: pointer;
+}
+
+.sui-focus__ghost:hover:not(:disabled) {
+  background: rgba(249, 213, 221, 0.18);
+  color: #f4bccb;
+}
+
+.sui-focus__round:disabled,
+.sui-focus__ghost:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.sui-focus__notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  padding: 11px 14px;
+  border-radius: 16px;
+  background: rgba(249, 213, 221, 0.16);
+  color: #f4bccb;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-focus__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.sui-focus__confirm p {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+}
+
+.sui-focus__confirm strong {
+  color: #f4bccb;
+}
+
+.sui-focus__confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* --- Bilan ---------------------------------------------------------------- */
+
+.sui-focus__done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.sui-focus__done-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--lilac-strong);
+  color: var(--ink);
+}
+
+.sui-focus__done-value {
+  margin: 4px 0 0;
+  font-size: clamp(38px, 7vw, 56px);
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-focus__done-copy {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--shell-muted);
+  font-size: var(--fs-small);
+  line-height: 1.7;
+}
+
+/* --- Pied : bouton d'action + statistiques -------------------------------- */
+
+.sui-focus__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.sui-focus__start {
+  width: 100%;
+  min-height: 52px;
+  font-size: var(--fs-body);
+}
+
+/* Sur fond sombre, le bouton principal de la charte s'inverse lui aussi. */
+.sui-focus .sui-btn--dark {
+  background: var(--shell-ink);
+  color: var(--shell);
+}
+
+.sui-focus .sui-btn--dark:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.sui-focus__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sui-focus__stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sui-focus__stats dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-focus__stats dd {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Le sélecteur de tâches est pensé pour fond clair : on l'adapte ici. Les
+   noms de classes sont ceux de `components/timer/TickerPicker` — `__option`,
+   `__copy`, `__play`, `__chip` — pas ceux qu'on croit deviner. */
+.sui-focus .sui-picker {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: var(--shell-ink);
+}
+
+.sui-focus .sui-picker__search input {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--shell-ink);
+}
+
+.sui-focus .sui-picker__search input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.sui-focus .sui-picker__empty,
+.sui-focus .sui-picker__group-label {
+  color: var(--shell-muted);
+}
+
+.sui-focus .sui-picker__option:hover,
+.sui-focus .sui-picker__option.is-active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sui-focus .sui-picker__title {
+  color: var(--shell-ink);
+}
+
+.sui-focus .sui-picker__meta,
+.sui-focus .sui-picker__chip {
+  color: var(--shell-muted);
+}
+
+.sui-focus .sui-picker__chip {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+/* --- « Ne pas déranger » : les alertes entrantes se taisent ---------------- */
+
+html[data-focus-dnd="on"] .sui-toast {
+  display: none;
+}
+
+/* --- Mobile --------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .sui-focus {
+    padding: 20px 16px 48px;
+  }
+
+  .sui-focus__presets {
+    grid-template-columns: 1fr;
+  }
+
+  .sui-focus__stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .sui-focus__stats > div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-focus {
+    animation: none;
+  }
+
+  .sui-focus__pulse::after {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   26. NOTIFICATIONS — liste, regroupements, pastilles de catégorie
+   ========================================================================== */
+
+.sui-notif__day + .sui-notif__day {
+  margin-top: 22px;
+}
+
+.sui-notif__day-title {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sui-notif__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Une ligne non lue se distingue par un fond teinté et un point — pas par une
+   bordure épaisse, qui ferait trembler la liste à chaque lecture. */
+.sui-notif {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+
+.sui-notif.is-unread {
+  background: var(--blue);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, 0.04);
+}
+
+.sui-notif__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sui-notif__icon[data-tone="blue"] { background: var(--blue); }
+.sui-notif__icon[data-tone="green"] { background: var(--green); }
+.sui-notif__icon[data-tone="yellow"] { background: var(--yellow); }
+.sui-notif__icon[data-tone="pink"] { background: var(--pink); }
+.sui-notif__icon[data-tone="lilac"] { background: var(--lilac); }
+.sui-notif__icon[data-tone="plain"] { background: var(--surface); }
+
+.sui-notif__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.sui-notif__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.45;
+}
+
+.sui-notif__title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.sui-notif__title a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-notif__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.sui-notif__text {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.6;
+}
+
+.sui-notif__meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+.sui-notif__tag {
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: rgba(17, 17, 17, 0.06);
+  font-weight: 700;
+}
+
+.sui-notif__actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.sui-notif__actions .sui-iconbtn {
+  width: 34px;
+  height: 34px;
+}
+
+/* --- Alerte temps réel ---------------------------------------------------- */
+
+/* La notification qui vient d'arriver, pendant qu'on travaille ailleurs. Elle
+   reprend la forme du toast de la charte, avec l'icône et la couleur du type :
+   on sait ce qu'on a reçu sans lire. */
+.sui-notif-live {
+  position: fixed;
+  right: clamp(12px, 2vw, 24px);
+  bottom: calc(var(--shell-pad, 16px) + 92px);
+  z-index: 80;
+  width: min(360px, calc(100vw - 24px));
+  padding: 14px 15px;
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+  animation: sui-notif-live-in var(--dur-slow) var(--ease-out);
+}
+
+@keyframes sui-notif-live-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.sui-notif-live__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sui-notif-live__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--ink);
+}
+
+.sui-notif-live__icon[data-tone="green"] { background: var(--green); }
+.sui-notif-live__icon[data-tone="yellow"] { background: var(--yellow); }
+.sui-notif-live__icon[data-tone="pink"] { background: var(--pink); }
+.sui-notif-live__icon[data-tone="lilac"] { background: var(--lilac); }
+
+.sui-notif-live__label {
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sui-notif-live__close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.sui-notif-live__close:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sui-notif-live__title {
+  margin: 9px 0 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.4;
+}
+
+.sui-notif-live__title a {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.sui-notif-live__title a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sui-notif-live__text {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-small);
+  line-height: 1.55;
+}
+
+.sui-notif-live__time {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+}
+
+/* « Ne pas déranger » (mode concentration) : l'alerte entrante se tait. */
+html[data-focus-dnd="on"] .sui-notif-live {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .sui-notif {
+    gap: 10px;
+    padding: 12px 13px;
+  }
+
+  .sui-notif__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sui-notif-live {
+    right: 12px;
+    left: 12px;
+    bottom: calc(148px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-notif-live {
+    animation: none;
+  }
+}

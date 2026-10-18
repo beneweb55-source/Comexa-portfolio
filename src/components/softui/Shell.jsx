@@ -55,6 +55,7 @@ import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { useAllListing } from "@/lib/use-all-listing";
 import { WORKSPACE_UPDATED } from "@/lib/workspace-updates.mjs";
+import LiveNotification from "@/components/workspace/LiveNotification";
 import { canReadOwnTasks } from "@/lib/timer-access";
 import { TASK_STATUS } from "@/lib/labels";
 import { formatDate, messageOf } from "@/lib/api";
@@ -321,6 +322,14 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
   }, [pathname, reloadTasks, reloadUnread, reloadNotifications, isWorkspace, refreshUnread]);
 
   const unreadCount = Number.isFinite(Number(unreadProbe.meta?.total)) ? Number(unreadProbe.meta.total) : 0;
+
+  /* Une notification poussée en temps réel : le compteur de la cloche et la
+     liste du panneau de suivi suivent SANS attendre un rechargement. C'est le
+     seul endroit qui connaît les deux sondes. */
+  const onLiveNotification = useCallback(() => {
+    reloadUnread();
+    reloadNotifications();
+  }, [reloadUnread, reloadNotifications]);
 
   /* Compteurs par espace du sélecteur : relus après une navigation. */
   useEffect(() => {
@@ -720,6 +729,9 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                 }}
               />
             ) : null}
+
+            {/* Alerte de notification arrivée en temps réel. */}
+            <LiveNotification onNew={onLiveNotification} />
           </div>
         </div>
       </SoftMotionProvider>
