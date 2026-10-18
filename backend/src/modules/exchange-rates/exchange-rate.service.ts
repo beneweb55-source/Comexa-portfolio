@@ -43,7 +43,7 @@ export class ExchangeRateService {
   async getRate(
     from: string,
     to: string,
-    date?: Date,
+    date: Date | undefined,
     policy: AccessPolicy,
   ): Promise<Prisma.Decimal> {
     policy.requireScope('exchangerate', 'read', [SCOPE_ANY]);
@@ -127,7 +127,7 @@ export class ExchangeRateService {
     amount: Prisma.Decimal | string | number,
     from: string,
     to: string,
-    date?: Date,
+    date: Date | undefined,
     policy: AccessPolicy,
   ): Promise<Prisma.Decimal> {
     const decimalAmount = amount instanceof Prisma.Decimal ? amount : new Prisma.Decimal(amount);
@@ -232,7 +232,7 @@ export class ExchangeRateService {
       },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'exchangerate:upsert',
       entityType: 'ExchangeRate',
@@ -274,7 +274,7 @@ export class ExchangeRateService {
       },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'exchangerate:delete',
       entityType: 'ExchangeRate',

@@ -36,6 +36,12 @@ export function createSmtpTransport(options: SmtpOptions): MailTransport {
         subject: mail.subject,
         text: mail.text,
         html: mail.html,
+        // nodemailer attend le contenu brut (Buffer) et se charge du MIME. Un
+        // champ absent n'ajoute aucun en-tete : les courriels sans piece
+        // jointe gardent exactement la meme forme qu'avant.
+        ...(mail.attachments?.length
+          ? { attachments: mail.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+          : {}),
       });
     },
 

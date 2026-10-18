@@ -12,7 +12,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiFetch, downloadFile } from "@/lib/api";
+import { ApiError, apiFetch, downloadFile, fetchProtectedBlob } from "@/lib/api";
 
 import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
 
@@ -113,6 +113,35 @@ export function AuthProvider({ children }) {
     [refresh],
   );
 
+  /**
+   * URL d'objet pointant vers un fichier protégé (PDF généré par l'API).
+   *
+   * MÊME discipline que `download` — rafraîchissement puis rejeu sur 401 — mais
+   * sans déclencher l'enregistrement : c'est ce qu'il faut pour un `<iframe>`
+   * ou une balise `<embed>`, qui ne peuvent pas porter l'en-tete
+   * `Authorization`. L'appelant REVOQUE l'URL quand il n'en a plus besoin ; le
+   * faire ici serait impossible, puisque la durée de vie de l'aperçu ne dépend
+   * pas de celle de l'appel.
+   */
+  const blobUrl = useCallback(
+    async (path, options = {}) => {
+      const read = async () => {
+        const blob = await fetchProtectedBlob(path, { token: tokenRef.current, space: options.space });
+        return URL.createObjectURL(blob);
+      };
+      try {
+        return await read();
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          const user = await refresh();
+          if (user) return read();
+        }
+        throw error;
+      }
+    },
+    [refresh],
+  );
+
   const value = useMemo(
     () => ({
       status: state.status,
@@ -139,8 +168,9 @@ export function AuthProvider({ children }) {
       logout,
       request,
       download,
+      blobUrl,
     }),
-    [state, login, logout, request, download],
+    [state, login, logout, request, download, blobUrl],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -160,7 +190,7 @@ export function AuthProvider({ children }) {
  */
 export function SpaceScopedAuth({ space, permissions, children }) {
   const parent = useAuth();
-  const { request: parentRequest, download: parentDownload } = parent;
+  const { request: parentRequest, download: parentDownload, blobUrl: parentBlobUrl } = parent;
 
   const request = useCallback(
     (path, options = {}) => parentRequest(path, { space, ...options }),
@@ -170,11 +200,15 @@ export function SpaceScopedAuth({ space, permissions, children }) {
     (path, filename, options = {}) => parentDownload(path, filename, { space, ...options }),
     [parentDownload, space],
   );
+  const blobUrl = useCallback(
+    (path, options = {}) => parentBlobUrl(path, { space, ...options }),
+    [parentBlobUrl, space],
+  );
 
   const value = useMemo(() => {
     const user = parent.user && permissions ? { ...parent.user, permissions: [...permissions] } : parent.user;
-    return { ...parent, user, baseUser: parent.user, space, request, download };
-  }, [parent, permissions, space, request, download]);
+    return { ...parent, user, baseUser: parent.user, space, request, download, blobUrl };
+  }, [parent, permissions, space, request, download, blobUrl]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

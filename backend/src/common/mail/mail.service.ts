@@ -186,12 +186,20 @@ export class MailService implements OnModuleDestroy {
           ]
         : ['  --- Corps ---', mail.text];
 
+      // Le NOM des pieces jointes est journalise, jamais leur contenu : une
+      // facture en developpement doit se voir (« le PDF est bien la »), son
+      // contenu n'a rien a faire dans un journal.
+      const jointes = mail.attachments?.length
+        ? [`  Joints  : ${mail.attachments.map((a) => `${a.filename} (${a.contentType})`).join(', ')}`]
+        : [];
+
       this.logger.warn(
         [
           '',
           '=========== COURRIEL NON ENVOYE (aucun transport configure) ============',
           `  A       : ${mail.to}`,
           `  Objet   : ${mail.subject}`,
+          ...jointes,
           ...corps,
           '========================================================================',
           'Configurez MAILJET_API_KEY et MAILJET_SECRET_KEY (recommande : le port 443',

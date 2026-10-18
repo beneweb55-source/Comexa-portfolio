@@ -22,8 +22,6 @@ import { PrismaService } from '../../prisma/prisma.service.js';
  * - Les transactions sont liées à leur source (répartition, paiement, etc.)
  */
 
-const ROUND_HALF_UP = Prisma.Decimal.ROUND_HALF_UP;
-const CENTS = 2;
 
 @Injectable()
 export class BalanceService {
@@ -260,7 +258,7 @@ export class BalanceService {
 
     // Audit (uniquement si pas de transaction en cours)
     if (!tx) {
-      await this.audit.log({
+      await this.audit.record({
         actorId: policy.userId,
         action: 'balance:transaction:create',
         entityType: 'BalanceTransaction',
@@ -317,7 +315,7 @@ export class BalanceService {
         tx,
       );
 
-      await this.audit.log({
+      await this.audit.record({
         actorId: actor.id,
         action: 'balance:adjust',
         entityType: 'BalanceTransaction',

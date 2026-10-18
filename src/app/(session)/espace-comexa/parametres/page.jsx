@@ -9,7 +9,11 @@ import {
   ShieldCheck,
   ArrowUpRight,
   Save,
+  Coins,
+  PieChart,
+  ArrowLeftRight,
 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
@@ -23,6 +27,9 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/workspace/ui";
+import CurrencyPanel from "@/components/workspace/CurrencyPanel";
+import ExchangeRatePanel from "@/components/workspace/ExchangeRatePanel";
+import DistributionPanel from "@/components/workspace/DistributionPanel";
 
 const FIELDS = [
   {
@@ -65,7 +72,41 @@ export default function ParametresPage() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState("agency");
+  // L'onglet peut venir de l'URL (`?onglet=devises`) : c'est la forme que prend
+  // une redirection post-action vers les réglages (voir `settingsCurrencies()`
+  // dans `url-builder.service.ts`). Sans cette lecture, enregistrer un taux
+  // renvoyait bien sur la page des réglages… mais sur l'onglet Organisation,
+  // c'est-à-dire ailleurs que là où l'utilisateur vient de travailler.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const askedTab = searchParams?.get("onglet");
+  const SETTINGS_TABS = ["agency", "devises", "taux", "repartitions", "time", "advanced"];
+  const [tab, setTab] = useState(() =>
+    SETTINGS_TABS.includes(askedTab) ? askedTab : "agency",
+  );
+
+  // L'onglet est reflété dans l'URL, dans les deux sens.
+  //
+  // URL → onglet (état initial ci-dessus) : une redirection post-action ou un
+  // lien reçu ouvre le bon onglet.
+  // Onglet → URL (effet ci-dessous) : l'utilisateur peut mettre la page en
+  // favori, ou la transmettre, sans retomber sur l'onglet Organisation.
+  //
+  // `replace` et non `push` : changer d'onglet n'est pas une navigation, et un
+  // `push` par clic remplirait l'historique de six entrées identiques — le
+  // bouton « retour » ne ramènerait alors plus à la page précédente mais à
+  // l'onglet d'avant, indéfiniment.
+  useEffect(() => {
+    const current = searchParams?.get("onglet");
+    if (current === tab) return;
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (tab === "agency") params.delete("onglet");
+    else params.set("onglet", tab);
+    const query = params.toString();
+    router.replace(query ? `/espace-comexa/parametres?${query}` : "/espace-comexa/parametres", {
+      scroll: false,
+    });
+  }, [tab, searchParams, router]);
   const [advanced, setAdvanced] = useState({
     key: "",
     value: "",
@@ -165,6 +206,9 @@ export default function ParametresPage() {
         <nav className="cx-settings__nav" aria-label="Catégories de paramètres">
           {[
             ["agency", Building2, "Organisation", "Identité et coordonnées"],
+            ["devises", Coins, "Devises", "Marchés internationaux"],
+            ["taux", ArrowLeftRight, "Taux de change", "Conversion et historique"],
+            ["repartitions", PieChart, "Répartitions", "Parts des bénéficiaires"],
             ["time", Clock3, "Mes préférences", "Saisie du temps"],
             [
               "advanced",
@@ -196,6 +240,9 @@ export default function ParametresPage() {
         </nav>
         <div className="cx-settings__content">
           {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
+          {tab === "devises" ? <CurrencyPanel /> : null}
+          {tab === "taux" ? <ExchangeRatePanel /> : null}
+          {tab === "repartitions" ? <DistributionPanel /> : null}
           {tab === "time" ? (
             <TimePreferences />
           ) : (
@@ -208,7 +255,7 @@ export default function ParametresPage() {
                   </button>
                 </Notice>
               ) : null}
-              {settings === null ? (
+              {settings === null && ["devises", "taux", "repartitions"].includes(tab) ? null : settings === null ? (
                 <Card title="Configuration">
                   <p>
                     {error
@@ -216,7 +263,7 @@ export default function ParametresPage() {
                       : "Chargement des paramètres…"}
                   </p>
                 </Card>
-              ) : tab === "agency" ? (
+              ) : ["devises", "taux", "repartitions"].includes(tab) ? null : tab === "agency" ? (
                 <>
                   <Card
                     title="Identité de l’organisation"

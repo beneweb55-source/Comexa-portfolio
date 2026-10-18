@@ -1,137 +1,137 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/session";
-import { can } from "@/lib/access";
+import { can, canAny } from "@/lib/access";
 import { useActionNotification } from "@/components/workspace/ui/ActionNotification";
+import { primaryButton, secondaryButton } from "@/components/workspace/ui";
 
 /**
  * Composant de prévisualisation et export PDF pour les factures
- * 
+ *
  * Fonctionnalités:
  * - Aperçu du PDF dans un iframe
  * - Téléchargement du PDF
- * - Envoi par email avec redirection vers Comexa
+ * - Envoi par email
  * - Design épuré et professionnel avec aesthetic Comexa
+ *
+ * CE QUI A ÉTÉ CORRIGÉ ICI, ET POURQUOI C'ÉTAIT INVISIBLE :
+ *
+ * L'aperçu faisait `request(..., { responseType: "blob" })` puis testait
+ * `response.ok`. Or `request` renvoie l'ENVELOPPE JSON déjà parsée
+ * (`{ success, data, message, … }`), pas une `Response` : `response.ok` valait
+ * donc `undefined` — toujours faux — et `response.blob()` n'existait pas. Le
+ * cadre restait vide, sans aucun message. Le composant n'était de toute façon
+ * jamais monté, faute de droits évalués correctement (voir `InvoicePdfActions`).
+ *
+ * L'aperçu passe maintenant par `blobUrl()`, exposé par la session : un `fetch`
+ * authentifié qui rend une URL d'objet, avec rafraîchissement du jeton sur 401.
+ * Un `<iframe src>` ne peut PAS porter l'en-tete `Authorization`, et le jeton
+ * d'accès vit en mémoire : charger le PDF directement était donc impossible.
+ *
+ * L'envoi par email, lui, passe par `request()` normal — l'API répond en JSON —
+ * et consomme la redirection que le serveur propose (`action`), via la
+ * notification d'action. C'est le contrat du système de redirection.
  */
 export function InvoicePdfPreview({
   invoiceId,
+  reference,
   onClose,
 }) {
-  const { request, user } = useAuth();
-  const [pdfUrl, setPdfUrl] = useState(null);
+  const { request, download, blobUrl, user } = useAuth();
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [sending, setSending] = useState(false);
-  const [email, setEmail] = useState('');
-  const [subject, setSubject] = useState('');
-  const [message, setMessage] = useState('');
+  const [email, setEmail] = useState("");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const iframeRef = useRef(null);
 
   const { showNotification, NotificationComponent } = useActionNotification();
 
-  const canRead = can(user, 'invoice', 'read');
-  const canSendEmail = can(user, 'email', 'send');
+  const canRead = canAny(user, ["invoice:read:any", "invoice:read:own"]);
+  const canSendEmail = can(user, "invoice:send:any");
 
-  // Charger le PDF
+  // Charger le PDF : une URL d'objet par ouverture, révoquée à la fermeture.
+  // Sans cette révocation, chaque aperçu laissait un blob en mémoire jusqu'au
+  // rechargement de la page — invisible, mais cumulatif sur une session longue.
   useEffect(() => {
-    if (!invoiceId || !canRead) return;
+    if (!invoiceId || !canRead) return undefined;
 
-    loadPdf();
-  }, [invoiceId, canRead]);
+    let cancelled = false;
 
-  const loadPdf = async () => {
-    setLoading(true);
-
-    try {
-      // Générer l'aperçu
-      const response = await request(`/api/pdf/invoices/${invoiceId}/preview`, {
-        responseType: 'blob',
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        
-        // Générer l'URL de téléchargement
-        const downloadResponse = await request(`/api/pdf/invoices/${invoiceId}`, {
-          responseType: 'blob',
-        });
-        
-        if (downloadResponse.ok) {
-          const downloadBlob = await downloadResponse.blob();
-          const downloadUrl = URL.createObjectURL(downloadBlob);
-          setPdfUrl(downloadUrl);
+    blobUrl(`/pdf/invoices/${invoiceId}/preview`)
+      .then((url) => {
+        if (cancelled) {
+          URL.revokeObjectURL(url);
+          return;
         }
-      }
-    } catch (error) {
-      showNotification({
-        message: 'Erreur lors du chargement du PDF',
-        duration: 3000,
+        setPreviewUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError("L&rsquo;aperçu du PDF n&rsquo;a pas pu être chargé.");
       });
-    } finally {
-      setLoading(false);
-    }
-  };
+
+    return () => {
+      cancelled = true;
+      setPreviewUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return null;
+      });
+    };
+  }, [invoiceId, canRead, blobUrl]);
+
+  // L'état de chargement se DÉDUIT de ce que l'on détient, au lieu d'être un
+  // quatrième état à garder synchronisé : pas d'URL et pas d'erreur, c'est que
+  // le chargement est en cours. Un état `loading` posé dans l'effet aurait été
+  // un `setState` synchrone — refusé par le lint du dépôt — et aurait surtout pu
+  // afficher « chargement » alors que l'URL était déjà là.
+  const loading = previewUrl === null && loadError === null;
 
   // Télécharger le PDF
-  const downloadPdf = () => {
-    if (!pdfUrl) return;
-
-    const link = document.createElement('a');
-    link.href = pdfUrl;
-    link.download = `facture-${invoiceId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadPdf = async () => {
+    try {
+      await download(`/pdf/invoices/${invoiceId}`, `facture-${reference || invoiceId}.pdf`);
+    } catch {
+      showNotification({ message: "Le PDF n&rsquo;a pas pu être téléchargé.", duration: 5000 });
+    }
   };
 
   // Envoyer par email
   const sendByEmail = async () => {
-    if (!email || !canSendEmail) return;
+    if (!email || !canSendEmail || sending) return;
 
     setSending(true);
 
     try {
-      const response = await request(`/api/pdf/invoices/${invoiceId}/email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const result = await request(`/pdf/invoices/${invoiceId}/email`, {
+        method: "POST",
+        body: {
           to: email,
-          subject: subject || `Facture ${invoiceId}`,
-          message: message || '',
+          subject: subject || `Facture ${reference || invoiceId}`,
+          message: message || "",
           includePdf: true,
-          language: 'fr',
-        }),
+          language: "fr",
+        },
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Afficher la notification avec lien de redirection
-        showNotification({
-          message: 'Facture envoyée par email avec succès !',
-          redirectUrl: result.redirectUrl,
-          action: result.action,
-          duration: 8000,
-        });
-        
-        setShowEmailForm(false);
-        setEmail('');
-        setSubject('');
-        setMessage('');
-      } else {
-        const error = await response.json();
-        showNotification({
-          message: error.error || 'Erreur lors de l\'envoi par email',
-          duration: 5000,
-        });
-      }
+      // La notification porte le verbe du serveur ET la redirection qu'il
+      // propose : c'est le contrat de `buildResponse`, et c'est ce qui permet à
+      // l'utilisateur de sauter directement sur la facture concernée.
+      showNotification({
+        message: result?.message ?? "Facture envoyée par email avec succès.",
+        redirectUrl: result?.redirectUrl,
+        action: result?.action,
+        duration: 8000,
+      });
+
+      setShowEmailForm(false);
+      setEmail("");
+      setSubject("");
+      setMessage("");
     } catch (error) {
       showNotification({
-        message: 'Erreur lors de l\'envoi par email',
+        message: error?.message ?? "Erreur lors de l'envoi par email",
         duration: 5000,
       });
     } finally {
@@ -139,20 +139,12 @@ export function InvoicePdfPreview({
     }
   };
 
-  // Nettoyage des URLs
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    };
-  }, [previewUrl, pdfUrl]);
-
   if (!canRead) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-[var(--comexa-surface)] rounded-xl p-6 max-w-md shadow-xl">
           <h3 className="text-lg font-bold text-[var(--comexa-ink)] mb-4">Accès refusé</h3>
-          <p className="text-[var(--comexa-ink-muted)]">Vous n'avez pas les permissions pour consulter cette facture.</p>
+          <p className="text-[var(--comexa-ink-muted)]">Vous n&rsquo;avez pas les permissions pour consulter cette facture.</p>
           <button
             type="button"
             onClick={onClose}
@@ -174,13 +166,14 @@ export function InvoicePdfPreview({
         <div className="bg-[var(--comexa-surface)] rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
           {/* En-tête avec aesthetic Comexa */}
           <div className="flex items-center justify-between p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-glass-bg)] backdrop-blur-[var(--comexa-glass-blur)]">
-            <h2 className="text-lg font-bold text-[var(--comexa-ink)]">Aperçu Facture</h2>
+            <h2 className="text-lg font-bold text-[var(--comexa-ink)]">
+              Aperçu {reference ? `facture ${reference}` : "facture"}
+            </h2>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={downloadPdf}
-                disabled={!pdfUrl}
-                className="px-4 py-2 text-sm font-medium text-white bg-[var(--comexa-blue-500)] rounded-lg hover:bg-[var(--comexa-blue-600)] disabled:bg-[var(--comexa-neutral-300)] disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-[var(--comexa-blue-500)] rounded-lg hover:bg-[var(--comexa-blue-600)] transition-colors"
               >
                 Télécharger PDF
               </button>
@@ -197,6 +190,7 @@ export function InvoicePdfPreview({
                 type="button"
                 onClick={onClose}
                 className="p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors"
+                aria-label="Fermer l'aperçu"
               >
                 <svg className="w-5 h-5 text-[var(--comexa-ink-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -207,16 +201,26 @@ export function InvoicePdfPreview({
 
           {/* Zone de chargement */}
           {loading && !previewUrl && (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-10">
               <div className="animate-spin w-8 h-8 border-4 border-[var(--comexa-blue-500)] border-t-transparent rounded-full" />
             </div>
           )}
+
+          {/* Échec de chargement : dire POURQUOI le cadre est vide vaut mieux
+              qu'un cadre vide sans explication. */}
+          {loadError && !loading ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-10 text-center">
+              <p className="text-[14px] text-[var(--comexa-ink)]">{loadError}</p>
+              <button type="button" onClick={() => window.location.reload()} className={secondaryButton}>
+                Réessayer
+              </button>
+            </div>
+          ) : null}
 
           {/* Aperçu PDF */}
           {previewUrl && !loading && (
             <div className="flex-1 overflow-auto p-4 bg-[var(--comexa-neutral-50)]">
               <iframe
-                ref={iframeRef}
                 src={previewUrl}
                 className="w-full h-full min-h-[400px] rounded-lg border border-[var(--comexa-border-soft)]"
                 title="Aperçu PDF"
@@ -234,6 +238,7 @@ export function InvoicePdfPreview({
                     type="button"
                     onClick={() => setShowEmailForm(false)}
                     className="p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors"
+                    aria-label="Fermer le formulaire"
                   >
                     <svg className="w-5 h-5 text-[var(--comexa-ink-muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -243,8 +248,9 @@ export function InvoicePdfPreview({
 
                 <form onSubmit={(e) => { e.preventDefault(); sendByEmail(); }} className="flex flex-col gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1">Email *</label>
+                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1" htmlFor="pdf-email-to">Email *</label>
                     <input
+                      id="pdf-email-to"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -255,8 +261,9 @@ export function InvoicePdfPreview({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1">Sujet</label>
+                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1" htmlFor="pdf-email-subject">Sujet</label>
                     <input
+                      id="pdf-email-subject"
                       type="text"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
@@ -266,8 +273,9 @@ export function InvoicePdfPreview({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1">Message (optionnel)</label>
+                    <label className="block text-sm font-medium text-[var(--comexa-ink)] mb-1" htmlFor="pdf-email-message">Message (optionnel)</label>
                     <textarea
+                      id="pdf-email-message"
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       rows={3}
@@ -287,9 +295,9 @@ export function InvoicePdfPreview({
                     <button
                       type="submit"
                       disabled={sending || !email}
-                      className="px-4 py-2 text-sm font-medium text-white bg-[var(--comexa-blue-500)] rounded-lg hover:bg-[var(--comexa-blue-600)] disabled:bg-[var(--comexa-neutral-300)] disabled:cursor-not-allowed transition-colors"
+                      className={primaryButton}
                     >
-                      {sending ? 'Envoi...' : 'Envoyer'}
+                      {sending ? "Envoi..." : "Envoyer"}
                     </button>
                   </div>
                 </form>

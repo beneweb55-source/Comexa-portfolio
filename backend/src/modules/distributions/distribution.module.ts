@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DistributionController } from './distribution.controller.js';
 import { DistributionService } from './distribution.service.js';
 import { BalanceModule } from '../balances/balance.module.js';
 import { UrlBuilderModule } from '../../common/services/url-builder.module.js';

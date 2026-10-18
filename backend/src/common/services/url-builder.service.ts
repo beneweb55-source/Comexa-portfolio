@@ -29,21 +29,21 @@ export class UrlBuilderService {
    * URL vers la liste des factures
    */
   invoicesList(): string {
-    return `${this.frontendUrl}/dashboard/invoices`;
+    return `${this.frontendUrl}/espace-equipe/factures`;
   }
 
   /**
    * URL vers une facture spécifique
    */
   invoice(id: string): string {
-    return `${this.frontendUrl}/dashboard/invoices/${id}`;
+    return `${this.frontendUrl}/espace-equipe/factures/${id}`;
   }
 
   /**
    * URL vers le PDF d'une facture
    */
   invoicePdf(id: string): string {
-    return `${this.frontendUrl}/dashboard/invoices/${id}/pdf`;
+    return `${this.frontendUrl}/espace-equipe/factures/${id}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -54,21 +54,21 @@ export class UrlBuilderService {
    * URL vers la liste des devis
    */
   quotesList(): string {
-    return `${this.frontendUrl}/dashboard/quotes`;
+    return `${this.frontendUrl}/espace-equipe/devis`;
   }
 
   /**
    * URL vers un devis spécifique
    */
   quote(id: string): string {
-    return `${this.frontendUrl}/dashboard/quotes/${id}`;
+    return `${this.frontendUrl}/espace-equipe/devis/${id}`;
   }
 
   /**
    * URL vers le PDF d'un devis
    */
   quotePdf(id: string): string {
-    return `${this.frontendUrl}/dashboard/quotes/${id}/pdf`;
+    return `${this.frontendUrl}/espace-equipe/devis/${id}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -79,21 +79,21 @@ export class UrlBuilderService {
    * URL vers la liste des projets
    */
   projectsList(): string {
-    return `${this.frontendUrl}/dashboard/projects`;
+    return `${this.frontendUrl}/espace-equipe/projets`;
   }
 
   /**
    * URL vers un projet spécifique
    */
   project(id: string): string {
-    return `${this.frontendUrl}/dashboard/projects/${id}`;
+    return `${this.frontendUrl}/espace-equipe/projets/${id}`;
   }
 
   /**
    * URL vers les répartitions d'un projet
    */
   projectDistributions(id: string): string {
-    return `${this.frontendUrl}/dashboard/projects/${id}/distributions`;
+    return `${this.frontendUrl}/espace-equipe/projets/${id}?onglet=repartition`;
   }
 
   // ---------------------------------------------------------------------------
@@ -104,14 +104,14 @@ export class UrlBuilderService {
    * URL vers la liste des clients
    */
   clientsList(): string {
-    return `${this.frontendUrl}/dashboard/clients`;
+    return `${this.frontendUrl}/espace-equipe/clients`;
   }
 
   /**
    * URL vers un client spécifique
    */
   client(id: string): string {
-    return `${this.frontendUrl}/dashboard/clients/${id}`;
+    return `${this.frontendUrl}/espace-equipe/clients/${id}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -122,28 +122,28 @@ export class UrlBuilderService {
    * URL vers les paramètres généraux
    */
   settings(): string {
-    return `${this.frontendUrl}/dashboard/settings`;
+    return `${this.frontendUrl}/espace-comexa/parametres`;
   }
 
   /**
    * URL vers la gestion des devises
    */
   settingsCurrencies(): string {
-    return `${this.frontendUrl}/dashboard/settings/currencies`;
+    return `${this.frontendUrl}/espace-comexa/parametres?onglet=devises`;
   }
 
   /**
    * URL vers la gestion des répartitions
    */
   settingsDistributions(): string {
-    return `${this.frontendUrl}/dashboard/settings/distributions`;
+    return `${this.frontendUrl}/espace-comexa/parametres?onglet=repartitions`;
   }
 
   /**
    * URL vers la gestion des taux de change
    */
   settingsExchangeRates(): string {
-    return `${this.frontendUrl}/dashboard/settings/exchange-rates`;
+    return `${this.frontendUrl}/espace-comexa/parametres?onglet=taux`;
   }
 
   // ---------------------------------------------------------------------------
@@ -154,14 +154,14 @@ export class UrlBuilderService {
    * URL vers la messagerie
    */
   messages(): string {
-    return `${this.frontendUrl}/dashboard/messages`;
+    return `${this.frontendUrl}/espace-equipe/messagerie`;
   }
 
   /**
    * URL vers une conversation spécifique
    */
   conversation(id: string): string {
-    return `${this.frontendUrl}/dashboard/messages/${id}`;
+    return `${this.frontendUrl}/espace-equipe/messagerie?conversation=${id}`;
   }
 
   // ---------------------------------------------------------------------------
@@ -172,7 +172,7 @@ export class UrlBuilderService {
    * URL vers le tableau de bord
    */
   dashboard(): string {
-    return `${this.frontendUrl}/dashboard`;
+    return `${this.frontendUrl}/espace-equipe/tableau-de-bord`;
   }
 
   // ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@
  */
 
 import { useAuth } from "@/lib/session";
+import { useSearchParams } from "next/navigation";
 import { can } from "@/lib/access";
 import { ChatWrapper } from "./chat/ChatWrapper";
 
@@ -36,8 +37,14 @@ import { ChatWrapper } from "./chat/ChatWrapper";
  */
 export default function MessagingPanel() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
 
   const canRead = can(user, "conversation:read:own");
+  // Conversation demandée par l'URL (`?conversation=<id>`). C'est la forme que
+  // prend une redirection post-action vers la messagerie, et celle que portent
+  // les notifications : sans cette lecture, le lien ouvrait la messagerie sans
+  // ouvrir la conversation visée — le lien était suivi, puis ignoré.
+  const initialConversationId = searchParams?.get("conversation") ?? null;
 
   // Si pas d'accès en lecture, ne rien afficher.
   // Rien n'est rendu tant que la session n'est pas chargee : sans compte,
@@ -50,7 +57,7 @@ export default function MessagingPanel() {
   // Mode « page » : la messagerie remplit la rubrique. Le mode flottant
   // (pastille dans un coin) est fait pour un chat qu'on survole, pas pour une
   // page dediee a la messagerie.
-  return <ChatWrapper defaultMinimized={false} variant="page" />;
+  return <ChatWrapper defaultMinimized={false} variant="page" initialConversationId={initialConversationId} />;
 }
 
 /**

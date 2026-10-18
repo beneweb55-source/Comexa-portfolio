@@ -13,7 +13,7 @@ import { can } from "@/lib/access";
  *  - `page` : le chat remplit la rubrique — c'est le mode des pages
  *    `/messagerie`, ou une pastille flottante ne montrait qu'un bouton.
  */
-export function ChatWrapper({ defaultMinimized = true, variant = "floating" }) {
+export function ChatWrapper({ defaultMinimized = true, variant = "floating", initialConversationId = null }) {
   const { user } = useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(defaultMinimized);
@@ -76,6 +76,7 @@ export function ChatWrapper({ defaultMinimized = true, variant = "floating" }) {
       onToggleExpand={toggleExpand}
       defaultMinimized={false}
       variant={variant}
+      initialConversationId={initialConversationId}
     />
   );
 }

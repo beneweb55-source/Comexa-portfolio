@@ -189,7 +189,7 @@ export class DistributionService {
         include: { beneficiaries: true },
       });
 
-      await this.audit.log({
+      await this.audit.record({
         actorId: actor.id,
         action: 'distribution:config:create',
         entityType: 'DistributionConfig',
@@ -292,7 +292,7 @@ export class DistributionService {
         include: { beneficiaries: true },
       });
 
-      await this.audit.log({
+      await this.audit.record({
         actorId: actor.id,
         action: 'distribution:config:update',
         entityType: 'DistributionConfig',
@@ -328,7 +328,7 @@ export class DistributionService {
       data: { deletedAt: new Date() },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'distribution:config:delete',
       entityType: 'DistributionConfig',
@@ -356,7 +356,7 @@ export class DistributionService {
    */
   async calculateForProject(
     projectId: string,
-    configId?: string,
+    configId: string | undefined,
     policy: AccessPolicy,
   ): Promise<Prisma.ProjectDistribution> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
@@ -789,7 +789,7 @@ export class DistributionService {
       },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'distribution:cancel',
       entityType: 'ProjectDistribution',

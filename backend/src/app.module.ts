@@ -13,9 +13,13 @@ import { HealthModule } from './health/health.module.js';
 import { ActivityModule } from './modules/activity/activity.module.js';
 import { AuditLogModule } from './modules/audit/audit-log.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { BalanceModule } from './modules/balances/balance.module.js';
 import { ClientsModule } from './modules/clients/clients.module.js';
 import { ContentModule } from './modules/content/content.module.js';
+import { CurrencyModule } from './modules/currencies/currency.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { DistributionModule } from './modules/distributions/distribution.module.js';
+import { ExchangeRateModule } from './modules/exchange-rates/exchange-rate.module.js';
 import { GoalsModule } from './modules/goals/goals.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
@@ -23,6 +27,7 @@ import { MessagingModule } from './modules/messaging/messaging.module.js';
 import { MilestonesModule } from './modules/milestones/milestones.module.js';
 import { NotificationModule } from './modules/notifications/notification.module.js';
 import { PaymentsModule } from './modules/payments/payments.module.js';
+import { PdfModule } from './modules/pdf/pdf.module.js';
 import { ProspectsModule } from './modules/prospects/prospects.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { QuotesModule } from './modules/quotes/quotes.module.js';
@@ -363,11 +368,61 @@ const isProduction = process.env.NODE_ENV === 'production';
      * Le corps de `POST /quotes/:id/invoice` n'accepte AUCUN montant : les lignes
      * sont copiees du devis et les totaux recalcules a partir d'elles. Un appelant
      * ne peut donc pas injecter un total.
+     *
+     * `PdfModule` EST MONTÉ ICI, ET CE N'ÉTAIT PAS LE CAS. Le module existait,
+     * était testé, et n'était importé par AUCUN autre : `/api/pdf/invoices/:id`
+     * répondait donc 404 « Route introuvable ». Le symptôme remontait loin de sa
+     * cause — l'aperçu et le téléchargement d'un document passent par
+     * `fetchProtectedBlob` (le jeton vit en mémoire, un `<iframe src>` ne peut
+     * pas s'authentifier), qui transforme n'importe quel statut en un seul
+     * message : « Le document n'a pas pu être téléchargé. » Rien, ni dans le
+     * navigateur ni dans les journaux, ne distinguait une route absente d'un
+     * serveur en panne. C'est le même piège que celui décrit plus haut pour les
+     * devises : un module juste, testé, et pourtant invisible côté HTTP.
+     *
+     * Il est monté ici plutôt que dans `InvoicesModule`/`QuotesModule` parce
+     * qu'il sert les DEUX : un PDF de facture et un PDF de devis sortent du même
+     * service. Le placer dans l'un ferait dépendre l'autre d'un module qui n'est
+     * pas le sien.
      */
     QuotesModule,
     OrdersModule,
     InvoicesModule,
     PaymentsModule,
+    PdfModule,
+
+    /**
+     * FONDATION FINANCIÈRE — devises, taux de change, répartitions, soldes.
+     *
+     * Ces quatre modules étaient écrits, testés, et pourtant INEXISTANTS côté
+     * HTTP : aucun n'était monté ici. Le symptôme n'est pas une erreur de
+     * compilation mais un 404 sur `/api/currencies` — le mode de défaillance le
+     * plus coûteux à diagnostiquer, parce que le code des contrôleurs est juste
+     * et que rien ne signale l'absence de route. C'est exactement le piège
+     * contre lequel met en garde le commentaire de `UserModule` plus haut.
+     *
+     * L'ORDRE DÉCRIT LA DÉPENDANCE, dans un seul sens et sans cycle :
+     * `ExchangeRateModule` importe `CurrencyModule` (un taux cite deux devises
+     * par leur code), `DistributionModule` importe `BalanceModule` (appliquer
+     * une répartition crédite les soldes). Nest résout de toute façon par
+     * graphe ; l'ordre rend la liste lisible comme une architecture.
+     *
+     * `BalanceModule` est exporté par `DistributionModule` : les paiements
+     * pourront demain créditer un solde sans importer deux fois le même
+     * service — Nest dédoublonne par référence de classe.
+     *
+     * Les permissions (`currency:read:any`, `balance:read:own`,
+     * `distribution:manage:any`…) sont semées par la migration
+     * `20261017120000_financial_permissions` et par le catalogue
+     * `permissions.catalogue.ts`, que relit le seed. Un déploiement
+     * « migrations seulement » sur une base déjà seedée les retrouve ; une
+     * base neuve les reçoit du seed, qui remplace exactement l'ensemble des
+     * droits de chaque rôle.
+     */
+    CurrencyModule,
+    ExchangeRateModule,
+    BalanceModule,
+    DistributionModule,
   ],
 
   /**

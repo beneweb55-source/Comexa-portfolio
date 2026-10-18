@@ -1,12 +1,11 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BalanceService } from './balance.service.js';
-import { PaginatedResponse, PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { AccessPolicy, Policy, SCOPE_ANY, SCOPE_OWN } from '../../common/auth/principal.js';
-import { CurrentActor } from '../../common/auth/decorators.js';
-import { RequiresPolicy } from '../../common/auth/guards.js';
-import { BalanceTransaction, MemberBalance } from '../../generated/prisma/client.js';
-import { UrlBuilderService } from '../../../common/services/url-builder.service.js';
+import { PaginationQueryDto, type Paginated } from '../../common/dto/pagination.dto.js';
+import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
+import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import type { BalanceTransaction, MemberBalance } from '../../generated/prisma/client.js';
+import { UrlBuilderService } from '../../common/services/url-builder.service.js';
 
 /**
  * CONTRÔLEUR REST DES SOLDES
@@ -15,10 +14,21 @@ import { UrlBuilderService } from '../../../common/services/url-builder.service.
  * - GET /balances/me - Obtenir mon solde
  * - GET /balances/me/all - Obtenir tous mes soldes
  * - GET /balances/me/transactions - Historique de mes transactions
- * - GET /balances/users/:userId - Obtenir le solde d'un membre (ADMIN)
- * - POST /balances/adjust - Ajustement manuel (ADMIN)
+ * - GET /balances/me/total-earnings - Total de mes gains
+ * - GET /balances/users/:userId - Soldes d'un membre (balance:read:any)
+ * - GET /balances/users/:userId/transactions - Historique d'un membre
+ * - POST /balances/adjust - Ajustement manuel (balance:manage:any)
  *
- * Toutes les réponses incluent des URLs de redirection vers Comexa
+ * CHAQUE ROUTE DIT QUI ELLE AUTORISE, et la vérification réelle est dans le
+ * service (`policy.requireScope`) : c'est la double barrière — le décorateur
+ * refuse tôt et moins cher, le service refuse ce qui passerait par un autre
+ * chemin (tâche planifiée, script, test d'intégration).
+ *
+ * Les routes `me/*` n'exigent AUCUNE permission nommée : `balance:read:own`
+ * est possédé par tout membre de l'équipe, et le service tranche lui-même
+ * entre « mon solde » (own) et « le solde d'un autre » (any). Un décorateur
+ * `balance:read:own` ici serait vrai pour tout le monde et ne protégerait
+ * donc rien — c'est la comparaison `policy.userId !== userId` qui protège.
  */
 
 @ApiTags('Balances')
@@ -36,50 +46,50 @@ export class BalanceController {
 
   @Get('me')
   @ApiOperation({ summary: 'Obtenir mon solde pour une devise' })
-  @ApiOkResponse({ type: MemberBalance })
   async getMyBalance(
     @Query('currency') currency: string = 'DZD',
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<MemberBalance | null> {
-    return this.balanceService.getBalance(policy.userId, currency, policy);
+    return this.balanceService.getBalance(user.id, currency, new AccessPolicy(user));
   }
 
   @Get('me/all')
   @ApiOperation({ summary: 'Obtenir tous mes soldes' })
-  @ApiOkResponse({ type: [MemberBalance] })
-  async getAllMyBalances(@Policy() policy: AccessPolicy): Promise<MemberBalance[]> {
-    return this.balanceService.getAllBalances(policy.userId, policy);
+  async getAllMyBalances(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MemberBalance[]> {
+    return this.balanceService.getAllBalances(user.id, new AccessPolicy(user));
   }
 
   @Get('me/transactions')
-  @ApiOperation({ summary: 'Obtenir l\'historique de mes transactions' })
-  @ApiOkResponse({ type: PaginatedResponse<BalanceTransaction> })
+  @ApiOperation({ summary: "Obtenir l'historique de mes transactions" })
   async getMyTransactionHistory(
-    @Query() query: PaginationQueryDto & {
-      currency?: string;
-      type?: string;
-    },
-    @Policy() policy: AccessPolicy,
-  ): Promise<PaginatedResponse<BalanceTransaction>> {
+    @Query() query: PaginationQueryDto & { currency?: string; type?: string; status?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Paginated<BalanceTransaction>> {
     return this.balanceService.getTransactionHistory(
-      policy.userId,
+      user.id,
       {
-        ...query,
         currency: query.currency,
-        type: query.type as any,
+        type: query.type as BalanceTransaction['type'] | undefined,
+        // La pagination fait partie de la requête, pas un détail d'affichage :
+        // `perPage=5` demandé par le panneau doit rendre cinq lignes. Sans ce
+        // transfert, `resolvePagination` retombait sur ses valeurs par défaut et
+        // le panneau affichait jusqu'à vingt mouvements pour cinq demandés.
+        page: query.page,
+        perPage: query.perPage,
+        status: query.status as BalanceTransaction['status'] | undefined,
       },
-      policy,
+      new AccessPolicy(user),
     );
   }
 
   @Get('me/total-earnings')
   @ApiOperation({ summary: 'Obtenir le total de mes gains' })
-  @ApiOkResponse({ type: Object })
-  async getMyTotalEarnings(@Policy() policy: AccessPolicy): Promise<{
-    total: string;
-    byCurrency: Record<string, string>;
-  }> {
-    const result = await this.balanceService.getTotalEarnings(policy.userId, policy);
+  async getMyTotalEarnings(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ total: string; byCurrency: Record<string, string> }> {
+    const result = await this.balanceService.getTotalEarnings(user.id, new AccessPolicy(user));
     return {
       total: result.total.toString(),
       byCurrency: Object.fromEntries(
@@ -89,71 +99,71 @@ export class BalanceController {
   }
 
   // ---------------------------------------------------------------------------
-  // Administration
+  // Administration — visibilité des soldes de chacun
   // ---------------------------------------------------------------------------
 
   @Get('users/:userId')
-  @RequiresPolicy('balance', 'read')
-  @ApiOperation({ summary: 'Obtenir les soldes d\'un membre' })
-  @ApiOkResponse({ type: [MemberBalance] })
+  @RequirePermissions('balance:read:any')
+  @ApiOperation({ summary: 'Obtenir les soldes de chaque membre' })
   async getUserBalances(
     @Param('userId') userId: string,
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<MemberBalance[]> {
-    return this.balanceService.getAllBalances(userId, policy);
+    return this.balanceService.getAllBalances(userId, new AccessPolicy(user));
   }
 
   @Get('users/:userId/transactions')
-  @RequiresPolicy('balance', 'read')
-  @ApiOperation({ summary: 'Obtenir l\'historique des transactions d\'un membre' })
-  @ApiOkResponse({ type: PaginatedResponse<BalanceTransaction> })
+  @RequirePermissions('balance:read:any')
+  @ApiOperation({ summary: "Obtenir l'historique des transactions d'un membre" })
   async getUserTransactionHistory(
     @Param('userId') userId: string,
-    @Query() query: PaginationQueryDto & {
-      currency?: string;
-      type?: string;
-    },
-    @Policy() policy: AccessPolicy,
-  ): Promise<PaginatedResponse<BalanceTransaction>> {
+    @Query() query: PaginationQueryDto & { currency?: string; type?: string; status?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Paginated<BalanceTransaction>> {
     return this.balanceService.getTransactionHistory(
       userId,
       {
-        ...query,
         currency: query.currency,
-        type: query.type as any,
+        type: query.type as BalanceTransaction['type'] | undefined,
+        // La pagination fait partie de la requête, pas un détail d'affichage :
+        // `perPage=5` demandé par le panneau doit rendre cinq lignes. Sans ce
+        // transfert, `resolvePagination` retombait sur ses valeurs par défaut et
+        // le panneau affichait jusqu'à vingt mouvements pour cinq demandés.
+        page: query.page,
+        perPage: query.perPage,
+        status: query.status as BalanceTransaction['status'] | undefined,
       },
-      policy,
+      new AccessPolicy(user),
     );
   }
 
   @Post('adjust')
-  @RequiresPolicy('balance', 'manage')
+  @RequirePermissions('balance:manage:any')
   @ApiOperation({ summary: 'Effectuer un ajustement manuel' })
-  @ApiOkResponse({ type: BalanceTransaction })
   async adjustBalance(
-    @Body() body: {
-      userId: string;
-      currency: string;
-      amount: string;
-      description: string;
-    },
-    @CurrentActor() actor: { id: string },
-    @Policy() policy: AccessPolicy,
+    @Body() body: { userId: string; currency: string; amount: string; description: string },
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const transaction = await this.balanceService.adjustBalance(
       body.userId,
       body.currency,
       body.amount,
       body.description,
-      actor,
-      policy,
+      { id: user.id },
+      new AccessPolicy(user),
     );
 
+    // AUCUNE redirection forcée, et c'est un choix. Un ajustement de solde se
+    // fait depuis la fiche d'un membre ou depuis un tableau : arracher
+    // l'opérateur vers le tableau de bord lui ferait perdre la liste qu'il
+    // était en train de traiter, pour une information qu'il vient lui-même de
+    // saisir. La réponse porte donc le verbe (« Solde ajusté avec succès ») et
+    // rien d'autre : la notification d'action l'affiche, et la page se
+    // rafraîchit d'elle-même. `resourceType` reste exigé par `buildResponse`,
+    // mais sans `redirectTo` ni `resourceId` il ne construit aucune URL.
     return this.urlBuilder.buildResponse(transaction, {
       message: 'Solde ajusté avec succès',
-      redirectTo: 'settings',
       resourceType: 'currency',
-      openInNewTab: true,
     });
   }
 }
