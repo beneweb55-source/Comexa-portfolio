@@ -33,8 +33,8 @@ ALTER TABLE "telegram_links" ADD CONSTRAINT "telegram_links_userId_fkey"
     FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Insere la permission telegram:link:any si absente (idempotent).
-INSERT INTO "permissions" ("id", "code", "resource", "action", "scope", "description")
-SELECT 'perm_telegram_link_any', 'telegram:link:any', 'telegram', 'link', 'any', 'Lier et resoudre des comptes Telegram via le bot @ComexaWork_bot'
+INSERT INTO "permissions" ("id", "code", "resource", "action", "scope", "description", "createdAt", "updatedAt")
+SELECT 'perm_telegram_link_any', 'telegram:link:any', 'telegram', 'link', 'any', 'Lier et resoudre des comptes Telegram via le bot @ComexaWork_bot', NOW(), NOW()
 WHERE NOT EXISTS (SELECT 1 FROM "permissions" WHERE "code" = 'telegram:link:any');
 
 -- Accord de la permission a ADMIN (idempotent).

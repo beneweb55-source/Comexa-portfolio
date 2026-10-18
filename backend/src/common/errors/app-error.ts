@@ -108,6 +108,21 @@ export class AppException extends HttpException {
     return new AppException(code, message, HttpStatus.BAD_REQUEST, details);
   }
 
+  /**
+   * 500. Invariant interne violé : le code a détecté un état qui ne devrait pas
+   * exister (une somme qui ne boucle pas, un taux sans source). Ce n'est ni la
+   * faute de la requête — un 400 ferait retenter le client pour rien — ni un
+   * état métier légitime — un 409 laisserait croire qu'il y a un choix à faire.
+   *
+   * `code` suit la convention des autres fabriques (`RESSOURCE_PROBLEME`), et il
+   * est bien le code renvoyé au frontend : c'est lui qui permet de journaliser
+   * et d'alerter sur une cause précise. Le statut 500 dit, lui, que le client
+   * n'y peut rien.
+   */
+  static internal(code: string, message: string, details: unknown = null): AppException {
+    return new AppException(code, message, HttpStatus.INTERNAL_SERVER_ERROR, details);
+  }
+
   /** 401. */
   static unauthenticated(
     code: string = ErrorCode.UNAUTHENTICATED,

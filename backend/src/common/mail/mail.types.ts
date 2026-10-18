@@ -31,6 +31,38 @@ export interface OutgoingMail {
   subject: string;
   text: string;
   html: string;
+  /**
+   * Pieces jointes, optionnelles.
+   *
+   * LE CAS QUI A MOTIVE CE CHAMP : une facture ou un devis en PDF. Sans lui, un
+   * module qui veut envoyer un document est oblige de monter son PROPRE
+   * transport — et c'est exactement ce que faisait `PdfService`, avec trois
+   * consequences que l'on n'a decouvertes qu'a la compilation :
+   *
+   *   1. il ne parlait que SMTP, donc un deploiement configure en Mailjet seul
+   *      (cas courant quand l'hebergeur bloque les ports 25/465/587) voyait
+   *      l'envoi echouer avec « aucun transport » alors que le service de
+   *      courriel, lui, fonctionnait parfaitement ;
+   *   2. il n'heritait pas du repli de developpement, donc en local l'envoi
+   *      echouait au lieu d'etre recopie dans les journaux ;
+   *   3. la configuration SMTP existait a DEUX endroits, prete a diverger.
+   *
+   * Les deux transports savent maintenant porter une piece jointe : nodemailer
+   * nativement, et Mailjet via `Attachments` (base64). Un champ optionnel, parce
+   * que la grande majorite des courriels n'en ont pas — et un champ vide ne doit
+   * PAS etre envoye a l'API (voir les tests de transport).
+   */
+  attachments?: MailAttachment[];
+}
+
+/** Piece jointe d'un courriel, contenu deja encodé par l'appelant. */
+export interface MailAttachment {
+  /** Type MIME complet, par exemple `application/pdf`. */
+  contentType: string;
+  /** Nom de fichier vu par le destinataire. */
+  filename: string;
+  /** Contenu brut. Les transports se chargent de l'encodage de transport. */
+  content: Buffer;
 }
 
 /**

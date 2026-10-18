@@ -1,13 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrencyService } from './currency.service.js';
 import { CreateCurrencyDto, ListCurrenciesQueryDto, UpdateCurrencyDto } from './dto/currency.dto.js';
-import { PaginatedResponse } from '../../common/dto/pagination.dto.js';
-import { AccessPolicy, Policy, SCOPE_ANY } from '../../common/auth/principal.js';
-import { CurrentActor, RequiresPolicy } from '../../common/auth/guards.js';
-import { CurrentUser } from '../../common/auth/decorators.js';
-import { Currency } from '../../generated/prisma/client.js';
-import { UrlBuilderService } from '../../../common/services/url-builder.service.js';
+import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
+import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
+import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import type { Currency } from '../../generated/prisma/client.js';
+import { UrlBuilderService } from '../../common/services/url-builder.service.js';
 
 /**
  * CONTRÔLEUR REST DES DEVISES
@@ -16,11 +15,16 @@ import { UrlBuilderService } from '../../../common/services/url-builder.service.
  * - GET /currencies - Lister les devises
  * - GET /currencies/default - Obtenir la devise par défaut
  * - GET /currencies/:code - Obtenir une devise par son code
- * - POST /currencies - Créer une nouvelle devise (ADMIN)
- * - PATCH /currencies/:id - Mettre à jour une devise (ADMIN)
- * - DELETE /currencies/:id - Désactiver une devise (ADMIN)
+ * - POST /currencies - Créer une nouvelle devise (currency:manage:any)
+ * - PATCH /currencies/:id - Mettre à jour une devise (currency:manage:any)
+ * - DELETE /currencies/:id - Désactiver une devise (currency:manage:any)
  *
- * Toutes les réponses incluent des URLs de redirection vers Comexa
+ * La lecture est ouverte à tout compte authentifié porteur de
+ * `currency:read:any` (les devises alimentent les formulaires de devis et de
+ * factures, pas seulement l'administration). L'écriture est réservée à
+ * l'administrateur : la liste des devises est une donnée de RÉFÉRENCE — en
+ * ajouter une à la légère multiplie les conversions possibles sans taux
+ * vérifiable derrière.
  */
 
 @ApiTags('Currencies')
@@ -37,34 +41,39 @@ export class CurrencyController {
   // ---------------------------------------------------------------------------
 
   @Get()
+  @RequirePermissions('currency:read:any')
   @ApiOperation({ summary: 'Lister toutes les devises' })
-  @ApiOkResponse({ type: [Currency] })
   async list(
     @Query() query: ListCurrenciesQueryDto,
-    @Policy() policy: AccessPolicy,
-  ): Promise<PaginatedResponse<Currency>> {
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Paginated<Currency>> {
+    const policy = new AccessPolicy(user);
     const currencies = query.activeOnly
       ? await this.currencyService.getAllActive(policy)
       : await this.currencyService.getAll(policy);
 
-    return PaginatedResponse.of(currencies, currencies.length, { page: 1, perPage: currencies.length });
+    // La liste est courte par nature (une poignée de devises) : on la rend
+    // malgré tout paginée, avec la taille réelle, pour que le contrat de
+    // réponse soit le même partout dans l'API — un client qui lit `meta.total`
+    // n'a pas à savoir que cette collection est particulière.
+    return paginated(currencies, currencies.length, resolvePagination({ page: 1, perPage: currencies.length }));
   }
 
   @Get('default')
+  @RequirePermissions('currency:read:any')
   @ApiOperation({ summary: 'Obtenir la devise par défaut' })
-  @ApiOkResponse({ type: Currency })
-  async getDefault(@Policy() policy: AccessPolicy): Promise<Currency> {
-    return this.currencyService.getDefault(policy);
+  async getDefault(@CurrentUser() user: AuthenticatedUser): Promise<Currency> {
+    return this.currencyService.getDefault(new AccessPolicy(user));
   }
 
   @Get(':code')
+  @RequirePermissions('currency:read:any')
   @ApiOperation({ summary: 'Obtenir une devise par son code' })
-  @ApiOkResponse({ type: Currency })
   async getByCode(
     @Param('code') code: string,
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<Currency | null> {
-    return this.currencyService.getByCode(code, policy);
+    return this.currencyService.getByCode(code, new AccessPolicy(user));
   }
 
   // ---------------------------------------------------------------------------
@@ -72,13 +81,11 @@ export class CurrencyController {
   // ---------------------------------------------------------------------------
 
   @Post()
-  @RequiresPolicy('currency', 'manage')
+  @RequirePermissions('currency:manage:any')
   @ApiOperation({ summary: 'Créer une nouvelle devise' })
-  @ApiOkResponse({ type: Currency })
   async create(
     @Body() dto: CreateCurrencyDto,
-    @CurrentActor() actor: { id: string },
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const currency = await this.currencyService.create(
       {
@@ -87,54 +94,53 @@ export class CurrencyController {
         symbol: dto.symbol,
         isDefault: dto.isDefault,
       },
-      actor,
-      policy,
+      { id: user.id },
+      new AccessPolicy(user),
     );
 
     return this.urlBuilder.buildResponse(currency, {
       message: 'Devise créée avec succès',
-      redirectTo: 'settings',
       resourceType: 'currency',
-      openInNewTab: true,
     });
   }
 
   @Patch(':id')
-  @RequiresPolicy('currency', 'manage')
+  @RequirePermissions('currency:manage:any')
   @ApiOperation({ summary: 'Mettre à jour une devise' })
-  @ApiOkResponse({ type: Currency })
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateCurrencyDto,
-    @CurrentActor() actor: { id: string },
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const currency = await this.currencyService.update(id, dto, actor, policy);
+    const currency = await this.currencyService.update(
+      id,
+      dto,
+      { id: user.id },
+      new AccessPolicy(user),
+    );
 
     return this.urlBuilder.buildResponse(currency, {
       message: 'Devise mise à jour avec succès',
-      redirectTo: 'settings',
       resourceType: 'currency',
-      openInNewTab: true,
     });
   }
 
   @Delete(':id')
-  @RequiresPolicy('currency', 'manage')
+  @RequirePermissions('currency:manage:any')
   @ApiOperation({ summary: 'Désactiver une devise' })
-  @ApiOkResponse({ type: Currency })
   async deactivate(
     @Param('id') id: string,
-    @CurrentActor() actor: { id: string },
-    @Policy() policy: AccessPolicy,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const currency = await this.currencyService.deactivate(id, actor, policy);
+    const currency = await this.currencyService.deactivate(
+      id,
+      { id: user.id },
+      new AccessPolicy(user),
+    );
 
     return this.urlBuilder.buildResponse(currency, {
       message: 'Devise désactivée avec succès',
-      redirectTo: 'settings',
       resourceType: 'currency',
-      openInNewTab: true,
     });
   }
 }

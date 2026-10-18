@@ -69,11 +69,46 @@ export async function apiFetch(path, { method = "GET", body, token, signal, spac
     );
   }
 
-  return { data: json.data, meta: json.meta };
+  // L'ENVELOPPE COMPLÈTE EST RENDUE, et ce n'est pas un détail de confort.
+  //
+  // Cette fonction ne renvoyait que `{ data, meta }`. Le serveur, lui, répond
+  // aussi `message`, `redirectUrl` et `action` — c'est le contrat du système de
+  // redirection post-action (`buildResponse` dans `url-builder.service.ts`) :
+  // après un envoi de facture, la réponse dit quelle page ouvrir et comment.
+  // En jetant ces trois champs, `request()` rendait la redirection IMPOSSIBLE :
+  // `useRedirectAfterAction` lit `result.action.url`, `ActionNotification` lit
+  // `redirectUrl || action.url` — tous deux toujours `undefined`. Les deux
+  // mécanismes existaient, étaient testés, et ne pouvaient rien faire.
+  //
+  // Ajouter des champs ne casse aucun appelant : les 37 appels existants
+  // déstructurent `{ data }` (parfois `{ data, meta }`), ce qui continue de
+  // fonctionner à l'identique.
+  return {
+    data: json.data,
+    meta: json.meta,
+    message: json.message,
+    redirectUrl: json.redirectUrl,
+    action: json.action,
+  };
 }
 
-/** Telecharge un fichier protege (le jeton doit etre dans l'en-tete). */
-export async function downloadFile(path, { token, filename, space }) {
+/**
+ * Lit un fichier protege et rend son BLOB, sans declencher de telechargement.
+ *
+ * CETTE FONCTION EXISTE PARCE QU'UN `<iframe src>` NE PEUT PAS S'AUTHENTIFIER.
+ * Le jeton d'acces vit en memoire, jamais dans un cookie : un cadre ou un lien
+ * chargé directement par le navigateur arrive donc sur l'API SANS en-tete
+ * `Authorization`, et recoit un 401. Afficher un PDF genere par l'API passait
+ * pourtant par `request(..., { responseType: "blob" })` puis `response.ok` —
+ * sauf que `request` renvoie l'enveloppe JSON déjà parsée, pas une `Response` :
+ * `response.ok` valait `undefined` et `response.blob()` n'existait pas. L'aperçu
+ * ne s'affichait donc jamais, et l'erreur était avalée par un `catch` muet.
+ *
+ * Le jeton est fourni par l'appelant (`session.jsx`), qui sait aussi le
+ * rafraîchir : c'est ce qui permet à un aperçu de survivre à l'expiration du
+ * jeton d'accès, exactement comme le téléchargement.
+ */
+export async function fetchProtectedBlob(path, { token, space }) {
   const response = await fetch(`/api${path}`, {
     headers: { Authorization: `Bearer ${token}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
     credentials: "same-origin",
@@ -82,7 +117,12 @@ export async function downloadFile(path, { token, filename, space }) {
   if (!response.ok) {
     throw new ApiError(response.status, `HTTP_${response.status}`, "Le document n'a pas pu être téléchargé.");
   }
-  const blob = await response.blob();
+  return response.blob();
+}
+
+/** Telecharge un fichier protege (le jeton doit etre dans l'en-tete). */
+export async function downloadFile(path, { token, filename, space }) {
+  const blob = await fetchProtectedBlob(path, { token, space });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;

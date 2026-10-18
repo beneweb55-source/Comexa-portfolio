@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ExchangeRateController } from './exchange-rate.controller.js';
 import { ExchangeRateService } from './exchange-rate.service.js';
 import { CurrencyModule } from '../currencies/currency.module.js';
 import { UrlBuilderModule } from '../../common/services/url-builder.module.js';

@@ -117,6 +117,19 @@ export function createMailjetApiTransport(
             Subject: mail.subject,
             TextPart: mail.text,
             HTMLPart: mail.html,
+            // Mailjet veut du base64 dans `Base64Content`, et n'accepte pas un
+            // tableau vide : il le refuse comme piece jointe invalide. Le champ
+            // n'est donc ajoute que s'il y a vraiment quelque chose a joindre,
+            // ce qui laisse la charge utile identique pour les autres envois.
+            ...(mail.attachments?.length
+              ? {
+                  Attachments: mail.attachments.map((a) => ({
+                    ContentType: a.contentType,
+                    Filename: a.filename,
+                    Base64Content: a.content.toString('base64'),
+                  })),
+                }
+              : {}),
           },
         ],
       };

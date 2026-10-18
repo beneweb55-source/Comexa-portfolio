@@ -188,7 +188,7 @@ export class CurrencyService {
       },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'currency:create',
       entityType: 'Currency',
@@ -237,7 +237,7 @@ export class CurrencyService {
       },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'currency:update',
       entityType: 'Currency',
@@ -272,7 +272,7 @@ export class CurrencyService {
       data: { isActive: false, isDefault: false },
     });
 
-    await this.audit.log({
+    await this.audit.record({
       actorId: actor.id,
       action: 'currency:deactivate',
       entityType: 'Currency',

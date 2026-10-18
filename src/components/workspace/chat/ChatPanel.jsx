@@ -209,6 +209,33 @@ export function ChatPanel({
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
+  // LIEN PROFOND : ouvrir la conversation demandée dans l'URL.
+  //
+  // `?conversation=<id>` est ce que le serveur propose après une action
+  // (`buildResponse` → `conversation(id)`), et c'est aussi ce qu'une
+  // notification peut porter. Sans cet effet, arriver sur
+  // `/espace-equipe/messagerie?conversation=x` affichait la messagerie sans
+  // sélectionner x : le lien était suivi, puis ignoré.
+  //
+  // L'effet ne se déclenche qu'au changement d'identifiant, pas à chaque rendu
+  // (une frappe au clavier ne rouvre donc pas la conversation), et il laisse la
+  // main à l'utilisateur ensuite : changer de conversation met `selected` sur
+  // une autre, ce qui ne relance rien.
+  useEffect(() => {
+    if (!initialConversationId || !canRead) return;
+    if (selectedConversation?.id === initialConversationId) return;
+    // `loadConversation` pose son propre état de chargement AVANT le premier
+    // `await`, ce que la règle `set-state-in-effect` signale. C'est ici le
+    // comportement voulu : l'écran doit montrer qu'il charge la conversation
+    // demandée, pas la précédente. Le désactiver sur cette seule ligne, avec la
+    // raison, vaut mieux que recopier la fonction juste pour l'effet.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadConversation(initialConversationId);
+    // `loadConversation` est stable (useCallback) ; le reprendre ici
+    // rechargerait la conversation à chaque rendu du parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConversationId, canRead, selectedConversation?.id]);
+
   // Gestion du clavier pour la recherche
   const handleKeyDown = useCallback((e) => {
     if (e.key === "Escape") {

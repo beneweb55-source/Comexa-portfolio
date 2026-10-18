@@ -528,7 +528,15 @@ model User {
 
   // Relations inverses pour les soldes
   balances BalanceTransaction[] @relation("UserBalanceTransactions")
-  memberBalances MemberBalance[]
+  memberBalances MemberBalance[] @relation("MemberBalanceOwner")
+  updatedMemberBalances MemberBalance[] @relation("MemberBalanceUpdater")
+  // Relations inverses — messagerie amelioree (ressources partagees, accusés de lecture)
+  messageResourcesShared MessageResource[]
+  messageReadReceipts MessageReadReceipt[]
+  // Relations inverses — repartitions
+  distributionBeneficiaries DistributionBeneficiary[]
+  appliedDistributions ProjectDistribution[]
+  distributionHistories DistributionHistory[]
   roles                   UserRole[]
   refreshTokens           RefreshToken[]
   passwordResetTokens     PasswordResetToken[]
@@ -1129,6 +1137,7 @@ model Project {
   conversations        Conversation[]
   modificationRequests ModificationRequest[]
   reports              Report[]
+  balanceTransactions  BalanceTransaction[]
 
   @@index([clientId])
   @@index([managerId])
@@ -1737,8 +1746,6 @@ model Conversation {
   /// Description du groupe
   groupDescription String?
 
-  /// Ressources partagées dans cette conversation
-  sharedResources MessageResource[]
   isArchived         Boolean   @default(false)
 
   createdAt DateTime  @default(now())
@@ -1801,6 +1808,9 @@ model Message {
 
   /// Ressources partagées dans ce message
   sharedResources MessageResource[]
+
+  /// Accusés de lecture de ce message (un par destinataire)
+  readReceipts MessageReadReceipt[]
 
   attachments MessageAttachment[]
 
@@ -2357,7 +2367,6 @@ model Currency {
   quotes          Quote[]
   invoices        Invoice[]
   payments        Payment[]
-  packageRates    PackageRate[]
 
   // Taux de change
   exchangeRatesFrom ExchangeRate[] @relation("FromCurrency")
@@ -2426,6 +2435,8 @@ model DistributionConfig {
   beneficiaries DistributionBeneficiary[]
   /// Répartitions utilisant cette configuration
   distributions ProjectDistribution[]
+  /// Historiques citant cette configuration comme configuration précédente
+  previousConfigHistories DistributionHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2614,7 +2625,7 @@ model MemberBalance {
   id              String   @id @default(cuid())
   /// Membre concerné
   userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User     @relation("MemberBalanceOwner", fields: [userId], references: [id], onDelete: Cascade)
   /// Devise du solde
   currency        String   @db.VarChar(3)
   /// Solde courant (calculé à partir des transactions)
@@ -2623,7 +2634,7 @@ model MemberBalance {
   lastUpdatedAt   DateTime?
   /// Mis à jour par
   updatedById     String?
-  updatedBy       User?   @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedBy       User?   @relation("MemberBalanceUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
 
   /// Transactions de ce solde
   transactions    BalanceTransaction[]
@@ -2647,7 +2658,11 @@ model BalanceTransaction {
   id                String   @id @default(cuid())
   /// Membre concerné
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user              User     @relation("UserBalanceTransactions", fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Lien vers le solde du membre (une transaction appartient a un solde)
+  memberBalanceId  String?
+  memberBalance    MemberBalance? @relation(fields: [memberBalanceId], references: [id], onDelete: SetNull)
 
   /// Lien vers l'item de répartition (optionnel)
   distributionItemId String?
@@ -2659,7 +2674,7 @@ model BalanceTransaction {
 
   /// Lien vers le paiement (optionnel)
   paymentId         String?
-  payment           Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  payment           Payment?  @relation("PaymentBalanceTransactions", fields: [paymentId], references: [id], onDelete: SetNull)
 
   /// Type de transaction
   type              BalanceTransactionType
@@ -2689,6 +2704,7 @@ model BalanceTransaction {
   @@index([projectId])
   @@index([distributionItemId])
   @@index([paymentId])
+  @@index([memberBalanceId])
   @@map("balance_transactions")
 }
 
