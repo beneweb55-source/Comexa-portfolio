@@ -1289,9 +1289,11 @@
  * CONSOLE COMEXA
  * --------------------------------------------------------------------------
  * Panneau de pilotage conversationnel : un poste de commande, pas un gadget.
- * Aucun emoji, aucun effet "IA" : monogramme `CX`, pictogrammes en trait fin
- * et typographie de la charte. Les deux largeurs (440 / 760 px) existent parce
- * qu'un bilan d'agence et un tableau ne se lisent pas dans une colonne etroite.
+ * Aucun emoji, aucun effet "IA" : L'EMPREINTE OFFICIELLE de Comexa (le
+ * « singe » du logo, servi par /icon.svg — le fichier du favicon, vectoriel,
+ * net a toutes les tailles), pictogrammes en trait fin et typographie de la
+ * charte. Les deux largeurs (440 / 760 px) existent parce qu'un bilan
+ * d'agence et un tableau ne se lisent pas dans une colonne etroite.
  * ======================================================================== */
 
 .cx-console-launcher {
@@ -1379,13 +1381,24 @@
   width: 32px;
   height: 32px;
   border-radius: 10px;
-  background: var(--comexa-ink);
+  /* La marque sur blanc : le degrade bleu du logo garde ses couleurs exactes
+     sur tous les fonds, c'est la regle de l'identite — jamais d'inversion. */
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--comexa-border-soft);
   color: #fff;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.05em;
 }
+.cx-console__monogram img {
+  display: block;
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  pointer-events: none;
+}
 .cx-console__monogram--lg { width: 46px; height: 46px; border-radius: 14px; font-size: 17px; letter-spacing: 0.06em; }
+.cx-console__monogram--lg img { width: 70%; height: 70%; }
 .cx-console__identity { flex: 1 1 160px; min-width: 0; }
 .cx-console__title { margin: 0; font-size: 15px; font-weight: 700; color: var(--comexa-ink); }
 .cx-console__subtitle { margin: 1px 0 0; font-size: 12px; color: var(--comexa-ink-muted); }
@@ -1461,6 +1474,19 @@
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+/* L'avatar du systeme rend la marque, pas un monogramme : a 28 px le logo
+   doit rester net (SVG) et correctement degage (18 % de marge). */
+.cx-console-row__avatar img {
+  display: block;
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.cx-console-row--agent .cx-console-row__avatar {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--comexa-border-soft);
 }
 .cx-console-row--user .cx-console-row__avatar { background: var(--comexa-accent-soft); color: var(--comexa-accent-text); }
 .cx-console-row__content { min-width: 0; max-width: calc(100% - 38px); }
@@ -1809,13 +1835,13 @@
 .cx-console__title { color: #f5f8f4; font-size: 14px; letter-spacing: -0.02em; }
 .cx-console__subtitle { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: #b8c5ba; font-size: 10px; line-height: 1.5; }
 .cx-console__presence { width: 5px; height: 5px; flex: none; border-radius: 50%; background: #d3e7b8; }
-.cx-console__header .cx-console__monogram { width: 36px; height: 36px; border: 1px solid #56634f; background: #d3e7b8; color: #263222; border-radius: 12px; }
+.cx-console__header .cx-console__monogram { width: 36px; height: 36px; border: 1px solid #56634f; background: #fff; color: #263222; border-radius: 12px; }
 .cx-console__icon-btn { color: #dce5dc; border-radius: 10px; }
 .cx-console__icon-btn:hover:not(:disabled) { background: #354038; color: #fff; }
 .cx-console__icon-btn:focus-visible { outline-color: #d3e7b8; }
 .cx-console__body { min-height: 0; padding: 30px 24px; background: radial-gradient(ellipse at 0 0, #edf3e6 0, transparent 65%), var(--chat-paper); scrollbar-width: thin; scrollbar-color: #cbd5c9 transparent; }
 .cx-console__welcome { max-width: 480px; margin: clamp(16px, 5vh, 50px) auto 20px; gap: 16px; }
-.cx-console__monogram--lg { width: 56px; height: 56px; margin-bottom: 8px; border: 1px solid #d9e5d0; border-radius: 19px; background: linear-gradient(135deg, #e5efd8, #f8faf7); color: #364b30; box-shadow: 0 6px 18px #2632220a, inset 0 1px 0 #fff; }
+.cx-console__monogram--lg { width: 56px; height: 56px; margin-bottom: 8px; border: 1px solid #d9e5d0; border-radius: 19px; background: #ffffff; color: #364b30; box-shadow: 0 6px 18px #2632220a, inset 0 1px 0 #fff; }
 .cx-console__eyebrow { color: var(--chat-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; }
 .cx-console__welcome-title { max-width: 16ch; color: var(--chat-ink); font-size: clamp(25px, 3vw, 32px); font-weight: 600; line-height: 1.2; letter-spacing: -0.045em; }
 .cx-console__welcome-text { max-width: 39ch; color: var(--chat-muted); font-size: 13px; line-height: 1.8; }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, MessageCircle, X } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { messageOf } from "@/lib/api";
@@ -13,6 +14,13 @@ import { conversationTitle, isGroupConversation, participantName } from "@/lib/c
 import { appendUnique, messagesFromPage } from "@/lib/chat-messages";
 import { Empty } from "@/components/workspace/ui";
 import { useActionNotification } from "@/components/workspace/ui/ActionNotification";
+import { hasTeamAccess } from "@/lib/access";
+import { spaceForPath } from "@/lib/spaces";
+import {
+  extractResourceRefs,
+  invalidateResourceKeys,
+  resolveResourceRefs,
+} from "./resource-resolver";
 
 /**
  * Composant principal du chat moderne
@@ -55,6 +63,11 @@ export function ChatPanel({
 
   const canWrite = can(user, "message:write:own");
   const canRead = can(user, "conversation:read:own");
+  // Espace courant : c'est lui qui decide OU mene le clic sur une carte
+  // (l'equipe ouvre la fiche d'equipe, le client son portail, le membre sa
+  // liste personnelle). Meme convention que les notifications.
+  const pathname = usePathname();
+  const area = hasTeamAccess(user) ? (spaceForPath(pathname) ?? "team") : "client";
   // Mode « page » : la messagerie remplit la rubrique au lieu de flotter.
   const pageMode = variant === "page";
 
@@ -65,6 +78,7 @@ export function ChatPanel({
     setLoadingMessages(true);
     setMessages([]);
     setNextCursor(null);
+    conversationIdRef.current = conversationId;
 
     try {
       const [{ data: conversation }, page] = await Promise.all([
@@ -133,9 +147,43 @@ export function ChatPanel({
     setMessages((prev) => appendUnique(prev, message));
   }, []);
 
-  // Envoyer un message
-  const handleSend = useCallback(async (content) => {
-    if (!selectedConversation?.id || !content.trim() || sending) return null;
+  /* --- Cartes de ressources partagees ------------------------------------
+     Le fil ne contient que des (type, id). Les cartes se rechargent ici, en
+     un lot par vue de fil, dans le PERIMETRE DU LECTEUR : deux membres de la
+     meme conversation ne voient pas la meme carte si l'un n'a pas acces a la
+     ressource. L'effet se re-declenche a chaque ajout de message — les refs
+     deja connues sont servies par le cache du resolver, la liste "manquante"
+     est vide, aucune requete ne part. ------------------------------------ */
+  const [resourceViews, setResourceViews] = useState({});
+  const conversationIdRef = useRef(null);
+
+  useEffect(() => {
+    // Le resolver repond immediatement (microtask) quand tout est en cache, y
+    // compris « rien a resoudre » : un fil sans partage rend `{}` et remplace
+    // ainsi les vues de la conversation precedente, sans setState synchrone.
+    const refs = extractResourceRefs(messages);
+    let cancelled = false;
+    resolveResourceRefs(request, refs).then((views) => {
+      if (!cancelled) setResourceViews(views);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, request]);
+
+  const retryResourceViews = useCallback(() => {
+    const refs = extractResourceRefs(messages);
+    if (refs.length === 0) return;
+    invalidateResourceKeys(refs.map((ref) => `${ref.resourceType}:${ref.resourceId}`));
+    resolveResourceRefs(request, refs).then(setResourceViews);
+  }, [messages, request]);
+
+  // Envoyer un message — avec, si l'utilisateur en a joints, les ressources
+  // partagees sous forme de couples (type, id). Pas d'URL, pas de copie : la
+  // carte se relit a l'affichage dans le perimetre de CHAQUE lecteur.
+  const handleSend = useCallback(async (content, sharedResources = []) => {
+    if (!selectedConversation?.id || sending) return null;
+    if (!content.trim() && sharedResources.length === 0) return null;
 
     setSending(true);
 
@@ -144,7 +192,15 @@ export function ChatPanel({
       // `.json()`. Et le corps se donne en OBJET — `apiFetch` le serialise.
       const { data: message } = await request(
         `/conversations/${selectedConversation.id}/messages`,
-        { method: "POST", body: { body: content } },
+        {
+          method: "POST",
+          body: {
+            body: content,
+            ...(sharedResources.length > 0
+              ? { sharedResources: sharedResources.map((r) => ({ resourceType: r.resourceType, resourceId: r.resourceId })) }
+              : {}),
+          },
+        },
       );
 
       appendMessage(message);
@@ -239,6 +295,10 @@ export function ChatPanel({
 
   // Gestion du clavier pour la recherche
   const handleKeyDown = useCallback((e) => {
+    // Le mode concentration est modalement sus : ses raccourcis gardent la
+    // main, et un Echap double qui refermait la messagerie derriere l'ecran
+    // de session etait un bug, pas une economie de code.
+    if (document.querySelector(".sui-focus")) return;
     if (e.key === "Escape") {
       if (isExpanded) {
         onToggleExpand?.();
@@ -363,6 +423,14 @@ export function ChatPanel({
                   </button>
                 ) : null}
 
+                {/* L'empreinte Comexa sur la messagerie : la marque officielle
+                    (le « singe » du logo, `app/icon.svg`) en guise d'avatar du
+                    service — pas un logo re-dessine, le meme fichier que le
+                    favicon, donc net a toute taille. */}
+                <span className="sui-chat__brand" aria-hidden="true">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/icon.svg" alt="" width={26} height={26} draggable="false" />
+                </span>
                 <h2 className="sui-section__title">Messagerie</h2>
               </div>
 
@@ -465,6 +533,9 @@ export function ChatPanel({
                     isCurrentUser={message.senderId === user?.id}
                     showAvatar={!isExpanded && !isMinimized}
                     showTimestamp={isExpanded}
+                    resourceViews={resourceViews}
+                    area={area}
+                    onRetryResources={retryResourceViews}
                   />
                 ))}
                 <div ref={messagesEndRef} />

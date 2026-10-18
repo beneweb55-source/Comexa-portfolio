@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditService } from '../../common/audit/audit.service.js';
-import { AccessPolicy } from '../../common/auth/principal.js';
+import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { resolvePagination } from '../../common/dto/pagination.dto.js';
 import { AppException } from '../../common/errors/app-error.js';
 import type { Prisma } from '../../generated/prisma/client.js';
@@ -18,6 +18,12 @@ import {
 } from './conversation-access.js';
 import type { MessageListQueryDto, SendMessageDto } from './dto/messaging.dto.js';
 import { MESSAGE_CREATED, type MessageCreatedEvent } from './messaging.events.js';
+import {
+  normalizeSharedResourceRefs,
+  sharedResourcesPreview,
+  type ResourceCardView,
+} from './shared-resource-card.js';
+import { SharedResourcesService } from './shared-resources.service.js';
 
 /**
  * MESSAGES — ecriture, lecture, etat de lecture.
@@ -52,6 +58,16 @@ const MESSAGE_SELECT = {
       document: { select: { name: true, mimeType: true, sizeBytes: true, visibility: true } },
     },
   },
+  // LE COUPLE (type, id) ET RIEN D'AUTRE. Les colonnes `previewTitle` /
+  // `previewText` restent en base pour l'audit et la recherche : elles ne
+  // sortent JAMAIS par l'API. Un participant sans droit sur le projet partage
+  // doit voir une carte muette, pas le titre que l'emetteur, lui, avait le
+  // droit de lire — c'est la mise en oeuvre littérale de « le partage ne
+  // contourne pas les permissions », et elle ne depend pas d'un `if` oublie
+  // quelque part : le `select` ne transporte simplement pas la colonne.
+  sharedResources: {
+    select: { id: true, resourceType: true, resourceId: true, createdAt: true },
+  },
 } satisfies Prisma.MessageSelect;
 
 /** La ligne de message telle que l'API l'expose (auteur et pieces jointes inclus). */
@@ -76,6 +92,7 @@ export class MessageService {
     private readonly notifications: NotificationService,
     private readonly events: EventEmitter2,
     private readonly audit: AuditService,
+    private readonly sharedResources: SharedResourcesService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -162,11 +179,18 @@ export class MessageService {
    * d'abord annoncerait un message qu'un echec d'ecriture ferait disparaitre —
    * et un destinataire qui ouvre une conversation pour rien cesse de croire aux
    * notifications.
+   *
+   * LES RESSOURCES PARTAGEES SONT VALIDEES AVANT ECRIRE. Chaque couple
+   * (type, id) est relu dans le PERIMETRE DE L'EMETTEUR : on ne peut partager
+   * que ce qu'on peut lire, et un partage partiel — trois cartes sur quatre
+   * acceptees — serait pire qu'un refus : l'emetteur croirait avoir tout montre.
+   * Le refus est un 422 unique, le message entier reste a ecrire.
    */
   async send(
     policy: AccessPolicy,
     conversationId: string,
     dto: SendMessageDto,
+    user: AuthenticatedUser,
   ): Promise<MessageRow> {
     policy.requireScope('message', 'write', ['own']);
 
@@ -184,6 +208,36 @@ export class MessageService {
 
     const body = dto.body;
     const uniqueAttachments = [...new Set(dto.attachmentIds ?? [])];
+
+    const normalizedRefs = normalizeSharedResourceRefs(dto.sharedResources);
+    if (normalizedRefs.rejected > 0) {
+      throw AppException.unprocessable(
+        'MESSAGE_RESOURCE_UNSUPPORTED',
+        "Une ressource partagee est d'un type inconnu ou sans identifiant.",
+      );
+    }
+    if (body.trim().length === 0 && normalizedRefs.refs.length === 0) {
+      throw AppException.unprocessable(
+        'MESSAGE_EMPTY',
+        'Un message porte un texte, une ressource partagee, ou les deux.',
+      );
+    }
+
+    let resourceCards: readonly ResourceCardView[] = [];
+    if (normalizedRefs.refs.length > 0) {
+      resourceCards = await this.sharedResources.resolveAll(user, normalizedRefs.refs);
+      if (resourceCards.some((card) => !card.available)) {
+        // Un seul mot pour « n'existe plus » et « hors de votre perimetre » :
+        // la distinction confirmerait l'existence de lignes que le porteur ne
+        // doit pas pouvoir enumerer.
+        throw AppException.unprocessable(
+          'MESSAGE_RESOURCE_UNAVAILABLE',
+          "Une ressource a partager est introuvable ou hors de votre perimetre d'acces.",
+        );
+      }
+    }
+    const sharedPreviewText =
+      resourceCards.length > 0 ? previewOf(sharedResourcesPreview(resourceCards)) : '';
 
     const message = await this.prisma.$transaction(async (tx) => {
       if (dto.replyToId) {
@@ -228,6 +282,19 @@ export class MessageService {
           attachments: {
             create: uniqueAttachments.map((documentId) => ({ documentId })),
           },
+          // Le snapshot (titre, statut au moment du partage) est ecrit pour
+          // l'audit et pour une future recherche « ou ce projet a-t-il ete
+          // cite ? ». Il n'est lu par AUCUNE route : la carte affiche toujours
+          // l'etat courant resolu pour le lecteur.
+          sharedResources: {
+            create: resourceCards.map((card) => ({
+              resourceType: card.resourceType,
+              resourceId: card.resourceId,
+              previewTitle: card.title,
+              previewText: card.statusKey,
+              sharedById: policy.userId,
+            })),
+          },
         },
         select: MESSAGE_SELECT,
       });
@@ -236,7 +303,9 @@ export class MessageService {
         where: { id: conversationId },
         data: {
           lastMessageAt: created.createdAt,
-          lastMessagePreview: previewOf(body),
+          // Corps vide + ressources : l'apercu de la liste devient le resume du
+          // partage (« 📎 Refonte du site — Projet »), pas une ligne vide.
+          lastMessagePreview: previewOf(body) || sharedPreviewText,
         },
       });
 
@@ -259,7 +328,12 @@ export class MessageService {
       await this.notifications.notifyMany(recipients, {
         type: 'MESSAGE_RECEIVED',
         title: 'Nouveau message',
-        body: previewOf(body),
+        // La notification ne porte QUE le resume texte. Ni le type de
+        // ressource, ni le titre partage : une notification est lue sur
+        // l'ecran verrouille d'un tier, parfois par un autre membre du groupe
+        // sans droit sur la ligne. La carte, elle, se relit dans la
+        // conversation.
+        body: previewOf(body) || 'a partagé une ressource',
         link: `/espace/messages/${conversationId}`,
         entityType: 'Conversation',
         entityId: conversationId,
@@ -273,7 +347,11 @@ export class MessageService {
       action: 'MESSAGE_SENT',
       entityType: 'Message',
       entityId: message.id,
-      after: { conversationId, attachmentCount: uniqueAttachments.length },
+      after: {
+        conversationId,
+        attachmentCount: uniqueAttachments.length,
+        sharedResourceCount: resourceCards.length,
+      },
     });
 
     return message;

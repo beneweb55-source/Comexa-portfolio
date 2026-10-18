@@ -1,8 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
+import { FileText } from "lucide-react";
 import { formatDate, formatTime } from "@/lib/api";
 import { useAuth } from "@/lib/session";
+import { SharedResourceCard } from "./SharedResourceCard";
+import { resourceKey } from "@/lib/chat-resources";
 
 /**
  * Message du chat.
@@ -10,13 +13,20 @@ import { useAuth } from "@/lib/session";
  * Habillage : design system « soft UI pastel dans une coque noire » — mes
  * messages en bulle noire (l'accent unique de la charte), ceux des autres en
  * bulle blanche, les messages système en pilule jaune centrée.
+ *
+ * LES RESSOURCES PARTAGEES NE SONT PAS DU TEXTE. Le message ne transporte que
+ * des couples (type, id) ; la carte, elle, se relit dans le perimetre du
+ * LECTEUR (voir `SharedResourceCard`). Une bulle peut donc etre vide de texte
+ * et pleine d'infos — un « partage pur » est un message à part entière.
  */
 export function ChatMessage({
   message,
   isCurrentUser,
   showAvatar = false,
   showTimestamp = true,
-  onReact,
+  resourceViews = {},
+  area = "team",
+  onRetryResources,
 }) {
   const { user } = useAuth();
   const userId = user?.id;
@@ -25,6 +35,9 @@ export function ChatMessage({
   // Déterminer le type de message
   const isSystem = message.type === "SYSTEM";
   const isDeleted = message.deletedAt;
+
+  const sharedResources = message.sharedResources ?? [];
+  const hasBody = typeof message.body === "string" && message.body.trim().length > 0;
 
   // Formatage de la date
   const formattedDate = useMemo(() => {
@@ -90,22 +103,28 @@ export function ChatMessage({
             <em>Message supprimé</em>
           ) : (
             <>
-              {message.body}
+              {hasBody ? message.body : null}
 
               {/* Pieces jointes : l'API renvoie les documents lies au message. */}
               {message.attachments?.length > 0 ? (
-                <div className="flex flex-col gap-2">
+                <div className={`sui-chat__cards${hasBody ? "" : " sui-chat__cards--alone"}`}>
                   {message.attachments.map((attachment) => (
                     <DocumentPreview key={attachment.documentId ?? attachment.id} attachment={attachment} />
                   ))}
                 </div>
               ) : null}
 
-              {/* Afficher les ressources partagées */}
-              {message.sharedResources?.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                  {message.sharedResources.map((resource) => (
-                    <SharedResourcePreview key={resource.id} resource={resource} />
+              {/* Ressources partagees : cartes vivantes, relues a l'affichage. */}
+              {sharedResources.length > 0 ? (
+                <div className={`sui-chat__cards${hasBody ? "" : " sui-chat__cards--alone"}`}>
+                  {sharedResources.map((resource) => (
+                    <SharedResourceCard
+                      key={resource.id ?? resourceKey(resource)}
+                      resource={resource}
+                      view={resourceViews[resourceKey(resource)]}
+                      area={area}
+                      onRetry={onRetryResources}
+                    />
                   ))}
                 </div>
               ) : null}
@@ -113,7 +132,7 @@ export function ChatMessage({
           )}
         </div>
 
-        {/* Statut de lecture (pour les messages envoyés) */}
+        {/* Statut de lecture (pour les messages envoyes) */}
         {isMine && message.readReceipts?.length > 0 ? (
           <p className="sui-chat__preview" style={{ textAlign: "right" }}>
             Lu par {message.readReceipts.length}
@@ -131,62 +150,23 @@ export function ChatMessage({
 }
 
 /**
- * Apercu d'une piece jointe (document lie au message).
+ * Aperçu d'une pièce jointe (document lié au message).
  */
 function DocumentPreview({ attachment }) {
   const document = attachment?.document;
   const name = document?.name ?? "Document";
+  const size = Number.isFinite(document?.sizeBytes) ? `${Math.round(document.sizeBytes / 1024)} Ko` : null;
 
   return (
     <div className="sui-chat__attachment">
-      <span aria-hidden="true">📎</span>
-      <div className="min-w-0">
+      <span className="sui-chat__ref-icon" data-tone="plain" aria-hidden="true">
+        <FileText size={16} strokeWidth={1.9} />
+      </span>
+      <div className="sui-chat__attachment__body">
         <strong>{name}</strong>
-        {document?.mimeType ? <span>{document.mimeType}</span> : null}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Composant pour l'aperçu d'une ressource partagée
- */
-function SharedResourcePreview({ resource }) {
-  const getResourceIcon = (type) => {
-    switch (type) {
-      case "PROJECT": return "📁";
-      case "TASK": return "✓";
-      case "CLIENT": return "👤";
-      case "QUOTE": return "💰";
-      case "INVOICE": return "📄";
-      case "PAYMENT": return "💳";
-      case "DOCUMENT": return "📎";
-      case "FOLDER": return "📂";
-      default: return "🔗";
-    }
-  };
-
-  const getTypeLabel = (type) => {
-    switch (type) {
-      case "PROJECT": return "Projet";
-      case "TASK": return "Tâche";
-      case "CLIENT": return "Client";
-      case "QUOTE": return "Devis";
-      case "INVOICE": return "Facture";
-      case "PAYMENT": return "Paiement";
-      case "DOCUMENT": return "Document";
-      case "FOLDER": return "Dossier";
-      default: return "Ressource";
-    }
-  };
-
-  return (
-    <div className="sui-chat__attachment">
-      <span aria-hidden="true">{getResourceIcon(resource.resourceType)}</span>
-      <div className="flex-1 min-w-0">
-        <strong>{getTypeLabel(resource.resourceType)}</strong>
-        {resource.previewTitle ? <span>{resource.previewTitle}</span> : null}
-        {resource.previewText ? <span>{resource.previewText}</span> : null}
+        {document?.mimeType || size ? (
+          <span>{[document?.mimeType, size].filter(Boolean).join(" · ")}</span>
+        ) : null}
       </div>
     </div>
   );

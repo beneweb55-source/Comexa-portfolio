@@ -52,21 +52,21 @@ export function ChatWrapper({ defaultMinimized = true, variant = "floating", ini
     );
   }
 
-  // Si mode minimaliste, afficher juste le bouton flottant
+  // Si mode minimaliste, afficher juste le bouton flottant. La bulle reprend
+  // la charte du dashboard (coque noire, rayon pilule) et L'EMPREINTE OFFICIELLE
+  // de Comexa — l'ancien dégradé bleu « générique chat » jurait avec tout le
+  // reste et ne disait rien de la marque.
   if (isMinimized && !pageMode) {
     return (
       <button
         type="button"
         onClick={toggleMinimized}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-[var(--comexa-blue-500)] to-[var(--comexa-blue-600)] text-white flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200 z-40"
+        className="sui-chat__fab"
         title="Ouvrir la messagerie"
-        style={{
-          boxShadow: "0 10px 40px -10px rgba(30, 134, 224, 0.4)",
-        }}
+        aria-label="Ouvrir la messagerie"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon.svg" alt="" width={26} height={26} draggable="false" />
       </button>
     );
   }
@@ -127,15 +127,12 @@ export function ChatInLayout({
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className={`fixed ${positions.button} w-14 h-14 rounded-full bg-gradient-to-br from-[var(--comexa-blue-500)] to-[var(--comexa-blue-600)] text-white flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200 z-40`}
+        className={`sui-chat__fab ${positions.button === "bottom-6 left-6" ? "sui-chat__fab--left" : ""}`.trim()}
         title="Ouvrir la messagerie"
-        style={{
-          boxShadow: "0 10px 40px -10px rgba(30, 134, 224, 0.4)",
-        }}
+        aria-label="Ouvrir la messagerie"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-        </svg>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icon.svg" alt="" width={26} height={26} draggable="false" />
       </button>
     );
   }

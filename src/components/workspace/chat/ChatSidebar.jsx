@@ -1,13 +1,36 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Plus, Search, SearchX } from "lucide-react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
 import { useListing } from "@/lib/use-listing";
 import { Empty, Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
-import { conversationTitle, isGroupConversation, participantName } from "@/lib/conversation-labels";
+import { conversationTitle, isGroupConversation } from "@/lib/conversation-labels";
+import { conversationMatches, foldText, highlightParts } from "@/lib/chat-search.mjs";
+
+/**
+ * Peinture des correspondances. Le decoupage vient de `chat-search.mjs` (pur,
+ * teste sans DOM) ; ici on ne fait que poser des `<mark>`. JAMAIS de HTML
+ * construit : le texte reste du texte React, et une conversation intitulee
+ * `<img onerror=…>` s'affiche telle quelle, entre chevrons.
+ */
+function Highlighted({ text, needle }) {
+  return (
+    <>
+      {highlightParts(text, needle).map((part, index) =>
+        part.hit ? (
+          <mark key={index} className="sui-chat__hit">
+            {part.text}
+          </mark>
+        ) : (
+          <span key={index}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 /**
  * Barre laterale du chat : la liste des conversations du porteur.
@@ -32,6 +55,7 @@ export function ChatSidebar({
 }) {
   const { request, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef(null);
   const [filter, setFilter] = useState("all"); // all, unread, archived
   const [creating, setCreating] = useState(false);
   const [conversationPage, setConversationPage] = useState(1);
@@ -67,23 +91,38 @@ export function ChatSidebar({
     [onSelectConversation, request],
   );
 
-  // Filtres appliques a la page chargee (voir la regle 1 ci-dessus).
+  // Raccourci « / » : focus la recherche, comme dans les outils que l'on
+  // ouvre vingt fois par jour. Seulement quand RIEN ne reclame deja la frappe
+  // (champs, contenteditable, picker ouvert) — sinon le « / » d'une phrase en
+  // cours partirait dans le vide.
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Filtres appliques a la page chargee (voir la regle 1 ci-dessus). La
+  // recherche passe par `conversationMatches` (lib/chat-search.mjs, testee sans
+  // DOM) : sujet, apercu, noms et adresses des participants, insensible a la
+  // casse, respectueuse des accents. On y ajoute le TITRE AFFICHE : un groupe
+  // sans sujet se nomme de ses participants, et c'est sous ce nom-la qu'on le
+  // retrouve — le ignorer serait un faux negatif garanti.
   const visibleConversations = (conversations.items ?? []).filter((conversation) => {
     if (filter === "unread" && !(conversation.unreadCount > 0)) return false;
     if (filter === "archived" && !conversation.isArchived) return false;
-
-    const needle = searchQuery.trim().toLowerCase();
-    if (!needle) return true;
-    const haystack = [
-      conversation.subject ?? "",
-      conversation.lastMessagePreview ?? "",
-      ...(conversation.participants ?? []).map((participant) => participantName(participant)),
-    ]
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(needle);
+    if (!searchQuery.trim()) return true;
+    if (conversationMatches(conversation, searchQuery)) return true;
+    return foldText(conversationTitle(conversation, user?.id)).includes(foldText(searchQuery));
   });
 
+  const isSearching = searchQuery.trim().length > 0;
   // Compter les conversations non lues de la page chargee.
   const unreadCount = (conversations.items ?? []).reduce(
     (sum, conversation) => sum + (conversation.unreadCount || 0),
@@ -109,18 +148,57 @@ export function ChatSidebar({
         ) : null}
       </div>
 
-      {/* Recherche et filtres, sur le fond de panneau. */}
+      {/* Recherche et filtres, sur le fond de panneau.
+          LE CHAMP DE RECHERCHE EST UN OUTIL, PAS UN ORNEMENT : anneau de focus
+          propre, bouton d'effacement des qu'il y a du texte, rappel du
+          raccourci « / » quand il est vide, compteur de resultats annonce au
+          lecteur d'ecran. Et comme la recherche est locale (regle 1), le
+          compteur est exact : il compte ce qui est affiche, pas ce qui
+          pourrait exister ailleurs. */}
       <div className="sui-chat__tools">
-        <label className="sui-search">
-          <Search size={17} strokeWidth={1.75} aria-hidden="true" />
-          <span className="sui-visually-hidden">Rechercher une conversation</span>
+        <div className={`sui-search sui-search--chat${isSearching ? " is-filled" : ""}`} role="search">
+          <span className="sui-search__icon" aria-hidden="true">
+            <Search size={16} strokeWidth={2.1} />
+          </span>
+          <label className="sui-visually-hidden" htmlFor="chat-search">Rechercher une conversation</label>
           <input
+            id="chat-search"
+            ref={searchRef}
             type="search"
+            autoComplete="off"
+            spellCheck="false"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Rechercher…"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                if (isSearching) setSearchQuery("");
+                else event.currentTarget.blur();
+              }
+              if (event.key === "Enter") event.preventDefault();
+            }}
+            placeholder="Rechercher une conversation, un membre…"
+            aria-describedby="chat-search-state"
           />
-        </label>
+          {isSearching ? (
+            <button
+              type="button"
+              className="sui-search__clear"
+              onClick={() => { setSearchQuery(""); searchRef.current?.focus(); }}
+              aria-label="Effacer la recherche"
+            >
+              <SearchX size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+          ) : (
+            <kbd className="sui-search__kbd" aria-hidden="true">/</kbd>
+          )}
+        </div>
+        <p className="sui-visually-hidden" id="chat-search-state" aria-live="polite">
+          {isSearching
+            ? `${visibleConversations.length} conversation${visibleConversations.length > 1 ? "s" : ""} trouvée${visibleConversations.length > 1 ? "s" : ""}`
+            : ""}
+        </p>
         <div className="sui-chat__filters">
           {FILTERS.map((item) => (
             <button
@@ -151,11 +229,20 @@ export function ChatSidebar({
 
         {conversations.items !== null && visibleConversations.length === 0 ? (
           <div className="p-4">
-            <Empty>
-              {searchQuery
-                ? "Aucune conversation ne correspond à cette recherche."
-                : "Aucune conversation trouvée."}
-            </Empty>
+            {isSearching ? (
+              <Empty
+                icon={SearchX}
+                action={
+                  <button type="button" className="sui-btn sui-btn--sm" onClick={() => { setSearchQuery(""); searchRef.current?.focus(); }}>
+                    Effacer la recherche
+                  </button>
+                }
+              >
+                Aucune conversation ne correspond à «&nbsp;{searchQuery.trim()}&nbsp;».
+              </Empty>
+            ) : (
+              <Empty>Aucune conversation trouvée.</Empty>
+            )}
           </div>
         ) : null}
 
@@ -179,7 +266,7 @@ export function ChatSidebar({
 
               <span className="sui-chat__meta">
                 <span className="sui-chat__top">
-                  <span className="sui-chat__title">{title}</span>
+                  <span className="sui-chat__title"><Highlighted text={title} needle={searchQuery} /></span>
                   {conversation.lastMessageAt ? (
                     <span className="sui-chat__time">{formatDate(conversation.lastMessageAt)}</span>
                   ) : null}
@@ -191,7 +278,7 @@ export function ChatSidebar({
                   {conversation.isArchived ? " · archivée" : ""}
                 </span>
                 {conversation.lastMessagePreview ? (
-                  <span className="sui-chat__preview">{conversation.lastMessagePreview}</span>
+                  <span className="sui-chat__preview"><Highlighted text={conversation.lastMessagePreview} needle={searchQuery} /></span>
                 ) : null}
               </span>
 
