@@ -1,5 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  type DistributionConfig,
+  type ProjectDistribution,
+  DistributionBaseType,
+  BeneficiaryType,
+  DistributionStatus,
+  DistributionItemStatus,
+  DistributionChangeType,
+  BalanceTransactionType,
+} from '../../generated/prisma/client.js';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { AccessPolicy, SCOPE_ANY } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
@@ -24,6 +34,10 @@ import { PaymentStatus } from '../../generated/prisma/enums.js';
  * - Protection contre les doubles traitements
  */
 
+type DistributionConfigWithBeneficiaries = Prisma.DistributionConfigGetPayload<{
+  include: { beneficiaries: true };
+}>;
+
 const ROUND_HALF_UP = Prisma.Decimal.ROUND_HALF_UP;
 const CENTS = 2;
 
@@ -42,7 +56,7 @@ export class DistributionService {
   /**
    * Obtenir la configuration active
    */
-  async getActiveConfig(policy: AccessPolicy): Promise<Prisma.DistributionConfig | null> {
+  async getActiveConfig(policy: AccessPolicy): Promise<DistributionConfigWithBeneficiaries | null> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
     return this.prisma.distributionConfig.findFirst({
@@ -59,7 +73,7 @@ export class DistributionService {
   /**
    * Obtenir une configuration par ID
    */
-  async getConfigById(id: string, policy: AccessPolicy): Promise<Prisma.DistributionConfig | null> {
+  async getConfigById(id: string, policy: AccessPolicy): Promise<DistributionConfigWithBeneficiaries | null> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
     return this.prisma.distributionConfig.findUnique({
@@ -76,7 +90,7 @@ export class DistributionService {
   /**
    * Lister toutes les configurations
    */
-  async listConfigs(policy: AccessPolicy): Promise<Prisma.DistributionConfig[]> {
+  async listConfigs(policy: AccessPolicy): Promise<DistributionConfigWithBeneficiaries[]> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
     return this.prisma.distributionConfig.findMany({
@@ -94,7 +108,7 @@ export class DistributionService {
   /**
    * Valider qu'une configuration a un total de 100%
    */
-  async validateConfig(config: Prisma.DistributionConfig): Promise<void> {
+  async validateConfig(config: DistributionConfigWithBeneficiaries): Promise<void> {
     const beneficiaries = config.beneficiaries || [];
     const total = beneficiaries.reduce(
       (sum, b) => sum.plus(b.percentage),
@@ -120,11 +134,11 @@ export class DistributionService {
     data: {
       name: string;
       description?: string;
-      baseType?: Prisma.DistributionBaseType;
+      baseType?: DistributionBaseType;
       effectiveDate?: Date;
       endDate?: Date;
       beneficiaries: {
-        beneficiaryType: Prisma.BeneficiaryType;
+        beneficiaryType: BeneficiaryType;
         name: string;
         percentage: Prisma.Decimal | string | number;
         userId?: string;
@@ -133,7 +147,7 @@ export class DistributionService {
     },
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.DistributionConfig> {
+  ): Promise<DistributionConfig> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     // Si une configuration est déjà active, la désactiver
@@ -171,7 +185,7 @@ export class DistributionService {
         data: {
           name: data.name,
           description: data.description,
-          baseType: data.baseType ?? Prisma.DistributionBaseType.COLLECTED_AMOUNT,
+          baseType: data.baseType ?? DistributionBaseType.COLLECTED_AMOUNT,
           isActive: true,
           effectiveDate: data.effectiveDate ?? new Date(),
           endDate: data.endDate,
@@ -209,13 +223,13 @@ export class DistributionService {
     data: {
       name?: string;
       description?: string;
-      baseType?: Prisma.DistributionBaseType;
+      baseType?: DistributionBaseType;
       effectiveDate?: Date;
       endDate?: Date;
       isActive?: boolean;
       beneficiaries?: {
         id?: string;
-        beneficiaryType: Prisma.BeneficiaryType;
+        beneficiaryType: BeneficiaryType;
         name: string;
         percentage: Prisma.Decimal | string | number;
         userId?: string;
@@ -225,7 +239,7 @@ export class DistributionService {
     },
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.DistributionConfig> {
+  ): Promise<DistributionConfig> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     const existing = await this.prisma.distributionConfig.findUniqueOrThrow({
@@ -308,7 +322,7 @@ export class DistributionService {
   /**
    * Supprimer une configuration
    */
-  async deleteConfig(id: string, actor: { id: string }, policy: AccessPolicy): Promise<Prisma.DistributionConfig> {
+  async deleteConfig(id: string, actor: { id: string }, policy: AccessPolicy): Promise<DistributionConfig> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     const existing = await this.prisma.distributionConfig.findUniqueOrThrow({
@@ -358,7 +372,7 @@ export class DistributionService {
     projectId: string,
     configId: string | undefined,
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution> {
+  ): Promise<ProjectDistribution> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     // Récupérer le projet avec ses factures et paiements
@@ -378,7 +392,7 @@ export class DistributionService {
         },
         // Récupérer la dernière répartition CALCULATED ou APPLIED
         distributions: {
-          where: { deletedAt: null },
+          where: { status: { in: [DistributionStatus.CALCULATED, DistributionStatus.APPLIED] } },
           orderBy: { calculatedAt: 'desc' },
           take: 1,
           include: { items: true },
@@ -419,8 +433,7 @@ export class DistributionService {
     const existingPending = await this.prisma.projectDistribution.findFirst({
       where: {
         projectId,
-        status: { in: [Prisma.DistributionStatus.PENDING, Prisma.DistributionStatus.CALCULATED] },
-        deletedAt: null,
+        status: { in: [DistributionStatus.PENDING, DistributionStatus.CALCULATED] },
       },
     });
 
@@ -442,7 +455,7 @@ export class DistributionService {
         beneficiaryId: beneficiary.id,
         calculatedAmount: amount,
         currency: project.currency,
-        status: Prisma.DistributionItemStatus.PENDING,
+        status: DistributionItemStatus.PENDING,
       };
     });
 
@@ -452,10 +465,11 @@ export class DistributionService {
       new Prisma.Decimal(0),
     );
 
-    if (!totalDistributed.equals(totalCollected)) {
+    const lastItem = items.at(-1);
+    if (!totalDistributed.equals(totalCollected) && lastItem) {
       // Ajuster les arrondis sur le dernier item
       const difference = totalCollected.minus(totalDistributed);
-      items[items.length - 1].calculatedAmount = items[items.length - 1].calculatedAmount.plus(difference);
+      lastItem.calculatedAmount = lastItem.calculatedAmount.plus(difference);
     }
 
     // Vérifier à nouveau
@@ -474,11 +488,11 @@ export class DistributionService {
     // Créer la répartition
     return this.prisma.$transaction(async (tx) => {
       // Si une répartition APPLIED existe, la marquer comme PENDING
-      const lastApplied = project.distributions.find(d => d.status === Prisma.DistributionStatus.APPLIED);
+      const lastApplied = project.distributions.find(d => d.status === DistributionStatus.APPLIED);
       if (lastApplied) {
         await tx.projectDistribution.update({
           where: { id: lastApplied.id },
-          data: { status: Prisma.DistributionStatus.PENDING },
+          data: { status: DistributionStatus.PENDING },
         });
 
         // Écrire dans l'historique
@@ -486,7 +500,7 @@ export class DistributionService {
           data: {
             distributionId: lastApplied.id,
             changedById: policy.userId,
-            changeType: Prisma.DistributionChangeType.PAYMENT_RECEIVED,
+            changeType: DistributionChangeType.PAYMENT_RECEIVED,
             newValues: { status: 'PENDING' },
           },
         });
@@ -499,7 +513,7 @@ export class DistributionService {
           baseAmount: totalCollected,
           baseCurrency: project.currency,
           totalPercentage: new Prisma.Decimal(100),
-          status: Prisma.DistributionStatus.CALCULATED,
+          status: DistributionStatus.CALCULATED,
           calculatedAt: new Date(),
           items: { create: items },
         },
@@ -507,11 +521,13 @@ export class DistributionService {
       });
 
       await tx.auditLog.create({
-        actorId: policy.userId,
-        action: 'distribution:calculate',
-        entityType: 'ProjectDistribution',
-        entityId: distribution.id,
-        after: distribution,
+        data: {
+          actorId: policy.userId,
+          action: 'distribution:calculate',
+          entityType: 'ProjectDistribution',
+          entityId: distribution.id,
+          after: JSON.parse(JSON.stringify(distribution)) as Prisma.InputJsonValue,
+        },
       });
 
       return distribution;
@@ -530,13 +546,13 @@ export class DistributionService {
   async applyDistribution(
     distributionId: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution> {
+  ): Promise<ProjectDistribution> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     return this.prisma.$transaction(async (tx) => {
       // Récupérer la répartition avec ses items
       const distribution = await tx.projectDistribution.findUniqueOrThrow({
-        where: { id: distributionId, deletedAt: null },
+        where: { id: distributionId, status: { not: DistributionStatus.CANCELLED } },
         include: {
           items: {
             include: {
@@ -548,7 +564,7 @@ export class DistributionService {
       });
 
       // Vérifier qu'elle est CALCULATED
-      if (distribution.status !== Prisma.DistributionStatus.CALCULATED) {
+      if (distribution.status !== DistributionStatus.CALCULATED) {
         throw AppException.badRequest(
           'INVALID_STATUS',
           `La répartition doit être CALCULATED (actuelle: ${distribution.status})`,
@@ -572,8 +588,7 @@ export class DistributionService {
       const existingApplied = await tx.projectDistribution.findFirst({
         where: {
           projectId: distribution.projectId,
-          status: Prisma.DistributionStatus.APPLIED,
-          deletedAt: null,
+          status: DistributionStatus.APPLIED,
         },
       });
 
@@ -588,8 +603,7 @@ export class DistributionService {
       const lastApplied = await tx.projectDistribution.findFirst({
         where: {
           projectId: distribution.projectId,
-          status: Prisma.DistributionStatus.APPLIED,
-          deletedAt: null,
+          status: DistributionStatus.APPLIED,
         },
         include: { items: true },
         orderBy: { appliedAt: 'desc' },
@@ -597,7 +611,7 @@ export class DistributionService {
 
       // Pour chaque item, créer les transactions de solde (si MEMBER)
       for (const item of distribution.items) {
-        if (item.beneficiary.beneficiaryType === Prisma.BeneficiaryType.MEMBER) {
+        if (item.beneficiary.beneficiaryType === BeneficiaryType.MEMBER) {
           if (!item.beneficiary.userId) {
             throw AppException.internal(
               'MISSING_USER_ID',
@@ -617,13 +631,12 @@ export class DistributionService {
             await this.balanceService.createTransaction(
               {
                 userId: item.beneficiary.userId,
-                type: Prisma.BalanceTransactionType.CREDIT,
+                type: BalanceTransactionType.CREDIT,
                 amount: delta,
                 currency: distribution.baseCurrency,
-                description: `Répartition projet ${distribution.project.name} (${distribution.project.reference})`,
+                description: `Répartition projet ${distribution.project.name} (${distribution.project.code ?? distribution.project.id})`,
                 distributionItemId: item.id,
                 projectId: distribution.projectId,
-                distributionId: distribution.id,
               },
               policy,
               tx,
@@ -635,7 +648,7 @@ export class DistributionService {
               data: {
                 creditedAmount: item.calculatedAmount,
                 creditedAt: new Date(),
-                status: Prisma.DistributionItemStatus.CREDITED,
+                status: DistributionItemStatus.CREDITED,
               },
             });
           } else if (delta.lessThan(0)) {
@@ -643,13 +656,12 @@ export class DistributionService {
             await this.balanceService.createTransaction(
               {
                 userId: item.beneficiary.userId,
-                type: Prisma.BalanceTransactionType.DEBIT,
+                type: BalanceTransactionType.DEBIT,
                 amount: delta.abs(),
                 currency: distribution.baseCurrency,
                 description: `Ajustement répartition projet ${distribution.project.name}`,
                 distributionItemId: item.id,
                 projectId: distribution.projectId,
-                distributionId: distribution.id,
               },
               policy,
               tx,
@@ -661,7 +673,7 @@ export class DistributionService {
               data: {
                 creditedAmount: item.calculatedAmount,
                 creditedAt: new Date(),
-                status: Prisma.DistributionItemStatus.CREDITED,
+                status: DistributionItemStatus.CREDITED,
               },
             });
           }
@@ -670,7 +682,7 @@ export class DistributionService {
           await tx.distributionItem.update({
             where: { id: item.id },
             data: {
-              status: Prisma.DistributionItemStatus.PAID,
+              status: DistributionItemStatus.PAID,
               paidAt: new Date(),
             },
           });
@@ -681,7 +693,7 @@ export class DistributionService {
       const updatedDistribution = await tx.projectDistribution.update({
         where: { id: distributionId },
         data: {
-          status: Prisma.DistributionStatus.APPLIED,
+          status: DistributionStatus.APPLIED,
           appliedAt: new Date(),
           appliedById: policy.userId,
         },
@@ -693,18 +705,20 @@ export class DistributionService {
         data: {
           distributionId: distributionId,
           changedById: policy.userId,
-          changeType: Prisma.DistributionChangeType.DISTRIBUTION_APPLIED,
+          changeType: DistributionChangeType.DISTRIBUTION_APPLIED,
           newValues: { status: 'APPLIED' },
         },
       });
 
       await tx.auditLog.create({
-        actorId: policy.userId,
-        action: 'distribution:apply',
-        entityType: 'ProjectDistribution',
-        entityId: distributionId,
-        before: distribution,
-        after: updatedDistribution,
+        data: {
+          actorId: policy.userId,
+          action: 'distribution:apply',
+          entityType: 'ProjectDistribution',
+          entityId: distributionId,
+          before: JSON.parse(JSON.stringify(distribution)) as Prisma.InputJsonValue,
+          after: JSON.parse(JSON.stringify(updatedDistribution)) as Prisma.InputJsonValue,
+        },
       });
 
       return updatedDistribution;
@@ -717,13 +731,14 @@ export class DistributionService {
   async getProjectDistributions(
     projectId: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution[]> {
+  ): Promise<ProjectDistribution[]> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
+    // Ce modèle n'a pas de deletedAt : l'annulation est portée par le statut.
     return this.prisma.projectDistribution.findMany({
       where: {
         projectId,
-        deletedAt: null,
+        status: { not: DistributionStatus.CANCELLED },
       },
       orderBy: { calculatedAt: 'desc' },
       include: {
@@ -743,11 +758,11 @@ export class DistributionService {
   async getDistributionById(
     id: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution | null> {
+  ): Promise<ProjectDistribution | null> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
     return this.prisma.projectDistribution.findUnique({
-      where: { id, deletedAt: null },
+      where: { id, status: { not: DistributionStatus.CANCELLED } },
       include: {
         items: {
           include: {
@@ -767,14 +782,14 @@ export class DistributionService {
     id: string,
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution> {
+  ): Promise<ProjectDistribution> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     const existing = await this.prisma.projectDistribution.findUniqueOrThrow({
-      where: { id, deletedAt: null },
+      where: { id, status: { not: DistributionStatus.CANCELLED } },
     });
 
-    if (existing.status === Prisma.DistributionStatus.APPLIED) {
+    if (existing.status === DistributionStatus.APPLIED) {
       throw AppException.badRequest(
         'CANNOT_CANCEL_APPLIED',
         'Ne peut pas annuler une répartition déjà appliquée',
@@ -784,8 +799,7 @@ export class DistributionService {
     const distribution = await this.prisma.projectDistribution.update({
       where: { id },
       data: {
-        status: Prisma.DistributionStatus.CANCELLED,
-        deletedAt: new Date(),
+        status: DistributionStatus.CANCELLED,
       },
     });
 
@@ -808,7 +822,7 @@ export class DistributionService {
   async recalculateForProjectOnPayment(
     projectId: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.ProjectDistribution | null> {
+  ): Promise<ProjectDistribution | null> {
     policy.requireScope('distribution', 'manage', [SCOPE_ANY]);
 
     // Vérifier s'il y a des paiements sur ce projet

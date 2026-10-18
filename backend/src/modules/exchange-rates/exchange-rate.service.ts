@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { AccessPolicy, SCOPE_ANY } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
-import { Prisma } from '../../generated/prisma/client.js';
+import { Prisma, type ExchangeRate } from '../../generated/prisma/client.js';
 import { CurrencyService } from '../currencies/currency.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
@@ -142,7 +142,7 @@ export class ExchangeRateService {
     from: string,
     to: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.ExchangeRate[]> {
+  ): Promise<ExchangeRate[]> {
     policy.requireScope('exchangerate', 'read', [SCOPE_ANY]);
 
     from = from.toUpperCase();
@@ -177,7 +177,7 @@ export class ExchangeRateService {
     },
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.ExchangeRate> {
+  ): Promise<ExchangeRate> {
     policy.requireScope('exchangerate', 'manage', [SCOPE_ANY]);
 
     // Valider les devises
@@ -252,7 +252,7 @@ export class ExchangeRateService {
     effectiveDate: Date,
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.ExchangeRate> {
+  ): Promise<ExchangeRate> {
     policy.requireScope('exchangerate', 'manage', [SCOPE_ANY]);
 
     const normalizedFrom = fromCurrency.toUpperCase();

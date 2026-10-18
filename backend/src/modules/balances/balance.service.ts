@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import {
+  Prisma,
+  type MemberBalance,
+  type BalanceTransaction,
+  BalanceTransactionType,
+  BalanceTransactionStatus,
+} from '../../generated/prisma/client.js';
 import { AuditService } from '../../common/audit/audit.service.js';
 import { AccessPolicy, SCOPE_ANY, SCOPE_OWN } from '../../common/auth/principal.js';
 import { AppException } from '../../common/errors/app-error.js';
@@ -41,7 +47,7 @@ export class BalanceService {
     userId: string,
     currency: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.MemberBalance | null> {
+  ): Promise<MemberBalance | null> {
     // Vérifier les permissions
     if (policy.userId !== userId) {
       policy.requireScope('balance', 'read', [SCOPE_ANY]);
@@ -65,7 +71,7 @@ export class BalanceService {
   async getAllBalances(
     userId: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.MemberBalance[]> {
+  ): Promise<MemberBalance[]> {
     // Vérifier les permissions
     if (policy.userId !== userId) {
       policy.requireScope('balance', 'read', [SCOPE_ANY]);
@@ -92,11 +98,11 @@ export class BalanceService {
       currency?: string;
       page?: number;
       perPage?: number;
-      type?: Prisma.BalanceTransactionType;
-      status?: Prisma.BalanceTransactionStatus;
+      type?: BalanceTransactionType;
+      status?: BalanceTransactionStatus;
     },
     policy: AccessPolicy,
-  ): Promise<Paginated<Prisma.BalanceTransaction>> {
+  ): Promise<Paginated<BalanceTransaction>> {
     // Vérifier les permissions
     if (policy.userId !== userId) {
       policy.requireScope('balance', 'read', [SCOPE_ANY]);
@@ -131,7 +137,7 @@ export class BalanceService {
   async getTransactionById(
     id: string,
     policy: AccessPolicy,
-  ): Promise<Prisma.BalanceTransaction | null> {
+  ): Promise<BalanceTransaction | null> {
     const transaction = await this.prisma.balanceTransaction.findUnique({
       where: { id },
     });
@@ -167,19 +173,18 @@ export class BalanceService {
   async createTransaction(
     data: {
       userId: string;
-      type: Prisma.BalanceTransactionType;
+      type: BalanceTransactionType;
       amount: Prisma.Decimal | string | number;
       currency: string;
       description: string;
       distributionItemId?: string;
       projectId?: string;
-      distributionId?: string;
       paymentId?: string;
       reference?: string;
     },
     policy: AccessPolicy,
     tx?: Prisma.TransactionClient,
-  ): Promise<Prisma.BalanceTransaction> {
+  ): Promise<BalanceTransaction> {
     const prisma = tx ?? this.prisma;
     const decimalAmount = data.amount instanceof Prisma.Decimal ? data.amount : new Prisma.Decimal(data.amount);
     const currency = data.currency.toUpperCase();
@@ -199,9 +204,9 @@ export class BalanceService {
     // Calculer le nouveau solde
     // CREDIT = +amount, DEBIT = -amount, CORRECTION = ±amount
     let newBalance: Prisma.Decimal;
-    if (data.type === Prisma.BalanceTransactionType.CREDIT) {
+    if (data.type === BalanceTransactionType.CREDIT) {
       newBalance = previousBalance.plus(decimalAmount);
-    } else if (data.type === Prisma.BalanceTransactionType.DEBIT) {
+    } else if (data.type === BalanceTransactionType.DEBIT) {
       newBalance = previousBalance.minus(decimalAmount);
       // Vérifier que le solde ne devient pas négatif (sauf si autorisé)
       if (newBalance.lessThan(0)) {
@@ -215,6 +220,7 @@ export class BalanceService {
       newBalance = previousBalance.plus(decimalAmount);
     }
 
+    // Le lien vers la répartition passe par distributionItemId (pas de distributionId).
     // Créer la transaction
     const transaction = await prisma.balanceTransaction.create({
       data: {
@@ -227,10 +233,9 @@ export class BalanceService {
         description: data.description,
         distributionItemId: data.distributionItemId,
         projectId: data.projectId,
-        distributionId: data.distributionId,
         paymentId: data.paymentId,
         reference: data.reference,
-        status: Prisma.BalanceTransactionStatus.CONFIRMED,
+        status: BalanceTransactionStatus.CONFIRMED,
       },
     });
 
@@ -294,7 +299,7 @@ export class BalanceService {
     description: string,
     actor: { id: string },
     policy: AccessPolicy,
-  ): Promise<Prisma.BalanceTransaction> {
+  ): Promise<BalanceTransaction> {
     policy.requireScope('balance', 'manage', [SCOPE_ANY]);
 
     const decimalAmount = amount instanceof Prisma.Decimal ? amount : new Prisma.Decimal(amount);
@@ -305,8 +310,8 @@ export class BalanceService {
         {
           userId,
           type: decimalAmount.greaterThanOrEqualTo(0) 
-            ? Prisma.BalanceTransactionType.CREDIT
-            : Prisma.BalanceTransactionType.DEBIT,
+            ? BalanceTransactionType.CREDIT
+            : BalanceTransactionType.DEBIT,
           amount: decimalAmount.abs(),
           currency: normalizedCurrency,
           description: `Ajustement manuel: ${description}`,
@@ -347,8 +352,8 @@ export class BalanceService {
     const transactions = await this.prisma.balanceTransaction.findMany({
       where: {
         userId,
-        type: Prisma.BalanceTransactionType.CREDIT,
-        status: Prisma.BalanceTransactionStatus.CONFIRMED,
+        type: BalanceTransactionType.CREDIT,
+        status: BalanceTransactionStatus.CONFIRMED,
       },
     });
 
