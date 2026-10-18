@@ -107,3 +107,23 @@ export function orderFlowStates(status) {
     state: position < index ? "done" : position === index ? "current" : "todo",
   }));
 }
+
+/**
+ * Libellés des rôles RBAC. Partagés : l'annuaire des membres, le sélecteur
+ * d'espace et « Mon compte » doivent tous nommer un rôle de la même façon.
+ */
+export const ROLE_LABEL = {
+  ADMIN: "Administrateur",
+  COMMUNICATION_MANAGER: "Gérant communication",
+  PROJECT_MANAGER: "Chef de projet",
+  DEVELOPER: "Développeur",
+  SOCIAL_MEDIA_MANAGER: "Gestion réseaux sociaux",
+  SALES: "Commercial",
+  CLIENT: "Client",
+};
+
+/** Libellé d'un rôle seul ; le code brut sert de repli (rôle inconnu). */
+export function roleLabel(code) {
+  if (!code) return "";
+  return ROLE_LABEL[code] ?? code;
+}

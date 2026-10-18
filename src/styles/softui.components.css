@@ -4126,3 +4126,1258 @@ textarea.sui-input {
 .sui-main nav[aria-label^="Pagination"] .cx-btn {
   border-radius: var(--r-pill);
 }
+
+/* ==========================================================================
+   21. FORMULAIRES, ÉTATS ET CONTRÔLES PARTAGÉS (`workspace/ui.jsx`)
+   --------------------------------------------------------------------------
+   Les composants de base partagés par les trois espaces (`Card`, `Notice`,
+   `Field`, `Empty`, `Pagination`, `Skeleton`…) sont habillés par la charte
+   pastel : ils ne contiennent aucune couleur en dur et consomment les mêmes
+   jetons que le tableau de bord. Cette section regroupe ce qui leur est
+   propre — en-tête de panneau, bandeau pastel, champ de formulaire, contrôle
+   segmenté, pagination.
+   ========================================================================== */
+
+/* Sous-titre d'un panneau : une ligne de rappel sous le titre de section. */
+.sui-panel__sub {
+  margin: 4px 0 0;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Bandeau pastel (erreur, succès, avertissement, information) : la teinte
+   arrive par `--tone-bg`, comme les pilules de statut. */
+.sui-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 18px;
+  background: var(--tone-bg, var(--pink));
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.sui-note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.sui-note code {
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+  font-family: var(--comexa-font-mono, ui-monospace), monospace;
+  font-weight: 700;
+}
+
+/* État vide : cadre pointillé, icône dans un cercle pastel, phrase centrée. */
+.sui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 18px;
+  border: 2px dashed rgba(17, 17, 17, 0.16);
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+.sui-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--lilac);
+  color: var(--ink);
+}
+
+.sui-empty__copy {
+  max-width: 46ch;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Chargement : une barre qui respire, sur le fond de panneau. */
+.sui-skeleton {
+  border-radius: 12px;
+  background-color: #eceaec;
+  background-image: linear-gradient(100deg, #eceaec 20%, #f7f5f6 40%, #eceaec 60%);
+  background-size: 280% 100%;
+  animation: sui-shimmer 1.4s var(--ease-out) infinite;
+}
+
+.sui-skeleton-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+/* Pagination : filet fin, compteur à gauche, deux boutons pilule à droite. */
+.sui-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-small);
+  color: var(--muted);
+}
+
+.sui-pagination__count strong {
+  color: var(--ink);
+}
+
+/* Aide et erreur sous un champ. */
+.sui-field__hint {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sui-field__error {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: #a5303f;
+}
+
+/* Contrôle segmenté d'avancement (étapes d'une commande). */
+.sui-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sui-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  background: #e9e6e8;
+  color: var(--muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-step + .sui-step::before {
+  content: "";
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--track-strong);
+}
+
+.sui-step--done {
+  background: var(--green);
+  color: var(--ink);
+}
+
+/* --- Variantes de bouton admises par la charte --------------------------- */
+/* Fantôme : ni fond ni ombre, pour les actions tertiaires d'une barre. */
+.sui-btn--ghost {
+  background: transparent;
+  color: var(--muted);
+}
+
+.sui-btn--ghost:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Compact : actions répétées dans une liste (pagination, cartes). */
+.sui-btn--sm {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--fs-micro);
+}
+
+/* Destructif : le seul rouge de la charte, et en pastel. */
+.sui-btn--danger {
+  background: #f2c4cc;
+  color: #7d1f2c;
+}
+
+.sui-btn--danger:hover {
+  background: #eab3bd;
+}
+
+/* Les listes déroulantes gardent leur flèche une fois débarrassées de
+   l'apparence native du navigateur. */
+select.sui-input {
+  appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  cursor: pointer;
+}
+
+/* --- Solde : lignes multi-devises, relevé d'opérations ------------------- */
+
+/* Ligne compacte d'une autre devise : pastille de couleur + montant à droite. */
+.sui-bank-mini {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 16px;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.sui-bank-mini__currency {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sui-bank-mini__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--lilac);
+}
+
+.sui-bank-mini__amount {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Montant signé d'un mouvement : le signe porte le sens, la couleur le confirme. */
+.sui-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sui-amount--up {
+  color: #1c6b46;
+}
+
+.sui-amount--down {
+  color: #a5303f;
+}
+
+/* Variante « lignes sans lien » : le relevé d'opérations n'est pas cliquable,
+   il reprend pourtant la même rangée que l'activité récente. */
+.sui-lines--rows > li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 0;
+}
+
+.sui-lines__end {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Panneau teinté, extraits de code, listes numérotées ----------------- */
+
+/* Panneau dont le fond vient d'un pastel (`--tone-bg`) : encart mis en avant
+   à l'intérieur d'un panneau blanc, sans changer de rayon ni d'ombre. */
+.sui-panel--tint {
+  background: var(--tone-bg, var(--lilac));
+}
+
+/* Fragment de code (commande à copier, identifiant technique). */
+.sui-code {
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  font-family: var(--comexa-font-mono, ui-monospace), monospace;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Code de liaison : le chiffre se lit d'un coup d'œil, largement espacé. */
+.sui-code-big {
+  margin: 6px 0 0;
+  font-family: var(--comexa-font-mono, ui-monospace), monospace;
+  font-size: calc(28px * var(--zoom, 1));
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: var(--ink);
+}
+
+/* Consignes numérotées d'un encart. */
+.sui-steps-ol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Paragraphe courant d'un panneau : même corps que le reste de la charte. */
+.sui-body {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.sui-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- « Mon compte » : bloc d'identité et grille de profil ---------------- */
+
+.sui-panel--identity {
+  background: var(--surface);
+}
+
+.sui-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.sui-identity__avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--lilac);
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-identity__avatar .cx-avatar {
+  width: 64px !important;
+  height: 64px !important;
+  font-size: 22px !important;
+}
+
+.sui-identity__eyebrow {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-identity__name {
+  margin: 4px 0 0;
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.sui-identity__mail {
+  margin: 2px 0 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sui-identity__roles {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 0 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.sui-identity__roles .sui-lines__icon {
+  width: 26px;
+  height: 26px;
+}
+
+.sui-identity__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 0;
+  margin-left: auto;
+}
+
+.sui-identity__meta dt {
+  margin-bottom: 2px;
+}
+
+.sui-identity__meta dd {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Grille « libellé / valeur » d'un profil. */
+.sui-profile-grid {
+  display: grid;
+  gap: 14px 24px;
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.sui-profile-grid dt {
+  margin-bottom: 3px;
+}
+
+.sui-profile-grid dd {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Avatar (initiales ou photo) : le pastel lilas de la charte remplace le
+   dégradé bleu hérité, partout dans la coque. */
+.sui-main .cx-avatar {
+  border-color: var(--line-soft);
+  background: var(--lilac);
+  color: var(--ink);
+}
+
+/* --- Notification d'action (message court, lien facultatif) --------------- */
+.sui-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 900;
+  width: min(360px, calc(100vw - 40px));
+}
+
+.sui-toast__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-pop);
+}
+
+.sui-toast__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-toast__message {
+  margin: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.sui-toast__link {
+  margin-top: 10px;
+}
+
+/* ==========================================================================
+   22. MESSAGERIE
+   --------------------------------------------------------------------------
+   Le chat reprend la charte : panneau blanc très arrondi, colonne de
+   conversations sur fond de panneau, bulles noires pour moi et blanches pour
+   les autres, zone de saisie en pilule. Aucune couleur en dur.
+   ========================================================================== */
+
+.sui-chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+.sui-chat__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- Colonne des conversations ------------------------------------------- */
+.sui-chat__aside {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+  background: var(--surface);
+}
+
+@media (min-width: 768px) {
+  .sui-chat__aside {
+    width: 320px;
+    flex: 0 0 320px;
+    border-right: 1px solid var(--line-soft);
+  }
+}
+
+.sui-chat__aside-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-chat__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-chat__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sui-chat__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sui-chat__row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-chat__row:hover {
+  background: #efedee;
+}
+
+.sui-chat__row--active,
+.sui-chat__row--active:hover {
+  background: var(--lilac);
+}
+
+.sui-chat__row + .sui-chat__row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.sui-chat__avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 800;
+}
+
+.sui-chat__row--active .sui-chat__avatar {
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.sui-chat__meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sui-chat__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sui-chat__title {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-chat__time {
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sui-chat__preview {
+  overflow: hidden;
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sui-chat__unread {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: var(--shell);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sui-chat__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line-soft);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* --- Fil de discussion --------------------------------------------------- */
+.sui-chat__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sui-chat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sui-chat__thread {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+  background: var(--surface);
+}
+
+.sui-chat__msg {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.sui-chat__msg--mine {
+  justify-content: flex-end;
+}
+
+.sui-chat__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: min(560px, 78%);
+}
+
+.sui-chat__sender {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sui-chat__msg--mine .sui-chat__sender {
+  text-align: right;
+}
+
+.sui-chat__bubble {
+  padding: 11px 15px;
+  border-radius: 20px;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.sui-chat__msg--mine .sui-chat__bubble {
+  border-bottom-right-radius: 6px;
+  background: var(--shell);
+  color: #ffffff;
+}
+
+.sui-chat__msg--other .sui-chat__bubble {
+  border-bottom-left-radius: 6px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Message système : une pilule centrée, jamais une bulle. */
+.sui-chat__bubble--system {
+  margin: 0 auto;
+  border-radius: var(--r-pill);
+  background: var(--yellow);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+}
+
+.sui-chat__bubble--deleted {
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* Aperçu d'une pièce jointe ou d'une ressource partagée. */
+.sui-chat__attachment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+}
+
+.sui-chat__attachment strong {
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+
+.sui-chat__attachment span {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+/* --- Zone de saisie ------------------------------------------------------ */
+.sui-chat__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--card);
+}
+
+.sui-chat__composer .sui-input {
+  min-height: 46px;
+  max-height: 150px;
+  resize: none;
+}
+
+.sui-chat__hint {
+  padding: 0 18px 12px;
+  background: var(--card);
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Indicateur de frappe. */
+.sui-chat__typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.sui-chat__typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: sui-blink 1.2s var(--ease-out) infinite;
+}
+
+.sui-chat__typing i:nth-child(2) { animation-delay: 0.2s; }
+.sui-chat__typing i:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes sui-blink {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* Pastille d'état de la connexion temps reel. */
+.sui-chat__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sui-chat__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fill);
+}
+
+.sui-chat__dot--off {
+  background: var(--fill-pink);
+}
+
+/* Gabarits de la messagerie : la pastille et la fenêtre flottante vivent
+   hors du panneau de la rubrique. */
+.sui-chat__host {
+  position: relative;
+}
+
+.sui-chat--page {
+  width: 100%;
+}
+
+.sui-chat--page .sui-chat {
+  height: calc(100vh - 300px);
+  min-height: 480px;
+}
+
+.sui-chat--overlay {
+  position: fixed;
+  z-index: 960;
+  inset: 0;
+}
+
+.sui-chat--overlay .sui-chat {
+  height: 100%;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.sui-chat--float {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 940;
+  width: min(620px, calc(100vw - 44px));
+}
+
+.sui-chat--float .sui-chat {
+  height: min(520px, calc(100vh - 120px));
+}
+
+.sui-chat--pill {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 940;
+  width: 384px;
+  max-width: calc(100vw - 44px);
+}
+
+.sui-chat--pill .sui-chat {
+  height: 420px;
+}
+
+/* Pastille d'ouverture : le noir de la coque, en rond. */
+.sui-chat__fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 940;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--shell);
+  color: #ffffff;
+  box-shadow: var(--shadow-pop);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-chat__fab:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+/* Formulaire de création, dans la colonne des conversations. */
+.sui-chat__new {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 78%;
+  overflow-y: auto;
+  border-top: 1px solid var(--line-soft);
+  background: var(--card);
+}
+
+.sui-chat__new .sui-form {
+  padding: 0 18px 18px;
+}
+
+.sui-chat__members {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+/* Sur petit écran, en mode page, une seule des deux colonnes est visible.
+   Ces classes vivent dans la feuille de la charte (et non dans les utilitaires
+   Tailwind) : une classe non « layered » gagne toujours sur `@layer utilities`. */
+.sui-chat__aside--hidden,
+.sui-chat__main--hidden {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .sui-chat__aside--hidden,
+  .sui-chat__main--hidden {
+    display: flex;
+  }
+}
+
+/* ==========================================================================
+   23. PONT AVEC LES ANCIENS JETONS (`cx-*`) DANS LA COQUE
+   --------------------------------------------------------------------------
+   Les pages de l'espace écrivent encore leurs couleurs avec les variables de
+   l'ancien thème (`--comexa-ink`, `--comexa-border-soft`…). Plutôt que de
+   réécrire chaque page, on REDÉFINIT ces variables à l'intérieur de la coque :
+   elles pointent alors sur les jetons de la charte pastel. Une page n'a rien
+   à changer pour prendre le nouvel habillage.
+   ========================================================================== */
+
+/* La redéfinition des jetons couvre toute la coque (navbar, rail, dock,
+   tiroirs et portails compris) : un composant rendu hors du panneau principal
+   hérite donc des mêmes couleurs. */
+body:has(.sui-shell) {
+  /* Encre : le noir de la charte, et le gris neutre des textes secondaires. */
+  --comexa-ink: var(--ink);
+  --comexa-ink-soft: var(--muted);
+  --comexa-ink-muted: var(--muted);
+  --comexa-ink-subtle: var(--muted);
+  /* Filets : le trait fin et neutre, pas la teinte bleutée de l'ancien thème. */
+  --comexa-border: var(--line);
+  --comexa-border-soft: var(--line-soft);
+  --comexa-border-strong: var(--line);
+  /* Fonds de survol et de champ : les gris clairs de la charte. */
+  --comexa-neutral-50: var(--surface);
+  --comexa-neutral-100: #eceaec;
+  --comexa-neutral-200: #e3e0e2;
+  /* Ombres : celles des cartes du tableau de bord. */
+  --comexa-shadow-xs: var(--shadow-card);
+  --comexa-shadow-sm: var(--shadow-card);
+  --comexa-shadow-md: var(--shadow-card-hover);
+}
+
+/* Sur fond blanc, une rangée « blanche à 85 % » ne se détache pas : elle prend
+   le fond de panneau de la charte, comme les raccourcis d'administration. */
+.sui-main :is(li, div, tr, section, p)[class~="bg-white/85"],
+.sui-main :is(li, div, tr, section, p)[class~="bg-white/70"] {
+  background-color: var(--surface);
+}
+
+/* Libellés et textes d'appoint hérités. */
+.sui-main .cx-label {
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-main .cx-small {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sui-main .cx-hint {
+  font-size: var(--fs-micro);
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.sui-main .cx-field-error {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: #a5303f;
+}
+
+/* Boutons hérités : la forme pilule de la coque. */
+.sui-main .cx-btn--sm {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--fs-micro);
+}
+
+.sui-main .cx-btn {
+  border-radius: var(--r-pill);
+}
+
+/* Champs de formulaire hérités. */
+.sui-main .cx-input,
+.sui-main .cx-select,
+.sui-main .cx-textarea {
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+
+.sui-main .cx-input:focus,
+.sui-main .cx-select:focus,
+.sui-main .cx-textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+/* Pilules et bandeaux hérités. */
+.sui-main .cx-badge {
+  border-radius: var(--r-pill);
+  background: #e9e6e8;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-main .cx-badge--info { background: var(--blue); }
+.sui-main .cx-badge--success { background: var(--green); }
+.sui-main .cx-badge--warning { background: var(--yellow); }
+.sui-main .cx-badge--danger { background: var(--pink); }
+
+.sui-main .cx-alert {
+  border-radius: 18px;
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+
+.sui-main .cx-alert--error { background: var(--pink); }
+.sui-main .cx-alert--success { background: var(--green); }
+.sui-main .cx-alert--warning { background: var(--yellow); }
+.sui-main .cx-alert--info { background: var(--blue); }
+
+/* --- Bloc de chiffre générique (vues de données agrégées) ---------------- */
+.sui-stat {
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.sui-stat__value {
+  margin: 6px 0 0;
+  font-size: calc(22px * var(--zoom, 1));
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Barre d'outils d'une page : raccourcis en pilules à gauche, action à droite. */
+.sui-panel--toolbar {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+}
+
+/* --- Rangée de contenu (projet, commande, demande) ----------------------- */
+.sui-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.sui-row__title {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-body);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.sui-row__title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Lien d'action dans une rangée : la couleur d'accent reste lisible. */
+.sui-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.sui-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ==========================================================================
+   24. PARAMÈTRES — la page « cx-redesign » rejoint la charte
+   --------------------------------------------------------------------------
+   La rubrique Paramètres gardait sa propre palette (verts terreux). Elle vit
+   dans la coque comme les autres : ses variables `--page-*` et ses rares
+   couleurs en dur sont ramenées ici sur les jetons pastel, sans toucher au
+   balisage de la page.
+   ========================================================================== */
+
+body:has(.sui-shell) .cx-redesign {
+  --page-ink: var(--ink);
+  --page-muted: var(--muted);
+  --page-line: var(--line-soft);
+}
+
+body:has(.sui-shell) .cx-redesign__hero {
+  border-color: transparent;
+  border-radius: var(--r-kpi);
+  background: var(--lilac);
+}
+
+body:has(.sui-shell) .cx-redesign__eyebrow {
+  color: var(--muted);
+}
+
+body:has(.sui-shell) .cx-redesign__chip {
+  border-color: rgba(255, 255, 255, 0.7);
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+body:has(.sui-shell) .cx-redesign .cx-panel {
+  border: 0;
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+body:has(.sui-shell) .cx-redesign .cx-input,
+body:has(.sui-shell) .cx-redesign .cx-select,
+body:has(.sui-shell) .cx-redesign .cx-textarea {
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+body:has(.sui-shell) .cx-redesign .cx-btn--primary {
+  border-radius: var(--r-pill);
+  background: var(--shell);
+  color: #ffffff;
+}
+
+body:has(.sui-shell) .cx-redesign .cx-btn--primary:hover:not(:disabled) {
+  background: #000000;
+}
+
+body:has(.sui-shell) .cx-redesign__text-link {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Navigation interne de la rubrique : pilules de la charte. */
+body:has(.sui-shell) .cx-settings__nav button {
+  border-radius: 18px;
+}
+
+body:has(.sui-shell) .cx-settings__nav button:hover {
+  background: #efedee;
+}
+
+body:has(.sui-shell) .cx-settings__nav button[aria-current] {
+  border-color: var(--line-soft);
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+
+body:has(.sui-shell) .cx-settings__links a {
+  border-color: transparent;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+body:has(.sui-shell) .cx-settings__links a:hover {
+  border-color: var(--line);
+  background: #efedee;
+}

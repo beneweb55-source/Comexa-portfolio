@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/lib/session";
-import { canAny } from "@/lib/access";
+import { can, canAny } from "@/lib/access";
 import { InvoicePdfPreview } from "./InvoicePdfPreview";
 import { secondaryButton } from "@/components/workspace/ui";
 

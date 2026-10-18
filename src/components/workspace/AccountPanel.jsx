@@ -2,20 +2,42 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { KeyRound, LogOut, Monitor, ShieldCheck, Smartphone } from "lucide-react";
 import { formatDate, messageOf } from "@/lib/api";
 import { hasTeamAccess } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
-import { Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { Panel } from "@/components/softui/panels";
+import { Button } from "@/components/softui/primitives";
+import { Empty } from "@/components/workspace/ui";
 import BalancePanel from "@/components/workspace/BalancePanel";
 import TelegramLinkCard from "@/components/workspace/TelegramLinkCard";
+import UserAvatar from "@/components/workspace/UserAvatar";
+import { roleLabel } from "@/lib/labels";
 
 const MIN_PASSWORD = 12;
+
+/** Libellé lisible du navigateur, quand l'agent utilisateur est une bouillie. */
+function deviceLabel(userAgent) {
+  const ua = String(userAgent ?? "");
+  if (!ua) return "Navigateur inconnu";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "Appareil Apple";
+  if (/Android/i.test(ua)) return "Appareil Android";
+  if (/Windows/i.test(ua)) return "Windows";
+  if (/Mac OS X/i.test(ua)) return "macOS";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "Navigateur";
+}
 
 /**
  * Mon compte : identité, changement de mot de passe, sessions ouvertes.
  * Partagé entre les deux espaces. Fermer une session ou toutes les sessions
  * n'affecte que les sessions : la session courante finit par expirer côté API.
+ *
+ * Habillage : design system « soft UI pastel dans une coque noire », le même
+ * que le tableau de bord de Comexa Space — panneaux blancs très arrondis,
+ * pastels, un seul bouton noir par panneau pour l'action principale.
  */
 export default function AccountPanel() {
   const { request, logout, user } = useAuth();
@@ -72,6 +94,7 @@ export default function AccountPanel() {
 
   const profile = me ?? user;
   const items = sessions.items ?? [];
+  const roles = (profile?.roles ?? []).map((role) => (typeof role === "string" ? role : role?.code)).filter(Boolean);
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,87 +104,173 @@ export default function AccountPanel() {
       <BalancePanel />
 
       {teamUser ? <TelegramLinkCard /> : null}
-      <Card title="Mon profil">
+
+      {/* Identité : qui est connecté, en un coup d'œil. */}
+      <Panel className="sui-panel--identity">
         {profile ? (
-          <dl className="grid gap-3 text-[14.5px] md:grid-cols-2">
+          <div className="sui-identity">
+            <span className="sui-identity__avatar">
+              <UserAvatar profile={profile} size={64} initialsOnly />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="sui-identity__eyebrow">Compte connecté</p>
+              <h2 className="sui-identity__name">
+                {profile.firstName} {profile.lastName}
+              </h2>
+              <p className="sui-identity__mail">{profile.email}</p>
+              {roles.length ? (
+                <p className="sui-identity__roles">
+                  <span className="sui-lines__icon" style={{ "--tone-bg": "var(--lilac)" }} aria-hidden="true">
+                    <ShieldCheck size={15} strokeWidth={1.75} />
+                  </span>
+                  {roles.map((role) => roleLabel(role)).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+            <dl className="sui-identity__meta">
+              {profile.phone ? (
+                <div>
+                  <dt className="sui-field__label">Téléphone</dt>
+                  <dd>{profile.phone}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="sui-field__label">Dernière connexion</dt>
+                <dd>{profile.lastLoginAt ? formatDate(profile.lastLoginAt) : "—"}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : (
+          <p className="sui-card__desc">Chargement du profil…</p>
+        )}
+      </Panel>
+
+      <Panel title="Mon profil" subtitle="Vos informations telles que Comexa les connaît.">
+        {profile ? (
+          <dl className="sui-profile-grid">
             <div>
-              <dt className="cx-label">Nom</dt>
-              <dd>{profile.firstName} {profile.lastName}</dd>
+              <dt className="sui-field__label">Nom</dt>
+              <dd>
+                {profile.firstName} {profile.lastName}
+              </dd>
             </div>
             <div>
-              <dt className="cx-label">E-mail</dt>
+              <dt className="sui-field__label">E-mail</dt>
               <dd>{profile.email}</dd>
             </div>
             {profile.phone ? (
               <div>
-                <dt className="cx-label">Téléphone</dt>
+                <dt className="sui-field__label">Téléphone</dt>
                 <dd>{profile.phone}</dd>
               </div>
             ) : null}
             {profile.lastLoginAt ? (
               <div>
-                <dt className="cx-label">Dernière connexion</dt>
+                <dt className="sui-field__label">Dernière connexion</dt>
                 <dd>{formatDate(profile.lastLoginAt)}</dd>
+              </div>
+            ) : null}
+            {roles.length ? (
+              <div>
+                <dt className="sui-field__label">Rôles</dt>
+                <dd>{roles.map((role) => roleLabel(role)).join(", ")}</dd>
               </div>
             ) : null}
           </dl>
         ) : (
-          <p className="cx-small">Chargement du profil…</p>
+          <p className="sui-card__desc">Chargement du profil…</p>
         )}
-      </Card>
+      </Panel>
 
-      <Card title="Changer le mot de passe">
-        <form onSubmit={changePassword} className="grid max-w-[520px] gap-4">
+      <Panel title="Changer le mot de passe" subtitle={`Au moins ${MIN_PASSWORD} caractères.`}>
+        <form onSubmit={changePassword} className="sui-form" style={{ maxWidth: 520 }}>
           {pwError ? <Notice>{pwError}</Notice> : null}
           {pwSuccess ? <Notice tone="success">{pwSuccess}</Notice> : null}
-          <Field id="pw-current" label="Mot de passe actuel">
-            <input id="pw-current" type="password" autoComplete="current-password" required className={inputClass} value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} />
-          </Field>
-          <Field id="pw-new" label={`Nouveau mot de passe (${MIN_PASSWORD} caractères minimum)`}>
-            <input id="pw-new" type="password" autoComplete="new-password" required className={inputClass} value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} />
-          </Field>
-          <Field id="pw-confirm" label="Confirmer le nouveau mot de passe">
-            <input id="pw-confirm" type="password" autoComplete="new-password" required className={inputClass} value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} />
-          </Field>
+          <div className="sui-field">
+            <label htmlFor="pw-current" className="sui-field__label">Mot de passe actuel</label>
+            <input
+              id="pw-current"
+              type="password"
+              autoComplete="current-password"
+              required
+              className="sui-input"
+              value={form.currentPassword}
+              onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+            />
+          </div>
+          <div className="sui-field">
+            <label htmlFor="pw-new" className="sui-field__label">Nouveau mot de passe ({MIN_PASSWORD} caractères minimum)</label>
+            <input
+              id="pw-new"
+              type="password"
+              autoComplete="new-password"
+              required
+              className="sui-input"
+              value={form.newPassword}
+              onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+            />
+          </div>
+          <div className="sui-field">
+            <label htmlFor="pw-confirm" className="sui-field__label">Confirmer le nouveau mot de passe</label>
+            <input
+              id="pw-confirm"
+              type="password"
+              autoComplete="new-password"
+              required
+              className="sui-input"
+              value={form.confirmPassword}
+              onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+            />
+          </div>
           <div>
-            <button type="submit" disabled={pwBusy} className={primaryButton}>{pwBusy ? "Enregistrement…" : "Modifier le mot de passe"}</button>
+            <button type="submit" disabled={pwBusy} className={primaryButton}>
+              <KeyRound size={16} strokeWidth={1.9} aria-hidden="true" />
+              {pwBusy ? "Enregistrement…" : "Modifier le mot de passe"}
+            </button>
           </div>
         </form>
-      </Card>
+      </Panel>
 
-      <Card
+      <Panel
         title="Sessions ouvertes"
+        subtitle="Les appareils actuellement connectés à votre compte."
         action={
           <button type="button" className={secondaryButton} onClick={logoutEverywhere}>
-            Déconnecter partout
+            <LogOut size={15} strokeWidth={1.9} aria-hidden="true" /> Déconnecter partout
           </button>
         }
       >
         {action.error ? <Notice>{action.error}</Notice> : null}
         {action.success ? <Notice tone="success">{action.success}</Notice> : null}
         {sessions.error ? <Notice>{sessions.error}</Notice> : null}
-        {sessions.items === null && !sessions.error ? <p className="cx-small">Chargement…</p> : null}
-        {sessions.items !== null && items.length === 0 ? <Empty>Aucune session ouverte.</Empty> : null}
-        <ul className="flex flex-col gap-3">
-          {items.map((session) => (
-            <li key={session.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] p-4">
-              <div className="min-w-0 text-[14px]">
-                <p className="font-medium text-[var(--comexa-ink)]">{session.ipAddress ?? "Adresse inconnue"}</p>
-                <p className="truncate text-[12.5px] text-[var(--comexa-ink-muted)]">{session.userAgent ?? "Navigateur inconnu"}</p>
-                <p className="text-[12.5px] text-[var(--comexa-ink-muted)]">Ouverte le {formatDate(session.createdAt)} · expire le {formatDate(session.expiresAt)}</p>
-              </div>
-              <button
-                type="button"
-                className={secondaryButton}
-                disabled={action.busy === `session:${session.id}`}
-                onClick={() => action.run(`session:${session.id}`, `/auth/sessions/${session.id}`, { method: "DELETE" }, "Session fermée.")}
-              >
-                Fermer
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Card>
+        {sessions.items === null && !sessions.error ? <p className="sui-card__desc">Chargement…</p> : null}
+        {sessions.items !== null && items.length === 0 ? <Empty icon={Monitor}>Aucune session ouverte.</Empty> : null}
+        {items.length ? (
+          <ul className="sui-lines sui-lines--rows">
+            {items.map((session) => (
+              <li key={session.id}>
+                <span className="sui-lines__icon" style={{ "--tone-bg": "var(--blue)" }} aria-hidden="true">
+                  <Smartphone size={15} strokeWidth={1.75} />
+                </span>
+                <span className="sui-lines__copy">
+                  <strong>{deviceLabel(session.userAgent)}</strong>
+                  <span>
+                    {session.ipAddress ?? "Adresse inconnue"} · ouverte le {formatDate(session.createdAt)} · expire le {formatDate(session.expiresAt)}
+                  </span>
+                </span>
+                <span className="sui-lines__end">
+                  <Button
+                    onClick={() => action.run(`session:${session.id}`, `/auth/sessions/${session.id}`, { method: "DELETE" }, "Session fermée.")}
+                    disabled={action.busy === `session:${session.id}`}
+                  >
+                    Fermer
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </Panel>
     </div>
   );
 }

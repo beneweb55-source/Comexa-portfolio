@@ -162,12 +162,12 @@ export default function TelegramLinkCard() {
   return (
     <Card title={`Bot Telegram Comexa (${BOT_USERNAME})`} action={badge}>
       {state.error ? <Notice>{state.error}</Notice> : null}
-      {state.status === "loading" ? <p className="cx-small">Chargement de l’état de liaison…</p> : null}
+      {state.status === "loading" ? <p className="sui-card__desc">Chargement de l’état de liaison…</p> : null}
 
       {linked ? (
         <div className="flex flex-col gap-4">
           {justLinked ? <Notice tone="success">Liaison confirmée par Comexa. Vous pouvez utiliser le bot dès maintenant.</Notice> : null}
-          <p className="text-[14.5px]">
+          <p className="sui-body">
             Votre compte Comexa est lié au compte Telegram{" "}
             <strong>{state.data.telegramUsername ? `@${state.data.telegramUsername}` : (state.data.telegramUserId ?? "")}</strong>
             {state.data.pairedAt ? <> depuis le {formatDate(state.data.pairedAt)}</> : null}.
@@ -185,22 +185,22 @@ export default function TelegramLinkCard() {
 
       {state.status !== "loading" && !linked ? (
         <div className="flex flex-col gap-4">
-          <p className="text-[14.5px]">
+          <p className="sui-body">
             Liez votre compte Telegram au bot {BOT_USERNAME} pour recevoir des notifications et piloter Comexa depuis une conversation
             Telegram, avec vos droits d’équipe.
           </p>
 
           {code && pending ? (
-            <div className="rounded-lg border-2 border-[var(--comexa-accent-strong)] bg-[var(--comexa-accent-soft)] p-4">
-              <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--comexa-ink-muted)]">Code de liaison</p>
-              <p className="mt-1 font-mono text-[28px] font-bold tracking-[0.3em] text-[var(--comexa-ink)]">{code.code}</p>
-              <ol className="mt-3 flex list-decimal flex-col gap-1 pl-5 text-[13.5px] text-[var(--comexa-ink-soft)]">
+            <div className="sui-panel sui-panel--tint" style={{ "--tone-bg": "var(--lilac)" }}>
+              <p className="sui-field__label">Code de liaison</p>
+              <p className="sui-code-big">{code.code}</p>
+              <ol className="sui-steps-ol">
                 <li>Ouvrez {BOT_USERNAME} en message privé.</li>
                 <li>Envoyez la commande ci-dessous.</li>
                 <li>Restez sur cette page : la liaison s’affichera dès que Comexa l’aura confirmée.</li>
               </ol>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <code className="rounded-md bg-[var(--comexa-surface)] px-3 py-2 font-mono text-[15px] font-semibold">/lier {code.code}</code>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="sui-code">/lier {code.code}</code>
                 <button type="button" className={secondaryButton} onClick={copyCommand}>
                   {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
                   {copied ? "Commande copiée" : "Copier la commande"}
@@ -209,8 +209,8 @@ export default function TelegramLinkCard() {
                   <ExternalLink size={15} aria-hidden="true" /> Ouvrir {BOT_USERNAME}
                 </a>
               </div>
-              <p className="mt-3 text-[12.5px] text-[var(--comexa-ink-muted)]" aria-live="polite">
-                Expire dans <strong className="tabular-nums">{formatCountdown(expiresMs - now)}</strong> · en attente de la confirmation du bot…
+              <p className="sui-field__hint" aria-live="polite">
+                Expire dans <strong className="sui-tabular">{formatCountdown(expiresMs - now)}</strong> · en attente de la confirmation du bot…
               </p>
             </div>
           ) : null}

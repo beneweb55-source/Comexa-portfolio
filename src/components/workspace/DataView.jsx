@@ -54,8 +54,8 @@ export function formatValue(key, value, siblings = {}) {
 
 /** Un bloc : indicateurs, puis sous-sections et tableaux. */
 export function DataView({ value, title, depth = 0 }) {
-  if (value === null || value === undefined) return <p className="cx-small">Aucune donnée.</p>;
-  if (typeof value !== "object") return <p className="text-[15px] text-[var(--comexa-ink)]">{formatValue(title ?? "", value)}</p>;
+  if (value === null || value === undefined) return <p className="sui-card__desc">Aucune donnée.</p>;
+  if (typeof value !== "object") return <p className="sui-body">{formatValue(title ?? "", value)}</p>;
 
   const entries = Object.entries(value);
   const scalars = entries.filter(([, v]) => v === null || typeof v !== "object" || v instanceof Date);
@@ -70,9 +70,9 @@ export function DataView({ value, title, depth = 0 }) {
           {scalars
             .filter(([k]) => k !== "currency")
             .map(([k, v]) => (
-              <div key={k} className="rounded-lg border border-[var(--comexa-border-soft)] p-4">
-                <dt className="text-[12.5px] text-[var(--comexa-ink-muted)]">{labelOf(k)}</dt>
-                <dd className="mt-1 text-[20px] font-semibold text-[var(--comexa-ink)]">{formatValue(k, v, siblings)}</dd>
+              <div key={k} className="sui-stat">
+                <dt className="sui-field__label">{labelOf(k)}</dt>
+                <dd className="sui-stat__value">{formatValue(k, v, siblings)}</dd>
               </div>
             ))}
         </dl>
@@ -80,14 +80,14 @@ export function DataView({ value, title, depth = 0 }) {
 
       {nested.map(([k, v]) => (
         <section key={k} className="flex flex-col gap-3">
-          <h5 className="text-[15px] font-semibold text-[var(--comexa-ink)]">{labelOf(k)}</h5>
+          <h5 className="sui-section__title">{labelOf(k)}</h5>
           <DataView value={v} title={k} depth={depth + 1} />
         </section>
       ))}
 
       {lists.map(([k, v]) => (
         <section key={k} className="flex flex-col gap-3">
-          <h5 className="text-[15px] font-semibold text-[var(--comexa-ink)]">{labelOf(k)} ({v.length})</h5>
+          <h5 className="sui-section__title">{labelOf(k)} <span className="sui-section__count">{v.length}</span></h5>
           <ListTable rows={v} />
         </section>
       ))}
@@ -96,32 +96,32 @@ export function DataView({ value, title, depth = 0 }) {
 }
 
 function ListTable({ rows }) {
-  if (rows.length === 0) return <p className="cx-small">Aucun élément.</p>;
+  if (rows.length === 0) return <p className="sui-card__desc">Aucun élément.</p>;
   if (rows.every((r) => r === null || typeof r !== "object")) {
     return (
-      <ul className="flex flex-wrap gap-2 text-[14px]">
+      <ul className="sui-chips">
         {rows.map((r, i) => (
-          <li key={i} className="rounded-full border border-[var(--comexa-border-soft)] px-3 py-1">{String(r)}</li>
+          <li key={i}><span className="sui-status sui-status--plain">{String(r)}</span></li>
         ))}
       </ul>
     );
   }
   const columns = [...new Set(rows.flatMap((r) => Object.keys(r ?? {})))].filter((k) => rows.some((r) => r && (typeof r[k] !== "object" || r[k] === null || r[k] instanceof Date))).slice(0, 7);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[480px] border-collapse text-left text-[13.5px]">
+    <div className="sui-table-wrap">
+      <table className="sui-table">
         <thead>
-          <tr className="border-b border-[var(--comexa-border-soft)] text-[var(--comexa-ink-muted)]">
+          <tr>
             {columns.map((c) => (
-              <th key={c} className="py-2 pr-4 font-medium">{labelOf(c)}</th>
+              <th key={c}>{labelOf(c)}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.slice(0, 200).map((row, i) => (
-            <tr key={row?.id ?? i} className="border-b border-[var(--comexa-border-soft)] align-top">
+            <tr key={row?.id ?? i}>
               {columns.map((c) => (
-                <td key={c} className="py-2 pr-4">{formatValue(c, row?.[c], row ?? {})}</td>
+                <td key={c}>{formatValue(c, row?.[c], row ?? {})}</td>
               ))}
             </tr>
           ))}

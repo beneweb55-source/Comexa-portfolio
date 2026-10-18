@@ -46,6 +46,8 @@ export function ChatWrapper({ defaultMinimized = true, variant = "floating", ini
         isExpanded={true}
         onToggleExpand={toggleExpand}
         isMinimized={false}
+        variant={variant}
+        initialConversationId={initialConversationId}
       />
     );
   }

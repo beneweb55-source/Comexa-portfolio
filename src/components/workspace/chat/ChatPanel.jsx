@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import { ChevronLeft, MessageCircle, X } from "lucide-react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { messageOf } from "@/lib/api";
@@ -32,6 +33,7 @@ export function ChatPanel({
   onToggleExpand,
   defaultMinimized = false,
   variant = "floating",
+  initialConversationId = null,
 }) {
   const { request, user } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -44,7 +46,6 @@ export function ChatPanel({
   const [isMinimized, setIsMinimized] = useState(defaultMinimized);
   const [showSidebar, setShowSidebar] = useState(true);
   const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
 
   // WebSocket
   const { socket, isConnected, isConnecting, error: wsError } = useSocketIO();
@@ -284,11 +285,6 @@ export function ChatPanel({
     }
   }, [isMinimized]);
 
-  // Basculer la sidebar (pour mobile)
-  const toggleSidebar = useCallback(() => {
-    setShowSidebar((prev) => !prev);
-  }, []);
-
   // Afficher les utilisateurs qui tapent
   const typingText = Object.entries(typingUsers)
     .filter(([_, isTyping]) => isTyping)
@@ -304,55 +300,23 @@ export function ChatPanel({
     })
     .filter(Boolean);
 
-  // Déterminer la classe de taille en fonction du mode
-  const getSizeClasses = () => {
-    // Page pleine : la messagerie occupe l'ecran de la rubrique, au lieu de
-    // flotter dans un coin. C'est le mode attendu sur `/messagerie`, ou une
-    // simple pastille flottante ne montrait... une pastille.
-    if (pageMode) {
-      return {
-        container: "w-full",
-        chat: "w-full h-[calc(100vh-300px)] min-h-[480px] rounded-2xl border border-[var(--comexa-border-soft)] overflow-hidden flex flex-col bg-[var(--comexa-surface-elevated)]",
-        sidebar: "w-full md:w-80 flex-shrink-0 md:border-r border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-        content: "flex-1 flex flex-col min-w-0",
-        header: "p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-        messages: "flex-1 overflow-y-auto p-4",
-      };
-    }
+  /* Gabarit du panneau selon le mode :
+     - `page` : la messagerie remplit la rubrique (c'est le mode de `/messagerie`) ;
+     - `overlay` : plein écran, par-dessus la coque ;
+     - `pill` / `float` : la pastille et la fenêtre flottantes, pour un chat
+       qu'on survole sans quitter sa page. */
+  const modeClass = pageMode
+    ? "sui-chat--page"
+    : isExpanded
+      ? "sui-chat--overlay"
+      : isMinimized
+        ? "sui-chat--pill"
+        : "sui-chat--float";
 
-    if (isExpanded) {
-      return {
-        container: "fixed inset-0 z-50",
-        chat: "h-screen w-screen flex flex-col",
-        sidebar: "w-80 flex-shrink-0",
-        content: "flex-1 flex flex-col min-w-0",
-        header: "p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-        messages: "flex-1 overflow-y-auto p-4",
-      };
-    }
-
-    if (isMinimized) {
-      return {
-        container: "fixed bottom-6 right-6 z-40",
-        chat: "w-96 h-96 rounded-xl shadow-xl flex flex-col bg-[var(--comexa-surface-elevated)]",
-        sidebar: "w-0 hidden",
-        content: "flex-1 flex flex-col",
-        header: "p-3 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-        messages: "flex-1 overflow-y-auto p-3",
-      };
-    }
-
-    return {
-      container: "fixed bottom-6 right-6 z-40",
-      chat: "w-[600px] h-[500px] rounded-xl shadow-xl flex flex-col bg-[var(--comexa-surface-elevated)]",
-      sidebar: "w-80 flex-shrink-0 border-r border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-      content: "flex-1 flex flex-col",
-      header: "p-4 border-b border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)]",
-      messages: "flex-1 overflow-y-auto p-4",
-    };
-  };
-
-  const sizeClasses = getSizeClasses();
+  // Sur petit écran, en mode page, la liste et le fil ne se partagent pas la
+  // place : on affiche l'un ou l'autre.
+  const asideHidden = pageMode && selectedConversation ? "sui-chat__aside--hidden" : "";
+  const mainHidden = pageMode && !selectedConversation ? "sui-chat__main--hidden" : "";
 
   // Si pas d'accès en lecture, ne rien afficher
   if (!canRead) {
@@ -365,302 +329,195 @@ export function ChatPanel({
       {NotificationComponent}
 
       {/* Overlay pour le mode plein écran */}
-      {isExpanded && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-30 z-40"
-          onClick={onToggleExpand}
-        />
-      )}
+      {isExpanded ? (
+        <div className="sui-dialog-backdrop" role="presentation" onClick={onToggleExpand} />
+      ) : null}
 
-      <div
-        className={`${sizeClasses.container}`}
-        style={{
-          boxShadow: isExpanded || pageMode ? "none" : "var(--comexa-shadow-xl)",
-        }}
-      >
-        <div
-          className={`${sizeClasses.chat}`}
-          style={{
-            background: isExpanded ? "var(--comexa-bg)" : "var(--comexa-surface-elevated)",
-          }}
-        >
-          {/* En-tête (mode plein écran ou normal) */}
-          {(!isMinimized || isExpanded) && (
-            <div className={sizeClasses.header}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {!isExpanded && !pageMode && (
-                    <button
-                      type="button"
-                      onClick={toggleMinimized}
-                      className="p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors"
-                      title={isMinimized ? "Agrandir" : "Réduire"}
-                    >
-                      <svg className="w-5 h-5 text-[var(--comexa-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {isMinimized ? (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        ) : (
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        )}
-                      </svg>
-                    </button>
-                  )}
-                  
-                  {isExpanded && (
-                    <button
-                      type="button"
-                      onClick={onToggleExpand}
-                      className="p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors"
-                      title="Fermer"
-                    >
-                      <svg className="w-5 h-5 text-[var(--comexa-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                  
-                  {selectedConversation ? (
-                    <>
-                      {isExpanded && (
-                        <h2 className="text-lg font-bold text-[var(--comexa-ink)]">Messagerie</h2>
-                      )}
-                    </>
-                  ) : (
-                    <h2 className="text-lg font-bold text-[var(--comexa-ink)]">
-                      {isExpanded ? "Messagerie" : "Messages"}
-                    </h2>
-                  )}
-                </div>
+      <div className={`sui-chat__host ${modeClass}`}>
+        <div className="sui-chat">
+          {/* En-tête du panneau */}
+          {!isMinimized || isExpanded ? (
+            <div className="sui-chat__head">
+              <div className="flex items-center gap-2">
+                {!isExpanded && !pageMode ? (
+                  <button
+                    type="button"
+                    onClick={toggleMinimized}
+                    className="sui-iconbtn sui-iconbtn--ghost"
+                    title={isMinimized ? "Agrandir" : "Réduire"}
+                    aria-label={isMinimized ? "Agrandir la messagerie" : "Réduire la messagerie"}
+                  >
+                    <ChevronLeft size={18} strokeWidth={1.9} aria-hidden="true" />
+                  </button>
+                ) : null}
 
-                {/* Statut de connexion */}
-                {isExpanded && (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        isConnected ? "bg-[var(--comexa-success)]" : 
-                        isConnecting ? "bg-[var(--comexa-warning)]" : 
-                        "bg-[var(--comexa-error)]"
-                      }`}
-                    />
-                    <span className="text-sm text-[var(--comexa-ink-muted)]">
-                      {isConnected ? "Connecté" : isConnecting ? "Connexion..." : "Déconnecté"}
-                    </span>
-                  </div>
-                )}
+                {isExpanded ? (
+                  <button
+                    type="button"
+                    onClick={onToggleExpand}
+                    className="sui-iconbtn sui-iconbtn--ghost"
+                    title="Fermer"
+                    aria-label="Fermer la messagerie"
+                  >
+                    <X size={18} strokeWidth={1.9} aria-hidden="true" />
+                  </button>
+                ) : null}
+
+                <h2 className="sui-section__title">Messagerie</h2>
               </div>
 
-              {/* En-tête de la conversation */}
-              {selectedConversation && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="flex items-center gap-3">
-                    {!isExpanded && !isMinimized && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedConversation(null)}
-                        className={`p-2 rounded-lg hover:bg-[var(--comexa-neutral-100)] transition-colors ${
-                          pageMode ? "md:hidden" : "lg:hidden"
-                        }`}
-                      >
-                        <svg className="w-5 h-5 text-[var(--comexa-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                    )}
-                    
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[var(--comexa-blue-100)] flex items-center justify-center text-sm font-semibold text-[var(--comexa-blue-600)]">
-                        {conversationTitle(selectedConversation, user?.id).charAt(0).toUpperCase() || "U"}
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-[var(--comexa-ink)] truncate max-w-[200px]">
-                          {conversationTitle(selectedConversation, user?.id)}
-                        </h3>
-                        {isExpanded && (
-                          <p className="text-xs text-[var(--comexa-ink-muted)]">
-                            {isGroupConversation(selectedConversation)
-                              ? `${selectedConversation.participants?.length || 0} participants`
-                              : (selectedConversation.participants ?? [])
-                                  .filter((participant) => participant.userId !== user?.id)
-                                  .map((participant) => participant.email)
-                                  .join(", ")}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Indicateur de frappe */}
-                    {typingText.length > 0 && (
-                      <span className="text-sm text-[var(--comexa-blue-500)] italic">
-                        {typingText.join(", ")} {typingText.length > 1 ? "tapent" : "tape"}...
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+              {/* État de la connexion temps réel */}
+              <span className="sui-chat__live">
+                <i className={`sui-chat__dot${isConnected ? "" : " sui-chat__dot--off"}`} aria-hidden="true" />
+                {isConnected ? "Connecté" : isConnecting ? "Connexion…" : "Hors ligne"}
+              </span>
             </div>
-          )}
+          ) : null}
 
-          <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar - Liste des conversations.
-                En mode page, sur petit ecran, la liste et le fil ne se partagent
-                pas la place : on affiche l'un ou l'autre. */}
-            {showSidebar && !isMinimized && (
-              <div
-                className={`${sizeClasses.sidebar} ${
-                  pageMode && selectedConversation ? "hidden md:block" : ""
-                }`}
-              >
-                <ChatSidebar
-                  selectedConversationId={selectedConversation?.id}
-                  onSelectConversation={loadConversation}
-                  onCreateConversation={handleCreateConversation}
-                  isExpanded={isExpanded}
-                  onToggleSidebar={toggleSidebar}
-                />
+          {/* En-tête de la conversation ouverte */}
+          {selectedConversation ? (
+            <div className="sui-chat__head">
+              <div className="flex items-center gap-3">
+                {!isExpanded && !isMinimized ? (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedConversation(null)}
+                    className="sui-iconbtn sui-iconbtn--ghost md:hidden"
+                    title="Revenir aux conversations"
+                    aria-label="Revenir à la liste des conversations"
+                  >
+                    <ChevronLeft size={18} strokeWidth={1.9} aria-hidden="true" />
+                  </button>
+                ) : null}
+
+                <span className="sui-chat__avatar" aria-hidden="true">
+                  {conversationTitle(selectedConversation, user?.id).charAt(0).toUpperCase() || "U"}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="sui-chat__title">
+                    {conversationTitle(selectedConversation, user?.id)}
+                  </h3>
+                  <p className="sui-chat__preview">
+                    {isGroupConversation(selectedConversation)
+                      ? `${selectedConversation.participants?.length || 0} participants`
+                      : (selectedConversation.participants ?? [])
+                          .filter((participant) => participant.userId !== user?.id)
+                          .map((participant) => participant.email)
+                          .join(", ")}
+                  </p>
+                </div>
               </div>
-            )}
 
-            {/* Zone de chat */}
-            <div
-              className={`${sizeClasses.content} ${
-                pageMode && !selectedConversation ? "hidden md:flex" : ""
-              }`}
-            >
-              {/* Bouton pour ouvrir la sidebar (mobile) */}
-              {!showSidebar && !isExpanded && !isMinimized && (
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="p-2 m-2 rounded-lg bg-[var(--comexa-neutral-100)] hover:bg-[var(--comexa-neutral-200)] transition-colors lg:hidden"
-                >
-                  <svg className="w-5 h-5 text-[var(--comexa-ink)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              )}
+              {/* Indicateur de frappe */}
+              {typingText.length > 0 ? (
+                <span className="sui-chat__typing" aria-live="polite">
+                  <i aria-hidden="true" />
+                  <i aria-hidden="true" />
+                  <i aria-hidden="true" />
+                  {typingText.join(", ")} {typingText.length > 1 ? "tapent" : "tape"}…
+                </span>
+              ) : null}
+            </div>
+          ) : null}
 
-              {/* Zone des messages */}
-              <div
-                ref={messagesContainerRef}
-                className={sizeClasses.messages}
-                style={{
-                  backgroundImage: isExpanded ? "none" : 
-                    "radial-gradient(circle at top left, var(--comexa-blue-50) 0%, transparent 30%), radial-gradient(circle at bottom right, var(--comexa-blue-50) 0%, transparent 30%)",
-                }}
-              >
+          <div className="sui-chat__body">
+            {/* Colonne des conversations */}
+            {showSidebar && !isMinimized ? (
+              <ChatSidebar
+                className={asideHidden}
+                selectedConversationId={selectedConversation?.id}
+                onSelectConversation={loadConversation}
+                onCreateConversation={handleCreateConversation}
+              />
+            ) : null}
+
+            {/* Fil de discussion */}
+            <div className={`sui-chat__main ${mainHidden}`.trim()}>
+              <div className="sui-chat__thread">
                 {!selectedConversation ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Empty>
-                      {isExpanded ? "Sélectionnez une conversation pour commencer à discuter." : "Pas de conversation sélectionnée"}
-                    </Empty>
-                  </div>
+                  <Empty>Sélectionnez une conversation pour commencer à discuter.</Empty>
                 ) : null}
 
                 {loadingMessages && messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin w-8 h-8 border-4 border-[var(--comexa-blue-500)] border-t-transparent rounded-full" />
-                  </div>
+                  <p className="sui-card__desc" style={{ margin: "auto" }}>
+                    Chargement des messages…
+                  </p>
                 ) : null}
 
                 {/* Messages plus anciens */}
-                {hasMoreMessages && !isMinimized && (
+                {hasMoreMessages && !isMinimized ? (
                   <button
                     type="button"
                     onClick={loadOlderMessages}
                     disabled={loadingMessages}
-                    className="mx-auto mb-4 px-4 py-2 text-sm text-[var(--comexa-blue-500)] bg-[var(--comexa-blue-50)] rounded-full hover:bg-[var(--comexa-blue-100)] transition-colors disabled:opacity-50"
+                    className="sui-btn sui-btn--sm"
+                    style={{ alignSelf: "center" }}
                   >
-                    {loadingMessages ? "Chargement..." : "Messages plus anciens"}
+                    {loadingMessages ? "Chargement…" : "Messages plus anciens"}
                   </button>
-                )}
+                ) : null}
 
                 {/* Liste des messages */}
-                <div className="space-y-4">
-                  {messages.map((message) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      isCurrentUser={message.senderId === user?.id}
-                      showAvatar={!isExpanded && !isMinimized}
-                      showTimestamp={isExpanded}
-                    />
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
+                {messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    isCurrentUser={message.senderId === user?.id}
+                    showAvatar={!isExpanded && !isMinimized}
+                    showTimestamp={isExpanded}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
               </div>
 
-              {/* Input de message */}
-              {selectedConversation && canWrite && (
+              {/* Zone de saisie */}
+              {selectedConversation && canWrite ? (
                 <ChatInput
                   conversationId={selectedConversation.id}
                   onSend={handleSend}
                   onTyping={notifyTyping}
                   disabled={sending}
-                  placeholder={isMinimized ? "Écrivez..." : "Écrivez un message..."}
                 />
-              )}
-
-              {selectedConversation && !canWrite && (
-                <div className="p-4 text-center text-sm text-[var(--comexa-ink-muted)]">
-                  Votre rôle ne permet pas d&apos;envoyer des messages.
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
 
         {/* Bouton pour ouvrir le chat (mode réduit) */}
-        {isMinimized && !isExpanded && !pageMode && (
+        {isMinimized && !isExpanded && !pageMode ? (
           <button
             type="button"
             onClick={toggleMinimized}
-            className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-[var(--comexa-blue-500)] text-white flex items-center justify-center shadow-lg hover:bg-[var(--comexa-blue-600)] transition-colors"
+            className="sui-iconbtn"
+            style={{
+              position: "absolute",
+              top: -12,
+              right: -12,
+              background: "var(--shell)",
+              color: "#ffffff",
+              boxShadow: "var(--shadow-pop)",
+            }}
             title="Agrandir le chat"
+            aria-label="Agrandir le chat"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+            <ChevronLeft size={18} strokeWidth={1.9} style={{ transform: "rotate(180deg)" }} aria-hidden="true" />
           </button>
-        )}
+        ) : null}
       </div>
 
-      {/* Bouton flottant pour ouvrir le chat (quand tout est fermé) */}
-      {isMinimized && !isExpanded && !pageMode && !selectedConversation && (
+      {/* Pastille flottante : le chat est réduit et aucune conversation n'est ouverte */}
+      {isMinimized && !isExpanded && !pageMode && !selectedConversation ? (
         <button
           type="button"
           onClick={toggleMinimized}
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-br from-[var(--comexa-blue-500)] to-[var(--comexa-blue-600)] text-white flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200"
+          className="sui-chat__fab"
           title="Ouvrir la messagerie"
-          style={{
-            boxShadow: "0 10px 40px -10px rgba(30, 134, 224, 0.4)",
-          }}
+          aria-label="Ouvrir la messagerie"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
+          <MessageCircle size={22} strokeWidth={1.9} aria-hidden="true" />
         </button>
-      )}
+      ) : null}
     </>
-  );
-}
-
-/**
- * Composant Notice pour les erreurs
- */
-function Notice({ tone = "info", text }) {
-  const colors = {
-    info: "bg-[var(--comexa-info-bg)] text-[var(--comexa-info)]",
-    success: "bg-[var(--comexa-success-bg)] text-[var(--comexa-success)]",
-    warning: "bg-[var(--comexa-warning-bg)] text-[var(--comexa-warning)]",
-    error: "bg-[var(--comexa-error-bg)] text-[var(--comexa-error)]",
-  };
-
-  return (
-    <div className={`px-4 py-2 rounded-lg ${colors[tone]}`}>
-      {text}
-    </div>
   );
 }
 
