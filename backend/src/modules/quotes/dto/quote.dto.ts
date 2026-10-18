@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsEnum,
+  IsIn,
   IsISO8601,
   IsNumber,
   IsOptional,
@@ -17,6 +18,16 @@ import {
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { QuoteStatus } from '../../../generated/prisma/enums.js';
+
+/**
+ * DEVISES ACCEPTÉES SUR UN DOCUMENT COMMERCIAL.
+ *
+ * DA d'abord : le marché principal est l'Algérie. Cette liste est VOLONTAIREMENT
+ * distincte de `SUPPORTED_CURRENCIES` (tarification des commandes), qui répond
+ * à une autre règle — la devise y vient du pays du visiteur, jamais d'un choix.
+ * Un devis, lui, est écrit par un humain qui sait dans quelle devise il facture.
+ */
+export const DOCUMENT_CURRENCIES = ['DZD', 'EUR'] as const;
 
 /**
  * CONTRATS D'ENTREE DES DEVIS.
@@ -114,11 +125,9 @@ export class CreateQuoteDto {
   @IsISO8601({}, { message: "La date de validite n'est pas une date valide." })
   validUntil?: string;
 
-  @ApiPropertyOptional({ example: 'EUR', default: 'EUR' })
+  @ApiPropertyOptional({ enum: DOCUMENT_CURRENCIES, example: 'DZD', default: 'DZD' })
   @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(3)
+  @IsIn(DOCUMENT_CURRENCIES, { message: 'Devise non prise en charge.' })
   currency?: string;
 
   @ApiPropertyOptional({

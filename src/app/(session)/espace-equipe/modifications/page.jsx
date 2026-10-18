@@ -5,6 +5,7 @@ import { formatDate, formatMoney, messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, selectClass, textareaClass } from "@/components/workspace/ui";
+import CurrencySelect, { DEFAULT_CURRENCY } from "@/components/workspace/CurrencySelect";
 import { MODIFICATION_STATUS, MODIFICATION_TONE, PRIORITY } from "@/lib/modifications";
 
 /**
@@ -71,7 +72,7 @@ export default function ModificationsPage() {
 
 function Decide({ item, action, onDone }) {
   const { request } = useAuth();
-  const [form, setForm] = useState({ status: "APPROVED", decisionNote: "", estimatedHours: "", extraCost: "", extraCostCurrency: "DZD" });
+  const [form, setForm] = useState({ status: "APPROVED", decisionNote: "", estimatedHours: "", extraCost: "", extraCostCurrency: DEFAULT_CURRENCY });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -113,10 +114,7 @@ function Decide({ item, action, onDone }) {
         <input id={`dec-cost-${item.id}`} type="number" min="0" step="0.01" className={inputClass} value={form.extraCost} onChange={(e) => setForm({ ...form, extraCost: e.target.value })} />
       </Field>
       <Field id={`dec-currency-${item.id}`} label="Devise du supplément">
-        <select id={`dec-currency-${item.id}`} className={selectClass} value={form.extraCostCurrency} onChange={(e) => setForm({ ...form, extraCostCurrency: e.target.value })}>
-          <option value="DZD">DZD</option>
-          <option value="EUR">EUR</option>
-        </select>
+        <CurrencySelect id={`dec-currency-${item.id}`} value={form.extraCostCurrency} onChange={(value) => setForm({ ...form, extraCostCurrency: value })} />
       </Field>
       <div className="md:col-span-2">
         <Field id={`dec-note-${item.id}`} label="Motif (affiché au client)">

@@ -10,9 +10,10 @@ import { Badge, Card, Empty, Notice, Skeleton, secondaryButton } from "@/compone
 /**
  * SOLDE — ce que l'agence doit au membre, par devise.
  *
- * Présenté comme un COMPTE BANCAIRE : la carte bleue du solde principal
- * (carte à puce, numéro de compte masqué, titulaire), les autres devises en
- * minis cartes, puis un relevé des dernières opérations.
+ * Présenté comme un COMPTE BANCAIRE : la carte pastel du solde principal
+ * (badge « Solde disponible », montant en très grand, devise et date de mise à
+ * jour), les autres devises en lignes compactes, puis un relevé des dernières
+ * opérations.
  *
  * Le solde vit cote serveur (`/balances/me/all`) : il n'est jamais recalcule
  * dans le navigateur, qui ne fait qu'afficher la valeur renvoyee. Un solde
@@ -23,12 +24,15 @@ import { Badge, Card, Empty, Notice, Skeleton, secondaryButton } from "@/compone
  * La carte n'apparait QUE pour un porteur qui detient `balance:read:own` : un
  * compte client n'a pas de solde, et la recharche ne doit pas laisser une
  * carte vide derriere elle.
+ *
+ * Habillage : design system « soft UI pastel dans une coque noire » — la carte
+ * du solde principal reprend exactement la carte KPI du tableau de bord.
  */
 
-/** Un mouvement de solde : son libelle, son signe, et le ton de son badge. */
+/** Un mouvement de solde : son libellé, son signe, et le ton de son badge. */
 const MOVEMENTS = {
-  CREDIT: { label: "Credit", tone: "success" },
-  DEBIT: { label: "Debit", tone: "danger" },
+  CREDIT: { label: "Crédit", tone: "success" },
+  DEBIT: { label: "Débit", tone: "danger" },
   CORRECTION: { label: "Correction", tone: "warning" },
 };
 
@@ -104,11 +108,11 @@ export default function BalancePanel() {
 
   return (
     <Card
-      title="Mon compte"
-      subtitle="Votre solde chez Comexa, comme un compte bancaire, par devise."
+      title="Mon solde"
+      subtitle="Ce que Comexa vous doit, par devise — comme un compte bancaire."
       action={
         <button type="button" className={secondaryButton} onClick={load} disabled={loading}>
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} aria-hidden="true" /> Actualiser
+          <RefreshCw size={15} strokeWidth={1.9} className={loading ? "sui-spin" : ""} aria-hidden="true" /> Actualiser
         </button>
       }
     >
@@ -116,63 +120,46 @@ export default function BalancePanel() {
 
       {loading ? (
         <div className="flex flex-col gap-3">
-          <Skeleton className="h-[188px] w-full rounded-[22px]" />
+          <Skeleton className="h-[168px] w-full rounded-[28px]" />
           <Skeleton className="h-4 w-72" />
         </div>
       ) : null}
 
       {!loading && !error && soldes.length === 0 ? (
-        <Empty icon={Landmark}>Aucun solde enregistre pour le moment.</Empty>
+        <Empty icon={Landmark}>Aucun solde enregistré pour le moment.</Empty>
       ) : null}
 
       {!loading && principal ? (
         <div className="flex flex-col gap-4">
-          {/* La carte bleue : solde principal, carte à puce, titulaire. */}
-          <div className="cx-bank">
-            <div className="cx-bank__top">
-              <div>
-                <p className="cx-bank__label">Solde disponible</p>
-                <p className="cx-bank__amount">{formatMoney(principal.currentBalance, principal.currency)}</p>
-                <p className="cx-bank__meta">
-                  {principal.currency}
-                  {principal.lastUpdatedAt ? ` · Mis a jour le ${formatDate(principal.lastUpdatedAt)}` : " · Aucun mouvement enregistre"}
-                </p>
-              </div>
-              <span className="cx-bank__brand">
-                <Landmark size={18} strokeWidth={1.9} aria-hidden="true" />
-                Comexa
+          {/* La carte pastel du solde principal : même gabarit que les cartes
+              KPI du tableau de bord (rayon 28, badge, valeur en très grand). */}
+          <article className="sui-kpi" style={{ "--tone-bg": "var(--blue)" }}>
+            <div className="sui-kpi__top">
+              <span className="sui-kpi__badge">Solde disponible</span>
+              <span className="sui-kpi__deco" aria-hidden="true">
+                <Landmark size={20} strokeWidth={1.75} />
               </span>
             </div>
+            <p className="sui-kpi__value">{formatMoney(principal.currentBalance, principal.currency)}</p>
+            <p className="sui-kpi__label">
+              Compte n° •••• {accountSuffix(user?.id)} · {principal.currency}
+              {principal.lastUpdatedAt ? ` · mis à jour le ${formatDate(principal.lastUpdatedAt)}` : " · aucun mouvement enregistré"}
+            </p>
+            <p className="sui-kpi__label">
+              Titulaire : {titulaire || user?.email || "Membre Comexa"}
+            </p>
+          </article>
 
-            <div className="cx-bank__chiprow">
-              <span className="cx-bank__chip" aria-hidden="true" />
-              <span className="cx-bank__number" aria-label={`Compte numero **** ${accountSuffix(user?.id)}`}>
-                •••• •••• •••• {accountSuffix(user?.id)}
-              </span>
-            </div>
-
-            <div className="cx-bank__foot">
-              <div>
-                <p className="cx-bank__label">Titulaire</p>
-                <p className="cx-bank__holder">{titulaire || user?.email || "Membre Comexa"}</p>
-              </div>
-              <div className="text-right">
-                <p className="cx-bank__label">Devise</p>
-                <p className="cx-bank__holder">{principal.currency}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Autres devises : minis cartes, comme une banque multi-devises. */}
+          {/* Autres devises : lignes compactes, comme une banque multi-devises. */}
           {autres.length > 0 ? (
             <ul className="flex flex-col gap-2">
               {autres.map((solde) => (
-                <li key={solde.id ?? solde.currency} className="cx-bank-mini">
-                  <span className="cx-bank-mini__currency">
-                    <span className="cx-bank-mini__dot" aria-hidden="true" />
+                <li key={solde.id ?? solde.currency} className="sui-bank-mini">
+                  <span className="sui-bank-mini__currency">
+                    <span className="sui-bank-mini__dot" aria-hidden="true" />
                     {solde.currency}
                   </span>
-                  <span className="cx-bank-mini__amount">{formatMoney(solde.currentBalance, solde.currency)}</span>
+                  <span className="sui-bank-mini__amount">{formatMoney(solde.currentBalance, solde.currency)}</span>
                 </li>
               ))}
             </ul>
@@ -182,12 +169,12 @@ export default function BalancePanel() {
 
       {/* Relevé d'opérations : les derniers mouvements du compte. */}
       {!loading && mouvements.length > 0 ? (
-        <div className="mt-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="cx-label">Relevé d’opérations</p>
-            <p className="cx-small">Derniers mouvements</p>
+        <div className="flex flex-col gap-3">
+          <div className="sui-section__head">
+            <h4 className="sui-section__title">Relevé d’opérations</h4>
+            <span className="sui-section__count">{mouvements.length}</span>
           </div>
-          <ul className="cx-statement mt-2">
+          <ul className="sui-lines sui-lines--rows">
             {mouvements.map((transaction) => {
               const mouvement = MOVEMENTS[transaction.type] ?? {
                 label: transaction.type ?? "Mouvement",
@@ -196,27 +183,24 @@ export default function BalancePanel() {
               const amount = signedAmount(transaction);
               const positif = amount >= 0;
               return (
-                <li key={transaction.id} className="cx-statement__row">
-                  <div className="flex min-w-0 flex-wrap items-center gap-3">
-                    <span className="cx-statement__date">{formatDate(transaction.createdAt)}</span>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-medium text-[var(--comexa-ink)]">
-                        {transaction.description || mouvement.label}
-                      </p>
-                      {transaction.reference ? (
-                        <p className="cx-small font-mono text-[11.5px]">{transaction.reference}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
+                <li key={transaction.id}>
+                  <span className="sui-lines__icon" style={{ "--tone-bg": positif ? "var(--green)" : "var(--pink)" }} aria-hidden="true">
+                    <Landmark size={15} strokeWidth={1.75} />
+                  </span>
+                  <span className="sui-lines__copy">
+                    <strong>{transaction.description || mouvement.label}</strong>
+                    <span>
+                      {formatDate(transaction.createdAt)}
+                      {transaction.reference ? ` · ${transaction.reference}` : ""}
+                    </span>
+                  </span>
+                  <span className="sui-lines__end">
                     <Badge tone={mouvement.tone}>{mouvement.label}</Badge>
-                    <span
-                      className={`cx-statement__amount ${positif ? "text-[var(--comexa-success)]" : "text-[var(--comexa-error)]"}`}
-                    >
+                    <span className={positif ? "sui-amount sui-amount--up" : "sui-amount sui-amount--down"}>
                       {positif ? "+" : "−"}
                       {formatMoney(Math.abs(amount), transaction.currency)}
                     </span>
-                  </div>
+                  </span>
                 </li>
               );
             })}

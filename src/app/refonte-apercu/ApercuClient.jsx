@@ -13,12 +13,14 @@ import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   BadgeCheck,
+  BellOff,
   BookOpen,
   CalendarDays,
   CalendarClock,
   ChartNoAxesColumn,
   ChevronDown,
   Check,
+  Clock3,
   CreditCard,
   Eye,
   FilePen,
@@ -35,6 +37,7 @@ import {
   ReceiptText,
   Settings2,
   Sparkles,
+  Target,
   Trash2,
   TrendingUp,
   UserPlus,
@@ -52,6 +55,7 @@ import SideRail from "@/components/softui/SideRail";
 import { ActivityList, HealthList, Panel } from "@/components/softui/panels";
 import { Button, FilterPills, SectionHead, StatusPill } from "@/components/softui/primitives";
 import { SoftMotionProvider } from "@/components/softui/motion";
+import { FocusPreview, NotificationsPreview, TimerPreview } from "./ApercuExtras";
 
 const NAV_ITEMS = [
   { href: "#", label: "Control Center", icon: LayoutDashboard },
@@ -352,6 +356,27 @@ export default function ApercuClient() {
                       </Button>
                     </Panel>
                   </div>
+                </section>
+
+                <section className="sui-section">
+                  <SectionHead icon={Clock3} title="Minuteur">
+                    <span className="sui-panel__sub">Cadran noir, anneau fin, chiffres légers — comme le chronomètre d’iOS.</span>
+                  </SectionHead>
+                  <TimerPreview />
+                </section>
+
+                <section className="sui-section">
+                  <SectionHead icon={Target} title="Mode concentration">
+                    <span className="sui-panel__sub">Un bloc de travail, une tâche, « ne pas déranger ». Le temps part dans la feuille de temps.</span>
+                  </SectionHead>
+                  <FocusPreview />
+                </section>
+
+                <section className="sui-section">
+                  <SectionHead icon={BellOff} title="Notifications">
+                    <span className="sui-panel__sub">Regroupées par journée, filtrées par catégorie, et poussées en temps réel.</span>
+                  </SectionHead>
+                  <NotificationsPreview />
                 </section>
               </div>
             </main>

@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsInt,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
@@ -11,6 +12,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { DOCUMENT_CURRENCIES } from '../../quotes/dto/quote.dto.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { Priority, ProjectHealth, ProjectStatus } from '../../../generated/prisma/enums.js';
 import { IsDateStringLike } from './is-date-string-like.decorator.js';
@@ -96,11 +98,9 @@ export class CreateProjectDto {
   @Matches(MONEY_PATTERN, { message: 'Le budget doit etre un montant a deux decimales maximum.' })
   budget?: string;
 
-  @ApiPropertyOptional({ example: 'EUR', default: 'EUR', maxLength: 3 })
+  @ApiPropertyOptional({ enum: DOCUMENT_CURRENCIES, example: 'DZD', default: 'DZD', maxLength: 3 })
   @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(3)
+  @IsIn(DOCUMENT_CURRENCIES, { message: 'Devise non prise en charge.' })
   currency?: string;
 }
 

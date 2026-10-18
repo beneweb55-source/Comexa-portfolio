@@ -6,6 +6,7 @@ import { can } from "@/lib/access";
 import { useAction, useListing } from "@/lib/use-listing";
 import { useAuth } from "@/lib/session";
 import { Badge, Card, ConfirmDialog, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, textareaClass } from "@/components/workspace/ui";
+import CurrencySelect, { CONTENT_CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "@/components/workspace/CurrencySelect";
 
 /*
  * Contenu du site public, géré depuis l'espace équipe. Une seule mécanique pour
@@ -336,7 +337,7 @@ function ContentForm({ config, item, onClose, onSaved }) {
 function RatesPanel({ pack, canWrite }) {
   const rates = useListing(`/content/packages/${pack.id}/rates`);
   const action = useAction(rates.reload);
-  const [form, setForm] = useState({ amount: "", currency: "DZD", effectiveFrom: new Date().toISOString().slice(0, 10) });
+  const [form, setForm] = useState({ amount: "", currency: DEFAULT_CURRENCY, effectiveFrom: new Date().toISOString().slice(0, 10) });
 
   async function add(event) {
     event.preventDefault();
@@ -381,10 +382,13 @@ function RatesPanel({ pack, canWrite }) {
             <input id="rate-amount" type="number" min="0.01" step="0.01" required className={`${inputClass} !w-[150px]`} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
           </Field>
           <Field id="rate-currency" label="Devise">
-            <select id="rate-currency" className={`${inputClass} !w-[110px]`} value={form.currency} onChange={(e) => setForm({ ...form, currency: e.target.value })}>
-              <option value="DZD">DZD</option>
-              <option value="EUR">EUR</option>
-            </select>
+            <CurrencySelect
+              id="rate-currency"
+              className="!w-[190px]"
+              options={CONTENT_CURRENCY_OPTIONS}
+              value={form.currency}
+              onChange={(value) => setForm({ ...form, currency: value })}
+            />
           </Field>
           <Field id="rate-date" label="En vigueur le">
             <input id="rate-date" type="date" required className={`${inputClass} !w-[170px]`} value={form.effectiveFrom} onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })} />
