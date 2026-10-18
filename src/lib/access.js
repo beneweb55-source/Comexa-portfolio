@@ -87,6 +87,9 @@ const ROUTE_ACCESS = [
   ["/espace-equipe/rapports-journaliers", ["time:read:any"]],
   ["/espace-equipe/temps", ["time:read:any"]],
   ["/espace-equipe/analytique", ["report:read:any"]],
+  // La répartition et les soldes : l'encadrement lit les règles et les
+  // calculs, chaque membre lit SON relevé.
+  ["/espace-equipe/repartition", ["distribution:read:any", "distribution:manage:any", "balance:read:own", "balance:read:any"]],
   ["/espace-equipe/modifications", ["modificationrequest:decide:any"]],
   ["/espace-equipe/rapports", ["report:read:any", "report:read:own"]],
   ["/espace-equipe/messagerie", ["conversation:read:own"]],

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { after, beforeEach, describe, it } from 'node:test';
 import {
   MAX_SOCKET_ID_LENGTH,
   extractHandshakeToken,
+  isSocketOriginAllowed,
   readConversationIdFromPayload,
   readTypingFlag,
   roomForConversation,
@@ -109,6 +110,65 @@ describe('socketCorsOrigins — meme regle que le CORS HTTP', () => {
       'https://b.test',
     ]);
     assert.deepEqual(socketCorsOrigins('https://seul.test'), ['https://seul.test']);
+  });
+});
+
+describe('isSocketOriginAllowed — le controle d acces reel du temps reel', () => {
+  const previous = process.env.CORS_ORIGIN;
+
+  beforeEach(() => {
+    process.env.CORS_ORIGIN = 'https://front.test';
+  });
+
+  after(() => {
+    if (previous === undefined) {
+      delete process.env.CORS_ORIGIN;
+    } else {
+      process.env.CORS_ORIGIN = previous;
+    }
+  });
+
+  it('accepte un client non navigateur (pas d origine)', () => {
+    process.env.CORS_ORIGIN = 'https://front.test';
+    assert.equal(isSocketOriginAllowed(undefined, 'api.test'), true);
+    assert.equal(isSocketOriginAllowed('', 'api.test'), true);
+    assert.equal(isSocketOriginAllowed('   ', 'api.test'), true);
+  });
+
+  it('accepte une origine autorisee', () => {
+    process.env.CORS_ORIGIN = 'https://front.test , https://autre.test';
+    assert.equal(isSocketOriginAllowed('https://front.test', 'api.test'), true);
+    assert.equal(isSocketOriginAllowed('https://autre.test', 'api.test'), true);
+  });
+
+  it('refuse une origine inconnue', () => {
+    process.env.CORS_ORIGIN = 'https://front.test';
+    assert.equal(isSocketOriginAllowed('https://pirate.test', 'api.test'), false);
+    assert.equal(isSocketOriginAllowed('https://front.test.pirate.test', 'api.test'), false);
+  });
+
+  it('refuse tout quand aucune origine nest configuree', () => {
+    process.env.CORS_ORIGIN = '';
+    assert.equal(isSocketOriginAllowed('https://front.test', 'api.test'), false);
+  });
+
+  it('accepte la meme origine que la requete (relais meme domaine)', () => {
+    process.env.CORS_ORIGIN = '';
+    assert.equal(isSocketOriginAllowed('https://comexa.test', 'comexa.test'), true);
+    assert.equal(isSocketOriginAllowed('https://comexa.test', 'autre.test'), false);
+  });
+
+  it('ne se laisse pas tromper par une origine malformee', () => {
+    process.env.CORS_ORIGIN = '';
+    assert.equal(isSocketOriginAllowed('pas-une-url', 'comexa.test'), false);
+    assert.equal(isSocketOriginAllowed('https://comexa.test', ''), false);
+  });
+
+  it('lit la variable au moment de la requete, pas au chargement du module', () => {
+    process.env.CORS_ORIGIN = 'https://front.test';
+    assert.equal(isSocketOriginAllowed('https://front.test', 'api.test'), true);
+    process.env.CORS_ORIGIN = 'https://autre.test';
+    assert.equal(isSocketOriginAllowed('https://front.test', 'api.test'), false);
   });
 });
 

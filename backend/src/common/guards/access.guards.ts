@@ -20,7 +20,7 @@ import {
 } from '../decorators/auth.decorators.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { AppException, ErrorCode } from '../errors/app-error.js';
-import { looksLikeIntegrationToken } from '../auth/integration-token.js';
+import { claimsIntegrationToken } from '../auth/integration-token.js';
 import { AccessPolicy, type AuthenticatedUser } from '../auth/principal.js';
 import {
   SPACE_HEADER,
@@ -289,7 +289,10 @@ export class JwtAuthGuard implements CanActivate {
    * vaut un refus net qu'une erreur obscure signee par le mauvais composant.
    */
   private async resolvePrincipal(token: string): Promise<AuthenticatedUser> {
-    if (!looksLikeIntegrationToken(token)) {
+    // Le PREFIXE route, la FORME valide. Un jeton `cxi_` mal forme reste un
+    // jeton d'integration : c'est le service des integrations qui doit le
+    // refuser, pour que la reponse dise ce qu'il faut corriger.
+    if (!claimsIntegrationToken(token)) {
       return this.resolveUser(token);
     }
 

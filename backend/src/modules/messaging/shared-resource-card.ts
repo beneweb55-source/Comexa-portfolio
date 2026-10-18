@@ -203,6 +203,18 @@ export interface BillingRow {
   paidAt?: Date | string | null;
   subject?: string | null;
   client?: { companyName?: string | null } | null;
+  /**
+   * Champs métier QUI N'ONT AUCUN DROIT D'APPARAITRE sur la carte.
+   *
+   * Ils sont déclarés ici pour que la fuite soit vérifiable par le
+   * compilateur : la spec les passe deliberately (notes d'une facture, motif de
+   * refus d'un devis) et vérifie qu'ils n'apparaissent ni dans le titre, ni
+   * dans le sous-titre, ni dans le JSON de la carte. Les déclarer ici permet
+   * au test d'exister ; les omettre rendrait ce test impossible à écrire.
+   */
+  notes?: string | null;
+  terms?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface DocumentRow {

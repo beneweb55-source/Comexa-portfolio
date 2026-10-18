@@ -159,7 +159,11 @@ export const RESOURCE_SEARCH_SOURCES = [
   {
     type: "TASK",
     permissions: ["task:read:any", "task:read:assigned", "task:read:own", "task:read:personal"],
-    path: (term) => `/projects/me/tasks?perPage=5&search=${encodeURIComponent(term)}`,
+    // La route des taches du porteur est `GET /me/tasks` (toutes les taches
+    // qui lui sont assignees, tous projets confondus). L'ecriture precedente
+    // `/projects/me/tasks` ne correspondait a aucune route du controleur : le
+    // picker renvoyait un 404 et la source « Tache » etait donc muette.
+    path: (term) => `/me/tasks?perPage=5&search=${encodeURIComponent(term)}`,
     mapRow: (row) => ({
       title: row.title,
       subtitle: row.project?.name ?? null,

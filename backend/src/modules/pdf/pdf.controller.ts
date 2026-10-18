@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PdfService } from './pdf.service.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
@@ -38,7 +38,6 @@ import { UrlBuilderService } from '../../common/services/url-builder.service.js'
  */
 
 @ApiTags('PDF')
-@ApiBearerAuth()
 @Controller('pdf')
 export class PdfController {
   constructor(

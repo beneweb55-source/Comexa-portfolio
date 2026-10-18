@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
@@ -53,7 +63,12 @@ export class IntegrationsController {
     return this.tokens.list(query, actor);
   }
 
+  // Une action sur une ressource existante repond 200, pas 201 : rien n'est
+  // cree, le secret est remplace. Nest repond 201 par defaut sur un POST —
+  // ici, ce serait faux, et un automate qui distingue les deux verrait une
+  // creation a chaque renouvellement.
   @Post('integrations/tokens/:id/renew')
+  @HttpCode(HttpStatus.OK)
   @RequirePermissions('integration:manage:any')
   @ApiOperation({
     summary: 'Renouveler le secret d’un jeton (l’ancien cesse de fonctionner immediatement).',
@@ -68,6 +83,7 @@ export class IntegrationsController {
   }
 
   @Post('integrations/tokens/:id/revoke')
+  @HttpCode(HttpStatus.OK)
   @RequirePermissions('integration:manage:any')
   @ApiOperation({ summary: 'Revoquer un jeton (effet immediat, a la requete suivante).' })
   async revoke(

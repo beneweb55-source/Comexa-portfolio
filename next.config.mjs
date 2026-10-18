@@ -34,6 +34,22 @@ const nextConfig = {
       // origine, donc aucune question de CORS), et Next relaie `/socket.io`
       // vers le backend. Sans cette regle, la connexion socket echoue et la
       // messagerie ne rafraichit plus en temps reel.
+      //
+      // DEUX REGLES, ET LA PREMIERE EST INDISPENSABLE. La poignee de main
+      // engine.io demande `/socket.io/` (BARRE FINALE). Next normalise ce
+      // chemin en `/socket.io` — avec une redirection 308 — AVANT d'appliquer
+      // les rewrites. Or `/socket.io/:path*` ne reconnait QUE la forme avec
+      // un segment apres `/socket.io` : la forme nue renvoyait 404, et toute
+      // la chaine temps reel s'effondrait sur un 404.
+      //
+      // La regle nue se termine par une BARRE FINALE, elle aussi : le serveur
+      // socket.io du backend ne sert que `/socket.io/`, et `/socket.io` y
+      // repond 404. Le slash de destination n'est donc pas un detail — c'est
+      // lui qui fait que la poignee de main aboutit.
+      {
+        source: "/socket.io",
+        destination: `${BACKEND_URL}/socket.io/`,
+      },
       {
         source: "/socket.io/:path*",
         destination: `${BACKEND_URL}/socket.io/:path*`,

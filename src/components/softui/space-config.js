@@ -30,6 +30,7 @@ import {
   NotebookPen,
   PenSquare,
   Settings2,
+  Scale,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
@@ -73,6 +74,7 @@ const SECTION_META = {
     messagerie: { icon: MessagesSquare, shortLabel: "Messagerie" },
     modifications: { icon: Wrench, shortLabel: "Modifications" },
     analytique: { icon: BarChart3, shortLabel: "Analytique" },
+    repartition: { icon: Scale, shortLabel: "Répartition" },
     rapports: { icon: ClipboardList, shortLabel: "Rapports" },
   },
   comexa: {

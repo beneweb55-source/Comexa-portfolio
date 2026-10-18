@@ -80,8 +80,19 @@ export class SharedResourcesService {
 
     const cards = await Promise.all([...unique.values()].map((ref) => this.resolveOne(user, ref)));
 
+    // `cards` et `unique` ont la MEME longueur par construction (`Promise.all`
+    // sur les valeurs de la `Map`), mais TypeScript ne le sait pas : indexer
+    // un tableau sous `noUncheckedIndexedAccess` rend l'acces `undefined`.
+    // On avance donc les deux index ensemble, et une carte absente — ce qui ne
+    // peut pas arriver, mais que le type ne garantit pas — devient la carte
+    // muette plutot qu'un `undefined` dans la reponse.
     const byKey = new Map<string, ResourceCardView>();
-    [...unique.keys()].forEach((key, index) => byKey.set(key, cards[index]));
+    let index = 0;
+    for (const key of unique.keys()) {
+      const card = cards[index];
+      index += 1;
+      if (card) byKey.set(key, card);
+    }
 
     return refs.map((ref) => byKey.get(sharedResourceKey(ref)) ?? unavailableCard(ref));
   }

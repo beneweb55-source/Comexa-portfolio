@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrencyService } from './currency.service.js';
 import { CreateCurrencyDto, ListCurrenciesQueryDto, UpdateCurrencyDto } from './dto/currency.dto.js';
 import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
@@ -28,7 +28,6 @@ import { UrlBuilderService } from '../../common/services/url-builder.service.js'
  */
 
 @ApiTags('Currencies')
-@ApiBearerAuth()
 @Controller('currencies')
 export class CurrencyController {
   constructor(

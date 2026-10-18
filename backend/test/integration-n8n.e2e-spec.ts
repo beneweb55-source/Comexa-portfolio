@@ -109,9 +109,12 @@ async function creerJeton(nom: string, scopes: string[]): Promise<{ id: string; 
     `creation du jeton ${nom} attendue en 201, reponse ${response.status} : ${JSON.stringify(response.body)}`,
   );
 
-  const body = response.body as SuccessBody<{ id: string; secret: string }>;
+  // La reponse porte le jeton (son identifiant, ses droits) ET le secret,
+  // rendu une seule fois. L'identifiant sert a le revoquer ensuite.
+  const body = response.body as SuccessBody<{ token: { id: string }; secret: string }>;
   assert.ok(body.data.secret?.startsWith('cxi_'), 'le secret doit etre rendu une fois, en clair');
-  return { id: body.data.id, secret: body.data.secret };
+  assert.ok(body.data.token?.id, 'le jeton cree doit etre identifiable');
+  return { id: body.data.token.id, secret: body.data.secret };
 }
 
 before(async () => {

@@ -80,6 +80,7 @@ const NAVIGATION = {
       tone: "pink",
       items: [
         { section: "analytique", label: "Analytique", any: ["report:read:any"], description: "Temps, tâches et avancement de l’équipe sur 30 jours." },
+        { section: "repartition", label: "Répartition & soldes", any: ["distribution:read:any", "balance:read:own"], description: "Qui reçoit quelle part, sur quelle base, et ce qui reste dû." },
         { section: "rapports", label: "Rapports", any: ["report:read:any", "report:read:own"], description: "Rapports générés : projets, temps, pipeline, chiffre d’affaires." },
       ],
     },

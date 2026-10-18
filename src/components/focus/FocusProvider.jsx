@@ -48,7 +48,8 @@ export function FocusProvider({ children }) {
   const [open, setOpen] = useState(false);
   // La session vient d'être terminée : on affiche le bilan avant de ranger.
   const [justFinished, setJustFinished] = useState(null);
-  const startedRef = useRef(false);
+  // Le drapeau de restauration : posé UNE fois la session rouverte.
+  const restoredRef = useRef(false);
 
   const persist = useCallback((next) => {
     setState(next);
@@ -67,10 +68,17 @@ export function FocusProvider({ children }) {
   /* Une session survit au rechargement de page : si le minuteur tourne encore
      dessus, on rouvre le mode au retour. */
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    /* L'ÉCRAN NE SE REOUVRE QUE SI LE MINUTEUR EST DEJA HYDRATE.
+       Le drapeau n'est posé qu'une fois la session restaurée : avant, le
+       minuteur est encore `null` (il se charge depuis le serveur) et le
+       poser aurait fait perdre la reprise a jamais — c'est exactement ce qui
+       se passait : au rechargement, l'effet passait une fois avec un
+       minuteur vide, se Consumption, et la session en cours ne réapparaissait
+       plus. */
+    if (restoredRef.current) return;
     if (!state.session) return;
     if (!timer.timer || timer.timer.status === "STOPPED") return;
+    restoredRef.current = true;
     // Différé dans une tâche : l'hydratation du minuteur arrive elle aussi
     // dans une tâche, et rouvrir l'écran depuis le corps de l'effet
     // déclencherait un rendu en cascade au montage.

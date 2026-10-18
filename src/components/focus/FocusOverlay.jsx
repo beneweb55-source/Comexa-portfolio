@@ -60,6 +60,13 @@ export default function FocusOverlay() {
         ? "over"
         : "running";
 
+  /* Le REGLAGE est plus long que les autres etats : sur un grand ecran, il
+     se lit en deux colonnes (duree a gauche, tache a droite), et le geste
+     principal reste colle en bas. Sur un telephone, il reste une colonne et
+     defile — mais « Demarrer » ne bouge pas. */
+  const setup = !focus.justFinished && !focus.session;
+  const running = Boolean(focus.session) && !focus.justFinished;
+
   return (
     <div
       className="sui-focus"
@@ -68,7 +75,11 @@ export default function FocusOverlay() {
       aria-modal="true"
       aria-label="Mode concentration"
     >
-      <div className="sui-focus__inner">
+      <div
+        className={`sui-focus__inner${setup ? " sui-focus__inner--setup" : ""}${
+          running ? " sui-focus__inner--running" : ""
+        }`}
+      >
         {focus.justFinished ? (
           <FinishedView />
         ) : focus.session ? (
@@ -90,7 +101,11 @@ function useDialSize() {
     function measure() {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      setSize(Math.round(Math.max(232, Math.min(360, Math.min(vw, vh) - 300, vw - 88))));
+      // Le cadran doit laisser la place au titre, a la note et aux commandes :
+      // sur un ecran de 720 px de haut, un cadran de 360 px poussait les
+      // statistiques hors du champ. On reserve donc la hauteur du reste de
+      // l'ecran, et le cadran suit.
+      setSize(Math.round(Math.max(216, Math.min(340, Math.min(vw, vh) - 420, vw - 88))));
     }
     measure();
     window.addEventListener("resize", measure);
@@ -122,7 +137,12 @@ function SetupView() {
 
   return (
     <>
-      <header className="sui-focus__head">
+      {/* L'EN-TETE DU REGLAGE est une colonne : l'eyebrow, le titre et la
+          phrase se lisent de haut en bas, dans cet ordre. En rangee, le titre
+          se retrouvait serre entre l'eyebrow et la phrase — trois colonnes
+          qui se disputaient la meme ligne. La croix, elle, reste en haut a
+          droite, a sa place sur tous les etats. */}
+      <header className="sui-focus__head sui-focus__head--intro">
         <span className="sui-focus__eyebrow">
           <Target size={14} strokeWidth={2.2} aria-hidden="true" />
           Mode concentration
@@ -236,11 +256,16 @@ function SetupView() {
         </button>
       </section>
 
-      <footer className="sui-focus__foot">
+      {/* Le geste principal reste colle au bas de l'ecran : le reglage est
+          long, et « Demarrer » ne doit jamais se chercher au scroll. */}
+      <div className="sui-focus__sticky">
         <button type="button" className="sui-btn sui-btn--dark sui-focus__start" onClick={begin} disabled={focus.saving}>
           <Play size={17} strokeWidth={2.2} aria-hidden="true" />
           Démarrer {formatPlanned(planned)}
         </button>
+      </div>
+
+      <footer className="sui-focus__foot">
         <FocusStats />
       </footer>
     </>
@@ -368,7 +393,7 @@ function RunningView() {
           </div>
         </div>
       ) : (
-        <div className="sui-focus__controls">
+        <div className="sui-focus__controls sui-focus__sticky">
           <button
             type="button"
             className="sui-focus__round"
@@ -402,7 +427,7 @@ function RunningView() {
       )}
 
       <footer className="sui-focus__foot">
-        <FocusStats />
+        <FocusStats compact />
       </footer>
     </>
   );
@@ -415,6 +440,11 @@ function RunningView() {
 function FinishedView() {
   const focus = useFocus();
   const entry = focus.justFinished;
+  /* UNE SESSION COURTE S'AFFICHE EN SECONDES : « 0 min » pour vingt secondes
+     de travail dit le contraire de la verite. Au-dela d'une minute, on
+     repasse en minutes ou en heures, comme le reste de l'application. */
+  const seconds = Math.max(0, Math.round(entry.focusedSeconds || 0));
+  const value = seconds > 0 && seconds < 60 ? `${seconds} s` : formatFocus(seconds);
   return (
     <>
       <header className="sui-focus__head">
@@ -431,9 +461,9 @@ function FinishedView() {
         <span className="sui-focus__done-icon" aria-hidden="true">
           <Check size={30} strokeWidth={2.4} />
         </span>
-        <p className="sui-focus__done-value">{formatFocus(entry.focusedSeconds)}</p>
+        <p className="sui-focus__done-value">{value}</p>
         <p className="sui-focus__done-copy">
-          enregistrées sur «&nbsp;{entry.taskTitle}&nbsp;»
+          de concentration sur «&nbsp;{entry.taskTitle}&nbsp;»
           {entry.completed ? " — bloc tenu jusqu'au bout." : " — arrêté avant la fin du bloc."}
         </p>
       </div>
@@ -456,9 +486,35 @@ function FinishedView() {
 /* Statistiques                                                               */
 /* -------------------------------------------------------------------------- */
 
-function FocusStats() {
+function FocusStats({ compact = false }) {
   const focus = useFocus();
   const stats = focus.stats;
+
+  /* PENDANT LE BLOC, les statistiques tiennent sur UNE LIGNE : en cartes, elles
+     prenaient quatre-vingts pixels et repoussaient le bas de l'ecran hors du
+     champ sur un portable. En ligne, elles se lisent d'un coup d'oeil et
+     l'ecran respire. */
+  if (compact) {
+    return (
+      <p className="sui-focus__stats-line">
+        <span>
+          <Flame size={13} strokeWidth={2.2} aria-hidden="true" />
+          {stats.streak} j de série
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <Clock3 size={13} strokeWidth={2.2} aria-hidden="true" />
+          Aujourd&rsquo;hui {formatFocus(stats.todaySeconds)}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          <TrendingUp size={13} strokeWidth={2.2} aria-hidden="true" />
+          7 jours {formatFocus(stats.weekSeconds)}
+        </span>
+      </p>
+    );
+  }
+
   return (
     <dl className="sui-focus__stats">
       <div>

@@ -6224,11 +6224,25 @@ body:has(.sui-shell) .cx-settings__links a:hover {
      sous les bulbes de notification (9999) : un ecran de concentration qui
      laisse la bulle du chat flotter par-dessus n'est plus un plein ecran. */
   z-index: 965;
-  display: flex;
+  /* `safe center` : le contenu est centre quand il tient dans l'ecran, et
+     aligne en haut des qu'il deborde — un `margin: auto` classique coupait
+     le titre en haut des que la fenetre devenait courte. */
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
   overflow-y: auto;
-  padding: clamp(20px, 5vh, 64px) clamp(16px, 4vw, 40px);
+  /* La marge verticale est une variable : la barre d'action collee en bas
+     s'en sert pour s'etendre JUSQU'AU BORD DE LA FENETRE. Sans cela, elle
+     s'arretait au-dessus de la marge et laissait voir un bandeau de contenu
+     sous le bouton — un chevauchement, pas une degrade. */
+  --focus-pad-y: clamp(20px, 5vh, 64px);
+  padding: var(--focus-pad-y) clamp(16px, 4vw, 40px);
   background:
     radial-gradient(120% 70% at 50% -12%, #232030 0%, rgba(35, 32, 48, 0) 55%),
+    /* La lueur d'etat passe DERRIERE le cadran : c'est la que se trouve ce
+       que l'on regarde, et la couleur porte alors son sens sans qu'on ait a
+       la chercher dans un badge. */
+    radial-gradient(68% 42% at 50% 40%, var(--focus-glow, rgba(196, 154, 224, 0.09)) 0%, rgba(0, 0, 0, 0) 72%),
     radial-gradient(90% 55% at 50% 118%, var(--focus-glow, rgba(196, 154, 224, 0.09)) 0%, rgba(0, 0, 0, 0) 60%),
     var(--shell);
   color: var(--shell-ink);
@@ -6259,10 +6273,6 @@ body:has(.sui-shell) .cx-settings__links a:hover {
 .sui-focus__inner {
   display: flex;
   width: min(640px, 100%);
-  /* `margin: auto` dans un conteneur flex qui scrolle = centre quand ca tient,
-     aligne en haut quand ca ne tient pas — `place-items: center` decoupait le
-     haut de l'ecran sur les fenetres hautes de 600 px. */
-  margin: auto;
   flex-direction: column;
   gap: clamp(18px, 3.4vh, 26px);
 }
@@ -6292,6 +6302,36 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   align-items: center;
   gap: 10px;
   min-height: 34px;
+}
+
+/* L'en-tete du REGLAGE : l'eyebrow, le titre et la phrase se lisent de haut
+   en bas. En rangee, le titre se retrouvait serre entre l'eyebrow et la
+   phrase — trois colonnes qui se disputaient la meme ligne, et un titre
+   coupe en trois lignes par la place qu'on lui laissait. */
+.sui-focus__head--intro {
+  position: relative;
+  display: block;
+  padding-right: 52px;
+}
+
+.sui-focus__head--intro .sui-focus__eyebrow {
+  margin-bottom: 12px;
+}
+
+.sui-focus__head--intro .sui-focus__title {
+  max-width: 20ch;
+}
+
+.sui-focus__head--intro .sui-focus__lead {
+  max-width: 58ch;
+}
+
+/* La croix reste en haut a droite, sur tous les etats. */
+.sui-focus__head--intro .sui-focus__close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-left: 0;
 }
 
 .sui-focus__eyebrow {
@@ -6339,24 +6379,29 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* L'ETAT PORTE LA COULEUR DE LA SESSION.
+   En cours : le bleu Comexa — c'est la couleur de l'app, et c'est elle que la
+   lueur du fond reprend. En pause : l'ambre. Termine : le vert. */
 .sui-focus__state {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 6px 13px 6px 11px;
   border-radius: var(--r-pill);
-  background: var(--green);
-  color: var(--ink);
+  background: var(--comexa-blue-500);
+  color: #ffffff;
   font-size: var(--fs-micro);
   font-weight: 800;
 }
 
 .sui-focus__state.is-paused {
   background: var(--yellow);
+  color: var(--ink);
 }
 
 .sui-focus__state.is-done {
-  background: var(--lilac-strong);
+  background: var(--green);
+  color: var(--ink);
 }
 
 .sui-focus__dnd {
@@ -6374,7 +6419,7 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #6f9a45;
+  background: #ffffff;
 }
 
 .sui-focus__pulse::after {
@@ -6382,8 +6427,16 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   position: absolute;
   inset: -4px;
   border-radius: 50%;
-  border: 2px solid rgba(111, 154, 69, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.5);
   animation: sui-focus-pulse 1800ms var(--ease-out) infinite;
+}
+
+.sui-focus__state.is-paused .sui-focus__pulse {
+  background: #7a5c14;
+}
+
+.sui-focus__state.is-paused .sui-focus__pulse::after {
+  border-color: rgba(122, 92, 20, 0.5);
 }
 
 @keyframes sui-focus-pulse {
@@ -6773,14 +6826,18 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   text-align: center;
 }
 
+/* La pastille du bilan est VERTE, comme l'etat « Session terminee » : le
+   lilac d'avant disait « une autre couleur » dans un ecran ou le vert
+   annonce deja la reussite. */
 .sui-focus__done-icon {
   display: grid;
   place-items: center;
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: var(--lilac-strong);
+  background: var(--green);
   color: var(--ink);
+  box-shadow: 0 12px 30px rgba(157, 199, 106, 0.22);
 }
 
 .sui-focus__done-value {
@@ -6807,6 +6864,57 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   flex-direction: column;
   gap: 16px;
   padding-top: 4px;
+}
+
+/* LE BLOC EN COURS : un peu plus serré que le réglage, pour que le cadran,
+   la note et les commandes tiennent ensemble dans la fenetre. */
+.sui-focus__inner--running {
+  gap: clamp(14px, 2.4vh, 20px);
+}
+
+/* LE REGLAGE SUR DEUX COLONNES, quand la place le permet.
+   Le reglage est le seul etat long de l'ecran : en une colonne, il tient
+   mal sur un portable 720 px, et le geste principal se retrouve sous la
+   ligne de flottaison. En deux colonnes, tout tient, et la lecture reste
+   claire : a gauche ce qu'on regle (duree, note), a droite ce sur quoi on
+   travaille (tache, ne pas deranger). */
+@media (min-width: 900px) {
+  .sui-focus__inner--setup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 30px;
+    row-gap: clamp(16px, 2.6vh, 24px);
+    align-content: start;
+    width: min(960px, 100%);
+  }
+
+  .sui-focus__inner--setup > .sui-focus__head,
+  .sui-focus__inner--setup > .sui-focus__sticky,
+  .sui-focus__inner--setup > .sui-focus__foot {
+    grid-column: 1 / -1;
+  }
+
+  .sui-focus__inner--setup > .sui-focus__block {
+    min-width: 0;
+  }
+}
+
+/* LA BARRE D'ACTION EST COLLANTE AU BAS DE L'ECRAN.
+   Le reglage est long — plus long encore sur un portable — et le geste
+   principal (« Demarrer », puis « Terminer ») doit rester sous les yeux
+   plutot que d'etre cherche au scroll. Le fondu au-dessus de la barre fait
+   la transition : le contenu passe dessous sans etre coupe net. */
+.sui-focus__sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  /* La barre descend jusqu'au bord de la fenetre : elle recouvre la marge
+     basse de l'ecran, sinon le contenu passait sous le bouton. */
+  margin: 0 -8px calc(-1 * var(--focus-pad-y));
+  padding: 16px 8px var(--focus-pad-y);
+  background: linear-gradient(180deg, rgba(11, 10, 15, 0) 0%, rgba(11, 10, 15, 0.88) 46%, var(--shell) 100%);
 }
 
 .sui-focus__start {
@@ -6857,6 +6965,33 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Pendant le bloc, les statistiques tiennent sur une ligne : elles disent
+   la meme chose — serie, jour, semaine — mais en une rangee, sansebenasser
+   le bas de l'ecran. */
+.sui-focus__stats-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 12px;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--shell-muted);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+
+.sui-focus__stats-line > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sui-focus__stats-line > span[aria-hidden="true"] {
+  color: rgba(255, 255, 255, 0.24);
+}
+
 /* Le sélecteur de tâches est pensé pour fond clair : on l'adapte ici. Les
    noms de classes sont ceux de `components/timer/TickerPicker` — `__option`,
    `__copy`, `__play`, `__chip` — pas ceux qu'on croit deviner. */
@@ -6866,9 +7001,18 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   color: var(--shell-ink);
 }
 
-.sui-focus .sui-picker__search input {
-  background: rgba(255, 255, 255, 0.08);
+/* La pilule de recherche est une surface Claire dans le reste de l'app : ici,
+   elle serait une tache blanche au milieu de l'ecran sombre. Elle reprend le
+   meme verre que le reste du selecteur. */
+.sui-focus .sui-picker__search {
+  background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--shell-ink);
+}
+
+.sui-focus .sui-picker__search input {
+  background: transparent;
+  box-shadow: none;
   color: var(--shell-ink);
 }
 
@@ -6900,6 +7044,25 @@ body:has(.sui-shell) .cx-settings__links a:hover {
   box-shadow: none;
 }
 
+/* La note du selecteur est alignee sur le contenu (comme la pilule de
+   recherche), pas sur le bord de la boite : sinon elle flotte a gauche,
+   deux pixels en dehors de tout le reste. */
+.sui-focus .sui-focus__note,
+.sui-focus .sui-picker__note {
+  padding: 0 16px;
+}
+
+/* Le cadran du mode concentration porte le bleu de l'app : le minuteur
+   classique garde le vert (« ça tourne »), ici la session est un etat a part
+   et la couleur doit dire « on est dans le bleu ». */
+.sui-focus .sui-timer-dial.is-running {
+  --dial-glow: rgba(30, 134, 224, 0.32);
+}
+
+.sui-focus .sui-timer-dial.is-running .sui-timer-dial__arc {
+  stroke: var(--comexa-blue-400);
+}
+
 /* --- « Ne pas déranger » : les alertes entrantes se taisent ---------------- */
 
 html[data-focus-dnd="on"] .sui-toast {
@@ -6913,8 +7076,27 @@ html[data-focus-dnd="on"] .sui-toast {
     padding: 20px 16px 48px;
   }
 
+  /* Les prereglages restent sur UNE LIGNE sur telephone : empiles, ils
+     occupaient la moitie de l'ecran et repoussaient « ne pas deranger »
+     sous la ligne de flottaison. En ligne, ils tiennent, et le geste
+     principal reste colle en bas. */
   .sui-focus__presets {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .sui-focus__preset {
+    align-items: center;
+    padding: 12px 10px;
+    text-align: center;
+  }
+
+  .sui-focus__preset strong {
+    font-size: 22px;
+  }
+
+  .sui-focus__head--intro .sui-focus__title {
+    font-size: 26px;
   }
 
   .sui-focus__stats {
