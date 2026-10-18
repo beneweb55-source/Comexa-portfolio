@@ -46,6 +46,7 @@ import {
   Settings2,
   TriangleAlert,
   UserRound,
+  Wallet,
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -459,14 +460,27 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
 
   const deskTitle = area === "personal" ? "Mon suivi" : area === "comexa" ? "Suivi de l’organisation" : area === "client" ? "Suivi" : "Suivi de l’équipe";
 
+  /* Le compte : un accès direct, dans CHAQUE espace. C'est la rubrique la plus
+     consultée de toutes (solde, mot de passe, sessions) ; elle ne doit donc
+     jamais dépendre du menu « Rubriques », qui se referme au premier clic. */
+  const accountHref = isWorkspace ? `${SPACES[area].prefix}/compte` : "/espace-client/compte";
+  const notificationsHref = isWorkspace ? `${SPACES[area].prefix}/notifications` : "/espace-client/notifications";
+  const homeHref = isWorkspace ? SPACES[area].home : "/espace-client";
+
   /* ---------------------------------------------------------------------- */
-  /* Dock : actions de l'espace + « toutes les rubriques », minuteur, console */
+  /* Dock : « mon compte », actions de l'espace, toutes les rubriques         */
   /* ---------------------------------------------------------------------- */
 
   const dockItems = useMemo(() => {
     const items = dockActions(area, can, { openConsole: triggerAiConsole, consoleAvailable });
-    return [...items, { label: "Toutes les rubriques", icon: LayoutGrid, tone: "ink", onClick: () => setNavOpen(true) }];
-  }, [area, can, consoleAvailable]);
+    return [
+      // Sous 768 px, « Mon compte » vit déjà dans la barre du bas : le
+      // dupliquer dans le dock ne ferait qu'encombrer une barre étroite.
+      ...(!isMobile ? [{ label: "Mon compte", href: accountHref, icon: Wallet, tone: "green" }] : []),
+      ...items,
+      { label: "Toutes les rubriques", icon: LayoutGrid, tone: "ink", onClick: () => setNavOpen(true) },
+    ];
+  }, [area, can, consoleAvailable, accountHref, isMobile]);
 
   /* ---------------------------------------------------------------------- */
   /* Actions du rail                                                         */
@@ -496,10 +510,6 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
     () => ({ query, setQuery, openCommandPalette: () => setCmdkOpen(true), openAiConsole: triggerAiConsole, setPageAction, registerSearch }),
     [query, registerSearch],
   );
-
-  const accountHref = isWorkspace ? `${SPACES[area].prefix}/compte` : "/espace-client/compte";
-  const notificationsHref = isWorkspace ? `${SPACES[area].prefix}/notifications` : "/espace-client/notifications";
-  const homeHref = isWorkspace ? SPACES[area].home : "/espace-client";
 
   const deskElement = (
     <AdminDeskPanel
@@ -619,10 +629,13 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
               label={isWorkspace ? `Actions rapides — ${title}` : "Actions rapides de mon espace"}
             />
 
-            {/* Barre d'icônes mobile : la navbar descend en bas de la coque. */}
+            {/* Barre d'icônes mobile : la navbar descend en bas de la coque.
+                « Mon compte » y a SA PLACE DÉDIÉE : solde, mot de passe et
+                sessions sont consultés tous les jours, ils ne doivent pas
+                passer par le tiroir « Rubriques ». */}
             {isMobile ? (
               <nav className="sui-mobile-tabbar" aria-label="Navigation principale">
-                {navItems.slice(0, 4).map((item) => {
+                {navItems.slice(0, 3).map((item) => {
                   const active = item.href === activeHref;
                   return (
                     <Link
@@ -638,6 +651,16 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                     </Link>
                   );
                 })}
+                <Link
+                  href={accountHref}
+                  className={`sui-mobile-tab${isActivePath(pathname, accountHref) ? " sui-mobile-tab--active" : ""}`}
+                  aria-current={isActivePath(pathname, accountHref) ? "page" : undefined}
+                  aria-label="Mon compte"
+                  title="Mon compte"
+                >
+                  <Wallet size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <span>Mon compte</span>
+                </Link>
                 <button
                   type="button"
                   className={`sui-mobile-tab${navOpen ? " sui-mobile-tab--active" : ""}`}
@@ -689,6 +712,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                 request={request}
                 can={can}
                 consoleAvailable={consoleAvailable}
+                accountHref={accountHref}
                 onClose={() => setCmdkOpen(false)}
                 onNavigate={(href) => {
                   setCmdkOpen(false);
@@ -812,7 +836,7 @@ function NavDrawer({ title, area, groupedLinks, accountHref, onClose, onOpenComm
 /* Palette de commandes (⌘K) — limitée à l'espace actif                        */
 /* -------------------------------------------------------------------------- */
 
-function CommandPaletteModal({ area, title, groupedLinks, request, can, consoleAvailable, onClose, onNavigate }) {
+function CommandPaletteModal({ area, title, groupedLinks, request, can, consoleAvailable, accountHref, onClose, onNavigate }) {
   const inputRef = useRef(null);
   const [search, setSearch] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -867,6 +891,17 @@ function CommandPaletteModal({ area, title, groupedLinks, request, can, consoleA
 
   const quickActions = useMemo(() => {
     const actions = paletteActions(area, can).map((action) => ({ ...action, group: "Actions rapides" }));
+    /* « Mon compte » en tête : la rubrique la plus consultée, atteignable en
+       tapant « compte » — elle vit hors navigation et serait sinon invisible
+       dans la palette. */
+    actions.unshift({
+      id: "act-account",
+      group: "Actions rapides",
+      label: "Mon compte",
+      sub: "Solde, profil, mot de passe et sessions",
+      href: accountHref,
+      icon: Wallet,
+    });
     if (consoleAvailable) {
       actions.unshift({
         id: "act-ai-console",
@@ -896,7 +931,7 @@ function CommandPaletteModal({ area, title, groupedLinks, request, can, consoleA
       });
     }
     return actions;
-  }, [area, can, consoleAvailable, onClose, router, spaces]);
+  }, [accountHref, area, can, consoleAvailable, onClose, router, spaces]);
 
   const flatEntries = useMemo(() => {
     const normalized = search.trim().toLowerCase();

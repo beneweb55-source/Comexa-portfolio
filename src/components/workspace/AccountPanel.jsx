@@ -75,6 +75,11 @@ export default function AccountPanel() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Solde : visible seulement pour un porteur qui a le droit de le lire.
+          En TÊTE de « Mon compte » : c'est l'info que tout le monde vient
+          chercher, présentée comme un compte bancaire. */}
+      <BalancePanel />
+
       {teamUser ? <TelegramLinkCard /> : null}
       <Card title="Mon profil">
         {profile ? (
@@ -104,9 +109,6 @@ export default function AccountPanel() {
           <p className="cx-small">Chargement du profil…</p>
         )}
       </Card>
-
-      {/* Solde : visible seulement pour un porteur qui a le droit de le lire. */}
-      <BalancePanel />
 
       <Card title="Changer le mot de passe">
         <form onSubmit={changePassword} className="grid max-w-[520px] gap-4">

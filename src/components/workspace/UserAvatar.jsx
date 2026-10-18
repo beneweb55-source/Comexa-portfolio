@@ -11,9 +11,13 @@ import { creatorAvatarUrlOf, creatorInitialsOf, creatorNameOf } from "@/lib/task
  * photo — une tâche dont le créateur n'a pas d'image reste donc alignée. Une
  * adresse qui ne répond pas retombe également sur les initiales : jamais
  * d'image cassée à l'écran.
+ *
+ * `initialsOnly` force partout les initiales : c'est le parti pris de
+ * l'annuaire des membres, où les photos de profil sont remplacées par les
+ * initiales pour une liste homogène, lisible, et sans dépendre du stockage.
  */
-export function UserAvatar({ profile, size = 28, className = "" }) {
-  const url = creatorAvatarUrlOf(profile);
+export function UserAvatar({ profile, size = 28, className = "", initialsOnly = false }) {
+  const url = initialsOnly ? null : creatorAvatarUrlOf(profile);
   // On retient l'ADRESSE qui a échoué, et non un simple booléen : changer de
   // profil ou de photo réessaie donc l'image, sans effet ni remise à zéro.
   const [failedUrl, setFailedUrl] = useState(null);
