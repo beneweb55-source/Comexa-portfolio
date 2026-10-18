@@ -41,6 +41,43 @@ BACKEND_URL=http://localhost:3001 npm run dev
 
 Les vérifications : `npm run lint` et `npm run build` à la racine, `npm test` et `npm run test:e2e` dans `backend/`.
 
+La suite bout-en-bout attend la **vérification d'adresse activée** (c'est le
+scénario qu'elle teste) : `EMAIL_VERIFICATION_REQUIRED=true npm run test:e2e`.
+Sans cette variable, le fichier `orders` échoue sur ses deux scénarios
+d'inscription — le serveur, lui, se comporte bien dans les deux cas.
+
+## Répartition & soldes (espace équipe)
+
+`/espace-equipe/repartition` répartit une recette entre les membres de l'équipe,
+selon une règle validée. Trois onglets : **Règles** (répartition globale et
+exceptions par projet, avec historique des versions), **Calculs** (base de
+calcul, arrondis tracés, application), **Soldes** (avances, paiements,
+corrections, solde par membre et par devise).
+
+Ce que le module garantit :
+
+- le calcul est **fait côté serveur**, en décimaux exacts, dans une transaction ;
+- une règle changed **ne recalcule jamais** une répartition déjà appliquée : la
+  nouvelle version ne s'applique qu'aux calculs futurs, et une régularisation
+  doit être saisis explicitement ;
+- une opération financière validée **ne se supprime jamais** : on passe par une
+  contre-operation, tracée et attribuée à son auteur ;
+- chaque membre ne voit **que ses propres** mouvements ; les soldes de l'équipe
+  sont réservés aux rôles qui ont le droit de les consulter ;
+- **aucune conversion de devise automatique** : une devise inconnue est
+  refusée, une devise connue mais inactive reste recevable, et un taux doit
+  être documenté et l'opération explicite.
+
+## Mode concentration
+
+Depuis le dock, un bloc de travail immerseif : durée (préréglages ou saisie),
+tâche facultative, note, « ne pas déranger ». Le décompte vient du **minuteur
+serveur** — c'est donc exactement le temps qui finit dans la feuille de temps,
+et la session **survit à un rechargement**. Le temps de concentration n'est
+facturable que par la saisie qu'en fait le serveur, avec la même règle qu'une
+saisie manuelle (une tâche personnelle n'est jamais facturable) : le module
+« Répartition & soldes », lui, ne lit jamais la feuille de temps.
+
 ## API et intégrations (n8n, agents IA)
 
 L'API est aussi joignable par des serveurs externes, avec un **jeton
