@@ -37,6 +37,7 @@ import {
   assertNotSelfAccount,
   assertRolesKnown,
 } from './identity-rules.js';
+import { compareMembers } from './member-order.js';
 import { presentUser, USER_SELECT, type UserRow, type UserView } from './user.presenter.js';
 
 /**
@@ -138,20 +139,36 @@ export class UserService {
     // Une seule transaction pour la page ET le total : lus separement, ils
     // peuvent decrire deux etats differents, et le frontend afficherait alors
     // « 3 pages » pour une liste qui n'en a plus que deux.
-    const [rows, total] = await this.prisma.$transaction([
+    //
+    // TRI PAR STATUT, PUIS PAR NOM — la demande de l'annuaire : les comptes
+    // actifs en haut de liste, les suspendus tout en bas (voir
+    // `compareMembers`). Prisma ne sait pas ordonner sur un `CASE` SQL, et le
+    // reecrire en `queryRaw` dupliquerait le `where` ci-dessus — une deuxieme
+    // copie qui divergerait a la premiere ligne ajoutee. On lit donc les seules
+    // colonnes du tri pour TOUS les comptes filtres (quatre colonnes legeres,
+    // l'annuaire d'une agence tient largement en memoire), on trie, puis on ne
+    // recharge en entier que la page demandee. Le tri est ainsi UNIQUEMENT
+    // dans `compareMembers`, teste sans base.
+    const [lightRows, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
-        select: USER_SELECT,
-        // Ordre alphabetique : dans un annuaire d'administration, on cherche une
-        // personne, pas la derniere inscrite.
-        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
-        skip: pagination.skip,
-        take: pagination.take,
+        select: { id: true, status: true, lastName: true, firstName: true },
       }),
       this.prisma.user.count({ where }),
     ]);
 
-    return paginated(rows.map(presentUser), total, pagination);
+    lightRows.sort(compareMembers);
+    const pageIds = lightRows.slice(pagination.skip, pagination.skip + pagination.take).map((row) => row.id);
+
+    const rows = pageIds.length
+      ? await this.prisma.user.findMany({ where: { id: { in: pageIds } }, select: USER_SELECT })
+      : [];
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    const orderedRows = pageIds
+      .map((id) => rowById.get(id))
+      .filter((row): row is UserRow => row !== undefined);
+
+    return paginated(orderedRows.map(presentUser), total, pagination);
   }
 
   /**

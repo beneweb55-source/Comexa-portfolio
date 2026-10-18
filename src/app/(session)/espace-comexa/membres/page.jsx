@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { KeyRound, Plus, Shield, UserCheck, UserX, Users } from "lucide-react";
+import { KeyRound, Phone, Plus, Shield, UserCheck, UserX, Users } from "lucide-react";
 import { formatDate, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
@@ -26,6 +26,22 @@ import { useShellQuery } from "@/components/softui/Shell";
 
 const USER_STATUS = { INVITED: "Invité", ACTIVE: "Actif", SUSPENDED: "Suspendu", ARCHIVED: "Archivé" };
 const USER_STATUS_TONE = { INVITED: "info", ACTIVE: "success", SUSPENDED: "warning", ARCHIVED: "neutral" };
+/**
+ * Tri de l'annuaire : les comptes ACTIFS en haut de la liste, les SUSPENDUS
+ * tout en bas. Même règle que le backend (`backend/src/modules/users/
+ * member-order.ts`) : reprise ici pour que l'ordre affiché reste correct même
+ * face a une version anterieure de l'API, et a statut egal on retrouve
+ * l'ordre alphabetique nom puis prenom.
+ */
+const USER_STATUS_ORDER = { ACTIVE: 0, INVITED: 1, ARCHIVED: 2, SUSPENDED: 3 };
+
+function byStatusThenName(a, b) {
+  const byStatus = (USER_STATUS_ORDER[a.status] ?? 4) - (USER_STATUS_ORDER[b.status] ?? 4);
+  if (byStatus !== 0) return byStatus;
+  const byLast = String(a.lastName ?? "").localeCompare(String(b.lastName ?? ""), "fr", { sensitivity: "base" });
+  if (byLast !== 0) return byLast;
+  return String(a.firstName ?? "").localeCompare(String(b.firstName ?? ""), "fr", { sensitivity: "base" });
+}
 const ROLE_LABEL = {
   ADMIN: "Administrateur",
   COMMUNICATION_MANAGER: "Gérant communication",
@@ -80,7 +96,7 @@ export default function MembresPage() {
     );
   }
 
-  const items = users.items ?? [];
+  const items = [...(users.items ?? [])].sort(byStatusThenName);
   const name = (member) => `${member.firstName} ${member.lastName}`;
 
   async function suspend(member) {
@@ -159,13 +175,21 @@ export default function MembresPage() {
           {items.map((member) => (
             <li key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--comexa-border-soft)] bg-white p-4 transition hover:border-[rgba(30,134,224,0.25)]">
               <div className="flex min-w-0 items-start gap-3">
-                <UserAvatar user={member} size={40} />
+                <UserAvatar profile={member} initialsOnly size={40} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-[15.5px] font-bold text-[var(--comexa-ink)]">{name(member)}</h3>
                     <Badge tone={USER_STATUS_TONE[member.status] ?? "neutral"}>{USER_STATUS[member.status] ?? member.status}</Badge>
                   </div>
                   <p className="text-[13px] text-[var(--comexa-ink-soft)]">{member.email}</p>
+                  {member.phone ? (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[13px] text-[var(--comexa-ink-soft)]">
+                      <Phone size={13} className="text-[var(--comexa-ink-muted)]" aria-hidden="true" />
+                      <a href={`tel:${member.phone}`} className="cx-tabular hover:text-[var(--comexa-accent-strong)] hover:underline">
+                        {member.phone}
+                      </a>
+                    </p>
+                  ) : null}
                   <p className="mt-1.5 flex flex-wrap gap-1.5">
                     {(member.roles ?? []).map((role) => (
                       <Badge key={roleCode(role)} tone="info">{ROLE_LABEL[roleCode(role)] ?? roleCode(role)}</Badge>
