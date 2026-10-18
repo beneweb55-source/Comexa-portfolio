@@ -1,5 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsDecimal, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsDecimal,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { DistributionBaseType, BeneficiaryType } from '../../../generated/prisma/enums.js';
 
@@ -10,22 +23,47 @@ import { DistributionBaseType, BeneficiaryType } from '../../../generated/prisma
  * colonne Prisma. La bibliotheque `validator` l'insere TEL QUEL dans une
  * expression reguliere : `decimal_digits: '1,6'` produit `[0-9]{1,6}`. La valeur
  * attendue est donc « nombre de chiffres APRES la virgule, sous la forme
- * `min,max` ».
+ * `min,max` » — l'ECHELLE, c'est-a-dire les decimales.
  *
- * Ce fichier portait la precision Prisma (`Decimal(19, 6)`), ce qui generait
- * `[0-9]{19,6}` — une borne inferieure PLUS GRANDE que la borne superieure. Le
- * constructeur de `RegExp` levait « numbers out of order in {} quantifier », et
- * la requete repondait 500 « Invalid regular expression » au lieu de valider.
- * Aucune compilation ne l'a signale, et aucun test unitaire du service ne
- * pouvait le voir : l'erreur naissait a l'execution, dans le validateur, sur la
- * seule route d'ecriture.
- *
- * La correspondance est donc : `@db.Decimal(p, s)` devient `decimal_digits:
- * '1,s'` — `s` etant l'echelle, c'est-a-dire les decimales.
+ * `Decimal(5, 2)` devient donc `decimal_digits: '1,2'`. La precision Prisma
+ * (19) produirait `[0-9]{19,2}`, une borne inferieure plus grande que la
+ * borne superieure : le constructeur de RegExp leve « numbers out of order »,
+ * et la route d'ecriture repond 500 au lieu de valider.
  */
 
 /**
- * DTO pour la création d'une configuration de répartition
+ * DTO pour un bénéficiaire dans une règle de répartition.
+ */
+export class CreateBeneficiaryDto {
+  @ApiProperty({ description: 'Type de bénéficiaire', enum: BeneficiaryType })
+  @IsEnum(BeneficiaryType)
+  beneficiaryType!: BeneficiaryType;
+
+  @ApiProperty({ description: 'Nom', example: 'Younes' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({ description: 'Pourcentage (0-100)', example: '20' })
+  @IsDecimal({ decimal_digits: '1,2' })
+  @IsNotEmpty()
+  percentage!: string;
+
+  @ApiPropertyOptional({ description: 'ID de l\'utilisateur (pour MEMBER)' })
+  @IsOptional()
+  @IsString()
+  userId?: string;
+
+  @ApiProperty({ description: 'Ordre d\'affichage', default: 0 })
+  @IsInt()
+  order!: number;
+}
+
+/**
+ * DTO de création d'une règle de répartition.
+ *
+ * `projectId` absent = règle par défaut (portée globale). `projectId` présent
+ * = exception propre à ce projet.
  */
 export class CreateDistributionConfigDto {
   @ApiProperty({ description: 'Nom de la configuration', example: 'Répartition 2026' })
@@ -47,63 +85,116 @@ export class CreateDistributionConfigDto {
   @IsEnum(DistributionBaseType)
   baseType?: DistributionBaseType;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet' })
+  @ApiPropertyOptional({ description: 'Date d\'effet (ISO)' })
   @IsOptional()
-  @IsString()
+  @IsDateString()
   effectiveDate?: string;
 
-  @ApiPropertyOptional({ description: 'Date de fin' })
+  @ApiPropertyOptional({
+    description: 'Exception propre à un projet (sinon règle par défaut)',
+  })
   @IsOptional()
   @IsString()
-  endDate?: string;
+  projectId?: string;
 
   @ApiProperty({ description: 'Liste des bénéficiaires' })
   @IsArray()
   @IsNotEmpty()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBeneficiaryDto)
   beneficiaries!: CreateBeneficiaryDto[];
 }
 
 /**
- * DTO pour un bénéficiaire
+ * DTO de révision d'une règle : création d'une NOUVELLE VERSION.
+ *
+ * `confirm` est obligatoire : sans confirmation explicite, le changement est
+ * refusé. C'est la garantie qu'un changement de règle n'est jamais un effet
+ * de bord.
  */
-export class CreateBeneficiaryDto {
-  @ApiProperty({ description: 'Type de bénéficiaire', enum: BeneficiaryType })
-  @IsEnum(BeneficiaryType)
-  beneficiaryType!: BeneficiaryType;
-
-  @ApiProperty({ description: 'Nom', example: 'Younes' })
-  @IsString()
-  @IsNotEmpty()
-  name!: string;
-
-  @ApiProperty({ description: 'Pourcentage (0-100)', example: '20' })
-  // `Decimal(5, 2)` : jusqu'a 2 decimales.
-  @IsDecimal({ decimal_digits: '1,2' })
-  @IsNotEmpty()
-  percentage!: string;
-
-  @ApiPropertyOptional({ description: 'ID de l\'utilisateur (pour MEMBER)' })
+export class ReviseDistributionConfigDto {
+  @ApiPropertyOptional({ description: 'Nouveau nom' })
   @IsOptional()
   @IsString()
-  userId?: string;
+  name?: string;
 
-  @ApiProperty({ description: 'Ordre d\'affichage', default: 0 })
-  @IsInt()
-  order!: number;
+  @ApiPropertyOptional({ description: 'Nouvelle description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Nouvelle base de calcul', enum: DistributionBaseType })
+  @IsOptional()
+  @IsEnum(DistributionBaseType)
+  baseType?: DistributionBaseType;
+
+  @ApiPropertyOptional({ description: 'Date d\'effet de la nouvelle version (ISO)' })
+  @IsOptional()
+  @IsDateString()
+  effectiveDate?: string;
+
+  @ApiPropertyOptional({ description: 'Nouvelle liste de bénéficiaires' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBeneficiaryDto)
+  beneficiaries?: CreateBeneficiaryDto[];
+
+  @ApiProperty({
+    description: 'Confirmation explicite du changement de règle',
+    example: true,
+  })
+  @IsBoolean()
+  confirm!: boolean;
+
+  @ApiPropertyOptional({ description: 'Motif du changement' })
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
 
 /**
- * DTO pour la requête de calcul de répartition
+ * DTO de la requête de calcul de répartition.
  */
 export class CalculateDistributionQueryDto {
   @ApiPropertyOptional({ description: 'ID de la configuration (optionnel)' })
   @IsOptional()
   @IsString()
   configId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Clé d\'idempotence : deux appels avec la même clé rendent la même répartition',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }
 
 /**
- * DTO pour la requête de liste des répartitions
+ * DTO du corps de la requête de calcul.
+ *
+ * La cle d'idempotence est un parametre d'OPERATION, pas un filtre : elle
+ * decrit l'etat du monde que l'on veut repartir. Elle se trouve donc dans le
+ * corps — la query reste reservee aux filtres de lecture.
+ */
+export class CalculateDistributionDto {
+  @ApiPropertyOptional({ description: 'ID de la configuration (optionnel)' })
+  @IsOptional()
+  @IsString()
+  configId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Clé d\'idempotence : deux appels avec la même clé rendent la même répartition',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+}
+
+/**
+ * DTO de la requête de liste des répartitions.
  */
 export class ListDistributionsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ description: 'Filtrer par projet' })
@@ -115,4 +206,35 @@ export class ListDistributionsQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
+}
+
+/**
+ * DTO de la requête de liste des règles.
+ */
+export class ListRulesQueryDto {
+  @ApiPropertyOptional({ description: 'Filtrer par projet' })
+  @IsOptional()
+  @IsString()
+  projectId?: string;
+
+  @ApiPropertyOptional({ description: 'Portée : global | project', enum: ['global', 'project'] })
+  @IsOptional()
+  @IsString()
+  scope?: 'global' | 'project';
+}
+
+/**
+ * DTO de régularisation : appliquer une autre règle à une répartition déjà
+ * appliquée, par contre-passation tracée.
+ */
+export class RegularizeDistributionDto {
+  @ApiProperty({ description: 'ID de la règle à appliquer' })
+  @IsString()
+  @IsNotEmpty()
+  configId!: string;
+
+  @ApiProperty({ description: 'Motif de la régularisation' })
+  @IsString()
+  @MinLength(3)
+  reason!: string;
 }

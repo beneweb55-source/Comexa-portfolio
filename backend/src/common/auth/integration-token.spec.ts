@@ -12,6 +12,7 @@ import {
   integrationTokenMatches,
   isIntegrationTokenExpired,
   isValidIntegrationName,
+  claimsIntegrationToken,
   looksLikeIntegrationToken,
   normalizeIntegrationScopes,
   slugifyIntegrationName,
@@ -70,6 +71,30 @@ describe('reconnaissance de la forme d’un jeton', () => {
 
   it('n’est pas dupe par un prefixe seul', () => {
     assert.equal(looksLikeIntegrationToken('cxi_' + 'a'.repeat(10)), false);
+  });
+});
+
+describe('routage d’un jeton d’integration', () => {
+  it('reconnait le prefixe, meme quand la forme est fausse', () => {
+    // Le ROUTAGE se fait sur le prefixe : un jeton tronque ou corrompu doit
+    // etre refuse par le chemin des integrations (« jeton d’integration
+    // invalide »), et non passer par la verification JWT, qui ne parlerait
+    // que d’un « jeton invalide » sans dire quoi corriger.
+    assert.equal(claimsIntegrationToken('cxi_ceci-nest-pas-un-jeton'), true);
+    assert.equal(claimsIntegrationToken('cxi_'), true);
+    assert.equal(claimsIntegrationToken(generateIntegrationToken()), true);
+  });
+
+  it('ne confond pas un JWT ni une session', () => {
+    for (const value of [
+      '',
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1MSJ9.signature',
+      'Bearer cxi_abc',
+      undefined as unknown as string,
+      null as unknown as string,
+    ]) {
+      assert.equal(claimsIntegrationToken(value), false, String(value));
+    }
   });
 });
 

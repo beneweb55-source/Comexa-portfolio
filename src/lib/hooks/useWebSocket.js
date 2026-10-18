@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useAuth } from "@/lib/session";
 
 /**
@@ -280,30 +280,48 @@ function ensureSocket(token) {
  * LE HOOK
  * ------------------------------------------------------------------------- */
 
+/**
+ * Abonne un composant a l'etat partage.
+ *
+ * Le compteur d'abonnes vit ici, et non dans le hook : c'est l'abonnement
+ * lui-meme qui tient la porte du socket. Le dernier composant a partir ferme
+ * la connexion — tant qu'un seul reste, le socket vit, et c'est ce qui evite
+ * qu'une sortie de la messagerie coupe les notifications temps reel du reste
+ * de l'application.
+ */
+function subscribeShared(listener) {
+  subscribers.add(listener);
+  consumers += 1;
+
+  return () => {
+    subscribers.delete(listener);
+    consumers -= 1;
+
+    if (consumers === 0) {
+      closeSocket();
+    }
+  };
+}
+
+/** L'etat courant du magasin. Sa reference change a chaque publication. */
+function getSharedSnapshot() {
+  return sharedState;
+}
+
 export function useSocketIO() {
   const { token } = useAuth();
-  const [state, setState] = useState(sharedState);
   const tokenRef = useRef(token);
 
-  // Abonnement a l'etat partage.
-  useEffect(() => {
-    const listener = (next) => setState(next);
-    subscribers.add(listener);
-    setState(sharedState);
-    consumers += 1;
-
-    return () => {
-      subscribers.delete(listener);
-      consumers -= 1;
-
-      // Le dernier composant ferme la porte. Tant qu'un seul reste, le socket
-      // vit : c'est ce qui evite qu'une sortie de la messagerie coupe les
-      // notifications temps reel du reste de l'application.
-      if (consumers === 0) {
-        closeSocket();
-      }
-    };
-  }, []);
+  // L'etat partage est un MAGASIN EXTERNE : `useSyncExternalStore` est la
+  // maniere declaree de s'y abonner.
+  //
+  // La version precedente (useState + setState dans l'effet) devait recopier
+  // l'etat courant au moment de l'abonnement — un `setState` synchrone dans
+  // le corps de l'effet, donc un rendu en cascade. Le magasin le rend
+  // inutile : `getSnapshot` renvoie TOUJOURS l'etat courant, et un composant
+  // qui monte plus tard voit donc immediatement la connexion deja etablie,
+  // sans passer par un effet.
+  const state = useSyncExternalStore(subscribeShared, getSharedSnapshot, getSharedSnapshot);
 
   // Ouverture (eventuelle reconnexion) au montage et a chaque changement de
   // jeton. `ensureSocket` est idempotent : deux effets qui l'appellent pour le

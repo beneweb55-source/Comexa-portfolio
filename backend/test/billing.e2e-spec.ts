@@ -349,6 +349,9 @@ describe('Devis, factures et paiements (bout en bout, base reelle)', () => {
         subject: 'Refonte du site',
         clientId: clientAId,
         taxRate: 20,
+        // Le devis est en EUROS : la facture qui en naîtra doit l'être aussi,
+        // sans que la devise soit ressaisie. C'est le sens du test.
+        currency: 'EUR',
         items: QUOTE_A1_LINES,
       });
 

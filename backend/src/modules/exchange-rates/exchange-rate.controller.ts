@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ExchangeRateService } from './exchange-rate.service.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
@@ -27,7 +27,6 @@ import { UpsertExchangeRateDto } from './dto/exchange-rate.dto.js';
  */
 
 @ApiTags('Exchange Rates')
-@ApiBearerAuth()
 @Controller('exchange-rates')
 export class ExchangeRateController {
   constructor(

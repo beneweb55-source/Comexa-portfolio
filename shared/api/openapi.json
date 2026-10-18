@@ -1130,7 +1130,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": ""
           }
         },
@@ -1154,7 +1154,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "",
             "content": {
               "application/json": {
@@ -4452,6 +4452,366 @@
         ]
       }
     },
+    "/api/shared-resources/resolve": {
+      "post": {
+        "description": "Renvoie une carte par couple (resourceType, resourceId), dans l'ordre recu. Introuvable, supprime ou hors perimetre : une carte `available: false`, sans distinction — la reponse ne doit pas servir d'oracle d'existence.",
+        "operationId": "SharedResourcesController_resolve",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveSharedResourcesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Relire des ressources partagees dans le perimetre du porteur",
+        "tags": [
+          "Messagerie — ressources partagées"
+        ]
+      }
+    },
+    "/api/documents": {
+      "post": {
+        "description": "Le fichier part dans le stockage objet ; la base ne conserve que la metadonnee. Visibilite INTERNAL par defaut.",
+        "operationId": "DocumentsController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "CONTRACT",
+                      "QUOTE",
+                      "INVOICE",
+                      "SPECIFICATION",
+                      "DESIGN",
+                      "REPORT",
+                      "LEGAL",
+                      "BRAND",
+                      "OTHER"
+                    ]
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "INTERNAL",
+                      "CLIENT",
+                      "PUBLIC"
+                    ]
+                  },
+                  "clientId": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  },
+                  "taskId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Deposer un document",
+        "tags": [
+          "Documents"
+        ]
+      },
+      "get": {
+        "operationId": "DocumentsController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CONTRACT",
+                "QUOTE",
+                "INVOICE",
+                "SPECIFICATION",
+                "DESIGN",
+                "REPORT",
+                "LEGAL",
+                "BRAND",
+                "OTHER"
+              ]
+            }
+          },
+          {
+            "name": "visibility",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "INTERNAL",
+                "CLIENT",
+                "PUBLIC"
+              ]
+            }
+          },
+          {
+            "name": "clientId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "taskId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 40,
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Recherche sur le nom du document et le nom du fichier.",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeExpired",
+            "required": false,
+            "in": "query",
+            "description": "Inclut les documents dont la date d expiration est depassee.",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lister les documents accessibles au porteur",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{id}": {
+      "get": {
+        "operationId": "DocumentsController_findOne",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Consulter la metadonnee d'un document",
+        "tags": [
+          "Documents"
+        ]
+      },
+      "patch": {
+        "operationId": "DocumentsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Modifier la metadonnee d'un document (nom, categorie, visibilite)",
+        "tags": [
+          "Documents"
+        ]
+      },
+      "delete": {
+        "description": "Marque la ligne comme supprimee puis efface l'objet du stockage. La ligne est conservee : des paiements peuvent la referencer comme justificatif.",
+        "operationId": "DocumentsController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer un document",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{id}/download": {
+      "get": {
+        "operationId": "DocumentsController_download",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir une URL de telechargement signee",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
+    "/api/documents/{id}/content": {
+      "get": {
+        "operationId": "DocumentsController_content",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Telecharger le contenu du document (flux direct)",
+        "tags": [
+          "Documents"
+        ]
+      }
+    },
     "/api/reports": {
       "get": {
         "operationId": "ReportsController_list",
@@ -6537,340 +6897,6 @@
         ]
       }
     },
-    "/api/documents": {
-      "post": {
-        "description": "Le fichier part dans le stockage objet ; la base ne conserve que la metadonnee. Visibilite INTERNAL par defaut.",
-        "operationId": "DocumentsController_upload",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "file"
-                ],
-                "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary"
-                  },
-                  "name": {
-                    "type": "string",
-                    "maxLength": 200
-                  },
-                  "category": {
-                    "type": "string",
-                    "enum": [
-                      "CONTRACT",
-                      "QUOTE",
-                      "INVOICE",
-                      "SPECIFICATION",
-                      "DESIGN",
-                      "REPORT",
-                      "LEGAL",
-                      "BRAND",
-                      "OTHER"
-                    ]
-                  },
-                  "visibility": {
-                    "type": "string",
-                    "enum": [
-                      "INTERNAL",
-                      "CLIENT",
-                      "PUBLIC"
-                    ]
-                  },
-                  "clientId": {
-                    "type": "string"
-                  },
-                  "projectId": {
-                    "type": "string"
-                  },
-                  "taskId": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Deposer un document",
-        "tags": [
-          "Documents"
-        ]
-      },
-      "get": {
-        "operationId": "DocumentsController_list",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page demandee (commence a 1).",
-            "schema": {
-              "minimum": 1,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "perPage",
-            "required": false,
-            "in": "query",
-            "description": "Elements par page (maximum 100).",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20,
-              "type": "number"
-            }
-          },
-          {
-            "name": "category",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "CONTRACT",
-                "QUOTE",
-                "INVOICE",
-                "SPECIFICATION",
-                "DESIGN",
-                "REPORT",
-                "LEGAL",
-                "BRAND",
-                "OTHER"
-              ]
-            }
-          },
-          {
-            "name": "visibility",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "INTERNAL",
-                "CLIENT",
-                "PUBLIC"
-              ]
-            }
-          },
-          {
-            "name": "clientId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 40,
-              "type": "string"
-            }
-          },
-          {
-            "name": "projectId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 40,
-              "type": "string"
-            }
-          },
-          {
-            "name": "taskId",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "maxLength": 40,
-              "type": "string"
-            }
-          },
-          {
-            "name": "search",
-            "required": false,
-            "in": "query",
-            "description": "Recherche sur le nom du document et le nom du fichier.",
-            "schema": {
-              "maxLength": 120,
-              "type": "string"
-            }
-          },
-          {
-            "name": "includeExpired",
-            "required": false,
-            "in": "query",
-            "description": "Inclut les documents dont la date d expiration est depassee.",
-            "schema": {
-              "default": false,
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Lister les documents accessibles au porteur",
-        "tags": [
-          "Documents"
-        ]
-      }
-    },
-    "/api/documents/{id}": {
-      "get": {
-        "operationId": "DocumentsController_findOne",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Consulter la metadonnee d'un document",
-        "tags": [
-          "Documents"
-        ]
-      },
-      "patch": {
-        "operationId": "DocumentsController_update",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateDocumentDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Modifier la metadonnee d'un document (nom, categorie, visibilite)",
-        "tags": [
-          "Documents"
-        ]
-      },
-      "delete": {
-        "description": "Marque la ligne comme supprimee puis efface l'objet du stockage. La ligne est conservee : des paiements peuvent la referencer comme justificatif.",
-        "operationId": "DocumentsController_remove",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Supprimer un document",
-        "tags": [
-          "Documents"
-        ]
-      }
-    },
-    "/api/documents/{id}/download": {
-      "get": {
-        "operationId": "DocumentsController_download",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Obtenir une URL de telechargement signee",
-        "tags": [
-          "Documents"
-        ]
-      }
-    },
-    "/api/documents/{id}/content": {
-      "get": {
-        "operationId": "DocumentsController_content",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Telecharger le contenu du document (flux direct)",
-        "tags": [
-          "Documents"
-        ]
-      }
-    },
     "/api/quotes": {
       "get": {
         "operationId": "QuotesController_list",
@@ -8269,6 +8295,1591 @@
           "Paiements"
         ]
       }
+    },
+    "/api/pdf/invoices/{id}": {
+      "get": {
+        "operationId": "PdfController_downloadInvoicePdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Télécharger un PDF de facture",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/pdf/invoices/{id}/preview": {
+      "get": {
+        "operationId": "PdfController_previewInvoicePdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Aperçu inline d'une facture en PDF",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/pdf/quotes/{id}": {
+      "get": {
+        "operationId": "PdfController_downloadQuotePdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Télécharger un PDF de devis",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/pdf/quotes/{id}/preview": {
+      "get": {
+        "operationId": "PdfController_previewQuotePdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Aperçu inline d'un devis en PDF",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/pdf/invoices/{id}/email": {
+      "post": {
+        "description": "Nécessite la configuration SMTP. Retourne une URL de redirection vers la facture.",
+        "operationId": "PdfController_emailInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendDocumentEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Envoyer une facture par email avec PDF en pièce jointe",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/pdf/quotes/{id}/email": {
+      "post": {
+        "description": "Nécessite la configuration SMTP. Retourne une URL de redirection vers le devis.",
+        "operationId": "PdfController_emailQuote",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendDocumentEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Envoyer un devis par email avec PDF en pièce jointe",
+        "tags": [
+          "PDF"
+        ]
+      }
+    },
+    "/api/currencies": {
+      "get": {
+        "operationId": "CurrencyController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "activeOnly",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par devise active",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Lister toutes les devises",
+        "tags": [
+          "Currencies"
+        ]
+      },
+      "post": {
+        "operationId": "CurrencyController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCurrencyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer une nouvelle devise",
+        "tags": [
+          "Currencies"
+        ]
+      }
+    },
+    "/api/currencies/default": {
+      "get": {
+        "operationId": "CurrencyController_getDefault",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir la devise par défaut",
+        "tags": [
+          "Currencies"
+        ]
+      }
+    },
+    "/api/currencies/{code}": {
+      "get": {
+        "operationId": "CurrencyController_getByCode",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir une devise par son code",
+        "tags": [
+          "Currencies"
+        ]
+      }
+    },
+    "/api/currencies/{id}": {
+      "patch": {
+        "operationId": "CurrencyController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCurrencyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Mettre à jour une devise",
+        "tags": [
+          "Currencies"
+        ]
+      },
+      "delete": {
+        "operationId": "CurrencyController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Désactiver une devise",
+        "tags": [
+          "Currencies"
+        ]
+      }
+    },
+    "/api/exchange-rates/rate": {
+      "get": {
+        "operationId": "ExchangeRateController_getRate",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Taux de change (1 from = X to)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir un taux de change entre deux devises",
+        "tags": [
+          "Exchange Rates"
+        ]
+      }
+    },
+    "/api/exchange-rates/convert": {
+      "get": {
+        "operationId": "ExchangeRateController_convert",
+        "parameters": [
+          {
+            "name": "amount",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "date",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Montant converti",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Convertir un montant d'une devise à une autre",
+        "tags": [
+          "Exchange Rates"
+        ]
+      }
+    },
+    "/api/exchange-rates/history": {
+      "get": {
+        "operationId": "ExchangeRateController_getHistory",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir l'historique des taux entre deux devises",
+        "tags": [
+          "Exchange Rates"
+        ]
+      }
+    },
+    "/api/exchange-rates": {
+      "post": {
+        "operationId": "ExchangeRateController_upsertRate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertExchangeRateDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Ajouter ou mettre à jour un taux de change",
+        "tags": [
+          "Exchange Rates"
+        ]
+      },
+      "delete": {
+        "operationId": "ExchangeRateController_deleteRate",
+        "parameters": [
+          {
+            "name": "fromCurrency",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "toCurrency",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "effectiveDate",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Supprimer un taux de change",
+        "tags": [
+          "Exchange Rates"
+        ]
+      }
+    },
+    "/api/balances/me": {
+      "get": {
+        "operationId": "BalanceController_getMyBalance",
+        "parameters": [
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir mon solde pour une devise",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/me/all": {
+      "get": {
+        "operationId": "BalanceController_getAllMyBalances",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir tous mes soldes",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/me/summary": {
+      "get": {
+        "operationId": "BalanceController_getMySummary",
+        "parameters": [
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Mon relevé de solde : gains, versements, avances, ajustements, reste dû",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/me/transactions": {
+      "get": {
+        "operationId": "BalanceController_getMyTransactionHistory",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par devise",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREDIT",
+                "DEBIT",
+                "CORRECTION"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par statut",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par nature",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SHARE",
+                "PAYMENT",
+                "ADVANCE",
+                "ADJUSTMENT",
+                "CORRECTION",
+                "REGULARIZATION"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir l'historique de mes transactions",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/me/total-earnings": {
+      "get": {
+        "operationId": "BalanceController_getMyTotalEarnings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir le total de mes gains",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/eligible-members": {
+      "get": {
+        "operationId": "BalanceController_getEligibleMembers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Membres de l’équipe éligibles à une opération financière",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/admin/overview": {
+      "get": {
+        "operationId": "BalanceController_getBalancesOverview",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par membre",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par projet",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par devise",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par nature",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SHARE",
+                "PAYMENT",
+                "ADVANCE",
+                "ADJUSTMENT",
+                "CORRECTION",
+                "REGULARIZATION"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début de période (ISO)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin de période (ISO)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Soldes de tous les membres (avec filtres membre, projet, période, devise, nature)",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/admin/transactions": {
+      "get": {
+        "operationId": "BalanceController_getAllTransactions",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par membre",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par projet",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par devise",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par nature",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SHARE",
+                "PAYMENT",
+                "ADVANCE",
+                "ADJUSTMENT",
+                "CORRECTION",
+                "REGULARIZATION"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREDIT",
+                "DEBIT",
+                "CORRECTION"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par statut",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Début de période (ISO)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Fin de période (ISO)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Historique global des opérations de solde",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/users/{userId}": {
+      "get": {
+        "operationId": "BalanceController_getUserBalances",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir les soldes de chaque membre",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/users/{userId}/transactions": {
+      "get": {
+        "operationId": "BalanceController_getUserTransactionHistory",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page demandee (commence a 1).",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "perPage",
+            "required": false,
+            "in": "query",
+            "description": "Elements par page (maximum 100).",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "type": "number"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par devise",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREDIT",
+                "DEBIT",
+                "CORRECTION"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par statut",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par nature",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SHARE",
+                "PAYMENT",
+                "ADVANCE",
+                "ADJUSTMENT",
+                "CORRECTION",
+                "REGULARIZATION"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir l'historique des transactions d'un membre",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/operations": {
+      "post": {
+        "operationId": "BalanceController_recordOperation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordBalanceOperationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Enregistrer un paiement, une avance, un ajustement ou une régularisation",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/transactions/{id}/reverse": {
+      "post": {
+        "operationId": "BalanceController_reverseOperation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseBalanceOperationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Contre-passer une opération validée (jamais de suppression)",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/balances/adjust": {
+      "post": {
+        "operationId": "BalanceController_adjustBalance",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Effectuer un ajustement manuel",
+        "tags": [
+          "Balances"
+        ]
+      }
+    },
+    "/api/distributions/configs": {
+      "get": {
+        "operationId": "DistributionController_listConfigs",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": false,
+            "in": "query",
+            "description": "Filtrer par projet",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "Portée : global | project",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "global",
+                "project"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lister toutes les règles de répartition (toutes versions)",
+        "tags": [
+          "Distributions"
+        ]
+      },
+      "post": {
+        "operationId": "DistributionController_createConfig",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDistributionConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer une règle (règle par défaut, ou exception propre à un projet)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/configs/active": {
+      "get": {
+        "operationId": "DistributionController_getActiveConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir la règle par défaut en vigueur",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/configs/{id}": {
+      "get": {
+        "operationId": "DistributionController_getConfigById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir une règle par ID",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/configs/{id}/history": {
+      "get": {
+        "operationId": "DistributionController_getConfigHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Historique des versions d’une règle",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/configs/{id}/revise": {
+      "post": {
+        "operationId": "DistributionController_reviseConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseDistributionConfigDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Créer une nouvelle VERSION d’une règle (sans recalculer les répartitions déjà validées)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/configs/{id}/deactivate": {
+      "post": {
+        "operationId": "DistributionController_deactivateConfig",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Désactiver une règle (sans la supprimer)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/projects/{projectId}/base": {
+      "get": {
+        "operationId": "DistributionController_getProjectBase",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Base de calcul d’un projet : budget, facturé, encaissé, devise, règle applicable",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/projects/{projectId}/calculate": {
+      "post": {
+        "operationId": "DistributionController_calculateForProject",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "idempotencyKey",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "configId",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalculateDistributionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Calculer une répartition pour un projet (idempotent)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/{id}/apply": {
+      "post": {
+        "operationId": "DistributionController_applyDistribution",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Appliquer une répartition (créditer les soldes)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/{id}/regularize": {
+      "post": {
+        "operationId": "DistributionController_regularizeDistribution",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegularizeDistributionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Régulariser une répartition appliquée avec une autre règle (contre-passation tracée)",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/{id}/cancel": {
+      "post": {
+        "operationId": "DistributionController_cancelDistribution",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Annuler une répartition qui n’a pas été appliquée",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/projects/{projectId}": {
+      "get": {
+        "operationId": "DistributionController_getProjectDistributions",
+        "parameters": [
+          {
+            "name": "projectId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Obtenir les répartitions calculées pour un projet",
+        "tags": [
+          "Distributions"
+        ]
+      }
+    },
+    "/api/distributions/{id}": {
+      "get": {
+        "operationId": "DistributionController_getDistributionById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Obtenir une répartition par ID",
+        "tags": [
+          "Distributions"
+        ]
+      }
     }
   },
   "info": {
@@ -9242,10 +10853,13 @@
           },
           "currency": {
             "type": "string",
-            "minLength": 3,
-            "maxLength": 3,
-            "example": "EUR",
-            "default": "EUR"
+            "enum": [
+              "DZD",
+              "EUR"
+            ],
+            "example": "DZD",
+            "default": "DZD",
+            "maxLength": 3
           }
         },
         "required": [
@@ -10004,14 +11618,41 @@
           "userId"
         ]
       },
+      "SharedResourceRefDto": {
+        "type": "object",
+        "properties": {
+          "resourceType": {
+            "enum": [
+              "PROJECT",
+              "TASK",
+              "QUOTE",
+              "INVOICE",
+              "PAYMENT",
+              "DOCUMENT",
+              "CLIENT"
+            ],
+            "type": "string",
+            "description": "Type de ressource partagee : la carte est relue dans le perimetre du lecteur."
+          },
+          "resourceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Identifiant INTERNE de la ressource — jamais une URL."
+          }
+        },
+        "required": [
+          "resourceType",
+          "resourceId"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
           "body": {
             "type": "string",
-            "minLength": 1,
             "maxLength": 10000,
-            "description": "Contenu du message. Persiste en base."
+            "description": "Contenu du message. Peut etre vide UNIQUEMENT si le message porte au moins une ressource partagee."
           },
           "type": {
             "enum": [
@@ -10035,11 +11676,66 @@
               "type": "string",
               "maxLength": 64
             }
+          },
+          "sharedResources": {
+            "minItems": 1,
+            "description": "Ressources existantes de Comexa partagees dans ce message (10 maximum). Chaque reference est verifiee dans le perimetre de l'emetteur : partager ce qu'on ne peut pas lire echoue.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedResourceRefDto"
+            }
           }
         },
         "required": [
           "body"
         ]
+      },
+      "ResolveSharedResourcesDto": {
+        "type": "object",
+        "properties": {
+          "resources": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SharedResourceRefDto"
+            }
+          }
+        },
+        "required": [
+          "resources"
+        ]
+      },
+      "UpdateDocumentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "category": {
+            "enum": [
+              "CONTRACT",
+              "QUOTE",
+              "INVOICE",
+              "SPECIFICATION",
+              "DESIGN",
+              "REPORT",
+              "LEGAL",
+              "BRAND",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "visibility": {
+            "enum": [
+              "INTERNAL",
+              "CLIENT",
+              "PUBLIC"
+            ],
+            "type": "string"
+          }
+        }
       },
       "GenerateReportDto": {
         "type": "object",
@@ -11056,38 +12752,6 @@
           "status"
         ]
       },
-      "UpdateDocumentDto": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 200
-          },
-          "category": {
-            "enum": [
-              "CONTRACT",
-              "QUOTE",
-              "INVOICE",
-              "SPECIFICATION",
-              "DESIGN",
-              "REPORT",
-              "LEGAL",
-              "BRAND",
-              "OTHER"
-            ],
-            "type": "string"
-          },
-          "visibility": {
-            "enum": [
-              "INTERNAL",
-              "CLIENT",
-              "PUBLIC"
-            ],
-            "type": "string"
-          }
-        }
-      },
       "QuoteLineDto": {
         "type": "object",
         "properties": {
@@ -11159,10 +12823,12 @@
           },
           "currency": {
             "type": "string",
-            "minLength": 3,
-            "maxLength": 3,
-            "example": "EUR",
-            "default": "EUR"
+            "enum": [
+              "DZD",
+              "EUR"
+            ],
+            "example": "DZD",
+            "default": "DZD"
           },
           "taxRate": {
             "type": "number",
@@ -11435,6 +13101,398 @@
         "required": [
           "amount",
           "method"
+        ]
+      },
+      "SendDocumentEmailDto": {
+        "type": "object",
+        "properties": {
+          "documentId": {
+            "type": "string",
+            "description": "ID du document (facture ou devis)"
+          },
+          "documentType": {
+            "enum": [
+              "invoice",
+              "quote"
+            ],
+            "type": "string",
+            "description": "Type de document"
+          },
+          "to": {
+            "type": "string",
+            "format": "email",
+            "description": "Adresse email du destinataire"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Sujet personnalisé"
+          },
+          "message": {
+            "type": "string",
+            "description": "Message personnalisé (HTML)"
+          },
+          "includePdf": {
+            "type": "boolean",
+            "description": "Inclure le PDF en pièce jointe",
+            "default": true
+          },
+          "language": {
+            "enum": [
+              "fr",
+              "en",
+              "ar"
+            ],
+            "type": "string",
+            "description": "Langue du PDF",
+            "default": "fr"
+          }
+        },
+        "required": [
+          "documentId",
+          "documentType",
+          "to"
+        ]
+      },
+      "CreateCurrencyDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 3,
+            "description": "Code ISO 4217 (3 lettres majuscules)",
+            "example": "DZD"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Nom de la devise",
+            "example": "Dinar Algérien"
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5,
+            "description": "Symbole monétaire",
+            "example": "د.ج"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Devise par défaut",
+            "default": false
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "symbol"
+        ]
+      },
+      "UpdateCurrencyDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Nom de la devise"
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5,
+            "description": "Symbole monétaire"
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Devise active"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Devise par défaut"
+          }
+        }
+      },
+      "UpsertExchangeRateDto": {
+        "type": "object",
+        "properties": {
+          "fromCurrency": {
+            "type": "string",
+            "description": "Devise source (code ISO 4217)",
+            "example": "DZD"
+          },
+          "toCurrency": {
+            "type": "string",
+            "description": "Devise cible (code ISO 4217)",
+            "example": "EUR"
+          },
+          "rate": {
+            "type": "string",
+            "description": "Taux de change (1 fromCurrency = X toCurrency)",
+            "example": "0.0065"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "description": "Date d'effet (format: YYYY-MM-DD)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Source du taux (obligatoire)",
+            "example": "Banque d'Algérie"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Référence externe (URL, document)"
+          }
+        },
+        "required": [
+          "fromCurrency",
+          "toCurrency",
+          "rate",
+          "source"
+        ]
+      },
+      "RecordBalanceOperationDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "ID du membre concerné"
+          },
+          "kind": {
+            "enum": [
+              "SHARE",
+              "PAYMENT",
+              "ADVANCE",
+              "ADJUSTMENT",
+              "CORRECTION",
+              "REGULARIZATION"
+            ],
+            "type": "string",
+            "description": "Nature de l'opération",
+            "example": "PAYMENT"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Montant signé (négatif pour une sortie)",
+            "example": "-50000"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Devise (3 lettres)",
+            "example": "DZD"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Motif de l'opération"
+          },
+          "occurredAt": {
+            "type": "string",
+            "description": "Date d'effet (ISO)",
+            "example": "2026-10-18"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Référence (virement, pièce)"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Projet concerné"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Clé d'idempotence"
+          }
+        },
+        "required": [
+          "userId",
+          "kind",
+          "amount",
+          "currency",
+          "reason"
+        ]
+      },
+      "ReverseBalanceOperationDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Motif de la contre-passation"
+          },
+          "reference": {
+            "type": "string",
+            "description": "Référence"
+          },
+          "occurredAt": {
+            "type": "string",
+            "description": "Date d'effet (ISO)"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "CreateBeneficiaryDto": {
+        "type": "object",
+        "properties": {
+          "beneficiaryType": {
+            "enum": [
+              "MEMBER",
+              "COMPANY",
+              "RESERVE"
+            ],
+            "type": "string",
+            "description": "Type de bénéficiaire"
+          },
+          "name": {
+            "type": "string",
+            "description": "Nom",
+            "example": "Younes"
+          },
+          "percentage": {
+            "type": "string",
+            "description": "Pourcentage (0-100)",
+            "example": "20"
+          },
+          "userId": {
+            "type": "string",
+            "description": "ID de l'utilisateur (pour MEMBER)"
+          },
+          "order": {
+            "type": "number",
+            "description": "Ordre d'affichage",
+            "default": 0
+          }
+        },
+        "required": [
+          "beneficiaryType",
+          "name",
+          "percentage",
+          "order"
+        ]
+      },
+      "CreateDistributionConfigDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nom de la configuration",
+            "example": "Répartition 2026"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description"
+          },
+          "baseType": {
+            "enum": [
+              "PROJECT_AMOUNT",
+              "INVOICED_AMOUNT",
+              "COLLECTED_AMOUNT",
+              "PROFIT_AFTER_EXPENSES"
+            ],
+            "type": "string",
+            "description": "Base de calcul",
+            "default": "COLLECTED_AMOUNT"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "description": "Date d'effet (ISO)"
+          },
+          "projectId": {
+            "type": "string",
+            "description": "Exception propre à un projet (sinon règle par défaut)"
+          },
+          "beneficiaries": {
+            "description": "Liste des bénéficiaires",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateBeneficiaryDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "beneficiaries"
+        ]
+      },
+      "ReviseDistributionConfigDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Nouveau nom"
+          },
+          "description": {
+            "type": "string",
+            "description": "Nouvelle description"
+          },
+          "baseType": {
+            "enum": [
+              "PROJECT_AMOUNT",
+              "INVOICED_AMOUNT",
+              "COLLECTED_AMOUNT",
+              "PROFIT_AFTER_EXPENSES"
+            ],
+            "type": "string",
+            "description": "Nouvelle base de calcul"
+          },
+          "effectiveDate": {
+            "type": "string",
+            "description": "Date d'effet de la nouvelle version (ISO)"
+          },
+          "beneficiaries": {
+            "description": "Nouvelle liste de bénéficiaires",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateBeneficiaryDto"
+            }
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "Confirmation explicite du changement de règle",
+            "example": true
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motif du changement"
+          }
+        },
+        "required": [
+          "confirm"
+        ]
+      },
+      "CalculateDistributionDto": {
+        "type": "object",
+        "properties": {
+          "configId": {
+            "type": "string",
+            "description": "ID de la configuration (optionnel)"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Clé d'idempotence : deux appels avec la même clé rendent la même répartition"
+          }
+        }
+      },
+      "RegularizeDistributionDto": {
+        "type": "object",
+        "properties": {
+          "configId": {
+            "type": "string",
+            "description": "ID de la règle à appliquer"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "description": "Motif de la régularisation"
+          }
+        },
+        "required": [
+          "configId",
+          "reason"
         ]
       }
     }

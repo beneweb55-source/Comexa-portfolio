@@ -1,28 +1,41 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { DistributionService } from './distribution.service.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
-import type {
-  DistributionConfig,
-  ProjectDistribution,
-  DistributionBaseType,
-  BeneficiaryType,
-} from '../../generated/prisma/client.js';
+import type { ProjectDistribution } from '../../generated/prisma/client.js';
+import { DistributionBaseType } from '../../generated/prisma/enums.js';
 import { UrlBuilderService } from '../../common/services/url-builder.service.js';
+import {
+  CalculateDistributionDto,
+  CreateDistributionConfigDto,
+  ListRulesQueryDto,
+  RegularizeDistributionDto,
+  ReviseDistributionConfigDto,
+} from './dto/distribution.dto.js';
 
 /**
  * CONTRÔLEUR REST DES RÉPARTITIONS
  *
  * Routes:
- * - GET /distributions/configs - Lister les configurations
- * - GET /distributions/configs/active - Config active
- * - GET /distributions/configs/:id - Config par ID
- * - POST /distributions/configs - Créer une config (distribution:manage:any)
+ * - GET  /distributions/configs               - Lister les règles (toutes versions)
+ * - GET  /distributions/configs/active        - Règle par défaut en vigueur
+ * - GET  /distributions/configs/:id           - Règle par ID
+ * - GET  /distributions/configs/:id/history   - Historique des versions
+ * - POST /distributions/configs               - Créer une règle (global ou exception projet)
+ * - POST /distributions/configs/:id/revise    - Nouvelle VERSION d'une règle
+ * - POST /distributions/configs/:id/deactivate- Désactiver une règle
+ * - GET  /distributions/projects/:projectId/base      - Base de calcul détaillée
  * - POST /distributions/projects/:projectId/calculate - Calculer
- * - POST /distributions/:id/apply - Appliquer (créditer les soldes)
- * - GET /distributions/projects/:projectId - Répartitions d'un projet
- * - GET /distributions/:id - Répartition par ID
+ * - POST /distributions/:id/apply             - Appliquer (créditer les soldes)
+ * - POST /distributions/:id/regularize        - Régulariser par contre-passation
+ * - POST /distributions/:id/cancel            - Annuler (uniquement si non appliquée)
+ * - GET  /distributions/projects/:projectId   - Répartitions d'un projet
+ * - GET  /distributions/:id                   - Répartition par ID
+ *
+ * L'ORDRE DES DÉCLARATIONS COMPTE : `configs/active` est déclaré avant
+ * `configs/:id`, et `configs/*` avant `:id` — sinon « configs » serait capté
+ * par le paramètre `:id`.
  *
  * DEUX VERROUS SUR L'APPLICATION, ET ILS NE SONT PAS REDONDANTS :
  * `applyDistribution` crédite les soldes des membres dans une transaction.
@@ -38,7 +51,6 @@ import { UrlBuilderService } from '../../common/services/url-builder.service.js'
  */
 
 @ApiTags('Distributions')
-@ApiBearerAuth()
 @Controller('distributions')
 export class DistributionController {
   constructor(
@@ -47,77 +59,127 @@ export class DistributionController {
   ) {}
 
   // ---------------------------------------------------------------------------
-  // Configurations
+  // Règles
   // ---------------------------------------------------------------------------
 
   @Get('configs')
   @RequirePermissions('distribution:read:any')
-  @ApiOperation({ summary: 'Lister toutes les configurations de répartition' })
-  async listConfigs(@CurrentUser() user: AuthenticatedUser): Promise<DistributionConfig[]> {
-    return this.distributionService.listConfigs(new AccessPolicy(user));
+  @ApiOperation({ summary: 'Lister toutes les règles de répartition (toutes versions)' })
+  async listConfigs(
+    @Query() query: ListRulesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.distributionService.listConfigs(new AccessPolicy(user), {
+      projectId: query.projectId ?? null,
+      scope: query.scope,
+    });
   }
 
   @Get('configs/active')
   @RequirePermissions('distribution:read:any')
-  @ApiOperation({ summary: 'Obtenir la configuration active' })
-  async getActiveConfig(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DistributionConfig | null> {
+  @ApiOperation({ summary: 'Obtenir la règle par défaut en vigueur' })
+  async getActiveConfig(@CurrentUser() user: AuthenticatedUser) {
     return this.distributionService.getActiveConfig(new AccessPolicy(user));
   }
 
   @Get('configs/:id')
   @RequirePermissions('distribution:read:any')
-  @ApiOperation({ summary: 'Obtenir une configuration par ID' })
+  @ApiOperation({ summary: 'Obtenir une règle par ID' })
   async getConfigById(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<DistributionConfig | null> {
+  ) {
     return this.distributionService.getConfigById(id, new AccessPolicy(user));
+  }
+
+  @Get('configs/:id/history')
+  @RequirePermissions('distribution:read:any')
+  @ApiOperation({ summary: 'Historique des versions d’une règle' })
+  async getConfigHistory(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.distributionService.getRuleHistory(id, new AccessPolicy(user));
   }
 
   @Post('configs')
   @RequirePermissions('distribution:manage:any')
-  @ApiOperation({ summary: 'Créer une configuration de répartition' })
+  @ApiOperation({
+    summary: 'Créer une règle (règle par défaut, ou exception propre à un projet)',
+  })
   async createConfig(
-    @Body() body: {
-      name: string;
-      description?: string;
-      baseType?: string;
-      effectiveDate?: string;
-      endDate?: string;
-      beneficiaries: {
-        beneficiaryType: string;
-        name: string;
-        percentage: string;
-        userId?: string;
-        order: number;
-      }[];
-    },
+    @Body() body: CreateDistributionConfigDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const config = await this.distributionService.createConfig(
+    const config = await this.distributionService.createRule(
       {
         name: body.name,
-        description: body.description,
-        baseType: body.baseType as DistributionBaseType,
-        effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : undefined,
-        endDate: body.endDate ? new Date(body.endDate) : undefined,
-        beneficiaries: body.beneficiaries.map((b) => ({
-          beneficiaryType: b.beneficiaryType as BeneficiaryType,
-          name: b.name,
-          percentage: b.percentage,
-          userId: b.userId,
-          order: b.order,
-        })),
+        description: body.description ?? null,
+        baseType: body.baseType ?? DistributionBaseType.COLLECTED_AMOUNT,
+        effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : null,
+        projectId: body.projectId ?? null,
+        beneficiaries: body.beneficiaries,
       },
       { id: user.id },
       new AccessPolicy(user),
     );
 
     return this.urlBuilder.buildResponse(config, {
-      message: 'Configuration de répartition créée avec succès',
+      message: 'Règle de répartition créée avec succès',
       redirectTo: 'settings',
+      resourceType: 'distribution',
+      openInNewTab: false,
+    });
+  }
+
+  @Post('configs/:id/revise')
+  @RequirePermissions('distribution:manage:any')
+  @ApiOperation({
+    summary:
+      'Créer une nouvelle VERSION d’une règle (sans recalculer les répartitions déjà validées)',
+  })
+  async reviseConfig(
+    @Param('id') id: string,
+    @Body() body: ReviseDistributionConfigDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const config = await this.distributionService.reviseConfig(
+      id,
+      {
+        name: body.name,
+        description: body.description,
+        baseType: body.baseType ?? DistributionBaseType.COLLECTED_AMOUNT,
+        effectiveDate: body.effectiveDate ? new Date(body.effectiveDate) : null,
+        beneficiaries: body.beneficiaries,
+        confirm: body.confirm,
+        reason: body.reason ?? null,
+      },
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(config, {
+      message: 'Nouvelle version de la règle créée. Les répartitions déjà validées ne changent pas.',
+      resourceType: 'distribution',
+      openInNewTab: false,
+    });
+  }
+
+  @Post('configs/:id/deactivate')
+  @RequirePermissions('distribution:manage:any')
+  @ApiOperation({ summary: 'Désactiver une règle (sans la supprimer)' })
+  async deactivateConfig(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const config = await this.distributionService.deactivateConfig(
+      id,
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(config, {
+      message: 'Règle désactivée',
       resourceType: 'distribution',
       openInNewTab: false,
     });
@@ -127,17 +189,36 @@ export class DistributionController {
   // Répartitions par projet
   // ---------------------------------------------------------------------------
 
-  @Post('projects/:projectId/calculate')
-  @RequirePermissions('distribution:manage:any')
-  @ApiOperation({ summary: 'Calculer une répartition pour un projet' })
-  async calculateForProject(
+  @Get('projects/:projectId/base')
+  @RequirePermissions('distribution:read:any')
+  @ApiOperation({
+    summary: 'Base de calcul d’un projet : budget, facturé, encaissé, devise, règle applicable',
+  })
+  async getProjectBase(
     @Param('projectId') projectId: string,
-    @Query('configId') configId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    return this.distributionService.getProjectBase(projectId, new AccessPolicy(user));
+  }
+
+  @Post('projects/:projectId/calculate')
+  @RequirePermissions('distribution:manage:any')
+  @ApiOperation({ summary: 'Calculer une répartition pour un projet (idempotent)' })
+  async calculateForProject(
+    @Param('projectId') projectId: string,
+    @Body() body: CalculateDistributionDto,
+    @Query('configId') queryConfigId: string | undefined,
+    @Query('idempotencyKey') queryIdempotencyKey: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Le corps prime, la query reste acceptee : les deux disent la meme
+    // chose, et les anciens clients interrogent en query.
     const distribution = await this.distributionService.calculateForProject(
       projectId,
-      configId,
+      {
+        configId: body?.configId ?? queryConfigId ?? null,
+        idempotencyKey: body?.idempotencyKey ?? queryIdempotencyKey ?? null,
+      },
       new AccessPolicy(user),
     );
 
@@ -167,6 +248,54 @@ export class DistributionController {
     return this.urlBuilder.buildResponse(distribution, {
       message: 'Répartition appliquée avec succès',
       redirectTo: 'detail',
+      resourceType: 'distribution',
+      resourceId: distribution.projectId,
+      openInNewTab: false,
+    });
+  }
+
+  @Post(':id/regularize')
+  @RequirePermissions('distribution:manage:any')
+  @ApiOperation({
+    summary:
+      'Régulariser une répartition appliquée avec une autre règle (contre-passation tracée)',
+  })
+  async regularizeDistribution(
+    @Param('id') id: string,
+    @Body() body: RegularizeDistributionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const distribution = await this.distributionService.regularizeDistribution(
+      id,
+      { configId: body.configId, reason: body.reason },
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(distribution, {
+      message:
+        'Régularisation calculée. Appliquez-la pour créditer l’écart par contre-passation.',
+      resourceType: 'distribution',
+      resourceId: distribution.projectId,
+      openInNewTab: false,
+    });
+  }
+
+  @Post(':id/cancel')
+  @RequirePermissions('distribution:manage:any')
+  @ApiOperation({ summary: 'Annuler une répartition qui n’a pas été appliquée' })
+  async cancelDistribution(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const distribution = await this.distributionService.cancelDistribution(
+      id,
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(distribution, {
+      message: 'Répartition annulée',
       resourceType: 'distribution',
       resourceId: distribution.projectId,
       openInNewTab: false,

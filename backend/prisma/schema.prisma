@@ -373,6 +373,8 @@ enum GoalStatus {
 // =============================================================================
 
 enum DistributionBaseType {
+  /// Montant du projet (montant contractuel)
+  PROJECT_AMOUNT
   /// Montant total facturé (toutes factures du projet)
   INVOICED_AMOUNT
   /// Montant réellement encaissé (paiements reçus) - RECOMMANDÉ
@@ -423,6 +425,21 @@ enum DistributionChangeType {
   PAYMENT_RECEIVED
   /// Répartition appliquée
   DISTRIBUTION_APPLIED
+}
+
+enum BalanceTransactionKind {
+  /// Part de répartition créditée
+  SHARE
+  /// Versement au membre
+  PAYMENT
+  /// Avance versée au membre
+  ADVANCE
+  /// Ajustement manuel
+  ADJUSTMENT
+  /// Contre-passation d'une opération validée
+  CORRECTION
+  /// Régularisation d'un écart entre deux règles
+  REGULARIZATION
 }
 
 enum BalanceTransactionType {
@@ -537,6 +554,10 @@ model User {
   distributionBeneficiaries DistributionBeneficiary[]
   appliedDistributions ProjectDistribution[]
   distributionHistories DistributionHistory[]
+  // Relations inverses — regles de repartition et ecritures de solde
+  authoredDistributionConfigs DistributionConfig[] @relation("DistributionConfigAuthor")
+  confirmedDistributionConfigs DistributionConfig[] @relation("DistributionConfigConfirmer")
+  authoredBalanceTransactions BalanceTransaction[] @relation("BalanceTransactionAuthor")
   roles                   UserRole[]
   refreshTokens           RefreshToken[]
   passwordResetTokens     PasswordResetToken[]
@@ -1106,6 +1127,8 @@ model Project {
 
   /// Répartitions des gains pour ce projet
   distributions ProjectDistribution[]
+  /// Règles de répartition propres à ce projet (exceptions)
+  distributionConfigs DistributionConfig[]
 
   /// Avancement declare, 0 a 100. Sert au tableau de bord ; la valeur exacte
   /// se recalcule depuis les taches quand on veut la verite.
@@ -2431,6 +2454,28 @@ model DistributionConfig {
   /// Date de fin (optionnelle)
   endDate       DateTime?
 
+  /// Périmètre de la règle : `global` (règle par défaut) ou `project:<id>`
+  /// (exception propre à un projet). Matérialisé en colonne pour que
+  /// l'unicité de version soit garantie par la base.
+  scopeKey      String   @default("global")
+  /// Projet concerné — NULL pour la règle globale
+  projectId     String?
+  project       Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Version de la règle dans son périmètre (1, 2, 3…)
+  version       Int      @default(1)
+  /// Règle précédente : une modification crée une nouvelle version
+  supersedesId  String?
+  supersedes    DistributionConfig?  @relation("DistributionConfigVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  /// Versions qui remplacent celle-ci
+  supersededBy  DistributionConfig[] @relation("DistributionConfigVersions")
+  /// Auteur de la règle
+  createdById   String?
+  createdBy     User?    @relation("DistributionConfigAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Confirmation explicite du changement (une règle ne s'applique qu'une fois confirmée)
+  confirmedAt   DateTime?
+  confirmedById String?
+  confirmedBy   User?    @relation("DistributionConfigConfirmer", fields: [confirmedById], references: [id], onDelete: SetNull)
+
   /// Bénéficiaires de cette configuration
   beneficiaries DistributionBeneficiary[]
   /// Répartitions utilisant cette configuration
@@ -2442,6 +2487,9 @@ model DistributionConfig {
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
 
+  @@unique([scopeKey, version])
+  @@index([projectId])
+  @@index([supersedesId])
   @@map("distribution_configs")
 }
 
@@ -2502,6 +2550,18 @@ model ProjectDistribution {
 
   /// Statut de la répartition
   status          DistributionStatus @default(PENDING)
+  /// Tour de calcul incrémental (1 = premier calcul, 2 = nouvel encaissement…)
+  round           Int      @default(1)
+  /// Clé d'idempotence : un rejeu de webhook ne peut pas créer deux fois la même répartition
+  idempotencyKey  String?  @unique
+  /// Base de calcul employée (figée au moment du calcul)
+  baseType        DistributionBaseType?
+  /// Détail de la base (factures, encaissements, taux) — traçabilité
+  baseSource      Json?
+  /// Trace de l'arrondi : brut, plancher, reste, ajustement, par bénéficiaire
+  calculationTrace Json?
+  /// Version de la règle employée (figée au moment du calcul)
+  ruleVersion     Int?
   /// Date du calcul
   calculatedAt    DateTime?
   /// Date d'application (quand status = APPLIED)
@@ -2518,8 +2578,8 @@ model ProjectDistribution {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// Une seule répartition par projet et par configuration
-  @@unique([projectId, configId])
+  /// Un tour de calcul par projet : une même règle peut servir plusieurs tours
+  @@unique([projectId, round])
   @@index([projectId])
   @@index([configId])
   @@index([status])
@@ -2543,8 +2603,12 @@ model DistributionItem {
   beneficiaryId     String
   beneficiary      DistributionBeneficiary @relation(fields: [beneficiaryId], references: [id], onDelete: Restrict)
 
+  /// Pourcentage appliqué (figé au moment du calcul)
+  percentage         Decimal? @db.Decimal(5, 2)
   /// Montant calculé théoriquement (selon %)
   calculatedAmount   Decimal  @db.Decimal(14, 2)
+  /// Trace de l'arrondi : brut, plancher, reste, ajustement
+  trace              Json?
   /// Montant effectivement crédité dans le système (solde interne)
   creditedAmount     Decimal  @db.Decimal(14, 2) @default(0)
   /// Montant effectivement payé au bénéficiaire (paiement réel)
@@ -2675,6 +2739,23 @@ model BalanceTransaction {
   /// Lien vers le paiement (optionnel)
   paymentId         String?
   payment           Payment?  @relation("PaymentBalanceTransactions", fields: [paymentId], references: [id], onDelete: SetNull)
+
+  /// Auteur de l'opération (qui l'a enregistrée)
+  authorId          String?
+  author            User?    @relation("BalanceTransactionAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// Nature de l'opération
+  kind              BalanceTransactionKind @default(SHARE)
+  /// Motif de l'opération (obligatoire pour un ajustement, une correction…)
+  reason            String?
+  /// Opération contre-passée par celle-ci
+  reversalOfId      String?
+  reversalOf        BalanceTransaction?  @relation("BalanceTransactionReversal", fields: [reversalOfId], references: [id], onDelete: SetNull)
+  /// Contre-passations de cette opération
+  reversedBy        BalanceTransaction[] @relation("BalanceTransactionReversal")
+  /// Clé d'idempotence : un rejeu ne peut pas créer deux fois la même écriture
+  idempotencyKey    String?  @unique
+  /// Date d'effet de l'opération (peut différer de sa date d'écriture)
+  occurredAt        DateTime @default(now())
 
   /// Type de transaction
   type              BalanceTransactionType

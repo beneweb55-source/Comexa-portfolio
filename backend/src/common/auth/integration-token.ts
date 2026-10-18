@@ -72,6 +72,23 @@ export function generateIntegrationToken(bytes: number = INTEGRATION_TOKEN_BYTES
 }
 
 /**
+ * Vrai si la chaine PRÉTEND etre un jeton d'integration.
+ *
+ * C'est le PREFIXE qui tranche, et non la forme complete : un jeton
+ * d'integration tronque, corrompu ou expire doit etre refuse PAR LE CHEMIN
+ * DES INTEGRATIONS, qui sait dire « ton jeton d'integration est invalide ». Le
+ * faire tomber dans la verification JWT ne donnerait qu'un « jeton invalide »
+ * generique — et, pour une machine, une reponse qui ne dit pas quoi corriger.
+ *
+ * La distinction avec `looksLikeIntegrationToken` est donc volontaire :
+ *   - `claimsIntegrationToken` : « a quoi ce jeton dit ressembler ? » (routage) ;
+ *   - `looksLikeIntegrationToken` : « a-t-il la forme exacte ? » (validite).
+ */
+export function claimsIntegrationToken(token: string): boolean {
+  return typeof token === 'string' && token.startsWith(INTEGRATION_TOKEN_PREFIX);
+}
+
+/**
  * Vrai si la chaine a la FORME d'un jeton d'integration.
  *
  * Ce test ne dit pas que le jeton est valide — seulement qu'il merite une

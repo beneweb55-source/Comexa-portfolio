@@ -1,11 +1,22 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { BalanceService } from './balance.service.js';
-import { PaginationQueryDto, type Paginated } from '../../common/dto/pagination.dto.js';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { BalanceService, type MemberBalanceSummary } from './balance.service.js';
+import type { Paginated } from '../../common/dto/pagination.dto.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
-import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
+import {
+  CurrentUser,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '../../common/decorators/auth.decorators.js';
 import type { BalanceTransaction, MemberBalance } from '../../generated/prisma/client.js';
 import { UrlBuilderService } from '../../common/services/url-builder.service.js';
+import {
+  ListBalanceTransactionsQueryDto,
+  ListBalancesQueryDto,
+  RecordBalanceOperationDto,
+  ReverseBalanceOperationDto,
+  TransactionHistoryQueryDto,
+} from './dto/balance.dto.js';
 
 /**
  * CONTRÔLEUR REST DES SOLDES
@@ -13,10 +24,15 @@ import { UrlBuilderService } from '../../common/services/url-builder.service.js'
  * Routes:
  * - GET /balances/me - Obtenir mon solde
  * - GET /balances/me/all - Obtenir tous mes soldes
+ * - GET /balances/me/summary - Mon relevé (gains, versements, reste dû)
  * - GET /balances/me/transactions - Historique de mes transactions
  * - GET /balances/me/total-earnings - Total de mes gains
+ * - GET /balances/admin/overview - Soldes de tous les membres (balance:read:any)
+ * - GET /balances/admin/transactions - Historique global (balance:read:any)
  * - GET /balances/users/:userId - Soldes d'un membre (balance:read:any)
  * - GET /balances/users/:userId/transactions - Historique d'un membre
+ * - POST /balances/operations - Enregistrer paiement / avance / ajustement
+ * - POST /balances/transactions/:id/reverse - Contre-passer une opération
  * - POST /balances/adjust - Ajustement manuel (balance:manage:any)
  *
  * CHAQUE ROUTE DIT QUI ELLE AUTORISE, et la vérification réelle est dans le
@@ -29,10 +45,12 @@ import { UrlBuilderService } from '../../common/services/url-builder.service.js'
  * entre « mon solde » (own) et « le solde d'un autre » (any). Un décorateur
  * `balance:read:own` ici serait vrai pour tout le monde et ne protégerait
  * donc rien — c'est la comparaison `policy.userId !== userId` qui protège.
+ *
+ * LES ROUTES `admin/*` SONT DÉCLARÉES AVANT `users/:userId` : l'ordre des
+ * declarations décide, et `admin` serait sinon capté par `:userId`.
  */
 
 @ApiTags('Balances')
-@ApiBearerAuth()
 @Controller('balances')
 export class BalanceController {
   constructor(
@@ -61,24 +79,42 @@ export class BalanceController {
     return this.balanceService.getAllBalances(user.id, new AccessPolicy(user));
   }
 
+  @Get('me/summary')
+  @ApiOperation({
+    summary: 'Mon relevé de solde : gains, versements, avances, ajustements, reste dû',
+  })
+  async getMySummary(
+    @Query('currency') currency: string = 'DZD',
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MemberBalanceSummary[]> {
+    // Un membre ne voit QUE ses propres lignes : la lecture « any » est
+    // réservée à l'administration, et cette route renvoie un tableau filtré
+    // sur son propre identifiant.
+    return this.balanceService.listBalances(
+      { userId: user.id, currency },
+      new AccessPolicy(user),
+    );
+  }
+
   @Get('me/transactions')
   @ApiOperation({ summary: "Obtenir l'historique de mes transactions" })
   async getMyTransactionHistory(
-    @Query() query: PaginationQueryDto & { currency?: string; type?: string; status?: string },
+    @Query() query: TransactionHistoryQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Paginated<BalanceTransaction>> {
     return this.balanceService.getTransactionHistory(
       user.id,
       {
         currency: query.currency,
-        type: query.type as BalanceTransaction['type'] | undefined,
+        type: query.type,
         // La pagination fait partie de la requête, pas un détail d'affichage :
         // `perPage=5` demandé par le panneau doit rendre cinq lignes. Sans ce
         // transfert, `resolvePagination` retombait sur ses valeurs par défaut et
         // le panneau affichait jusqu'à vingt mouvements pour cinq demandés.
         page: query.page,
         perPage: query.perPage,
-        status: query.status as BalanceTransaction['status'] | undefined,
+        status: query.status,
+        kind: query.kind,
       },
       new AccessPolicy(user),
     );
@@ -100,7 +136,74 @@ export class BalanceController {
 
   // ---------------------------------------------------------------------------
   // Administration — visibilité des soldes de chacun
+  //
+  // Déclaré AVANT `users/:userId` : sinon « admin » serait capté par
+  // `:userId` et la route ne répondrait jamais.
   // ---------------------------------------------------------------------------
+
+  /**
+   * Les comptes qui peuvent recevoir une part, un versement ou une avance.
+   *
+   * La meme regle que celle appliquee a l'ecriture : la liste proposee et la
+   * validation ne peuvent pas diverger. Un client n'y est pas — un client
+   * recoit une facture, pas une part de repartition.
+   */
+  @Get('eligible-members')
+  @RequireAnyPermission('balance:read:any', 'distribution:read:any')
+  @ApiOperation({ summary: 'Membres de l’équipe éligibles à une opération financière' })
+  async getEligibleMembers() {
+    const members = await this.balanceService.listEligibleMembers();
+    return this.urlBuilder.buildResponse(members, {
+      message: 'Membres éligibles',
+      resourceType: 'currency',
+    });
+  }
+
+  @Get('admin/overview')
+  @RequirePermissions('balance:read:any')
+  @ApiOperation({
+    summary: 'Soldes de tous les membres (avec filtres membre, projet, période, devise, nature)',
+  })
+  async getBalancesOverview(
+    @Query() query: ListBalancesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MemberBalanceSummary[]> {
+    return this.balanceService.listBalances(
+      {
+        userId: query.userId,
+        projectId: query.projectId,
+        currency: query.currency,
+        kind: query.kind,
+        from: query.from ? new Date(query.from) : undefined,
+        to: query.to ? new Date(query.to) : undefined,
+      },
+      new AccessPolicy(user),
+    );
+  }
+
+  @Get('admin/transactions')
+  @RequirePermissions('balance:read:any')
+  @ApiOperation({ summary: 'Historique global des opérations de solde' })
+  async getAllTransactions(
+    @Query() query: ListBalanceTransactionsQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Paginated<BalanceTransaction>> {
+    return this.balanceService.listTransactions(
+      {
+        userId: query.userId,
+        projectId: query.projectId,
+        currency: query.currency,
+        kind: query.kind,
+        type: query.type,
+        status: query.status,
+        from: query.from ? new Date(query.from) : undefined,
+        to: query.to ? new Date(query.to) : undefined,
+        page: query.page,
+        perPage: query.perPage,
+      },
+      new AccessPolicy(user),
+    );
+  }
 
   @Get('users/:userId')
   @RequirePermissions('balance:read:any')
@@ -117,24 +220,83 @@ export class BalanceController {
   @ApiOperation({ summary: "Obtenir l'historique des transactions d'un membre" })
   async getUserTransactionHistory(
     @Param('userId') userId: string,
-    @Query() query: PaginationQueryDto & { currency?: string; type?: string; status?: string },
+    @Query() query: TransactionHistoryQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Paginated<BalanceTransaction>> {
     return this.balanceService.getTransactionHistory(
       userId,
       {
         currency: query.currency,
-        type: query.type as BalanceTransaction['type'] | undefined,
-        // La pagination fait partie de la requête, pas un détail d'affichage :
-        // `perPage=5` demandé par le panneau doit rendre cinq lignes. Sans ce
-        // transfert, `resolvePagination` retombait sur ses valeurs par défaut et
-        // le panneau affichait jusqu'à vingt mouvements pour cinq demandés.
+        type: query.type,
         page: query.page,
         perPage: query.perPage,
-        status: query.status as BalanceTransaction['status'] | undefined,
+        status: query.status,
+        kind: query.kind,
       },
       new AccessPolicy(user),
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Écriture — paiement, avance, ajustement, régularisation
+  // ---------------------------------------------------------------------------
+
+  @Post('operations')
+  @RequirePermissions('balance:manage:any')
+  @ApiOperation({
+    summary: 'Enregistrer un paiement, une avance, un ajustement ou une régularisation',
+  })
+  async recordOperation(
+    @Body() body: RecordBalanceOperationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const transaction = await this.balanceService.recordOperation(
+      {
+        userId: body.userId,
+        kind: body.kind,
+        amount: body.amount,
+        currency: body.currency,
+        reason: body.reason,
+        occurredAt: body.occurredAt ? new Date(body.occurredAt) : null,
+        reference: body.reference ?? null,
+        projectId: body.projectId ?? null,
+        idempotencyKey: body.idempotencyKey ?? null,
+      },
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(transaction, {
+      message: 'Opération enregistrée avec succès',
+      resourceType: 'currency',
+    });
+  }
+
+  @Post('transactions/:id/reverse')
+  @RequirePermissions('balance:manage:any')
+  @ApiOperation({
+    summary: 'Contre-passer une opération validée (jamais de suppression)',
+  })
+  async reverseOperation(
+    @Param('id') id: string,
+    @Body() body: ReverseBalanceOperationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const transaction = await this.balanceService.reverseOperation(
+      id,
+      {
+        reason: body.reason,
+        reference: body.reference ?? null,
+        occurredAt: body.occurredAt ? new Date(body.occurredAt) : null,
+      },
+      { id: user.id },
+      new AccessPolicy(user),
+    );
+
+    return this.urlBuilder.buildResponse(transaction, {
+      message: 'Opération contre-passée avec succès',
+      resourceType: 'currency',
+    });
   }
 
   @Post('adjust')
