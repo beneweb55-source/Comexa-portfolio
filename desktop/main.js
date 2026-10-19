@@ -84,6 +84,28 @@ function lockNavigation(win) {
     goHome(`Navigation refusée vers ${target} : retour au hub.`);
   });
 
+  // 404 réseau : l'origine déployée ne connaît pas la route demandée (vieux
+  // déploiement, origine mal réglée). Rien n'est masqué — l'avertissement est
+  // journalisé — et la reprise passe par le parcours de connexion EXISTANT,
+  // avec son mécanisme `next` : login d'abord, hub ensuite. Si c'est déjà
+  // `/connexion` qui répond 404, c'est l'origine elle-même qui est en cause :
+  // on s'arrête là plutôt que de boucler.
+  contents.on("did-navigate", (event, url, httpResponseCode) => {
+    if (httpResponseCode !== 404) return;
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return;
+    }
+    if (parsed.pathname === "/connexion") {
+      warn(`404 sur ${url} : cette origine ne sert pas le parcours de connexion.`);
+      return;
+    }
+    warn(`404 sur ${url} : reprise par la page de connexion, retour au hub ensuite.`);
+    win.loadURL(`${config.origin}/connexion?next=${encodeURIComponent(parsed.pathname + parsed.search)}`);
+  });
+
   // Navigation client-side de Next.js (pushState / replaceState) : aucun
   // `will-navigate` ne part, on corrige donc juste après le changement d'URL.
   contents.on("did-navigate-in-page", (event, target, isMainFrame) => {
