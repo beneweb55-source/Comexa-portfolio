@@ -1,0 +1,7 @@
+# Dépendances et artefacts de compilation : jamais dans Git.
+node_modules/
+dist/
+
+# Réglage local d'un poste (peut contenir une adresse interne) :
+# seul l'exemple versionné existe dans le dépôt.
+desktop-config.json
