@@ -25,7 +25,9 @@ permissions:
 jobs:
   apk:
     name: APK Android
-    runs-on: ubuntu-latest
+    # Image stable et complète (SDK Android préinstallé) : `ubuntu-latest`
+    # migre vers Ubuntu 26 en octobre 2026, pendant le développement.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: android
@@ -46,9 +48,19 @@ jobs:
           yes | "$SDKM" "platforms;android-35" "build-tools;35.0.0" > /dev/null
 
       - name: Compilation de l'APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee /tmp/build.log
 
-      - name: Vérifications de l'APK
+      - name: Erreurs en annotations
+        if: failure()
+        run: |
+          grep -aE "error:|FAILURE|What went wrong|Caused by|Exception|Could not" /tmp/build.log | head -25 | while IFS= read -r line; do
+            printf '::error::%s\n' "$line"
+          done
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -100 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           BT="$ANDROID_HOME/build-tools/35.0.0"
