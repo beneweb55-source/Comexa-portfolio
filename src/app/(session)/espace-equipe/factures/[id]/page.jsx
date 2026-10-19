@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/session";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, PAYMENT_METHOD, PAYMENT_RECORD_STATUS, remainingDue } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { InvoicePdfActions } from "@/components/workspace/invoices";
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
@@ -115,6 +116,8 @@ export default function FactureDetailPage({ params }) {
           ) : null}
         </div>
       </Card>
+
+      <InvoicePdfActions invoiceId={data.id} reference={data.reference} />
 
       {canAcceptPayment && due > 0 && canRecordPayment ? (
         <Card title="Enregistrer un encaissement">

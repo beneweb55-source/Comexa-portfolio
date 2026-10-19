@@ -65,13 +65,15 @@ export default function ExchangeRatePanel() {
   const loadCurrencies = useCallback(() => {
     request("/currencies?perPage=100")
       .then(({ data }) => {
-        const rows = (Array.isArray(data) ? data : []).filter((c) => c.isActive !== false);
+        const rows = Array.isArray(data) ? data : [];
         setCurrencies(rows);
-        if (rows.length >= 2) {
-          setPair((prev) => ({
-            from: rows.some((c) => c.code === prev.from) ? prev.from : rows[0].code,
-            to: rows.some((c) => c.code === prev.to) ? prev.to : rows[1].code,
-          }));
+        if (rows.length >= 1) {
+          setPair((prev) => {
+            const from = rows.some((c) => c.code === prev.from) ? prev.from : rows[0].code;
+            const previousToIsDistinct = prev.to !== from && rows.some((c) => c.code === prev.to);
+            const firstDistinct = rows.find((c) => c.code !== from)?.code ?? from;
+            return { from, to: previousToIsDistinct ? prev.to : firstDistinct };
+          });
         }
       })
       .catch(() => setCurrencies([]));
@@ -95,6 +97,9 @@ export default function ExchangeRatePanel() {
   useEffect(loadHistory, [loadHistory]);
 
   const codeOptions = currencies.map((c) => c.code);
+  const activeCodes = new Set(currencies.filter((c) => c.isActive !== false).map((c) => c.code));
+  const hasCurrencyPair = pair.from !== pair.to && activeCodes.has(pair.from) && activeCodes.has(pair.to);
+  const canRecordRate = canManage && pair.from !== pair.to && codeOptions.includes(pair.from) && codeOptions.includes(pair.to);
 
   async function runConvert(event) {
     event.preventDefault();
@@ -188,11 +193,12 @@ export default function ExchangeRatePanel() {
               id="rate-from"
               className="cx-select"
               value={pair.from}
+              disabled={codeOptions.length < 2}
               onChange={(e) => setPair({ ...pair, from: e.target.value })}
             >
               {codeOptions.map((code) => (
                 <option key={code} value={code}>
-                  {code}
+                  {code}{currencies.find((currency) => currency.code === code)?.isActive === false ? " (inactive)" : ""}
                 </option>
               ))}
             </select>
@@ -202,16 +208,26 @@ export default function ExchangeRatePanel() {
               id="rate-to"
               className="cx-select"
               value={pair.to}
+              disabled={codeOptions.length < 2}
               onChange={(e) => setPair({ ...pair, to: e.target.value })}
             >
               {codeOptions.map((code) => (
                 <option key={code} value={code}>
-                  {code}
+                  {code}{currencies.find((currency) => currency.code === code)?.isActive === false ? " (inactive)" : ""}
                 </option>
               ))}
             </select>
           </Field>
         </div>
+        {!hasCurrencyPair ? (
+          <div className="mt-4">
+            <Notice>
+              {activeCodes.size < 2
+                ? "Moins de deux devises sont actives : la conversion est indisponible. Un administrateur peut sélectionner une devise inactive ci-dessus et saisir un taux vérifiable pour activer les deux devises."
+                : "Choisissez deux devises différentes pour consulter ou enregistrer un taux."}
+            </Notice>
+          </div>
+        ) : null}
       </Card>
 
       <Card title={`Historique ${pair.from} → ${pair.to}`} subtitle="Du taux le plus récent au plus ancien.">
@@ -275,7 +291,7 @@ export default function ExchangeRatePanel() {
               />
             </Field>
             <div className="flex items-end">
-              <button type="submit" className={primaryButton} disabled={busy}>
+              <button type="submit" className={primaryButton} disabled={busy || !hasCurrencyPair}>
                 {busy ? "Calcul…" : "Convertir"}
               </button>
             </div>
@@ -334,7 +350,7 @@ export default function ExchangeRatePanel() {
               </Field>
             </div>
             <div>
-              <button type="submit" className={primaryButton} disabled={busy}>
+              <button type="submit" className={primaryButton} disabled={busy || !canRecordRate}>
                 {busy ? "Enregistrement…" : "Enregistrer le taux"}
               </button>
             </div>

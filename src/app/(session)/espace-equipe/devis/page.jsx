@@ -11,6 +11,7 @@ import { useListing } from "@/lib/use-listing";
 import { Empty, Pagination, SkeletonList, primaryButton } from "@/components/workspace/ui";
 import { Alert, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
+import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
 
 const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
 
@@ -80,6 +81,7 @@ export default function DevisEquipePage() {
                   status={QUOTE_STATUS[quote.status] ?? quote.status}
                   statusTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain"}
                   actions={[
+                    <QuotePdfActions key={`pdf-${quote.id}`} quoteId={quote.id} reference={quote.reference} />,
                     {
                       icon: ArrowUpRight,
                       label: `Ouvrir le devis ${quote.reference}`,

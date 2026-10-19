@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/session";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE, daysFromToday } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
 
 /**
  * Fiche d'un devis. Le cycle est linéaire : brouillon → envoyé (le client le consulte,
@@ -133,6 +134,8 @@ export default function DevisDetailPage({ params }) {
           {data.status === "DRAFT" ? <span className="self-center text-[14px] text-[var(--comexa-ink-soft)]">Le devis doit être envoyé avant d&apos;être accepté par le client.</span> : null}
         </div>
       </Card>
+
+      <QuotePdfActions quoteId={data.id} reference={data.reference} />
 
       <Card title="Prestations">
         <div className="overflow-x-auto">

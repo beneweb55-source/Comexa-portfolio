@@ -5,7 +5,7 @@ import { paginated, resolvePagination } from '../../common/dto/pagination.dto.js
 import { AppException } from '../../common/errors/app-error.js';
 import { MailService } from '../../common/mail/mail.service.js';
 import { REFERENCE_SCOPES } from '../../common/references/reference.scopes.js';
-import type { Invoice, Prisma } from '../../generated/prisma/client.js';
+import { Prisma, type Invoice } from '../../generated/prisma/client.js';
 import {
   ActivityType,
   InvoiceStatus,
@@ -152,7 +152,12 @@ export class InvoicesService {
     // invisible, et la facture ne peut pas naitre.
     const ownClientId = clientPerimeter(policy, 'invoice', 'write');
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const { invoice: created, createdNow } = await this.prisma.$transaction(async (tx) => {
+      // Sérialise la conversion d'un même devis. Sans verrou sur le devis, deux
+      // requêtes simultanées pourraient toutes deux ne trouver aucune facture,
+      // puis réserver deux numéros et créer deux pièces.
+      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "quotes" WHERE "id" = ${quoteId} FOR UPDATE`);
+
       const quote = await tx.quote.findFirst({
         where: { id: quoteId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
         include: { items: { orderBy: { position: 'asc' } } },
@@ -177,6 +182,15 @@ export class InvoicesService {
           "Ce devis n'est rattache a aucun dossier client : il n'y a personne a facturer.",
         );
       }
+
+      // L'action est idempotente : le double clic ou la répétition d'une requête
+      // après un délai réseau restitue la facture déjà créée plutôt que d'en
+      // numéroter une seconde pour le même devis.
+      const existingInvoice = await tx.invoice.findFirst({
+        where: { quoteId: quote.id, type: InvoiceType.STANDARD, deletedAt: null },
+        include: INVOICE_INCLUDE,
+      });
+      if (existingInvoice) return { invoice: existingInvoice, createdNow: false };
 
       const entries = storedLineEntries(quote.items);
       const totals = computeTotals(entries, quote.taxRate);
@@ -270,18 +284,20 @@ export class InvoicesService {
         tx,
       );
 
-      return invoice;
+      return { invoice, createdNow: true };
     });
 
-    await this.audit.record({
-      actorId,
-      action: 'INVOICE_CREATED_FROM_QUOTE',
-      entityType: 'Invoice',
-      entityId: created.id,
-      after: { ...invoiceSnapshot(created), quoteId },
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-    });
+    if (createdNow) {
+      await this.audit.record({
+        actorId,
+        action: 'INVOICE_CREATED_FROM_QUOTE',
+        entityType: 'Invoice',
+        entityId: created.id,
+        after: { ...invoiceSnapshot(created), quoteId },
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+    }
 
     return created;
   }

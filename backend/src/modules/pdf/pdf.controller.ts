@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { PdfService } from './pdf.service.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../common/decorators/auth.decorators.js';
 import { SendDocumentEmailDto } from './dto/invoice-email.dto.js';
 import { UrlBuilderService } from '../../common/services/url-builder.service.js';
+import { AppException } from '../../common/errors/app-error.js';
 
 /**
  * CONTRÔLEUR REST POUR LA GÉNÉRATION PDF
@@ -54,35 +55,35 @@ export class PdfController {
   @ApiOperation({ summary: 'Télécharger un PDF de facture' })
   async downloadInvoicePdf(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const pdfBuffer = await this.pdfService.generateInvoicePdf(id, {
-      includeSignature: true,
-      includeTerms: true,
-      language: 'fr',
-    });
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="facture-${id}.pdf"`);
-    res.send(pdfBuffer);
+    const policy = new AccessPolicy(user);
+    const reference = await this.pdfService.getDocumentReference('invoice', id, policy);
+    const pdfBuffer = await this.pdfService.generateInvoicePdf(
+      id,
+      { includeSignature: true, includeTerms: true, language: 'fr' },
+      policy,
+    );
+    this.sendPdf(res, pdfBuffer, 'FACTURE', reference, false);
   }
 
   @Get('invoices/:id/preview')
   @RequireAnyPermission('invoice:read:any', 'invoice:read:own')
-  @ApiOperation({ summary: 'Aperçu inline d\'une facture en PDF' })
+  @ApiOperation({ summary: "Aperçu inline d'une facture en PDF" })
   async previewInvoicePdf(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const pdfBuffer = await this.pdfService.generateInvoicePdf(id, {
-      includeSignature: true,
-      includeTerms: true,
-      language: 'fr',
-    });
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="facture-${id}.pdf"`);
-    res.send(pdfBuffer);
+    const policy = new AccessPolicy(user);
+    const reference = await this.pdfService.getDocumentReference('invoice', id, policy);
+    const pdfBuffer = await this.pdfService.generateInvoicePdf(
+      id,
+      { includeSignature: true, includeTerms: true, language: 'fr' },
+      policy,
+    );
+    this.sendPdf(res, pdfBuffer, 'FACTURE', reference, true);
   }
 
   // ---------------------------------------------------------------------------
@@ -94,35 +95,62 @@ export class PdfController {
   @ApiOperation({ summary: 'Télécharger un PDF de devis' })
   async downloadQuotePdf(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const pdfBuffer = await this.pdfService.generateQuotePdf(id, {
-      includeSignature: true,
-      includeTerms: true,
-      language: 'fr',
-    });
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="devis-${id}.pdf"`);
-    res.send(pdfBuffer);
+    const policy = new AccessPolicy(user);
+    const reference = await this.pdfService.getDocumentReference('quote', id, policy);
+    const pdfBuffer = await this.pdfService.generateQuotePdf(
+      id,
+      { includeSignature: true, includeTerms: true, language: 'fr' },
+      policy,
+    );
+    this.sendPdf(res, pdfBuffer, 'DEVIS', reference, false);
   }
 
   @Get('quotes/:id/preview')
   @RequireAnyPermission('quote:read:any', 'quote:read:own')
-  @ApiOperation({ summary: 'Aperçu inline d\'un devis en PDF' })
+  @ApiOperation({ summary: "Aperçu inline d'un devis en PDF" })
   async previewQuotePdf(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ): Promise<void> {
-    const pdfBuffer = await this.pdfService.generateQuotePdf(id, {
-      includeSignature: true,
-      includeTerms: true,
-      language: 'fr',
-    });
+    const policy = new AccessPolicy(user);
+    const reference = await this.pdfService.getDocumentReference('quote', id, policy);
+    const pdfBuffer = await this.pdfService.generateQuotePdf(
+      id,
+      { includeSignature: true, includeTerms: true, language: 'fr' },
+      policy,
+    );
+    this.sendPdf(res, pdfBuffer, 'DEVIS', reference, true);
+  }
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="devis-${id}.pdf"`);
-    res.send(pdfBuffer);
+  /** Réponse PDF privée, typée et non mise en cache par un proxy partagé. */
+  private sendPdf(
+    response: Response,
+    buffer: Buffer,
+    documentType: 'FACTURE' | 'DEVIS',
+    reference: string,
+    inline: boolean,
+  ): void {
+    if (buffer.length < 8 || !buffer.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+      throw AppException.internal(
+        'PDF_GENERATION_FAILED',
+        'La génération du document n’a pas produit un PDF valide.',
+      );
+    }
+    const safeReference = reference.replace(/[^A-Za-z0-9._-]/g, '-');
+    const filename = `COMEXA-${documentType}-${safeReference}.pdf`;
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader('Content-Length', String(buffer.length));
+    response.setHeader(
+      'Content-Disposition',
+      `${inline ? 'inline' : 'attachment'}; filename="${filename}"`,
+    );
+    response.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.send(buffer);
   }
 
   // ---------------------------------------------------------------------------
@@ -173,8 +201,7 @@ export class PdfController {
   @RequirePermissions('quote:send:any')
   @ApiOperation({
     summary: 'Envoyer un devis par email avec PDF en pièce jointe',
-    description:
-      'Nécessite la configuration SMTP. Retourne une URL de redirection vers le devis.',
+    description: 'Nécessite la configuration SMTP. Retourne une URL de redirection vers le devis.',
   })
   async emailQuote(
     @Param('id') id: string,

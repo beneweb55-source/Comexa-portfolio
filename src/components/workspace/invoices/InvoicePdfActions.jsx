@@ -61,7 +61,8 @@ export function InvoicePdfActions({
     setDownloading(true);
     setError(null);
     try {
-      await download(`/pdf/invoices/${invoiceId}`, `facture-${reference || invoiceId}.pdf`);
+      const safeReference = String(reference || invoiceId).replace(/[^A-Za-z0-9._-]/g, "-");
+      await download(`/pdf/invoices/${invoiceId}`, `COMEXA-FACTURE-${safeReference}.pdf`);
     } catch (caught) {
       setError("Le PDF n'a pas pu être téléchargé.");
     } finally {

@@ -7,6 +7,7 @@ import { formatDate, formatMoney } from "@/lib/api";
 import { QUOTE_OPEN_STATUSES, QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
 
 /**
  * Devis vu par le client. Il peut le consulter, l'accepter ou le refuser tant qu'il
@@ -91,6 +92,8 @@ export default function DevisClientPage({ params }) {
         {data.status === "REJECTED" ? <p className="mt-4 text-[14.5px]">Vous avez refusé ce devis le {formatDate(data.rejectedAt)}.</p> : null}
         {data.status === "EXPIRED" ? <p className="mt-4 text-[14.5px]">Ce devis est arrivé à échéance. Contactez l&apos;agence pour un nouveau devis.</p> : null}
       </Card>
+
+      <QuotePdfActions quoteId={data.id} reference={data.reference} />
 
       <Card title="Détail des prestations">
         <div className="overflow-x-auto">

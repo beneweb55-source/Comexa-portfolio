@@ -11,6 +11,7 @@ import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
 import { Alert, FilterPills, ItemCard, ItemGrid, KpiGrid, StatusPill } from "@/components/softui";
 import { ListTable, ViewToggle, useViewMode } from "@/components/softui/ListView";
 import { useShellQuery } from "@/components/softui/Shell";
+import { InvoicePdfActions } from "@/components/workspace/invoices";
 
 const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
 
@@ -169,6 +170,13 @@ export default function FacturesEquipePage() {
                   status={INVOICE_STATUS[invoice.status] ?? invoice.status}
                   statusTone={tone}
                   actions={[
+                    <InvoicePdfActions
+                      key={`pdf-${invoice.id}`}
+                      invoiceId={invoice.id}
+                      reference={invoice.reference}
+                      showEmailButton={false}
+                      size="sm"
+                    />,
                     {
                       icon: ArrowUpRight,
                       label: `Ouvrir la facture ${invoice.reference}`,
@@ -227,6 +235,20 @@ export default function FacturesEquipePage() {
                   if (!OPEN.includes(invoice.status)) return <span className="sui-table__muted">—</span>;
                   return <strong>{formatMoney(remaining, invoice.currency)}</strong>;
                 },
+              },
+              {
+                key: "pdf",
+                label: "PDF",
+                align: "end",
+                render: (invoice) => (
+                  <InvoicePdfActions
+                    invoiceId={invoice.id}
+                    reference={invoice.reference}
+                    showPreviewButton={false}
+                    showEmailButton={false}
+                    size="sm"
+                  />
+                ),
               },
             ]}
           />

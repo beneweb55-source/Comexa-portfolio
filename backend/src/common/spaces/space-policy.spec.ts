@@ -65,6 +65,13 @@ describe('space-policy — acces aux espaces', () => {
     assert.deepEqual(accessibleSpaces(principal('SOCIAL_MEDIA_MANAGER')), ['personal', 'team']);
   });
 
+  it('ouvre Comexa Space à un porteur qui ne détient que des droits financiers', () => {
+    const financeReader = principal('SALES', {
+      permissions: new Set(['currency:read:any', 'exchangerate:read:any']),
+    });
+    assert.deepEqual(accessibleSpaces(financeReader), ['comexa']);
+  });
+
   it("n'ouvre aucun espace a un client ni a une machine", () => {
     assert.deepEqual(accessibleSpaces(principal('CLIENT')), []);
     assert.deepEqual(accessibleSpaces(principal('ADMIN', { isIntegration: true, roles: [] })), []);
@@ -118,6 +125,10 @@ describe('space-policy — droits effectifs', () => {
     assert.ok(comexa.has('user:manage:any'));
     assert.ok(comexa.has('integration:manage:any'));
     assert.ok(comexa.has('faq:write:any'));
+    assert.ok(comexa.has('currency:read:any'));
+    assert.ok(comexa.has('currency:manage:any'));
+    assert.ok(comexa.has('exchangerate:read:any'));
+    assert.ok(comexa.has('exchangerate:manage:any'));
     assert.ok(!comexa.has('invoice:read:any'));
     assert.ok(!comexa.has('task:read:any'));
     assert.ok(!comexa.has('telegram:link:any'), "reserve aux jetons d'integration");
