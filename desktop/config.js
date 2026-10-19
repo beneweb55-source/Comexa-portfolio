@@ -84,11 +84,15 @@ function normalizeOrigin(candidate) {
   return url.origin;
 }
 
-/** Normalise un chemin de départ : commence par `/`, jamais `//`. */
+/** Normalise un chemin de départ : commence par `/`, jamais `//`, jamais la
+ *  racine seule (le site public n'est pas une entrée de l'application) et
+ *  toujours dans le périmètre autorisé — sinon la valeur est écartée. */
 function normalizeStartPath(candidate) {
   if (typeof candidate !== "string") return null;
   const value = candidate.trim();
   if (!value.startsWith("/") || value.startsWith("//")) return null;
+  if (value === "/") return null;
+  if (!isAllowedPath(value.split("?")[0])) return null;
   return value;
 }
 
