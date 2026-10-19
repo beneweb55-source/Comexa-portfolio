@@ -16,6 +16,13 @@ const NAV_GROUPS = [
     ],
   },
   {
+    label: "Mes documents",
+    description: "Devis et factures émis pour votre dossier client.",
+    items: [
+      { href: "/espace-client/factures", label: "Mes factures", icon: "file", any: ["invoice:read:own"] },
+    ],
+  },
+  {
     label: "Mes échanges",
     description: "Commandes, demandes et échanges avec l’équipe Comexa.",
     items: [

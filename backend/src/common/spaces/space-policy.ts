@@ -131,6 +131,10 @@ export const COMEXA_ONLY: ReadonlySet<string> = new Set([
   'testimonial:moderate:any',
   'partner:write:any',
   'faq:write:any',
+  // La gestion financière fait partie de l'administration Comexa : sans ces
+  // droits, même ADMIN perd son accès lorsqu'il annonce cet espace.
+  'currency:manage:any',
+  'exchangerate:manage:any',
 ]);
 
 /** Lectures utiles aux pages de Comexa Space (annuaire, catalogue, paramètres). */
@@ -149,6 +153,8 @@ const COMEXA_READS: ReadonlySet<string> = new Set([
   'notification:manage:own',
   // Son solde : une donnee « a moi », lisible partout ou l'on ouvre son compte.
   'balance:read:own',
+  'currency:read:any',
+  'exchangerate:read:any',
 ]);
 
 /**
@@ -169,6 +175,8 @@ const COMEXA_ENTRY: ReadonlySet<string> = new Set([
   'testimonial:read:any',
   'partner:read:any',
   'faq:read:any',
+  'currency:read:any',
+  'exchangerate:read:any',
 ]);
 
 // -----------------------------------------------------------------------------

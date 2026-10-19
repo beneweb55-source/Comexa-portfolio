@@ -90,6 +90,7 @@ const SECTION_META = {
     "": { icon: LayoutDashboard, shortLabel: "Vue d’ensemble" },
     "tableau-de-bord": { icon: BarChart3, shortLabel: "Tableau de bord" },
     commander: { icon: ShoppingCart, shortLabel: "Commander" },
+    factures: { icon: FileText, shortLabel: "Mes factures" },
     modifications: { icon: Wrench, shortLabel: "Modifications" },
     messagerie: { icon: Mail, shortLabel: "Messagerie" },
   },
@@ -110,7 +111,7 @@ export const PREFERRED_TABS = {
   personal: ["tableau-de-bord", "taches", "calendrier", "temps", "rapports-journaliers", "notifications"],
   team: ["tableau-de-bord", "projets", "taches", "calendrier", "clients", "devis", "factures", "commandes"],
   comexa: ["tableau-de-bord", "contenu", "membres", "roles", "integrations", "journal", "parametres"],
-  client: ["", "tableau-de-bord", "commander", "modifications", "messagerie", "notifications"],
+  client: ["", "tableau-de-bord", "commander", "factures", "modifications", "messagerie", "notifications"],
 };
 
 /**

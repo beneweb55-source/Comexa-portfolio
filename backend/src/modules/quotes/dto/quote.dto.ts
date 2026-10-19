@@ -214,9 +214,7 @@ export class UpdateQuoteDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  @MinLength(3)
-  @MaxLength(3)
+  @IsIn(DOCUMENT_CURRENCIES, { message: 'Devise non prise en charge.' })
   currency?: string;
 
   @ApiPropertyOptional()

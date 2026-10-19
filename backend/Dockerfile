@@ -73,6 +73,7 @@ COPY prisma ./prisma
 RUN npx prisma generate
 
 COPY src ./src
+COPY assets ./assets
 RUN npm run build
 
 # --- 3. Dependances d'execution ----------------------------------------------
@@ -104,6 +105,7 @@ WORKDIR /app
 
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
 COPY --from=build     --chown=node:node /app/dist         ./dist
+COPY --from=build     --chown=node:node /app/assets      ./assets
 COPY --from=build     --chown=node:node /app/prisma       ./prisma
 COPY --from=build     --chown=node:node /app/prisma.config.ts ./prisma.config.ts
 COPY --chown=node:node package.json ./

@@ -52,14 +52,15 @@ export class ExchangeRateService {
     from = from.toUpperCase();
     to = to.toUpperCase();
 
+    // Même une conversion identité ne doit pas contourner la règle des devises
+    // actives. On valide donc les deux codes avant le cas `from === to`.
+    await this.currencies.validate(from, policy);
+    await this.currencies.validate(to, policy);
+
     // Si même devise, taux = 1
     if (from === to) {
       return new Prisma.Decimal(1);
     }
-
-    // Valider que les devises existent
-    await this.currencies.validate(from, policy);
-    await this.currencies.validate(to, policy);
 
     const effectiveDate = date ?? new Date();
 
@@ -100,7 +101,7 @@ export class ExchangeRateService {
       throw AppException.badRequest(
         'EXCHANGE_RATE_NOT_FOUND',
         `Aucun taux de change trouvé de ${from} vers ${to} à la date ${effectiveDate.toISOString().split('T')[0]}. ` +
-        `Veuillez ajouter un taux manuellement avec une source vérifiable.`,
+          `Veuillez ajouter un taux manuellement avec une source vérifiable.`,
       );
     }
 
@@ -138,11 +139,7 @@ export class ExchangeRateService {
   /**
    * Obtenir l'historique des taux entre deux devises
    */
-  async getRateHistory(
-    from: string,
-    to: string,
-    policy: AccessPolicy,
-  ): Promise<ExchangeRate[]> {
+  async getRateHistory(from: string, to: string, policy: AccessPolicy): Promise<ExchangeRate[]> {
     policy.requireScope('exchangerate', 'read', [SCOPE_ANY]);
 
     from = from.toUpperCase();
@@ -180,57 +177,104 @@ export class ExchangeRateService {
   ): Promise<ExchangeRate> {
     policy.requireScope('exchangerate', 'manage', [SCOPE_ANY]);
 
-    // Valider les devises
-    await this.currencies.validate(data.fromCurrency, policy);
-    await this.currencies.validate(data.toCurrency, policy);
-
     const normalizedFrom = data.fromCurrency.toUpperCase();
     const normalizedTo = data.toCurrency.toUpperCase();
 
+    if (normalizedFrom === normalizedTo) {
+      throw AppException.badRequest(
+        'INVALID_CURRENCY_PAIR',
+        'Les devises source et cible doivent être différentes',
+      );
+    }
+
     // Convertir le taux en Decimal
-    const decimalRate = data.rate instanceof Prisma.Decimal ? data.rate : new Prisma.Decimal(data.rate);
+    const decimalRate =
+      data.rate instanceof Prisma.Decimal ? data.rate : new Prisma.Decimal(data.rate);
 
     // Si la date n'est pas spécifiée, utiliser aujourd'hui
     const effectiveDate = data.effectiveDate ?? new Date();
 
     // Vérifier que le taux est positif
     if (decimalRate.lessThanOrEqualTo(0)) {
-      throw AppException.badRequest(
-        'INVALID_EXCHANGE_RATE',
-        'Le taux de change doit être positif',
-      );
+      throw AppException.badRequest('INVALID_EXCHANGE_RATE', 'Le taux de change doit être positif');
     }
 
-    // Vérifier que la source est fournie
-    if (!data.source) {
+    const source = data.source.trim();
+    if (!source) {
       throw AppException.badRequest(
         'EXCHANGE_RATE_SOURCE_REQUIRED',
         'La source du taux de change est obligatoire',
       );
     }
 
-    const rate = await this.prisma.exchangeRate.upsert({
-      where: {
-        fromCurrency_toCurrency_effectiveDate: {
+    // Une devise inactive peut être activée par le premier taux vérifiable qui
+    // l'utilise. Validation d'existence, activation des deux devises et taux
+    // sont une seule transaction : un échec ne laisse jamais une activation
+    // orpheline, et une devise inexistante n'est jamais créée implicitement.
+    const { rate, activatedCurrencies } = await this.prisma.$transaction(async (tx) => {
+      const fromCurrency = await tx.currency.findUnique({ where: { code: normalizedFrom } });
+      const toCurrency = await tx.currency.findUnique({ where: { code: normalizedTo } });
+
+      if (!fromCurrency) {
+        throw AppException.badRequest(
+          'INVALID_CURRENCY',
+          `La devise ${normalizedFrom} n'existe pas`,
+        );
+      }
+      if (!toCurrency) {
+        throw AppException.badRequest('INVALID_CURRENCY', `La devise ${normalizedTo} n'existe pas`);
+      }
+
+      const activatedCurrencies: Array<{
+        before: NonNullable<typeof fromCurrency>;
+        after: NonNullable<typeof fromCurrency>;
+      }> = [];
+      for (const currency of [fromCurrency, toCurrency]) {
+        if (!currency.isActive) {
+          const after = await tx.currency.update({
+            where: { code: currency.code },
+            data: { isActive: true },
+          });
+          activatedCurrencies.push({ before: currency, after });
+        }
+      }
+
+      const rate = await tx.exchangeRate.upsert({
+        where: {
+          fromCurrency_toCurrency_effectiveDate: {
+            fromCurrency: normalizedFrom,
+            toCurrency: normalizedTo,
+            effectiveDate,
+          },
+        },
+        create: {
           fromCurrency: normalizedFrom,
           toCurrency: normalizedTo,
+          rate: decimalRate,
           effectiveDate,
+          source,
+          reference: data.reference,
         },
-      },
-      create: {
-        fromCurrency: normalizedFrom,
-        toCurrency: normalizedTo,
-        rate: decimalRate,
-        effectiveDate,
-        source: data.source,
-        reference: data.reference,
-      },
-      update: {
-        rate: decimalRate,
-        source: data.source,
-        reference: data.reference,
-      },
+        update: {
+          rate: decimalRate,
+          source,
+          reference: data.reference,
+        },
+      });
+
+      return { rate, activatedCurrencies };
     });
+
+    for (const currency of activatedCurrencies) {
+      await this.audit.record({
+        actorId: actor.id,
+        action: 'currency:activate',
+        entityType: 'Currency',
+        entityId: currency.after.id,
+        before: currency.before,
+        after: currency.after,
+      });
+    }
 
     await this.audit.record({
       actorId: actor.id,

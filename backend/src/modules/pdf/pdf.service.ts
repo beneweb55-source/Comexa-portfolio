@@ -6,6 +6,7 @@ import { Prisma, type QuoteItem } from '../../generated/prisma/client.js';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { MailService } from '../../common/mail/mail.service.js';
+import { AppException } from '../../common/errors/app-error.js';
 import { clientPerimeter } from '../invoices/billing-access.js';
 import type { AccessPolicy } from '../../common/auth/principal.js';
 
@@ -80,6 +81,18 @@ const FONTS = {
 /** Langues couvertes par les libellés du document. */
 type DocumentLanguage = 'fr' | 'en' | 'ar';
 
+/** Libellés lisibles des moyens de paiement stockés sous forme d'enum. */
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  BANK_TRANSFER: 'Virement bancaire',
+  CARD: 'Carte bancaire',
+  CASH: 'Espèces',
+  CHECK: 'Chèque',
+  PAYPAL: 'PayPal',
+  CCP: 'CCP (Algérie Poste)',
+  BARIDIMOB: 'BaridiMob',
+  OTHER: 'Autre moyen',
+};
+
 /** Libellés anglais des sections. Les clés sont les libellés français. */
 const PDF_LABELS_EN: Record<string, string> = {
   FACTURE: 'INVOICE',
@@ -87,10 +100,12 @@ const PDF_LABELS_EN: Record<string, string> = {
   'N°': 'No.',
   Date: 'Date',
   "Date d'échéance": 'Due Date',
+  "Valable jusqu'au": 'Valid Until',
   Statut: 'Status',
   'FACTURÉ À': 'BILLED TO',
+  DESTINATAIRE: 'RECIPIENT',
   Description: 'Description',
-  'Qté': 'Qty',
+  Qté: 'Qty',
   'P.U.': 'Unit Price',
   Montant: 'Amount',
   'Sous-total': 'Subtotal',
@@ -100,11 +115,17 @@ const PDF_LABELS_EN: Record<string, string> = {
   PAIEMENTS: 'PAYMENTS',
   'Total payé': 'Total Paid',
   'Solde dû': 'Balance Due',
+  Notes: 'Notes',
+  Conditions: 'Terms',
   Signature: 'Signature',
 };
 
 /** Page A4 portrait, en points (1 pt = 1/72 pouce). */
-const PAGE: { width: number; height: number; margin: number } = { width: 595.28, height: 841.89, margin: 40 };
+const PAGE: { width: number; height: number; margin: number } = {
+  width: 595.28,
+  height: 841.89,
+  margin: 40,
+};
 
 @Injectable()
 export class PdfService {
@@ -119,15 +140,6 @@ export class PdfService {
   // ---------------------------------------------------------------------------
   // Configuration
   // ---------------------------------------------------------------------------
-
-  /**
-   * Chemin vers le logo Comexa
-   */
-  private getLogoPath(): string {
-    const logoPath = this.config.get<string>('PDF_LOGO_PATH') ||
-      join(process.cwd(), 'public', 'images', 'comexa-logo.png');
-    return logoPath;
-  }
 
   /**
    * Informations de l'entreprise Comexa
@@ -152,6 +164,45 @@ export class PdfService {
   // ---------------------------------------------------------------------------
 
   /**
+   * Lit une référence dans le périmètre du porteur, pour fabriquer le nom de
+   * fichier sans exposer l'identifiant interne de la ligne.
+   */
+  async getDocumentReference(
+    type: 'invoice' | 'quote',
+    documentId: string,
+    policy: AccessPolicy,
+  ): Promise<string> {
+    const ownClientId = clientPerimeter(policy, type, 'read');
+    const document =
+      type === 'invoice'
+        ? await this.prisma.invoice.findFirst({
+            where: {
+              id: documentId,
+              deletedAt: null,
+              ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+            },
+            select: { reference: true },
+          })
+        : await this.prisma.quote.findFirst({
+            where: {
+              id: documentId,
+              deletedAt: null,
+              ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+            },
+            select: { reference: true },
+          });
+
+    if (!document) {
+      throw AppException.notFound(
+        type === 'invoice' ? 'INVOICE_NOT_FOUND' : 'QUOTE_NOT_FOUND',
+        type === 'invoice' ? "Cette facture n'existe pas." : "Ce devis n'existe pas.",
+      );
+    }
+
+    return document.reference;
+  }
+
+  /**
    * Générer un PDF pour une facture
    */
   async generateInvoicePdf(
@@ -170,21 +221,35 @@ export class PdfService {
     // filtre) et lève pour un compte non rattaché.
     const ownClientId = policy ? clientPerimeter(policy, 'invoice', 'read') : null;
 
-    const invoice = await this.prisma.invoice.findUniqueOrThrow({
-      where: { id: invoiceId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        deletedAt: null,
+        ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+      },
       include: {
-        client: true,
+        client: {
+          include: {
+            contacts: {
+              where: { deletedAt: null },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+          },
+        },
         project: true,
         quote: true,
-        items: {
-          orderBy: { position: 'asc' },
-        },
+        items: { orderBy: { position: 'asc' } },
         payments: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, status: 'SUCCEEDED' },
           orderBy: { paidAt: 'asc' },
         },
       },
     });
+
+    if (!invoice) {
+      throw AppException.notFound('INVOICE_NOT_FOUND', "Cette facture n'existe pas.");
+    }
 
     return this.generatePdf({
       type: 'invoice',
@@ -207,17 +272,31 @@ export class PdfService {
   ): Promise<Buffer> {
     const ownClientId = policy ? clientPerimeter(policy, 'quote', 'read') : null;
 
-    const quote = await this.prisma.quote.findUniqueOrThrow({
-      where: { id: quoteId, deletedAt: null, ...(ownClientId ? { clientId: ownClientId } : {}) },
+    const quote = await this.prisma.quote.findFirst({
+      where: {
+        id: quoteId,
+        deletedAt: null,
+        ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+      },
       include: {
         prospect: true,
-        client: true,
-        project: true,
-        items: {
-          orderBy: { position: 'asc' },
+        client: {
+          include: {
+            contacts: {
+              where: { deletedAt: null },
+              orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+              take: 1,
+            },
+          },
         },
+        project: true,
+        items: { orderBy: { position: 'asc' } },
       },
     });
+
+    if (!quote) {
+      throw AppException.notFound('QUOTE_NOT_FOUND', "Ce devis n'existe pas.");
+    }
 
     return this.generatePdf({
       type: 'quote',
@@ -293,12 +372,24 @@ export class PdfService {
    * canal de journalisation du serveur.
    */
   private loadLogo(): Buffer | null {
-    try {
-      return readFileSync(this.getLogoPath());
-    } catch {
-      this.logger.warn('Logo PDF introuvable, génération sans logo');
-      return null;
+    const configured = this.config.get<string>('PDF_LOGO_PATH');
+    const candidates = [
+      ...(configured ? [configured] : []),
+      join(process.cwd(), 'assets', 'comexa-logo.png'),
+      join(process.cwd(), 'backend', 'assets', 'comexa-logo.png'),
+      join(process.cwd(), 'public', 'comexa-logo-horizontal-transparent.png'),
+    ];
+
+    for (const candidate of candidates) {
+      try {
+        return readFileSync(candidate);
+      } catch {
+        // Essayer le prochain emplacement : local, conteneur ou monorepo.
+      }
     }
+
+    this.logger.warn('Logo PDF introuvable, génération sans logo');
+    return null;
   }
 
   // ---------------------------------------------------------------------------
@@ -371,6 +462,8 @@ export class PdfService {
       companyInfo.phone ? `Tél: ${companyInfo.phone}` : null,
       companyInfo.email,
       companyInfo.website,
+      companyInfo.registrationNumber ? `RC : ${companyInfo.registrationNumber}` : null,
+      companyInfo.taxId ? `NIF/TVA : ${companyInfo.taxId}` : null,
     ].filter(Boolean) as string[];
 
     let companyY = y + 32;
@@ -379,14 +472,15 @@ export class PdfService {
       companyY += 13;
     }
 
-    y += logoBuffer ? 140 : 100;
+    y = Math.max(y + (logoBuffer ? 140 : 100), companyY + 10);
 
     y = this.drawSeparator(doc, y) + 14;
 
     // -----------------------------------------------------------------------
     // Titre, aligné à droite
     // -----------------------------------------------------------------------
-    const title = type === 'invoice' ? this.label('FACTURE', language) : this.label('DEVIS', language);
+    const title =
+      type === 'invoice' ? this.label('FACTURE', language) : this.label('DEVIS', language);
 
     doc.fillColor(COLORS.secondary).font(FONTS.title.font, FONTS.title.size);
     doc.text(title, margin, y, { width: right - margin, align: 'right' });
@@ -399,8 +493,10 @@ export class PdfService {
       [this.label('N°', language), String(document.reference ?? '')],
       [this.label('Date', language), this.formatDate(document.issueDate)],
     ];
+    const expiryLabel = type === 'invoice' ? "Date d'échéance" : "Valable jusqu'au";
+    const expiryDate = type === 'invoice' ? document.dueDate : document.validUntil;
     const docInfoRight: Array<[string, string]> = [
-      [this.label("Date d'échéance", language), this.formatDate(document.dueDate)],
+      [this.label(expiryLabel, language), this.formatDate(expiryDate)],
       [this.label('Statut', language), this.getStatusLabel(document.status, language)],
     ];
 
@@ -413,7 +509,9 @@ export class PdfService {
 
     docInfoRight.forEach(([label, value], index) => {
       const lineY = y + index * 16;
-      doc.fillColor(COLORS.textMuted).text(`${label}:`, right - 190, lineY, { width: 110, align: 'right' });
+      doc
+        .fillColor(COLORS.textMuted)
+        .text(`${label}:`, right - 190, lineY, { width: 110, align: 'right' });
       doc.fillColor(COLORS.text).text(value, right - 80, lineY, { width: 80, align: 'right' });
     });
 
@@ -423,12 +521,19 @@ export class PdfService {
     // Destinataire
     // -----------------------------------------------------------------------
     const client = document.client || document.prospect;
+    const contact = client?.contacts?.[0] ?? null;
+    const contactFirstName = contact?.firstName ?? client?.contactFirstName ?? '';
+    const contactLastName = contact?.lastName ?? client?.contactLastName ?? '';
     const clientName = client
-      ? `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.companyName || client.email
+      ? client.companyName ||
+        `${contactFirstName} ${contactLastName}`.trim() ||
+        contact?.email ||
+        client.email ||
+        'Client'
       : 'Client';
 
     doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-    doc.text(this.label('FACTURÉ À', language), margin, y);
+    doc.text(this.label(type === 'invoice' ? 'FACTURÉ À' : 'DESTINATAIRE', language), margin, y);
     y += 20;
 
     doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
@@ -437,12 +542,16 @@ export class PdfService {
 
     if (client) {
       const clientLines = [
-        client.companyName,
-        client.address,
+        client.legalName,
+        client.addressLine1 ?? client.address,
+        client.addressLine2,
         `${client.city ?? ''}${client.postalCode ? ` ${client.postalCode}` : ''}`,
+        client.region,
         client.country,
-        client.email,
-        client.phone,
+        contact?.email ?? client.email,
+        contact?.phone ?? client.phone,
+        client.registrationNumber ? `RC : ${client.registrationNumber}` : null,
+        client.vatNumber ? `NIF/TVA : ${client.vatNumber}` : null,
       ].filter(Boolean) as string[];
 
       for (const line of clientLines) {
@@ -474,40 +583,52 @@ export class PdfService {
     y += 18;
 
     // -----------------------------------------------------------------------
-    // Conditions, signature, pied de page
+    // Notes et conditions réelles de la pièce
     // -----------------------------------------------------------------------
-    if (includeTerms) {
-      y = this.drawSeparator(doc, y) + 14;
-
-      const terms =
-        language === 'fr'
-          ? 'Paiement à réception de facture. Délai de paiement: 30 jours.'
-          : language === 'en'
-            ? 'Payment due upon receipt. Payment terms: 30 days.'
-            : 'الدفع عند الاستلام. فترة الدفع: 30 يومًا.';
-
+    const drawTextSection = (heading: string, content: string) => {
+      const lines = this.wrapText(content, right - margin, doc);
+      y = this.ensurePageSpace(doc, y, Math.min(46, lines.length * 12 + 24));
+      doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
+      doc.text(heading, margin, y);
+      y += 18;
       doc.fillColor(COLORS.textMuted).font(FONTS.small.font, FONTS.small.size);
-      for (const line of this.wrapText(terms, right - margin, doc)) {
-        doc.text(line, margin, y);
+      for (const line of lines) {
+        if (y + 12 > PAGE.height - margin) {
+          doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+          y = margin;
+        }
+        doc.text(line, margin, y, { width: right - margin });
         y += 11;
       }
+      y += 10;
+    };
 
-      y += 14;
+    const notes = typeof document.notes === 'string' ? document.notes.trim() : '';
+    if (notes) drawTextSection(this.label('Notes', language), notes);
+
+    const terms = typeof document.terms === 'string' ? document.terms.trim() : '';
+    if (includeTerms && terms) {
+      drawTextSection(this.label('Conditions', language), terms);
     }
 
     if (includeSignature) {
+      y = this.ensurePageSpace(doc, y, 58);
       doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
       doc.text(this.label('Signature', language), margin, y);
       y += 18;
 
       doc.strokeColor(COLORS.border).lineWidth(0.8);
-      doc.moveTo(margin, y).lineTo(margin + 200, y).stroke();
+      doc
+        .moveTo(margin, y)
+        .lineTo(margin + 200, y)
+        .stroke();
       y += 26;
     }
 
     // -----------------------------------------------------------------------
     // Pied de page
     // -----------------------------------------------------------------------
+    y = this.ensurePageSpace(doc, y, 42);
     doc.strokeColor(COLORS.border).lineWidth(0.8);
     doc.moveTo(margin, y).lineTo(right, y).stroke();
     y += 14;
@@ -527,12 +648,22 @@ export class PdfService {
     );
   }
 
+  /** Ajoute une page A4 si le bloc suivant dépasserait la marge imprimable. */
+  private ensurePageSpace(doc: PDFKit.PDFDocument, y: number, required: number): number {
+    if (y + required <= PAGE.height - PAGE.margin) return y;
+    doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+    return PAGE.margin;
+  }
+
   /**
    * Trait de séparation horizontal. Renvoie la position du trait.
    */
   private drawSeparator(doc: PDFKit.PDFDocument, y: number): number {
     doc.strokeColor(COLORS.border).lineWidth(0.8);
-    doc.moveTo(PAGE.margin, y).lineTo(PAGE.width - PAGE.margin, y).stroke();
+    doc
+      .moveTo(PAGE.margin, y)
+      .lineTo(PAGE.width - PAGE.margin, y)
+      .stroke();
     return y;
   }
 
@@ -546,61 +677,87 @@ export class PdfService {
     language: DocumentLanguage,
     startY: number,
   ): number {
-    const { width, margin } = PAGE;
-    const right = width - margin;
-    let y = startY;
-
-    const headers = [
-      this.label('Description', language),
-      this.label('Qté', language),
-      this.label('P.U.', language),
-      this.label('Montant', language),
-    ];
-    const colWidths = [right - margin - 180, 60, 80, 100];
+    const { margin } = PAGE;
+    const right = PAGE.width - margin;
+    const colWidths = [235, 55, 100, 125];
     const colX = [margin];
     for (let i = 1; i < colWidths.length; i++) {
       colX.push((colX[i - 1] as number) + (colWidths[i - 1] as number));
     }
 
-    doc.fillColor(COLORS.secondary).font(FONTS.body.font, FONTS.body.size);
-    headers.forEach((header, index) => {
-      doc.text(header, colX[index] as number, y);
-    });
+    const drawHeader = (headerY: number): number => {
+      const headers = [
+        this.label('Description', language),
+        this.label('Qté', language),
+        this.label('P.U.', language),
+        this.label('Montant', language),
+      ];
+      doc.fillColor(COLORS.secondary).font(FONTS.body.font, FONTS.body.size);
+      headers.forEach((header, index) => {
+        doc.text(header, colX[index] as number, headerY, {
+          width: colWidths[index] as number,
+          align: index === 0 ? 'left' : 'right',
+        });
+      });
+      const afterHeader = headerY + 22;
+      this.drawSeparator(doc, afterHeader);
+      return afterHeader + 8;
+    };
 
-    y += 18;
-    this.drawSeparator(doc, y);
-    y += 8;
-
+    let y = this.ensurePageSpace(doc, startY, 64);
+    y = drawHeader(y);
     const items = (document.items ?? []) as Array<
-      Pick<QuoteItem, 'description' | 'quantity' | 'unitPrice' | 'lineTotal'>
+      Pick<QuoteItem, 'title' | 'description' | 'quantity' | 'unitPrice' | 'lineTotal'>
     >;
+    const pageBottom = PAGE.height - margin;
 
     items.forEach((item, index) => {
+      const titleLines = this.wrapText(String(item.title ?? ''), colWidths[0] as number, doc);
+      const descriptionLines = item.description
+        ? this.wrapText(String(item.description), colWidths[0] as number, doc)
+        : [];
+      const textLineCount = Math.max(1, titleLines.length + descriptionLines.length);
+      const rowHeight = textLineCount * 13 + 16;
+
+      // Garder une ligne entière sur la même page. Les descriptions sont
+      // bornées à 2 000 caractères par le DTO : même la plus longue tient sur
+      // une page A4 si elle commence en haut d'une page.
+      if (y + rowHeight > pageBottom) {
+        doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+        y = drawHeader(margin);
+      }
+
       doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-
-      const descLines = this.wrapText(String(item.description ?? ''), colWidths[0] as number, doc);
-      descLines.forEach((line, lineIndex) => {
-        // La première ligne porte la quantité et les montants ; les suivantes
-        // sont indentées, ce qui fait visuellement un seul bloc.
-        doc.text(line, lineIndex === 0 ? margin : margin + 20, y + lineIndex * 13);
+      titleLines.forEach((line, lineIndex) => {
+        doc
+          .font(lineIndex === 0 ? 'Helvetica-Bold' : FONTS.body.font, FONTS.body.size)
+          .fillColor(COLORS.text)
+          .text(line, margin, y + lineIndex * 13, { width: colWidths[0] as number });
+      });
+      descriptionLines.forEach((line, lineIndex) => {
+        doc
+          .font(FONTS.small.font, FONTS.small.size)
+          .fillColor(COLORS.textMuted)
+          .text(line, margin, y + (titleLines.length + lineIndex) * 13, {
+            width: colWidths[0] as number,
+          });
       });
 
-      const firstLineY = y;
-      doc.text(String(item.quantity ?? '1'), (colX[1] as number) + 10, firstLineY, {
-        width: (colWidths[1] as number) - 10,
+      doc.font(FONTS.body.font, FONTS.body.size).fillColor(COLORS.text);
+      doc.text(String(item.quantity ?? '1'), colX[1] as number, y, {
+        width: colWidths[1] as number,
         align: 'right',
       });
-      doc.text(this.formatCurrency(item.unitPrice ?? 0, document.currency), (colX[2] as number) + 10, firstLineY, {
-        width: (colWidths[2] as number) - 10,
+      doc.text(this.formatCurrency(item.unitPrice ?? 0, document.currency), colX[2] as number, y, {
+        width: colWidths[2] as number,
         align: 'right',
       });
-      doc.text(this.formatCurrency(item.lineTotal ?? 0, document.currency), right - (colWidths[3] as number), firstLineY, {
-        width: (colWidths[3] as number),
+      doc.text(this.formatCurrency(item.lineTotal ?? 0, document.currency), colX[3] as number, y, {
+        width: colWidths[3] as number,
         align: 'right',
       });
 
-      y += Math.max(14, descLines.length * 13) + 5;
-
+      y += rowHeight;
       if (index < items.length - 1) {
         doc.strokeColor(COLORS.border).lineWidth(0.5);
         doc.moveTo(margin, y).lineTo(right, y).stroke();
@@ -624,10 +781,24 @@ export class PdfService {
     const { width, margin } = PAGE;
     const right = width - margin;
     let y = startY;
+    if (y + 112 > PAGE.height - margin) {
+      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+      y = margin;
+    }
 
     const totals = [
-      { label: this.label('Sous-total', language), value: document.subtotal, negative: false, bold: false },
-      { label: this.label('Remise', language), value: document.discountAmount, negative: true, bold: false },
+      {
+        label: this.label('Sous-total', language),
+        value: document.subtotal,
+        negative: false,
+        bold: false,
+      },
+      {
+        label: this.label('Remise', language),
+        value: document.discountAmount,
+        negative: true,
+        bold: false,
+      },
       {
         label: `${this.label('TVA', language)} ${document.taxRate ?? 0}%`,
         value: document.taxAmount,
@@ -638,10 +809,14 @@ export class PdfService {
       // Une ligne à zéro n'apporte rien et ferait douter d'un arrondi. Seule la
       // remise est gardée quand elle vaut zéro, parce qu'elle nomme un geste
       // commercial explicite (« pas de remise accordée »).
-    ].filter((t) => t.value && (Number(t.value) > 0 || t.negative));
+    ].filter((t) => t.value && (new Prisma.Decimal(String(t.value)).greaterThan(0) || t.negative));
 
     for (const total of totals) {
-      const value = this.formatCurrency(total.value ?? 0, document.currency);
+      const amount = new Prisma.Decimal(String(total.value ?? 0));
+      const value = this.formatCurrency(
+        total.negative ? amount.negated() : amount,
+        document.currency,
+      );
 
       if (total.bold) {
         doc.font(FONTS.heading.font, FONTS.heading.size).fillColor(COLORS.secondary);
@@ -669,49 +844,84 @@ export class PdfService {
     startY: number,
   ): number {
     const payments = (document.payments ?? []) as Array<Record<string, unknown>>;
-    if (payments.length === 0) {
-      return startY;
-    }
-
     const { width, margin } = PAGE;
     const right = width - margin;
-    let y = startY + 14;
+    const pageBottom = PAGE.height - margin;
+    let y = startY;
 
-    doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-    doc.text(this.label('PAIEMENTS', language), margin, y);
-    y += 20;
+    const drawHeading = (headingY: number): number => {
+      doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
+      doc.text(this.label('PAIEMENTS', language), margin, headingY);
+      return headingY + 20;
+    };
 
-    let totalPaid = new Prisma.Decimal(0);
-    for (const payment of payments) {
-      const amount = new Prisma.Decimal(Number(payment.amount ?? 0));
-      totalPaid = totalPaid.plus(amount);
+    if (y + 86 > pageBottom) {
+      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+      y = margin;
+    }
+    y = drawHeading(y);
 
-      doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-      doc.text(this.formatDate(payment.paidAt as string | Date | null | undefined), margin, y);
-      doc.text(this.formatCurrency(amount, String(payment.currency ?? document.currency)), right - 120, y, {
-        width: 120,
-        align: 'right',
-      });
-      y += 14;
+    if (payments.length === 0) {
+      doc.fillColor(COLORS.textMuted).font(FONTS.body.font, FONTS.body.size);
+      doc.text(
+        language === 'en' ? 'No payment recorded.' : 'Aucun règlement enregistré.',
+        margin,
+        y,
+      );
+      y += 16;
+    } else {
+      for (const payment of payments) {
+        if (y + 22 > pageBottom) {
+          doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+          y = drawHeading(margin);
+        }
+        doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
+        const method =
+          PAYMENT_METHOD_LABELS[String(payment.method ?? '')] ?? String(payment.method ?? '');
+        const reference = String(payment.reference ?? '');
+        const date = this.formatDate(payment.paidAt as string | Date | null | undefined);
+        const description = [date, method, reference].filter(Boolean).join(' · ');
+        doc.text(description, margin, y, { width: right - margin - 140 });
+        const amount = new Prisma.Decimal(String(payment.amount ?? '0'));
+        doc.text(
+          this.formatCurrency(amount, String(payment.currency ?? document.currency)),
+          right - 140,
+          y,
+          {
+            width: 140,
+            align: 'right',
+          },
+        );
+        y += 18;
+      }
     }
 
-    y += 8;
-    const total = new Prisma.Decimal(Number(document.total ?? 0));
+    const total = new Prisma.Decimal(String(document.total ?? '0'));
+    // `amountPaid` est la somme autoritaire recalculée dans la même transaction
+    // que les paiements ; on ne reconstitue pas le total avec des flottants.
+    const totalPaid = new Prisma.Decimal(String(document.amountPaid ?? '0'));
     const balance = total.minus(totalPaid);
+    if (y + 42 > pageBottom) {
+      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
+      y = margin;
+    }
 
     doc.font(FONTS.body.font, FONTS.body.size).fillColor(COLORS.text);
     doc.text(this.label('Total payé', language), margin, y);
-    doc.text(this.formatCurrency(totalPaid, document.currency), right - 120, y, { width: 120, align: 'right' });
-    y += 16;
+    doc.text(this.formatCurrency(totalPaid, document.currency), right - 140, y, {
+      width: 140,
+      align: 'right',
+    });
+    y += 18;
 
-    // Le solde est rouge quand il reste dû, bleu Comexa quand tout est payé :
-    // la couleur porte l'information avant la lecture du chiffre.
     doc.font('Helvetica-Bold', FONTS.body.size);
     doc.fillColor(balance.lessThanOrEqualTo(0) ? COLORS.secondary : COLORS.error);
     doc.text(this.label('Solde dû', language), margin, y);
-    doc.text(this.formatCurrency(balance, document.currency), right - 120, y, { width: 120, align: 'right' });
-    y += 16;
-
+    doc.text(this.formatCurrency(balance, document.currency), right - 140, y, {
+      width: 140,
+      align: 'right',
+    });
+    y += 18;
     doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
 
     return y;
@@ -774,10 +984,11 @@ export class PdfService {
     // dépend lui aussi de l'ICU embarquué, et un montant de facture ne doit
     // jamais changer de forme selon l'image qui le calcule.
     const raw = decimalAmount.toDecimalPlaces(CENTS, ROUND_HALF_UP).toString();
-    const [whole = '0', fraction = '00'] = raw.replace('-', '').split('.');
+    const [whole = '0', fraction = ''] = raw.replace('-', '').split('.');
+    const cents = `${fraction}00`.slice(0, 2);
     const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     const sign = raw.startsWith('-') ? '-' : '';
-    const formatted = `${sign}${grouped},${fraction}`;
+    const formatted = `${sign}${grouped},${cents}`;
 
     // `د.ج` a disparu au profit de `DA` : les polices standard du PDF n'ont pas
     // de glyphes arabes, donc le suffixe dinar s'affichait en caractères
@@ -804,12 +1015,22 @@ export class PdfService {
       SENT: { fr: 'Envoyé', en: 'Sent', ar: 'مرسل' },
       ACCEPTED: { fr: 'Accepté', en: 'Accepted', ar: 'مقبول' },
       REJECTED: { fr: 'Refusé', en: 'Rejected', ar: 'مرفوض' },
-      PAID: { fr: 'Payé', en: 'Paid', ar: 'مدفوع' },
-      PARTIAL: { fr: 'Partiel', en: 'Partial', ar: 'جزئي' },
-      OVERDUE: { fr: 'En retard', en: 'Overdue', ar: 'متأخر' },
+      VIEWED: { fr: 'Consulté', en: 'Viewed', ar: 'Consulté' },
+      EXPIRED: { fr: 'Expiré', en: 'Expired', ar: 'Expiré' },
+      CANCELLED: { fr: 'Annulé', en: 'Cancelled', ar: 'Annulé' },
+      PAID: { fr: 'Payé', en: 'Paid', ar: 'Payé' },
+      PARTIAL: { fr: 'Partiel', en: 'Partial', ar: 'Partiel' },
+      PARTIALLY_PAID: {
+        fr: 'Partiellement payée',
+        en: 'Partially paid',
+        ar: 'Partiellement payée',
+      },
+      OVERDUE: { fr: 'En retard', en: 'Overdue', ar: 'En retard' },
+      REFUNDED: { fr: 'Remboursé', en: 'Refunded', ar: 'Remboursé' },
     };
 
-    return statusMap[status]?.[language] || status;
+    const displayLanguage = language === 'ar' ? 'fr' : language;
+    return statusMap[status]?.[displayLanguage] || status;
   }
 
   /**
@@ -821,26 +1042,41 @@ export class PdfService {
    * ici la mesure est toujours celle du rendu final.
    */
   private wrapText(text: string, maxWidth: number, doc: PDFKit.PDFDocument): string[] {
-    const words = text.split(' ');
     const lines: string[] = [];
-    let currentLine = words[0] ?? '';
+    let currentLine = '';
 
-    for (let i = 1; i < words.length; i++) {
-      const word = words[i] as string;
-      const width = doc.widthOfString(`${currentLine} ${word}`);
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+      let token = word;
+      // URL ou chaîne sans espaces : coupe progressivement, sinon la cellule
+      // pourrait sortir du format A4 malgré le calcul de hauteur des lignes.
+      while (doc.widthOfString(token) > maxWidth && token.length > 1) {
+        const characters = [...token];
+        let chunk = '';
+        let consumed = 0;
+        for (const character of characters) {
+          if (chunk && doc.widthOfString(`${chunk}${character}`) > maxWidth) break;
+          chunk += character;
+          consumed += character.length;
+        }
+        if (!chunk) break;
+        if (currentLine) {
+          lines.push(currentLine);
+          currentLine = '';
+        }
+        lines.push(chunk);
+        token = token.slice(consumed);
+      }
 
-      if (width < maxWidth) {
-        currentLine += ` ${word}`;
-      } else {
+      const candidate = currentLine ? `${currentLine} ${token}` : token;
+      if (currentLine && doc.widthOfString(candidate) > maxWidth) {
         lines.push(currentLine);
-        currentLine = word;
+        currentLine = token;
+      } else {
+        currentLine = candidate;
       }
     }
 
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
+    if (currentLine) lines.push(currentLine);
     return lines;
   }
 
@@ -872,16 +1108,32 @@ export class PdfService {
       // diffère pourtant d'une facture (client seul) à un devis (client et
       // prospect). Deux branches nommées sont lisibles, et chacune est vérifiée
       // contre son propre modèle.
+      const ownClientId = policy ? clientPerimeter(policy, documentType, 'read') : null;
       const document =
         documentType === 'invoice'
-          ? await this.prisma.invoice.findUniqueOrThrow({
-              where: { id: documentId, deletedAt: null },
+          ? await this.prisma.invoice.findFirst({
+              where: {
+                id: documentId,
+                deletedAt: null,
+                ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+              },
               include: { client: true },
             })
-          : await this.prisma.quote.findUniqueOrThrow({
-              where: { id: documentId, deletedAt: null },
+          : await this.prisma.quote.findFirst({
+              where: {
+                id: documentId,
+                deletedAt: null,
+                ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
+              },
               include: { client: true, prospect: true },
             });
+
+      if (!document) {
+        throw AppException.notFound(
+          documentType === 'invoice' ? 'INVOICE_NOT_FOUND' : 'QUOTE_NOT_FOUND',
+          documentType === 'invoice' ? "Cette facture n'existe pas." : "Ce devis n'existe pas.",
+        );
+      }
 
       const client = document.client || ('prospect' in document ? document.prospect : null);
       const clientName = client
@@ -914,7 +1166,8 @@ export class PdfService {
       }
 
       const subject =
-        options.subject || (documentType === 'invoice' ? `Facture ${reference}` : `Devis ${reference}`);
+        options.subject ||
+        (documentType === 'invoice' ? `Facture ${reference}` : `Devis ${reference}`);
 
       // `document` est une union facture/devis : `dueDate` n'existe que sur la
       // facture, `validUntil` que sur le devis. La lecture passe par une vue
@@ -944,7 +1197,11 @@ export class PdfService {
         // y arrive sans mise en forme aucune.
         html: `<p>${messageText.replace(/\n/g, '<br>')}</p>`,
         ...(pdfBuffer && pdfFilename
-          ? { attachments: [{ contentType: 'application/pdf', filename: pdfFilename, content: pdfBuffer }] }
+          ? {
+              attachments: [
+                { contentType: 'application/pdf', filename: pdfFilename, content: pdfBuffer },
+              ],
+            }
           : {}),
       });
 

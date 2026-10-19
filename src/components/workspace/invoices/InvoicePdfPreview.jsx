@@ -46,6 +46,7 @@ export function InvoicePdfPreview({
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
 
   const { showNotification, NotificationComponent } = useActionNotification();
 
@@ -69,7 +70,7 @@ export function InvoicePdfPreview({
         setPreviewUrl(url);
       })
       .catch(() => {
-        if (!cancelled) setLoadError("L&rsquo;aperçu du PDF n&rsquo;a pas pu être chargé.");
+        if (!cancelled) setLoadError("L’aperçu du PDF n’a pas pu être chargé.");
       });
 
     return () => {
@@ -79,7 +80,7 @@ export function InvoicePdfPreview({
         return null;
       });
     };
-  }, [invoiceId, canRead, blobUrl]);
+  }, [invoiceId, canRead, blobUrl, previewAttempt]);
 
   // L'état de chargement se DÉDUIT de ce que l'on détient, au lieu d'être un
   // quatrième état à garder synchronisé : pas d'URL et pas d'erreur, c'est que
@@ -91,9 +92,10 @@ export function InvoicePdfPreview({
   // Télécharger le PDF
   const downloadPdf = async () => {
     try {
-      await download(`/pdf/invoices/${invoiceId}`, `facture-${reference || invoiceId}.pdf`);
+      const safeReference = String(reference || invoiceId).replace(/[^A-Za-z0-9._-]/g, "-");
+      await download(`/pdf/invoices/${invoiceId}`, `COMEXA-FACTURE-${safeReference}.pdf`);
     } catch {
-      showNotification({ message: "Le PDF n&rsquo;a pas pu être téléchargé.", duration: 5000 });
+      showNotification({ message: "Le PDF n’a pas pu être téléchargé.", duration: 5000 });
     }
   };
 
@@ -144,7 +146,7 @@ export function InvoicePdfPreview({
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-[var(--comexa-surface)] rounded-xl p-6 max-w-md shadow-xl">
           <h3 className="text-lg font-bold text-[var(--comexa-ink)] mb-4">Accès refusé</h3>
-          <p className="text-[var(--comexa-ink-muted)]">Vous n&rsquo;avez pas les permissions pour consulter cette facture.</p>
+          <p className="text-[var(--comexa-ink-muted)]">Vous n’avez pas les permissions pour consulter cette facture.</p>
           <button
             type="button"
             onClick={onClose}
@@ -211,7 +213,14 @@ export function InvoicePdfPreview({
           {loadError && !loading ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-10 text-center">
               <p className="text-[14px] text-[var(--comexa-ink)]">{loadError}</p>
-              <button type="button" onClick={() => window.location.reload()} className={secondaryButton}>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadError(null);
+                  setPreviewAttempt((attempt) => attempt + 1);
+                }}
+                className={secondaryButton}
+              >
                 Réessayer
               </button>
             </div>
