@@ -8,7 +8,8 @@ import { can, canOpenSpace, hasTeamAccess, homeFor } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { SPACES, spaceForPath } from "@/lib/spaces";
 
-function initialsOf(user) {
+/** Initiales du compte, ou les deux premiers caractères de son courriel. */
+export function initialsOf(user) {
   const first = user?.firstName?.trim()?.[0] ?? "";
   const last = user?.lastName?.trim()?.[0] ?? "";
   const initials = `${first}${last}`.toLocaleUpperCase("fr-FR");
@@ -16,7 +17,8 @@ function initialsOf(user) {
   return user?.email?.trim()?.slice(0, 2)?.toLocaleUpperCase("fr-FR") ?? "?";
 }
 
-function nameOf(user) {
+/** Nom affiché du compte : prénom + nom, sinon le courriel. */
+export function nameOf(user) {
   return [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || user?.email || "Votre compte";
 }
 
