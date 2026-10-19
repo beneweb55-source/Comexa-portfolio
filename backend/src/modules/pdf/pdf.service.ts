@@ -2,13 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Prisma, type QuoteItem } from '../../generated/prisma/client.js';
-import PDFDocument from 'pdfkit';
+import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { MailService } from '../../common/mail/mail.service.js';
 import { AppException } from '../../common/errors/app-error.js';
 import { clientPerimeter } from '../invoices/billing-access.js';
 import type { AccessPolicy } from '../../common/auth/principal.js';
+import {
+  renderDocument,
+  type DocumentKeyValue,
+  type DocumentModel,
+  type DocumentParty,
+  type DocumentTone,
+} from './document-layout.js';
+import { buildAddressLines, inlineAddress, postalLine } from './address-lines.js';
 
 /**
  * SERVICE DE GÉNÉRATION PDF POUR FACTURES ET DEVIS
@@ -52,34 +59,21 @@ import type { AccessPolicy } from '../../common/auth/principal.js';
 const ROUND_HALF_UP = Prisma.Decimal.ROUND_HALF_UP;
 const CENTS = 2;
 
-/** Palette Comexa, partagée par tout le document. */
-const COLORS = {
-  primary: '#0b2545', // Bleu profond
-  secondary: '#1e86e0', // Bleu Comexa
-  accent: '#1568b4', // Bleu accent
-  light: '#e3f2fd', // Bleu clair
-  background: '#ffffff',
-  text: '#0b2545',
-  textMuted: '#4a607a',
-  border: '#e0e0e0',
-  /** Solde dû en retard. Absent de l'ancienne palette, donc illisible. */
-  error: '#c62828',
-} as const;
-
-/**
- * Gabarits de texte. `pdfkit` connaît cinq polices standard, toujours
- * disponibles dans toute visionneuse PDF : les nommer évite d'embarquer un
- * fichier de police (plusieurs centaines de kilo par graisse).
- */
-const FONTS = {
-  title: { font: 'Helvetica-Bold', size: 24 },
-  heading: { font: 'Helvetica-Bold', size: 13 },
-  body: { font: 'Helvetica', size: 10 },
-  small: { font: 'Helvetica', size: 8 },
-} as const;
-
 /** Langues couvertes par les libellés du document. */
 type DocumentLanguage = 'fr' | 'en' | 'ar';
+
+/**
+ * Écarte les morceaux vides d'une liste de textes.
+ *
+ * `filter(Boolean)` ne suffit pas : TypeScript y conserve le type
+ * `(string | undefined)[]`, et un tableau de lignes d'adresse doit être un
+ * tableau de chaînes — sinon un `undefined` finirait écrit tel quel dans le PDF.
+ */
+function compact(values: Array<string | null | undefined>): string[] {
+  return values.filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+}
 
 /** Libellés lisibles des moyens de paiement stockés sous forme d'enum. */
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -117,14 +111,42 @@ const PDF_LABELS_EN: Record<string, string> = {
   'Solde dû': 'Balance Due',
   Notes: 'Notes',
   Conditions: 'Terms',
+  Référence: 'Reference',
   Signature: 'Signature',
+  'Émise le': 'Issued on',
+  'Émis le': 'Issued on',
+  'Rattaché à': 'Related to',
+  suite: 'continued',
+  Projet: 'Project',
+  Devis: 'Quote',
+  'Règlements encaissés': 'Payments received',
+  'Aucun règlement enregistré.': 'No payment recorded.',
+  'Aucune prestation sur ce document.': 'No line item on this document.',
+  'Payée le': 'Paid on',
+  'Signature et cachet': 'Signature and stamp',
+  'Merci pour votre confiance.': 'Thank you for your trust.',
 };
 
-/** Page A4 portrait, en points (1 pt = 1/72 pouce). */
-const PAGE: { width: number; height: number; margin: number } = {
-  width: 595.28,
-  height: 841.89,
-  margin: 40,
+/**
+ * Tonalité d'un statut, pour la pastille de l'encadré de références.
+ *
+ * Le statut est la première chose qu'un comptable cherche sur une facture : le
+ * couleur le donne avant la lecture. Les tons reprennent ceux de l'interface
+ * (info, succès, alerte, danger) dans leur version imprimable.
+ */
+const STATUS_TONES: Record<string, DocumentTone> = {
+  DRAFT: 'neutral',
+  SENT: 'info',
+  VIEWED: 'info',
+  ACCEPTED: 'success',
+  PAID: 'success',
+  PARTIAL: 'warning',
+  PARTIALLY_PAID: 'warning',
+  OVERDUE: 'danger',
+  REJECTED: 'danger',
+  EXPIRED: 'warning',
+  CANCELLED: 'neutral',
+  REFUNDED: 'neutral',
 };
 
 @Injectable()
@@ -142,13 +164,27 @@ export class PdfService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Informations de l'entreprise Comexa
+   * Informations de l'entreprise Comexa.
+   *
+   * DEUX VALEURS PAR DÉFAUT ONT CHANGÉ, et ce n'est pas cosmétique.
+   * L'adresse valait « Algérie » et la ville « Algiers » : avec le pays, lui
+   * aussi « Algérie », l'en-tête de chaque facture affichait
+   *
+   *     Algérie
+   *     Algiers
+   *     Algérie
+   *
+   * soit le pays deux fois et la ville dans sa graphie anglaise, sur un document
+   * français. L'adresse par défaut est désormais vide — une rue ne s'invente
+   * pas, et `buildAddressLines` écarte les champs vides — et la ville reprend la
+   * graphie française. Les doublons restants (une variable d'environnement qui
+   * remettrait le pays dans la rue) sont éliminés à la construction des lignes.
    */
   private getCompanyInfo() {
     return {
       name: this.config.get<string>('PDF_COMPANY_NAME') || 'Comexa',
-      address: this.config.get<string>('PDF_COMPANY_ADDRESS') || 'Algérie',
-      city: this.config.get<string>('PDF_COMPANY_CITY') || 'Algiers',
+      address: this.config.get<string>('PDF_COMPANY_ADDRESS') || '',
+      city: this.config.get<string>('PDF_COMPANY_CITY') || 'Alger',
       postalCode: this.config.get<string>('PDF_COMPANY_POSTAL') || '',
       country: this.config.get<string>('PDF_COMPANY_COUNTRY') || 'Algérie',
       phone: this.config.get<string>('PDF_COMPANY_PHONE') || '',
@@ -310,7 +346,13 @@ export class PdfService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Générer un PDF pour un document (facture ou devis)
+   * Générer un PDF pour un document (facture ou devis).
+   *
+   * Le service ne dessine plus rien : il TRADUIT la pièce Prisma en
+   * `DocumentModel` (que des chaînes déjà formatées) et laisse
+   * `document-layout.ts` décider de la mise en page et de la pagination. C'est
+   * ce découplage qui permet de tester la pagination — le bug de la « deuxième
+   * page presque vide » — sans base de données ni client Prisma généré.
    */
   private async generatePdf({
     type,
@@ -326,41 +368,31 @@ export class PdfService {
     includeTerms?: boolean;
     language?: DocumentLanguage;
   }): Promise<Buffer> {
-    const doc = new PDFDocument({
-      size: [PAGE.width, PAGE.height],
-      // Les marges sont gérées à la main : le document place des colonnes
-      // alignées à droite, ce qu'une marge automatique ne permet pas.
-      margin: 0,
-      info: {
-        Title: `${type === 'invoice' ? 'Facture' : 'Devis'} ${document.reference ?? ''}`,
-        Author: this.getCompanyInfo().name,
-        Subject: `${type === 'invoice' ? 'Facture' : 'Devis'} ${document.reference ?? ''}`,
-      },
-    });
-
-    // `pdfkit` écrit par morceaux ; on les rassemble en un seul Buffer, qui est
-    // ce que le contrôleur renvoie et ce que le courriel attache.
-    const chunks: Buffer[] = [];
-    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-
-    const finished = new Promise<Buffer>((resolve, reject) => {
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-    });
-
-    this.drawDocument(doc, {
+    const companyInfo = this.getCompanyInfo();
+    const model = this.buildModel({
       type,
       document,
-      logoBuffer: this.loadLogo(),
-      companyInfo: this.getCompanyInfo(),
+      companyInfo,
+      logo: this.loadLogo(),
       includeSignature,
       includeTerms,
       language,
     });
 
-    doc.end();
+    const title = `${type === 'invoice' ? 'Facture' : 'Devis'} ${document.reference ?? ''}`;
+    const { buffer, pageCount, density } = await renderDocument(model, {
+      info: { Title: title, Author: companyInfo.name, Subject: title },
+    });
 
-    return finished;
+    // Trace de pagination : c'est ce qui manquait pour diagnostiquer un document
+    // qui déborde sans avoir à rouvrir le PDF produit.
+    if (pageCount > 1) {
+      this.logger.debug(
+        `PDF ${document.reference ?? '(sans référence)'} : ${pageCount} pages, densité ${density}`,
+      );
+    }
+
+    return buffer;
   }
 
   /**
@@ -393,538 +425,422 @@ export class PdfService {
   }
 
   // ---------------------------------------------------------------------------
-  // Rendu du document
+  // Construction du modèle de document
   // ---------------------------------------------------------------------------
 
   /**
-   * Dessine le document de haut en bas.
+   * Traduit une pièce Prisma (facture ou devis) en `DocumentModel`.
    *
-   * Le rendu est SÉQUENTIEL et volontairement sans retour en arrière : `y`
-   * descend de section en section, exactement comme une mise en page imprimée.
-   * Chaque helper prend `y` et renvoie le `y` suivant, ce qui empêche une
-   * section d'écraser celle d'au-dessus quand une description est plus longue
-   * que prévu.
+   * ICI, TOUT EST FORMATÉ : montants, dates, quantités, libellés traduits. La
+   * mise en page (`document-layout.ts`) ne reçoit que des chaînes, ce qui la
+   * rend testable sans base de données. Réciproquement, ce module-ci ne dessine
+   * rien : aucune coordonnée, aucune couleur, aucune police n'y apparaît.
+   *
+   * Les doublons d'identité signalés sur les factures réelles sont traités à ce
+   * niveau, parce que c'est ici que les champs sont lus :
+   *  - une adresse dont un morceau en répète un autre (pays recopié dans la
+   *    rue) ne produit qu'une ligne — `buildAddressLines` ;
+   *  - un nom légal qui contient le nom commercial (« Maison Vasseur » /
+   *    « Maison Vasseur SARL ») remplace ce dernier au lieu de s'y ajouter ;
+   *  - un champ vide (région, second téléphone, TVA d'un particulier) ne laisse
+   *    ni trou ni ligne orpheline.
    */
-  private drawDocument(
-    doc: PDFKit.PDFDocument,
-    {
-      type,
-      document,
-      logoBuffer,
-      companyInfo,
-      includeSignature,
-      includeTerms,
-      language,
-    }: {
-      type: 'invoice' | 'quote';
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      document: any;
-      logoBuffer: Buffer | null;
-      companyInfo: ReturnType<PdfService['getCompanyInfo']>;
-      includeSignature: boolean;
-      includeTerms: boolean;
-      language: DocumentLanguage;
-    },
-  ): void {
-    const { width, margin } = PAGE;
-    const right = width - margin;
-
-    doc.fillColor(COLORS.background).rect(0, 0, width, PAGE.height).fill();
-
-    let y = margin;
-
-    // -----------------------------------------------------------------------
-    // En-tête : logo à gauche, coordonnées à droite
-    // -----------------------------------------------------------------------
-    const logoWidth = 150;
-    if (logoBuffer) {
-      try {
-        doc.image(logoBuffer, margin, y, { width: logoWidth });
-      } catch {
-        // Un fichier présent mais illisible (PNG tronqué, permissions) ne doit
-        // pas plus empêcher la facture de sortir qu'un fichier absent.
-        this.logger.warn('Logo PDF illisible, génération sans logo');
-      }
-    }
-
-    // Les coordonnées se placent à droite du logo quand il est là, ce qui
-    // garde l'alignement sur la marge dans le cas contraire.
-    const companyX = logoBuffer ? margin + logoWidth + 20 : margin;
-
-    doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-    doc.text(companyInfo.name, companyX, y + 12);
-
-    doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-    const companyLines = [
-      companyInfo.address,
-      `${companyInfo.city}${companyInfo.postalCode ? ` ${companyInfo.postalCode}` : ''}`,
-      companyInfo.country,
-      companyInfo.phone ? `Tél: ${companyInfo.phone}` : null,
-      companyInfo.email,
-      companyInfo.website,
-      companyInfo.registrationNumber ? `RC : ${companyInfo.registrationNumber}` : null,
-      companyInfo.taxId ? `NIF/TVA : ${companyInfo.taxId}` : null,
-    ].filter(Boolean) as string[];
-
-    let companyY = y + 32;
-    for (const line of companyLines) {
-      doc.text(line, companyX, companyY);
-      companyY += 13;
-    }
-
-    y = Math.max(y + (logoBuffer ? 140 : 100), companyY + 10);
-
-    y = this.drawSeparator(doc, y) + 14;
-
-    // -----------------------------------------------------------------------
-    // Titre, aligné à droite
-    // -----------------------------------------------------------------------
-    const title =
-      type === 'invoice' ? this.label('FACTURE', language) : this.label('DEVIS', language);
-
-    doc.fillColor(COLORS.secondary).font(FONTS.title.font, FONTS.title.size);
-    doc.text(title, margin, y, { width: right - margin, align: 'right' });
-    y += 34;
-
-    // -----------------------------------------------------------------------
-    // Référence / date / échéance / statut, en deux colonnes
-    // -----------------------------------------------------------------------
-    const docInfoLeft: Array<[string, string]> = [
-      [this.label('N°', language), String(document.reference ?? '')],
-      [this.label('Date', language), this.formatDate(document.issueDate)],
-    ];
-    const expiryLabel = type === 'invoice' ? "Date d'échéance" : "Valable jusqu'au";
-    const expiryDate = type === 'invoice' ? document.dueDate : document.validUntil;
-    const docInfoRight: Array<[string, string]> = [
-      [this.label(expiryLabel, language), this.formatDate(expiryDate)],
-      [this.label('Statut', language), this.getStatusLabel(document.status, language)],
-    ];
-
-    doc.font(FONTS.body.font, FONTS.body.size);
-    docInfoLeft.forEach(([label, value], index) => {
-      const lineY = y + index * 16;
-      doc.fillColor(COLORS.textMuted).text(`${label}:`, margin, lineY, { width: 80 });
-      doc.fillColor(COLORS.text).text(value, margin + 80, lineY);
-    });
-
-    docInfoRight.forEach(([label, value], index) => {
-      const lineY = y + index * 16;
-      doc
-        .fillColor(COLORS.textMuted)
-        .text(`${label}:`, right - 190, lineY, { width: 110, align: 'right' });
-      doc.fillColor(COLORS.text).text(value, right - 80, lineY, { width: 80, align: 'right' });
-    });
-
-    y += 48;
-
-    // -----------------------------------------------------------------------
-    // Destinataire
-    // -----------------------------------------------------------------------
-    const client = document.client || document.prospect;
+  private buildModel({
+    type,
+    document,
+    companyInfo,
+    logo,
+    includeSignature,
+    includeTerms,
+    language,
+  }: {
+    type: 'invoice' | 'quote';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any;
+    companyInfo: ReturnType<PdfService['getCompanyInfo']>;
+    logo: Buffer | null;
+    includeSignature: boolean;
+    includeTerms: boolean;
+    language: DocumentLanguage;
+  }): DocumentModel {
+    const currency = String(document.currency ?? 'DZD');
+    const isInvoice = type === 'invoice';
+    // Un devis peut viser un prospect (pas encore client) : les deux portent les
+    // mêmes champs d'identité utiles ici.
+    const client = document.client ?? document.prospect ?? null;
     const contact = client?.contacts?.[0] ?? null;
-    const contactFirstName = contact?.firstName ?? client?.contactFirstName ?? '';
-    const contactLastName = contact?.lastName ?? client?.contactLastName ?? '';
-    const clientName = client
-      ? client.companyName ||
-        `${contactFirstName} ${contactLastName}`.trim() ||
-        contact?.email ||
-        client.email ||
-        'Client'
-      : 'Client';
+    const title = this.label(isInvoice ? 'FACTURE' : 'DEVIS', language);
 
-    doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-    doc.text(this.label(type === 'invoice' ? 'FACTURÉ À' : 'DESTINATAIRE', language), margin, y);
-    y += 20;
+    return {
+      kind: type,
+      title,
+      reference: String(document.reference ?? ''),
+      referenceLabel: this.label('N°', language),
+      issuedLine: this.issuedLine(document.issueDate, isInvoice, language),
+      company: { name: companyInfo.name, lines: this.companyLines(companyInfo, language) },
+      logo,
+      meta: this.metaRows(type, document, language),
+      recipient: this.recipientParty(type, client, contact, language),
+      context: this.contextParty(type, document, language),
+      items: {
+        headers: [
+          this.label('Description', language),
+          this.label('Qté', language),
+          this.label('P.U.', language),
+          this.label('Montant', language),
+        ],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        rows: ((document.items ?? []) as any[]).map((item) => ({
+          title: String(item.title ?? ''),
+          description: item.description ? String(item.description) : undefined,
+          quantity: this.formatQuantity(item.quantity),
+          unitPrice: this.formatCurrency(item.unitPrice ?? 0, currency),
+          amount: this.formatCurrency(item.lineTotal ?? 0, currency),
+        })),
+        empty: this.label('Aucune prestation sur ce document.', language),
+      },
+      totals: this.totalRows(type, document, currency, language),
+      payments: isInvoice ? this.paymentBlock(document, currency, language) : null,
+      sections: this.textSections(document, includeTerms, language),
+      signature: includeSignature
+        ? {
+            heading: this.label('Signature', language),
+            caption: this.label('Signature et cachet', language),
+          }
+        : null,
+      thanks: this.label('Merci pour votre confiance.', language),
+      footer: this.footerLines(companyInfo),
+      continuation: `${title} ${document.reference ?? ''} — ${this.label('suite', language)}`,
+    };
+  }
 
-    doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-    doc.text(clientName, margin, y);
-    y += 15;
+  /** « Émise le 10/09/2026 » — vide si la date est absente ou invalide. */
+  private issuedLine(
+    issueDate: Date | string | null | undefined,
+    isInvoice: boolean,
+    language: DocumentLanguage,
+  ): string {
+    const date = this.formatDate(issueDate);
+    if (!date) return '';
+    return `${this.label(isInvoice ? 'Émise le' : 'Émis le', language)} ${date}`;
+  }
 
-    if (client) {
-      const clientLines = [
-        client.legalName,
-        client.addressLine1 ?? client.address,
-        client.addressLine2,
-        `${client.city ?? ''}${client.postalCode ? ` ${client.postalCode}` : ''}`,
-        client.region,
-        client.country,
-        contact?.email ?? client.email,
-        contact?.phone ?? client.phone,
+  /**
+   * Coordonnées de l'entreprise, en haut à droite.
+   *
+   * Regroupées sur quatre à six lignes plutôt qu'une par champ : l'ancien rendu
+   * empilait huit lignes (dont le pays deux fois) et mangeait le quart de la
+   * page avant même le titre.
+   */
+  private companyLines(
+    info: ReturnType<PdfService['getCompanyInfo']>,
+    language: DocumentLanguage,
+  ): string[] {
+    const phoneLabel = language === 'en' ? 'Phone' : 'Tél';
+    const address = buildAddressLines([
+      info.address,
+      postalLine(info.postalCode, info.city),
+      info.country,
+    ]);
+    const contact = compact([info.phone ? `${phoneLabel} : ${info.phone}` : null, info.email]).join(
+      ' · ',
+    );
+    const legal = compact([
+      info.registrationNumber ? `RC : ${info.registrationNumber}` : null,
+      info.taxId ? `NIF/TVA : ${info.taxId}` : null,
+    ]).join(' · ');
+
+    return compact([...address, contact, info.website, legal]);
+  }
+
+  /** Mentions légales du pied de page : deux lignes, sur toutes les pages. */
+  private footerLines(info: ReturnType<PdfService['getCompanyInfo']>): string[] {
+    const legal = compact([
+      info.registrationNumber ? `RC ${info.registrationNumber}` : null,
+      info.taxId ? `NIF ${info.taxId}` : null,
+    ]).join(' · ');
+
+    return compact([
+      inlineAddress([
+        info.name,
+        info.address,
+        postalLine(info.postalCode, info.city),
+        info.country,
+        legal,
+      ]),
+      compact([info.phone, info.email, info.website]).join(' · '),
+    ]);
+  }
+
+  /**
+   * Encadré de références : statut en pastille, puis échéance (facture) ou
+   * validité (devis). L'échéance passe en rouge quand la pièce est en retard —
+   * c'est l'information qu'un comptable cherche en premier.
+   */
+  private metaRows(
+    type: 'invoice' | 'quote',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any,
+    language: DocumentLanguage,
+  ): DocumentKeyValue[] {
+    const status = String(document.status ?? '');
+    const rows: DocumentKeyValue[] = [];
+
+    if (status) {
+      rows.push({
+        value: this.getStatusLabel(status, language),
+        pill: true,
+        tone: STATUS_TONES[status] ?? 'neutral',
+      });
+    }
+
+    if (type === 'invoice') {
+      const due = this.formatDate(document.dueDate);
+      if (due) {
+        rows.push({
+          label: this.label("Date d'échéance", language),
+          value: due,
+          tone: status === 'OVERDUE' ? 'danger' : undefined,
+        });
+      }
+      return rows;
+    }
+
+    const validUntil = this.formatDate(document.validUntil);
+    if (validUntil) {
+      rows.push({ label: this.label("Valable jusqu'au", language), value: validUntil });
+    }
+    return rows;
+  }
+
+  /** Destinataire : client d'une facture, client ou prospect d'un devis. */
+  private recipientParty(
+    type: 'invoice' | 'quote',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    client: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    contact: any,
+    language: DocumentLanguage,
+  ): DocumentParty {
+    const heading = this.label(type === 'invoice' ? 'FACTURÉ À' : 'DESTINATAIRE', language);
+    const fallback = language === 'en' ? 'Client' : 'Client';
+
+    if (!client) return { heading, name: fallback, lines: [] };
+
+    const personName = compact([
+      contact?.firstName ?? client.contactFirstName,
+      contact?.lastName ?? client.contactLastName,
+    ]).join(' ');
+    const companyName = typeof client.companyName === 'string' ? client.companyName.trim() : '';
+    const legalName = typeof client.legalName === 'string' ? client.legalName.trim() : '';
+
+    // Le nom légal REMPLACE le nom commercial quand il le contient déjà :
+    // écrire « Maison Vasseur » puis « Maison Vasseur SARL » faisait deux lignes
+    // pour une seule entité.
+    const name =
+      legalName && companyName && legalName.toLowerCase().includes(companyName.toLowerCase())
+        ? legalName
+        : companyName || personName || contact?.email || client.email || fallback;
+
+    const address = buildAddressLines([
+      legalName && legalName !== name ? legalName : null,
+      client.addressLine1 ?? client.address,
+      client.addressLine2,
+      postalLine(client.postalCode, client.city),
+      client.region,
+      client.country,
+    ]);
+    const details = compact([
+      contact?.jobTitle ?? client.jobTitle,
+      compact([contact?.email ?? client.email, contact?.phone ?? client.phone]).join(' · '),
+      compact([
         client.registrationNumber ? `RC : ${client.registrationNumber}` : null,
         client.vatNumber ? `NIF/TVA : ${client.vatNumber}` : null,
-      ].filter(Boolean) as string[];
+      ]).join(' · '),
+    ]);
 
-      for (const line of clientLines) {
-        doc.text(line, margin, y);
-        y += 13;
-      }
+    return { heading, name, lines: [...address, ...details] };
+  }
+
+  /**
+   * Bloc de droite, en regard du destinataire : projet, devis d'origine, objet.
+   *
+   * Ces liens étaient chargés par la requête (`include: { project, quote }`) et
+   * n'étaient JAMAIS écrits dans le document. Ils occupent maintenant la moitié
+   * droite du bloc destinataire, qui restait vide.
+   */
+  private contextParty(
+    type: 'invoice' | 'quote',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any,
+    language: DocumentLanguage,
+  ): DocumentParty | null {
+    const project = document.project ?? null;
+    const quote = document.quote ?? null;
+    const subject = typeof document.subject === 'string' ? document.subject.trim() : '';
+    const name = String(project?.name ?? subject ?? '');
+
+    const lines = compact([
+      project?.reference ? `${this.label('Projet', language)} ${project.reference}` : null,
+      type === 'invoice' && quote?.reference
+        ? `${this.label('Devis', language)} ${quote.reference}`
+        : null,
+      subject && subject !== name ? subject : null,
+    ]);
+
+    if (!name && !lines.length) return null;
+    return { heading: this.label('Rattaché à', language), name, lines };
+  }
+
+  /**
+   * Encadré d'argent : détail, bandeau TOTAL, puis récapitulatif de règlement.
+   *
+   * Une ligne à zéro n'est pas écrite : « Remise 0,00 DA » sur chaque facture
+   * faisait douter d'un arrondi et prenait une ligne pour rien. Le solde dû,
+   * lui, est TOUJOURS écrit — c'est la seule ligne qu'un reliseur cherche.
+   */
+  private totalRows(
+    type: 'invoice' | 'quote',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any,
+    currency: string,
+    language: DocumentLanguage,
+  ): DocumentKeyValue[] {
+    const amount = (value: unknown): Prisma.Decimal => new Prisma.Decimal(String(value ?? 0));
+    const positive = (value: unknown): boolean => amount(value).greaterThan(0);
+    const rows: DocumentKeyValue[] = [];
+
+    if (positive(document.subtotal)) {
+      rows.push({
+        label: this.label('Sous-total', language),
+        value: this.formatCurrency(document.subtotal, currency),
+      });
     }
 
-    y += 16;
-    y = this.drawSeparator(doc, y) + 14;
-
-    // -----------------------------------------------------------------------
-    // Tableau des prestations
-    // -----------------------------------------------------------------------
-    y = this.drawItemsTable(doc, document, language, y);
-
-    // -----------------------------------------------------------------------
-    // Totaux
-    // -----------------------------------------------------------------------
-    y = this.drawTotals(doc, document, language, y);
-
-    // -----------------------------------------------------------------------
-    // Paiements (factures uniquement)
-    // -----------------------------------------------------------------------
-    if (type === 'invoice') {
-      y = this.drawPayments(doc, document, language, y);
+    if (positive(document.discountAmount)) {
+      rows.push({
+        label: this.label('Remise', language),
+        value: this.formatCurrency(amount(document.discountAmount).negated(), currency),
+      });
     }
 
-    y += 18;
+    if (positive(document.taxAmount)) {
+      const rate = amount(document.taxRate).toString().replace('.', ',');
+      rows.push({
+        label: `${this.label('TVA', language)} ${rate} %`,
+        value: this.formatCurrency(document.taxAmount, currency),
+      });
+    }
 
-    // -----------------------------------------------------------------------
-    // Notes et conditions réelles de la pièce
-    // -----------------------------------------------------------------------
-    const drawTextSection = (heading: string, content: string) => {
-      const lines = this.wrapText(content, right - margin, doc);
-      y = this.ensurePageSpace(doc, y, Math.min(46, lines.length * 12 + 24));
-      doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-      doc.text(heading, margin, y);
-      y += 18;
-      doc.fillColor(COLORS.textMuted).font(FONTS.small.font, FONTS.small.size);
-      for (const line of lines) {
-        if (y + 12 > PAGE.height - margin) {
-          doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-          y = margin;
-        }
-        doc.text(line, margin, y, { width: right - margin });
-        y += 11;
-      }
-      y += 10;
+    rows.push({
+      label: this.label('TOTAL', language),
+      value: this.formatCurrency(document.total ?? 0, currency),
+      strong: true,
+    });
+
+    if (type !== 'invoice') return rows;
+
+    // `amountPaid` est le cumul autoritaire, recalculé dans la même transaction
+    // que les règlements : le solde se déduit, il n'est jamais reconstitué à
+    // partir de flottants.
+    const paid = amount(document.amountPaid);
+    const balance = amount(document.total).minus(paid);
+
+    if (paid.greaterThan(0)) {
+      rows.push({
+        label: this.label('Total payé', language),
+        value: this.formatCurrency(paid, currency),
+      });
+    }
+
+    if (balance.greaterThan(0)) {
+      rows.push({
+        label: this.label('Solde dû', language),
+        value: this.formatCurrency(balance, currency),
+        tone: 'danger',
+      });
+      return rows;
+    }
+
+    const paidAt = this.formatDate(document.paidAt);
+    rows.push(
+      paidAt
+        ? { label: this.label('Payée le', language), value: paidAt, tone: 'success' }
+        : {
+            label: this.label('Solde dû', language),
+            value: this.formatCurrency(balance, currency),
+            tone: 'success',
+          },
+    );
+    return rows;
+  }
+
+  /** Historique des règlements réussis, en regard de l'encadré d'argent. */
+  private paymentBlock(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any,
+    currency: string,
+    language: DocumentLanguage,
+  ): { heading: string; rows: DocumentKeyValue[]; empty: string } {
+    const payments = (document.payments ?? []) as Array<Record<string, unknown>>;
+
+    return {
+      heading: this.label('Règlements encaissés', language),
+      rows: payments.map((payment) => {
+        const method =
+          PAYMENT_METHOD_LABELS[String(payment.method ?? '')] ?? String(payment.method ?? '');
+        return {
+          // Date et moyen sur la ligne, référence en dessous : la colonne fait
+          // 240 pt, et une référence de virement tronquée ne permet plus aucun
+          // rapprochement bancaire.
+          label: compact([
+            this.formatDate(payment.paidAt as Date | string | null | undefined),
+            method,
+          ]).join(' · '),
+          note: payment.reference
+            ? `${this.label('Référence', language)} ${payment.reference}`
+            : undefined,
+          // `payment` vient d'une requête typée en `Record<string, unknown>` :
+          // le montant repasse par `Decimal` explicitement plutôt que par un
+          // `any` implicite.
+          value: this.formatCurrency(
+            new Prisma.Decimal(String(payment.amount ?? 0)),
+            String(payment.currency ?? currency),
+          ),
+        };
+      }),
+      empty: this.label('Aucun règlement enregistré.', language),
     };
+  }
+
+  /** Notes et conditions réelles de la pièce, dans cet ordre. */
+  private textSections(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    document: any,
+    includeTerms: boolean,
+    language: DocumentLanguage,
+  ): Array<{ heading: string; body: string }> {
+    const sections: Array<{ heading: string; body: string }> = [];
 
     const notes = typeof document.notes === 'string' ? document.notes.trim() : '';
-    if (notes) drawTextSection(this.label('Notes', language), notes);
+    if (notes) sections.push({ heading: this.label('Notes', language), body: notes });
 
     const terms = typeof document.terms === 'string' ? document.terms.trim() : '';
     if (includeTerms && terms) {
-      drawTextSection(this.label('Conditions', language), terms);
+      sections.push({ heading: this.label('Conditions', language), body: terms });
     }
 
-    if (includeSignature) {
-      y = this.ensurePageSpace(doc, y, 58);
-      doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-      doc.text(this.label('Signature', language), margin, y);
-      y += 18;
-
-      doc.strokeColor(COLORS.border).lineWidth(0.8);
-      doc
-        .moveTo(margin, y)
-        .lineTo(margin + 200, y)
-        .stroke();
-      y += 26;
-    }
-
-    // -----------------------------------------------------------------------
-    // Pied de page
-    // -----------------------------------------------------------------------
-    y = this.ensurePageSpace(doc, y, 42);
-    doc.strokeColor(COLORS.border).lineWidth(0.8);
-    doc.moveTo(margin, y).lineTo(right, y).stroke();
-    y += 14;
-
-    doc.fillColor(COLORS.textMuted).font(FONTS.small.font, FONTS.small.size);
-    doc.text(companyInfo.website, margin, y, { width: right - margin, align: 'center' });
-    y += 11;
-    doc.text(
-      language === 'fr'
-        ? 'Merci pour votre confiance!'
-        : language === 'en'
-          ? 'Thank you for your trust!'
-          : 'شكرًا على ثقتكم!',
-      margin,
-      y,
-      { width: right - margin, align: 'center' },
-    );
-  }
-
-  /** Ajoute une page A4 si le bloc suivant dépasserait la marge imprimable. */
-  private ensurePageSpace(doc: PDFKit.PDFDocument, y: number, required: number): number {
-    if (y + required <= PAGE.height - PAGE.margin) return y;
-    doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-    return PAGE.margin;
+    return sections;
   }
 
   /**
-   * Trait de séparation horizontal. Renvoie la position du trait.
+   * Quantité lisible : `1` et non `1.00`, mais `2,5` reste décimal.
+   *
+   * `Decimal.toString()` retire déjà les zéros de queue ; la différence avec un
+   * montant est volontaire — une quantité n'est pas une somme.
    */
-  private drawSeparator(doc: PDFKit.PDFDocument, y: number): number {
-    doc.strokeColor(COLORS.border).lineWidth(0.8);
-    doc
-      .moveTo(PAGE.margin, y)
-      .lineTo(PAGE.width - PAGE.margin, y)
-      .stroke();
-    return y;
-  }
-
-  /**
-   * Tableau des prestations : description, quantité, prix unitaire, montant.
-   */
-  private drawItemsTable(
-    doc: PDFKit.PDFDocument,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    document: any,
-    language: DocumentLanguage,
-    startY: number,
-  ): number {
-    const { margin } = PAGE;
-    const right = PAGE.width - margin;
-    const colWidths = [235, 55, 100, 125];
-    const colX = [margin];
-    for (let i = 1; i < colWidths.length; i++) {
-      colX.push((colX[i - 1] as number) + (colWidths[i - 1] as number));
-    }
-
-    const drawHeader = (headerY: number): number => {
-      const headers = [
-        this.label('Description', language),
-        this.label('Qté', language),
-        this.label('P.U.', language),
-        this.label('Montant', language),
-      ];
-      doc.fillColor(COLORS.secondary).font(FONTS.body.font, FONTS.body.size);
-      headers.forEach((header, index) => {
-        doc.text(header, colX[index] as number, headerY, {
-          width: colWidths[index] as number,
-          align: index === 0 ? 'left' : 'right',
-        });
-      });
-      const afterHeader = headerY + 22;
-      this.drawSeparator(doc, afterHeader);
-      return afterHeader + 8;
-    };
-
-    let y = this.ensurePageSpace(doc, startY, 64);
-    y = drawHeader(y);
-    const items = (document.items ?? []) as Array<
-      Pick<QuoteItem, 'title' | 'description' | 'quantity' | 'unitPrice' | 'lineTotal'>
-    >;
-    const pageBottom = PAGE.height - margin;
-
-    items.forEach((item, index) => {
-      const titleLines = this.wrapText(String(item.title ?? ''), colWidths[0] as number, doc);
-      const descriptionLines = item.description
-        ? this.wrapText(String(item.description), colWidths[0] as number, doc)
-        : [];
-      const textLineCount = Math.max(1, titleLines.length + descriptionLines.length);
-      const rowHeight = textLineCount * 13 + 16;
-
-      // Garder une ligne entière sur la même page. Les descriptions sont
-      // bornées à 2 000 caractères par le DTO : même la plus longue tient sur
-      // une page A4 si elle commence en haut d'une page.
-      if (y + rowHeight > pageBottom) {
-        doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-        y = drawHeader(margin);
-      }
-
-      doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-      titleLines.forEach((line, lineIndex) => {
-        doc
-          .font(lineIndex === 0 ? 'Helvetica-Bold' : FONTS.body.font, FONTS.body.size)
-          .fillColor(COLORS.text)
-          .text(line, margin, y + lineIndex * 13, { width: colWidths[0] as number });
-      });
-      descriptionLines.forEach((line, lineIndex) => {
-        doc
-          .font(FONTS.small.font, FONTS.small.size)
-          .fillColor(COLORS.textMuted)
-          .text(line, margin, y + (titleLines.length + lineIndex) * 13, {
-            width: colWidths[0] as number,
-          });
-      });
-
-      doc.font(FONTS.body.font, FONTS.body.size).fillColor(COLORS.text);
-      doc.text(String(item.quantity ?? '1'), colX[1] as number, y, {
-        width: colWidths[1] as number,
-        align: 'right',
-      });
-      doc.text(this.formatCurrency(item.unitPrice ?? 0, document.currency), colX[2] as number, y, {
-        width: colWidths[2] as number,
-        align: 'right',
-      });
-      doc.text(this.formatCurrency(item.lineTotal ?? 0, document.currency), colX[3] as number, y, {
-        width: colWidths[3] as number,
-        align: 'right',
-      });
-
-      y += rowHeight;
-      if (index < items.length - 1) {
-        doc.strokeColor(COLORS.border).lineWidth(0.5);
-        doc.moveTo(margin, y).lineTo(right, y).stroke();
-        y += 6;
-      }
-    });
-
-    return y + 8;
-  }
-
-  /**
-   * Bloc des totaux, aligné à droite comme sur une facture imprimée.
-   */
-  private drawTotals(
-    doc: PDFKit.PDFDocument,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    document: any,
-    language: DocumentLanguage,
-    startY: number,
-  ): number {
-    const { width, margin } = PAGE;
-    const right = width - margin;
-    let y = startY;
-    if (y + 112 > PAGE.height - margin) {
-      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-      y = margin;
-    }
-
-    const totals = [
-      {
-        label: this.label('Sous-total', language),
-        value: document.subtotal,
-        negative: false,
-        bold: false,
-      },
-      {
-        label: this.label('Remise', language),
-        value: document.discountAmount,
-        negative: true,
-        bold: false,
-      },
-      {
-        label: `${this.label('TVA', language)} ${document.taxRate ?? 0}%`,
-        value: document.taxAmount,
-        negative: false,
-        bold: false,
-      },
-      { label: this.label('TOTAL', language), value: document.total, negative: false, bold: true },
-      // Une ligne à zéro n'apporte rien et ferait douter d'un arrondi. Seule la
-      // remise est gardée quand elle vaut zéro, parce qu'elle nomme un geste
-      // commercial explicite (« pas de remise accordée »).
-    ].filter((t) => t.value && (new Prisma.Decimal(String(t.value)).greaterThan(0) || t.negative));
-
-    for (const total of totals) {
-      const amount = new Prisma.Decimal(String(total.value ?? 0));
-      const value = this.formatCurrency(
-        total.negative ? amount.negated() : amount,
-        document.currency,
-      );
-
-      if (total.bold) {
-        doc.font(FONTS.heading.font, FONTS.heading.size).fillColor(COLORS.secondary);
-      } else {
-        doc.font(FONTS.body.font, FONTS.body.size).fillColor(COLORS.text);
-      }
-
-      doc.text(total.label, right - 200, y, { width: 120, align: 'right' });
-      doc.text(value, right - 80, y, { width: 80, align: 'right' });
-
-      y += total.bold ? 22 : 16;
-    }
-
-    return y;
-  }
-
-  /**
-   * Bloc des paiements, puis le solde dû.
-   */
-  private drawPayments(
-    doc: PDFKit.PDFDocument,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    document: any,
-    language: DocumentLanguage,
-    startY: number,
-  ): number {
-    const payments = (document.payments ?? []) as Array<Record<string, unknown>>;
-    const { width, margin } = PAGE;
-    const right = width - margin;
-    const pageBottom = PAGE.height - margin;
-    let y = startY;
-
-    const drawHeading = (headingY: number): number => {
-      doc.fillColor(COLORS.primary).font(FONTS.heading.font, FONTS.heading.size);
-      doc.text(this.label('PAIEMENTS', language), margin, headingY);
-      return headingY + 20;
-    };
-
-    if (y + 86 > pageBottom) {
-      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-      y = margin;
-    }
-    y = drawHeading(y);
-
-    if (payments.length === 0) {
-      doc.fillColor(COLORS.textMuted).font(FONTS.body.font, FONTS.body.size);
-      doc.text(
-        language === 'en' ? 'No payment recorded.' : 'Aucun règlement enregistré.',
-        margin,
-        y,
-      );
-      y += 16;
-    } else {
-      for (const payment of payments) {
-        if (y + 22 > pageBottom) {
-          doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-          y = drawHeading(margin);
-        }
-        doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-        const method =
-          PAYMENT_METHOD_LABELS[String(payment.method ?? '')] ?? String(payment.method ?? '');
-        const reference = String(payment.reference ?? '');
-        const date = this.formatDate(payment.paidAt as string | Date | null | undefined);
-        const description = [date, method, reference].filter(Boolean).join(' · ');
-        doc.text(description, margin, y, { width: right - margin - 140 });
-        const amount = new Prisma.Decimal(String(payment.amount ?? '0'));
-        doc.text(
-          this.formatCurrency(amount, String(payment.currency ?? document.currency)),
-          right - 140,
-          y,
-          {
-            width: 140,
-            align: 'right',
-          },
-        );
-        y += 18;
-      }
-    }
-
-    const total = new Prisma.Decimal(String(document.total ?? '0'));
-    // `amountPaid` est la somme autoritaire recalculée dans la même transaction
-    // que les paiements ; on ne reconstitue pas le total avec des flottants.
-    const totalPaid = new Prisma.Decimal(String(document.amountPaid ?? '0'));
-    const balance = total.minus(totalPaid);
-    if (y + 42 > pageBottom) {
-      doc.addPage({ size: [PAGE.width, PAGE.height], margin: 0 });
-      y = margin;
-    }
-
-    doc.font(FONTS.body.font, FONTS.body.size).fillColor(COLORS.text);
-    doc.text(this.label('Total payé', language), margin, y);
-    doc.text(this.formatCurrency(totalPaid, document.currency), right - 140, y, {
-      width: 140,
-      align: 'right',
-    });
-    y += 18;
-
-    doc.font('Helvetica-Bold', FONTS.body.size);
-    doc.fillColor(balance.lessThanOrEqualTo(0) ? COLORS.secondary : COLORS.error);
-    doc.text(this.label('Solde dû', language), margin, y);
-    doc.text(this.formatCurrency(balance, document.currency), right - 140, y, {
-      width: 140,
-      align: 'right',
-    });
-    y += 18;
-    doc.fillColor(COLORS.text).font(FONTS.body.font, FONTS.body.size);
-
-    return y;
+  private formatQuantity(value: unknown): string {
+    return new Prisma.Decimal(String(value ?? 0)).toDecimalPlaces(CENTS, ROUND_HALF_UP).toString();
   }
 
   // ---------------------------------------------------------------------------
@@ -1031,53 +947,6 @@ export class PdfService {
 
     const displayLanguage = language === 'ar' ? 'fr' : language;
     return statusMap[status]?.[displayLanguage] || status;
-  }
-
-  /**
-   * Retour à la ligne pour le texte.
-   *
-   * `pdfkit` mesure la largeur réelle de la chaîne avec la police ET la taille
-   * courantes — d'où les deux paramètres passés explicitement. L'ancienne
-   * version mesurait avec `ctx.measureText`, qui dépendait de l'état du canvas ;
-   * ici la mesure est toujours celle du rendu final.
-   */
-  private wrapText(text: string, maxWidth: number, doc: PDFKit.PDFDocument): string[] {
-    const lines: string[] = [];
-    let currentLine = '';
-
-    for (const word of text.split(/\s+/).filter(Boolean)) {
-      let token = word;
-      // URL ou chaîne sans espaces : coupe progressivement, sinon la cellule
-      // pourrait sortir du format A4 malgré le calcul de hauteur des lignes.
-      while (doc.widthOfString(token) > maxWidth && token.length > 1) {
-        const characters = [...token];
-        let chunk = '';
-        let consumed = 0;
-        for (const character of characters) {
-          if (chunk && doc.widthOfString(`${chunk}${character}`) > maxWidth) break;
-          chunk += character;
-          consumed += character.length;
-        }
-        if (!chunk) break;
-        if (currentLine) {
-          lines.push(currentLine);
-          currentLine = '';
-        }
-        lines.push(chunk);
-        token = token.slice(consumed);
-      }
-
-      const candidate = currentLine ? `${currentLine} ${token}` : token;
-      if (currentLine && doc.widthOfString(candidate) > maxWidth) {
-        lines.push(currentLine);
-        currentLine = token;
-      } else {
-        currentLine = candidate;
-      }
-    }
-
-    if (currentLine) lines.push(currentLine);
-    return lines;
   }
 
   // ---------------------------------------------------------------------------
