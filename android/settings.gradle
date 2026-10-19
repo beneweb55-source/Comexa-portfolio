@@ -1,0 +1,20 @@
+// Application Android Comexa : une WebView native verrouillée sur le service
+// hébergé. Dépôts standards uniquement : AGP vient de Google Maven, rien
+// d'autre n'est nécessaire (pas de Kotlin, pas d'AndroidX).
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.name = "comexa-android"
+include ":app"

@@ -1,0 +1,9 @@
+// Racine du projet Android Comexa.
+//
+// Un seul module, `:app` : une Activity, une WebView, aucun framework
+// supplémentaire. Le plugin Kotlin est inutile (Java suffit) et AndroidX
+// n'apporte rien ici : moins de dépendances, moins de surface d'attaque,
+// une compilation CI plus rapide.
+plugins {
+    id "com.android.application" version "8.7.3" apply false
+}

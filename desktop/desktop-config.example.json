@@ -1,0 +1,11 @@
+{
+  "origin": "https://comexa-portfolio.vercel.app",
+  "startPath": "/espaces",
+  "window": {
+    "width": 1440,
+    "height": 900
+  },
+  "startMaximized": false,
+  "startFullscreen": false,
+  "devTools": false
+}

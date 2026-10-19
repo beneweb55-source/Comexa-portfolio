@@ -29,7 +29,8 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  padding: var(--shell-pad);
+  /* Aucun retrait extérieur : la coque remplit la fenêtre, bord à bord, et
+     suit chaque redimensionnement via `100dvh`. */
   /* Halo bleu glacé : un seul dégradé, très doux, jamais saturé. */
   background:
     radial-gradient(1200px 720px at 12% -10%, rgba(255, 255, 255, 0.85), transparent 62%),
@@ -47,7 +48,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Coque noire arrondie : navbar + panneau clair + dock, débordements masqués. */
+/* Coque noire bord à bord : navbar + panneau clair + dock, débordements
+   masqués. Ni rayon ni ombre extérieurs : l'application remplit la fenêtre,
+   elle ne flotte pas au-dessus. */
 .sui-shell {
   position: relative;
   display: flex;
@@ -57,8 +60,6 @@
   width: 100%;
   overflow: hidden;
   background: var(--shell);
-  border-radius: var(--r-shell);
-  box-shadow: var(--shadow-shell);
 }
 
 /* Corps : rail (56 px) + zone principale + Admin Desk (~25 %).
@@ -73,7 +74,6 @@
   align-items: stretch;
   min-height: 0;
   background: var(--surface);
-  border-radius: 0 0 var(--r-shell) var(--r-shell);
 }
 
 .sui-visually-hidden {
@@ -3660,11 +3660,6 @@ textarea.sui-input {
 /* < 768 px : navbar → barre d'icônes en bas, grilles à une colonne,
    dock → barre d'actions flottante compacte. */
 @media (max-width: 767px) {
-  :root {
-    --shell-pad: 0px;
-    --r-shell: 0px;
-  }
-
   .sui-nav {
     display: none;
   }
@@ -7409,5 +7404,501 @@ html[data-focus-dnd="on"] .sui-notif-live {
 
   .sui-focus__stage::before {
     opacity: 1;
+  }
+}
+
+/* ==========================================================================
+   27. LECTEUR DE DOCUMENT (aperçu PDF des factures et des devis)
+   ========================================================================== */
+
+/* Même voile que `.sui-dialog-backdrop` : un seul traitement d'arrière-plan
+   pour tous les volets, sinon la modale d'envoi par email ouverte depuis le
+   lecteur n'a plus l'air d'appartenir au même système. */
+.sui-viewer-backdrop {
+  position: fixed;
+  /* Au-dessus du dock flottant (45) et des tiroirs. Le volet est rendu dans un
+     portail vers `body` : laissé dans la page, AUCUN `z-index` ne le ferait
+     passer au-dessus du dock — `.sui-shell__body` (`z-index: 0`, voulu) et
+     `.sui-main__scroll` (`container-type: inline-size`) enferment le contenu
+     dans des contextes d'empilement qui, eux, restent sous le dock. */
+  z-index: 950;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 10, 15, 0.42);
+}
+
+@supports (backdrop-filter: blur(4px)) {
+  .sui-viewer-backdrop {
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Quasi tout l'écran : un A4 doit se lire sans loupe. `dvh` suit la barre
+   d'adresse mobile qui se replie, `vh` sert de repli. */
+.sui-viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(1680px, 96vw);
+  height: min(94vh, 100%);
+  height: min(94dvh, 100%);
+  overflow: hidden; /* le rayon coupe l'iframe, pas l'inverse */
+  border-radius: var(--r-kpi);
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  box-shadow: var(--shadow-pop);
+  outline: none;
+  animation: sui-viewer-in var(--dur-base) var(--ease-out);
+}
+
+.sui-viewer:fullscreen {
+  width: 100vw;
+  height: 100dvh;
+  border-radius: 0;
+}
+
+@keyframes sui-viewer-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+}
+
+.sui-viewer__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.sui-viewer__titles {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sui-viewer__eyebrow {
+  margin: 0 0 2px;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-viewer__title {
+  margin: 0;
+  font-size: var(--fs-title);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: var(--tracking-tight);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sui-viewer__desc {
+  margin: 3px 0 0;
+  font-size: var(--fs-small);
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sui-viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Sépare les actions métier (télécharger, email) des commandes du volet
+   (imprimer, plein écran, fermer). Celles-ci sont enveloppées par leur
+   infobulle : le sélecteur vise donc l'enveloppe, pas le bouton. */
+.sui-viewer__actions > .sui-btn + * {
+  margin-left: 4px;
+}
+
+/* LE CORPS : `overflow: hidden`, et l'iframe le remplit. Le document est le
+   seul élément qui défile — plus de cadre scrollable autour d'une iframe
+   elle-même scrollable. */
+.sui-viewer__body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--backdrop);
+}
+
+.sui-viewer__frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--card);
+}
+
+/* Voile de chargement ou d'échec, posé sur le corps : il évite l'éclair blanc
+   entre l'arrivée de l'URL et le rendu de la page par le lecteur PDF. */
+.sui-viewer__state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px;
+  background: var(--backdrop);
+  color: var(--muted);
+  text-align: center;
+}
+
+.sui-viewer__state-text {
+  margin: 0;
+  max-width: 44ch;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* Mobile : plein cadre, et les boutons perdent leur libellé pour tenir sur une
+   ligne — le titre du document passe en premier. */
+@media (max-width: 720px) {
+  .sui-viewer {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .sui-viewer__head {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .sui-viewer__desc {
+    display: none;
+  }
+
+  .sui-viewer__actions .sui-btn__label {
+    display: none;
+  }
+
+  .sui-viewer__actions .sui-btn {
+    padding: 0 12px;
+  }
+}
+
+/* Le volet est porté dans `body`, hors de `.sui-viewport` : la règle globale de
+   mouvement réduit du §18 ne l'atteint pas, il faut la sienne. */
+@media (prefers-reduced-motion: reduce) {
+  .sui-viewer,
+  .sui-viewer * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* ==========================================================================
+   28. HUB DES ESPACES (`/espaces`) — l'écran d'entrée de l'application
+   ========================================================================== */
+
+/* Même halo que la coque : le hub est une page de session, pas une page du site
+   public, et il doit avoir l'air d'appartenir au même produit. */
+.sui-hub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(24px, 5vh, 64px) clamp(20px, 5vw, 64px) 40px;
+  background: var(--backdrop);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+.sui-hub__halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 720px at 12% -10%, rgba(255, 255, 255, 0.85), transparent 62%),
+    radial-gradient(980px 620px at 92% 4%, rgba(186, 214, 232, 0.55), transparent 60%);
+}
+
+/* Le contenu passe au-dessus du halo, sans `z-index` superflu. */
+.sui-hub > *:not(.sui-hub__halo) {
+  position: relative;
+  width: 100%;
+  max-width: 1080px;
+  margin-inline: auto;
+}
+
+.sui-hub__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sui-hub__logo {
+  width: 152px;
+  height: auto;
+}
+
+.sui-hub__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sui-hub__avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--lilac);
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.sui-hub__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sui-hub__name {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.sui-hub__role {
+  font-size: var(--fs-micro);
+  color: var(--muted);
+}
+
+.sui-hub__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 62ch;
+}
+
+.sui-hub__eyebrow {
+  margin: 0;
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.sui-hub__title {
+  margin: 0;
+  font-size: var(--fs-hero);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-hub__lede {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.sui-hub__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Le `li` porte le survol animé (framer-motion), la carte reste un lien : un
+   seul élément cliquable par carte, donc un seul arrêt de tabulation. */
+.sui-hub__cell {
+  display: flex;
+  min-width: 0;
+}
+
+.sui-hubcard {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+  color: var(--ink);
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition:
+    box-shadow var(--dur-base) var(--ease-out),
+    border-color var(--dur-base) var(--ease-out);
+}
+
+.sui-hubcard:hover,
+.sui-hubcard:focus-visible {
+  border-color: rgba(17, 17, 17, 0.18);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.sui-hubcard__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sui-hubcard__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+.sui-hubcard__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--pink);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+}
+
+.sui-hubcard__arrow {
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.sui-hubcard:hover .sui-hubcard__arrow {
+  transform: translate(2px, -2px);
+  color: var(--ink);
+}
+
+.sui-hubcard__label {
+  font-size: var(--fs-title);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: var(--tracking-tight);
+}
+
+.sui-hubcard__desc {
+  font-size: var(--fs-small);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.sui-hubcard__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sui-hubcard__chip {
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.sui-hubcard__chip--more {
+  background: transparent;
+  border: 1px solid var(--line);
+}
+
+.sui-hubcard__cta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: var(--fs-small);
+  font-weight: 800;
+}
+
+.sui-hub__loading {
+  padding: 8px 0;
+}
+
+.sui-hub__foot {
+  margin: 0;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Lien « Tous les espaces » du sélecteur : même gabarit que ses options. */
+.sui-space-menu__hub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 16px);
+  margin: 4px 8px 0;
+  padding: 10px;
+  border-radius: 18px;
+  color: var(--ink);
+  font-size: var(--fs-small);
+  font-weight: 700;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+
+.sui-space-menu__hub:hover,
+.sui-space-menu__hub:focus-visible {
+  background: var(--surface);
+}
+
+.sui-space-menu__hub svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .sui-hub {
+    gap: 22px;
+  }
+
+  .sui-hub__head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sui-hub__who {
+    width: 100%;
+  }
+
+  .sui-hub__who .sui-btn {
+    margin-left: auto;
+  }
+
+  .sui-hub__grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

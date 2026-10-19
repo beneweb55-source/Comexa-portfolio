@@ -10,6 +10,9 @@ import Navbar from "@/components/Navbar";
  * propre en-tête : le chrome public n'y apparaît plus en double.
  */
 const SESSION_PREFIXES = [
+  /* Le hub des espaces : écran d'accueil de l'application desktop, il n'a pas
+     plus de navbar publique que les espaces eux-mêmes. */
+  "/espaces",
   "/espace-client",
   "/espace-equipe",
   "/espace-personnel",

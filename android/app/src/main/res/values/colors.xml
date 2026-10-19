@@ -1,0 +1,5 @@
+<resources>
+    <!-- Noir de la coque soft UI (jeton « shell » du front) : barres système
+         et fond d'icône adaptative. -->
+    <color name="shell">#0B0A0F</color>
+</resources>

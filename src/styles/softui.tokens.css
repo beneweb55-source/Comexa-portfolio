@@ -57,7 +57,9 @@
   --focus-on-shell: #ffffff;   /* anneau de focus dans la coque noire */
 
   /* --- Rayons ------------------------------------------------------------ */
-  --r-shell: 32px;
+  /* La coque occupe toute la fenêtre, bord à bord : plus aucun rayon
+     extérieur (le rayon interne des cartes, tiroirs et pilules est inchangé). */
+  --r-shell: 0px;
   --r-card: 24px;
   --r-kpi: 28px;
   --r-pill: 999px;
@@ -70,7 +72,7 @@
   /* --- Ombres ------------------------------------------------------------ */
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.06);
   --shadow-card-hover: 0 14px 32px rgba(0, 0, 0, 0.1);
-  --shadow-shell: 0 32px 80px rgba(11, 10, 15, 0.28);
+  /* Pas d'ombre de coque : la coque remplit la fenêtre, elle ne flotte plus. */
   --shadow-pop: 0 18px 44px rgba(11, 10, 15, 0.22);
 
   /* --- Typographie ------------------------------------------------------- */
@@ -96,7 +98,10 @@
   --desk-min: 292px;
   --desk-max: 384px;
   --zoom: 1;                   /* densité du panneau, pilotée par les boutons + / − */
-  --shell-pad: clamp(10px, 1.6vw, 22px);
+  /* Retrait extérieur de la coque : supprimé. La coque colle aux quatre bords
+     de la fenêtre ; le jeton reste à 0 pour ancrer les pilules fixes (timer,
+     notification) au même endroit, désormais mesuré depuis le bord réel. */
+  --shell-pad: 0px;
 }
 
 /*

@@ -7,62 +7,25 @@
  * (Tab / Maj+Tab), Échap pour fermer, focus rendu à l'élément d'origine, défilement
  * de la page bloqué pendant l'ouverture. Rendue dans un portail pour échapper
  * au `overflow: hidden` de la coque.
+ *
+ * Le comportement clavier et le focus vivent dans `useDialogBehavior`, partagé
+ * avec le lecteur de document : c'est là que se règle le cas des volets empilés.
  */
 
-import { useEffect, useId, useRef } from "react";
+import { useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-
-const FOCUSABLE = 'button:not([disabled]), a[href], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+import useDialogBehavior from "./useDialogBehavior";
 
 export default function Dialog({ title, eyebrow, description, icon: Icon, iconNode, tone = "blue", onClose, children, footer, size = "md", as = "div", onSubmit }) {
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef(null);
 
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return undefined;
-    const previous = document.activeElement;
-    const focusables = () => Array.from(panel.querySelectorAll(FOCUSABLE));
-    const autofocus = panel.querySelector("[data-autofocus]") ?? focusables()[0] ?? panel;
-    autofocus.focus();
+  const portalReady = typeof document !== "undefined";
+  useDialogBehavior({ panelRef, onClose, enabled: portalReady });
 
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    function onKey(event) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose?.();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusables();
-      if (!items.length) {
-        event.preventDefault();
-        return;
-      }
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    window.addEventListener("keydown", onKey, true);
-    return () => {
-      window.removeEventListener("keydown", onKey, true);
-      document.body.style.overflow = overflow;
-      previous?.focus?.();
-    };
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
+  if (!portalReady) return null;
 
   const Panel = as;
   return createPortal(

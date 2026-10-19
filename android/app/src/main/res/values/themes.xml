@@ -1,0 +1,9 @@
+<resources>
+    <!-- Pas de barre d'action : la navbar du site est l'unique barre. Le fond
+         de fenêtre est le noir de la coque : aucun flash blanc au lancement. -->
+    <style name="Theme.Comexa" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/shell</item>
+        <item name="android:statusBarColor">@color/shell</item>
+        <item name="android:navigationBarColor">@color/shell</item>
+    </style>
+</resources>

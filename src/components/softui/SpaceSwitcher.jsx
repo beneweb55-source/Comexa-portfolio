@@ -17,12 +17,13 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Building2, Check, ChevronDown, UserRound, UsersRound } from "lucide-react";
+import { Building2, Check, ChevronDown, LayoutGrid, UserRound, UsersRound } from "lucide-react";
 import { SPACES, equivalentPath } from "@/lib/spaces";
 import { sectionHrefs } from "@/lib/space-navigation";
 import { useSpaces } from "@/lib/spaces-context";
 
-const SPACE_ICON = { personal: UserRound, team: UsersRound, comexa: Building2 };
+/** Icône de chaque espace. Exportée : le hub `/espaces` affiche les mêmes. */
+export const SPACE_ICON = { personal: UserRound, team: UsersRound, comexa: Building2 };
 
 const ROLE_LABEL = {
   ADMIN: "Administrateur",
@@ -191,6 +192,12 @@ export default function SpaceSwitcher({ active, user }) {
               if (id !== active) go(id);
             }}
           />
+          {/* Le hub : la même liste, en pleine page. C'est l'écran d'accueil de
+              l'application desktop, où aucun espace n'est encore actif. */}
+          <Link href="/espaces" className="sui-space-menu__hub" onClick={() => setOpen(false)}>
+            <LayoutGrid size={16} strokeWidth={1.9} aria-hidden="true" />
+            Tous les espaces
+          </Link>
           <p className="sui-space-menu__foot">
             Chaque espace n’affiche que ses propres données ; vos droits y sont vérifiés par le serveur.
           </p>
@@ -217,6 +224,10 @@ export function SpaceSwitcherList({ active, onNavigate }) {
           if (id !== active) go(id);
         }}
       />
+      <Link href="/espaces" className="sui-space-menu__hub" onClick={() => onNavigate?.()}>
+        <LayoutGrid size={16} strokeWidth={1.9} aria-hidden="true" />
+        Tous les espaces
+      </Link>
     </div>
   );
 }

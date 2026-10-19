@@ -1,0 +1,55 @@
+# Compile l'installeur Windows de l'application desktop Comexa.
+#
+# Déclencheurs :
+#   - manuel (bouton « Run workflow ») pour produire un installable de test ;
+#   - poussée d'une étiquette `desktop-v*` (ex. `desktop-v1.0.0`) pour une
+#     version destinée à être diffusée.
+#
+# Le résultat est déposé en artefact de run (onglet Actions → run → Artifacts) :
+# `comexa-desktop-windows` contient le `.exe` NSIS. Aucune publication
+# automatique : la diffusion reste un geste humain.
+
+name: Application desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  installeur-windows:
+    name: Installeur Windows (.exe)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - name: Récupération des sources
+        uses: actions/checkout@v7
+
+      - name: Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Compilation de l'installeur
+        run: npm run dist
+
+      - name: Dépôt de l'installeur
+        uses: actions/upload-artifact@v7
+        with:
+          name: comexa-desktop-windows
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.blockmap
+          if-no-files-found: error
+          retention-days: 30
