@@ -1,0 +1,4 @@
+<resources>
+    <!-- Noir de la coque soft UI (`--shell`) : barres système et fond d'icône. -->
+    <color name="shell">#0B0A0F</color>
+</resources>

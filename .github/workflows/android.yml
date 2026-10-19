@@ -1,0 +1,67 @@
+# Compile l'APK Android de l'application Comexa.
+#
+# Déclencheurs :
+#   - manuel (bouton « Run workflow ») pour produire un installable de test ;
+#   - poussée d'une étiquette `android-v*` (ex. `android-v1.0.0`) pour une
+#     version destinée à être diffusée.
+#
+# L'APK de débogage (signé avec le certificat de débogage du runner, installable
+# tel quel sur un téléphone) est déposé en artefact `comexa-android`. Avant le
+# dépôt, l'APK est vérifié : signature (`apksigner`) et métadonnées
+# (`aapt2 badging` : paquet, activité lançable, permissions, SDK). Aucune
+# publication automatique : diffuser reste un geste humain.
+
+name: Application Android
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "android-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: APK Android
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - name: Récupération des sources
+        uses: actions/checkout@v7
+
+      - name: JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: SDK Android 35
+        run: |
+          SDKM="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKM" --licenses > /dev/null
+          yes | "$SDKM" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+
+      - name: Compilation de l'APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Vérifications de l'APK
+        run: |
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          "$BT/apksigner" verify --print-certs "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "package:|sdkVersion|targetSdkVersion|launchable-activity|uses-permission"
+
+      - name: Renommage
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Comexa-1.0.0.apk
+
+      - name: Dépôt de l'APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: comexa-android
+          path: android/app/build/outputs/apk/debug/Comexa-1.0.0.apk
+          if-no-files-found: error
+          retention-days: 30

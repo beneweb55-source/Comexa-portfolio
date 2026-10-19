@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Comexa — connexion impossible</title>
+    <style>
+      /* Page locale, sans aucune ressource externe : elle doit s'afficher même
+         quand tout le reste est injoignable. */
+      :root {
+        color-scheme: light;
+        --ink: #0b2545;
+        --muted: #5b6b7f;
+        --line: #d5e0ea;
+        --surface: #ffffff;
+        --backdrop: #dbe7ef;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 32px 20px;
+        background:
+          radial-gradient(52rem 30rem at 12% -8%, rgba(43, 143, 217, 0.16), transparent 62%),
+          radial-gradient(46rem 28rem at 92% 108%, rgba(181, 220, 247, 0.35), transparent 60%),
+          var(--backdrop);
+        color: var(--ink);
+        font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      main {
+        width: min(30rem, 100%);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 36px 32px 30px;
+        box-shadow: 0 24px 60px rgba(11, 37, 69, 0.14);
+        text-align: center;
+      }
+      svg { display: block; margin: 0 auto 18px; }
+      h1 { margin: 0 0 10px; font-size: 22px; letter-spacing: -0.01em; }
+      p { margin: 0 0 8px; color: var(--muted); }
+      .actions { display: flex; gap: 10px; justify-content: center; margin: 22px 0 6px; flex-wrap: wrap; }
+      a.btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 11px 20px;
+        border-radius: 999px;
+        font-weight: 600;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      a.primary { background: var(--ink); color: #fff; }
+      a.primary:hover { background: #123a6b; }
+      a.ghost { border: 1px solid var(--line); color: var(--ink); background: #f6f9fc; }
+      a.ghost:hover { background: #eef4f9; }
+      small { display: block; margin-top: 16px; color: #8a97a8; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <!-- La marque Comexa, reprise de `src/app/icon.svg`. -->
+      <svg width="56" height="56" viewBox="0 0 128 128" aria-hidden="true">
+        <defs>
+          <linearGradient id="a" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#0f2f5c" /><stop offset="1" stop-color="#2b8fd9" />
+          </linearGradient>
+          <linearGradient id="b" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#4aa5e8" /><stop offset="1" stop-color="#b5dcf7" />
+          </linearGradient>
+        </defs>
+        <g transform="skewX(-16)">
+          <rect x="26" y="10" width="84" height="44" rx="11" fill="url(#a)" />
+          <rect x="40" y="64" width="84" height="44" rx="11" fill="url(#b)" />
+        </g>
+      </svg>
+
+      <h1>Connexion impossible</h1>
+      <p>
+        L'application desktop ouvre le service Comexa hébergé : vos espaces, vos
+        dossiers et vos notifications vivent sur le serveur, pas sur ce poste.
+      </p>
+      <p>Vérifiez votre connexion réseau, puis relancez le chargement.</p>
+
+      <div class="actions">
+        <a id="retry" class="btn primary hidden" href="#">Réessayer</a>
+        <a id="browser" class="btn ghost hidden" href="#" target="_blank" rel="noopener">Ouvrir dans le navigateur</a>
+      </div>
+
+      <small id="detail" class="hidden"></small>
+    </main>
+
+    <script>
+      // Aucun contenu distant, aucune donnée sensible : on ne fait que relire
+      // ce que le processus principal a passé dans l'URL, en texte brut.
+      // Côté Android, la page est servie sans URL : les paramètres arrivent
+      // par `window.__COMEXA_OFFLINE_PARAMS__`, injecté avant chargement.
+      const params = new URLSearchParams(window.__COMEXA_OFFLINE_PARAMS__ || location.search);
+      const retry = params.get("retry") || "";
+      const safe = /^https?:\/\//i.test(retry);
+
+      if (safe) {
+        for (const id of ["retry", "browser"]) {
+          const link = document.getElementById(id);
+          link.href = retry;
+          link.classList.remove("hidden");
+        }
+      }
+
+      const code = params.get("code");
+      const detail = params.get("detail");
+      if (code || detail) {
+        const line = document.getElementById("detail");
+        line.textContent = `Erreur ${code || "?"}${detail ? " — " + detail : ""}`;
+        line.classList.remove("hidden");
+      }
+    </script>
+  </body>
+</html>

@@ -96,7 +96,9 @@
     <script>
       // Aucun contenu distant, aucune donnée sensible : on ne fait que relire
       // ce que le processus principal a passé dans l'URL, en texte brut.
-      const params = new URLSearchParams(location.search);
+      // Côté Android, la page est servie sans URL : les paramètres arrivent
+      // par `window.__COMEXA_OFFLINE_PARAMS__`, injecté avant chargement.
+      const params = new URLSearchParams(window.__COMEXA_OFFLINE_PARAMS__ || location.search);
       const retry = params.get("retry") || "";
       const safe = /^https?:\/\//i.test(retry);
 

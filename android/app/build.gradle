@@ -1,0 +1,49 @@
+plugins {
+    id "com.android.application"
+}
+
+// Adresse du service, configurable sans toucher au code — l'équivalent Android
+// du `desktop-config.json` posé à côté de l'exécutable :
+//
+//   ./gradlew assembleDebug -PcomexaOrigin=https://exemple.internal
+//   COMEXA_ANDROID_ORIGIN=https://exemple.internal ./gradlew assembleDebug
+//
+// Par défaut : le déploiement Vercel de production, comme le desktop.
+def serviceOrigin = (project.findProperty("comexaOrigin")
+        ?: System.getenv("COMEXA_ANDROID_ORIGIN")
+        ?: "https://comexa-portfolio.vercel.app").toString()
+
+android {
+    namespace = "dz.comexa.android"
+    compileSdk = 35
+
+    defaultConfig {
+        applicationId = "dz.comexa.android"
+        minSdk = 24
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0.0"
+
+        buildConfigField "String", "SERVICE_ORIGIN", "\"${serviceOrigin}\""
+        buildConfigField "String", "START_PATH", "\"/espaces\""
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled = false
+        }
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Aucune : framework Android seul (WebView, DownloadManager, cookies).
+}
