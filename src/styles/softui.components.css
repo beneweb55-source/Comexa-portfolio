@@ -29,7 +29,8 @@
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  padding: var(--shell-pad);
+  /* Aucun retrait extérieur : la coque remplit la fenêtre, bord à bord, et
+     suit chaque redimensionnement via `100dvh`. */
   /* Halo bleu glacé : un seul dégradé, très doux, jamais saturé. */
   background:
     radial-gradient(1200px 720px at 12% -10%, rgba(255, 255, 255, 0.85), transparent 62%),
@@ -47,7 +48,9 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Coque noire arrondie : navbar + panneau clair + dock, débordements masqués. */
+/* Coque noire bord à bord : navbar + panneau clair + dock, débordements
+   masqués. Ni rayon ni ombre extérieurs : l'application remplit la fenêtre,
+   elle ne flotte pas au-dessus. */
 .sui-shell {
   position: relative;
   display: flex;
@@ -57,8 +60,6 @@
   width: 100%;
   overflow: hidden;
   background: var(--shell);
-  border-radius: var(--r-shell);
-  box-shadow: var(--shadow-shell);
 }
 
 /* Corps : rail (56 px) + zone principale + Admin Desk (~25 %).
@@ -73,7 +74,6 @@
   align-items: stretch;
   min-height: 0;
   background: var(--surface);
-  border-radius: 0 0 var(--r-shell) var(--r-shell);
 }
 
 .sui-visually-hidden {
@@ -3660,11 +3660,6 @@ textarea.sui-input {
 /* < 768 px : navbar → barre d'icônes en bas, grilles à une colonne,
    dock → barre d'actions flottante compacte. */
 @media (max-width: 767px) {
-  :root {
-    --shell-pad: 0px;
-    --r-shell: 0px;
-  }
-
   .sui-nav {
     display: none;
   }
