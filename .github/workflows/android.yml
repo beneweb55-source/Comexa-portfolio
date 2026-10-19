@@ -61,6 +61,8 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -100 /tmp/build.log >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Vérifications de l'APK
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           BT="$ANDROID_HOME/build-tools/35.0.0"
