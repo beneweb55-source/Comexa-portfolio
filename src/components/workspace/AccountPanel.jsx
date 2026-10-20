@@ -10,6 +10,7 @@ import { useAction, useListing } from "@/lib/use-listing";
 import { Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
 import { Panel } from "@/components/softui/panels";
 import { Button } from "@/components/softui/primitives";
+import CurrencyScopeToggle from "@/components/softui/CurrencyScopeToggle";
 import { Empty } from "@/components/workspace/ui";
 import BalancePanel from "@/components/workspace/BalancePanel";
 import TelegramLinkCard from "@/components/workspace/TelegramLinkCard";
@@ -180,6 +181,19 @@ export default function AccountPanel() {
         ) : (
           <p className="sui-card__desc">Chargement du profil…</p>
         )}
+      </Panel>
+
+      {/* Préférence d'AFFICHAGE, pas une donnée comptable : elle ne convertit
+          aucun montant et ne modifie aucune facture. */}
+      <Panel
+        title="Préférences d’affichage"
+        subtitle="Choisissez la monnaie des totaux sur les tableaux de bord et les listes. Aucun montant n’est converti : chaque devise garde sa valeur."
+      >
+        <CurrencyScopeToggle label="Montants affichés en" />
+        <p className="sui-card__desc">
+          « Les deux » affiche les totaux de chaque devise côte à côte, sans jamais les additionner. Ce choix est
+          enregistré dans ce navigateur et s’applique au tableau de bord, aux factures et aux devis.
+        </p>
       </Panel>
 
       <Panel title="Changer le mot de passe" subtitle={`Au moins ${MIN_PASSWORD} caractères.`}>

@@ -96,4 +96,18 @@ export class ListInvoicesQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  /**
+   * Devise des factures (DZD, EUR...).
+   *
+   * Le filtre s'applique AVANT la pagination : choisir « EUR » renvoie les
+   * factures en euros de toutes les pages, pas celles de la page courante.
+   * Un filtre cote navigateur aurait laisse un compteur de pages faux.
+   */
+  @ApiPropertyOptional({ description: 'Devise ISO 4217 (ex. DZD, EUR).' })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(3)
+  currency?: string;
 }

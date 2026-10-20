@@ -326,6 +326,7 @@ export class InvoicesService {
       ...(query.projectId ? { projectId: query.projectId } : {}),
       ...(query.quoteId ? { quoteId: query.quoteId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.currency ? { currency: query.currency.toUpperCase() } : {}),
       ...(search
         ? {
             OR: [

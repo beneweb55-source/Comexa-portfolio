@@ -3,10 +3,13 @@
 import { useState } from "react";
 import { CalendarDays, CircleAlert, ReceiptText } from "lucide-react";
 import { formatDateOnly, formatMoney } from "@/lib/api";
+import { ALL_CURRENCIES, currencyRank, currencyShortLabel, normalizeCurrency, sumByCurrency } from "@/lib/currency";
+import { useDisplayCurrency } from "@/lib/use-display-currency";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, remainingDue } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
+import { useAllListing } from "@/lib/use-all-listing";
 import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
-import { Alert, Panel, StatusPill } from "@/components/softui";
+import { Alert, CurrencyAmounts, CurrencyScopeToggle, Panel, StatusPill } from "@/components/softui";
 import { InvoicePdfActions } from "@/components/workspace/invoices";
 
 const TONE_MAP = { success: "green", warning: "yellow", danger: "pink", info: "blue", neutral: "plain" };
@@ -18,8 +21,22 @@ function statusTone(status) {
 /** Factures émises du dossier client connecté, avec aperçu et téléchargement authentifiés. */
 export default function FacturesClientPage() {
   const [page, setPage] = useState(1);
-  const invoices = useListing(`/invoices?page=${page}&perPage=25`);
+  /* La même préférence de devise que l'espace équipe : ce que le client choisit
+     ici est aussi ce qu'il reverra sur son tableau de bord. */
+  const { scope } = useDisplayCurrency();
+
+  const params = new URLSearchParams({ page: String(page), perPage: "25" });
+  if (scope !== ALL_CURRENCIES) params.set("currency", scope);
+  const invoices = useListing(`/invoices?${params.toString()}`);
+  const all = useAllListing("/invoices?perPage=100");
   const items = invoices.items ?? [];
+  const allItems = all.items ?? [];
+
+  const availableCurrencies = [...new Set(allItems.map((invoice) => normalizeCurrency(invoice.currency)))].sort(
+    (left, right) => currencyRank(left) - currencyRank(right) || left.localeCompare(right),
+  );
+  const summaryAmounts = (amountOf) =>
+    sumByCurrency(allItems.map((invoice) => ({ total: amountOf(invoice), currency: invoice.currency })));
 
   return (
     <div className="flex flex-col gap-5">
@@ -27,11 +44,42 @@ export default function FacturesClientPage() {
         title="Mes factures"
         subtitle="Consultez les factures émises pour votre dossier, leur échéance et le solde restant."
       >
+        <CurrencyScopeToggle
+          available={availableCurrencies}
+          label="Devise de mes factures"
+          onScopeChange={() => setPage(1)}
+        />
+        {scope !== ALL_CURRENCIES && allItems.some((invoice) => normalizeCurrency(invoice.currency) !== scope) ? (
+          <p className="sui-card__desc">
+            Seules vos factures en {currencyShortLabel(scope)} sont listées. Choisissez « Les deux » pour voir toutes vos
+            factures.
+          </p>
+        ) : null}
+
+        {all.items !== null && allItems.length > 0 ? (
+          <dl className="sui-money">
+            <div>
+              <dt>Total facturé</dt>
+              <dd><CurrencyAmounts amounts={summaryAmounts((invoice) => invoice.total)} scope={scope} /></dd>
+            </div>
+            <div>
+              <dt>Réglé</dt>
+              <dd><CurrencyAmounts amounts={summaryAmounts((invoice) => invoice.amountPaid)} scope={scope} /></dd>
+            </div>
+            <div>
+              <dt>Solde restant</dt>
+              <dd><CurrencyAmounts amounts={summaryAmounts((invoice) => remainingDue(invoice))} scope={scope} /></dd>
+            </div>
+          </dl>
+        ) : null}
+
         {invoices.error ? <Alert icon={CircleAlert}>{invoices.error}</Alert> : null}
         {invoices.items === null && !invoices.error ? <SkeletonList rows={4} /> : null}
         {invoices.items !== null && items.length === 0 ? (
           <Empty icon={ReceiptText}>
-            Aucune facture émise pour le moment. Une facture apparaît ici lorsqu’elle est envoyée par l’équipe Comexa.
+            {scope !== ALL_CURRENCIES
+              ? `Aucune facture en ${scope} pour le moment.`
+              : "Aucune facture émise pour le moment. Une facture apparaît ici lorsqu’elle est envoyée par l’équipe Comexa."}
           </Empty>
         ) : null}
 

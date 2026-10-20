@@ -159,20 +159,18 @@ export function messageOf(error) {
   return "Une erreur inattendue est survenue. Réessayez.";
 }
 
-/** Montant formate dans sa devise, sans conversion. */
-export function formatMoney(amount, currency) {
-  const value = Number(amount);
-  if (!Number.isFinite(value)) return "—";
-  try {
-    return new Intl.NumberFormat("fr-FR", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(value);
-  } catch {
-    return `${value.toFixed(2)} ${currency}`;
-  }
-}
+/**
+ * Montant formate dans sa devise, sans conversion.
+ *
+ * L'implementation vit dans `lib/currency.js` : elle est partagee par les
+ * ecrans qui additionnent par devise et par ceux qui affichent une ligne
+ * isolee. Le dinar y est ecrit « DA » (comme sur les PDF) et non « DZD ».
+ *
+ * Ré-exporté ici parce que tous les écrans importaient déjà `formatMoney`
+ * depuis `@/lib/api` : déplacer le seul point d'appel aurait été un
+ * renommage sans valeur.
+ */
+export { formatMoney } from "./currency";
 
 export function formatDate(value) {
   if (!value) return "—";

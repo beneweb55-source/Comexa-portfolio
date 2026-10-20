@@ -60,7 +60,18 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { formatDateOnly, formatMoney, messageOf } from "@/lib/api";
+import { formatDateOnly, messageOf } from "@/lib/api";
+import {
+  ALL_CURRENCIES,
+  DEFAULT_CURRENCY,
+  amountsPair,
+  currencyRank,
+  currencyShortLabel,
+  formatMoney,
+  normalizeCurrency,
+  sumByCurrency,
+} from "@/lib/currency";
+import { useDisplayCurrency } from "@/lib/use-display-currency";
 import { activitySentence } from "@/lib/activity-labels.mjs";
 import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { can } from "@/lib/access";
@@ -83,6 +94,8 @@ import {
   ActivityList,
   Alert,
   Button,
+  CurrencyAmounts,
+  CurrencyScopeToggle,
   FilterPills,
   ItemCard,
   ItemGrid,
@@ -142,6 +155,8 @@ const HEALTH_HINT = {
 
 export default function ControlCenter() {
   const { user, request } = useAuth();
+  /* La portée ne convertit rien : elle choisit la devise des totaux. */
+  const { scope } = useDisplayCurrency();
   const [now, setNow] = useState(() => Date.now());
   const today = useMemo(() => new Date(now), [now]);
   const weekAgo = useMemo(() => {
@@ -350,32 +365,45 @@ export default function ControlCenter() {
       .slice(0, 8);
     const dueOverdue = dueSoon.filter((d) => d.overdue).length;
 
-    const currency = invoiceList[0]?.currency ?? quoteList[0]?.currency ?? "EUR";
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    /* Encaissements datés : chaque paiement réussi à SA date. L'ancien calcul
-       datait tout le montant réglé à l'émission de la facture (ou à son solde
-       complet) : un acompte reçu ce mois-ci sur une facture émise le mois
-       dernier affichait « + 0,00 € ce mois ». */
+    /* Encaissements datés : chaque paiement réussi à SA date, DANS SA DEVISE.
+       L'ancien calcul datait tout le montant réglé à l'émission de la facture
+       (ou à son solde complet) : un acompte reçu ce mois-ci sur une facture
+       émise le mois dernier affichait « + 0,00 € ce mois ». Il additionnait en
+       plus des dinars et des euros dans un seul nombre. */
     const receipts = [];
     for (const inv of invoiceList) {
+      const invoiceCurrency = inv.currency ?? DEFAULT_CURRENCY;
       if (Array.isArray(inv.payments)) {
         for (const payment of inv.payments) {
           if (payment.status !== "SUCCEEDED" || payment.deletedAt || !payment.paidAt) continue;
-          receipts.push({ amount: Number(payment.amount) || 0, date: new Date(payment.paidAt) });
+          receipts.push({
+            amount: Number(payment.amount) || 0,
+            date: new Date(payment.paidAt),
+            currency: payment.currency ?? invoiceCurrency,
+          });
         }
       } else {
         const paid = Number(inv.amountPaid) || 0;
         const ref = inv.paidAt ?? inv.issueDate ?? inv.createdAt;
-        if (paid && ref) receipts.push({ amount: paid, date: new Date(ref) });
+        if (paid && ref) {
+          receipts.push({ amount: paid, date: new Date(ref), currency: invoiceCurrency });
+        }
       }
     }
-    let collectedTotal = 0;
-    let outstanding = 0;
-    for (const inv of invoiceList) {
-      collectedTotal += Number(inv.amountPaid) || 0;
-      if (UNPAID_INVOICE.includes(inv.status)) outstanding += remainingDue(inv);
-    }
-    const collectedMonth = receipts.filter((receipt) => receipt.date >= monthStart).reduce((sum, receipt) => sum + receipt.amount, 0);
+
+    /* Chaque total est un couple (devise, montant) : jamais une somme
+       inter-devises, qui ne correspondrait à aucune monnaie réelle. */
+    const collectedTotals = sumByCurrency(
+      invoiceList.map((inv) => ({ total: Number(inv.amountPaid) || 0, currency: inv.currency })),
+    );
+    const monthReceiptTotals = sumByCurrency(receipts.filter((receipt) => receipt.date >= monthStart));
+    const billedTotals = sumByCurrency(
+      invoiceList
+        .filter((inv) => !["DRAFT", "CANCELLED", "REFUNDED"].includes(inv.status))
+        .map((inv) => ({ total: inv.total, currency: inv.currency })),
+    );
+
     const unpaidInvoices = invoiceList
       .filter((inv) => UNPAID_INVOICE.includes(inv.status) && remainingDue(inv) > 0)
       .map((inv) => ({
@@ -387,24 +415,53 @@ export default function ControlCenter() {
       .sort((a, b) => Number(b.overdue) - Number(a.overdue) || b.remaining - a.remaining);
     const overdueInvoicesCount = unpaidInvoices.filter((i) => i.overdue).length;
 
-    const openQuotes = quoteList.filter((q) => OPEN_QUOTE.includes(q.status));
-    const openQuotesTotal = openQuotes.reduce((sum, q) => sum + (Number(q.total) || 0), 0);
+    const outstandingTotals = sumByCurrency(
+      unpaidInvoices.map((inv) => ({ total: inv.remaining, currency: inv.currency })),
+    );
+    const overdueTotals = sumByCurrency(
+      unpaidInvoices.filter((inv) => inv.overdue).map((inv) => ({ total: inv.remaining, currency: inv.currency })),
+    );
 
+    const openQuotes = quoteList.filter((q) => OPEN_QUOTE.includes(q.status));
+
+    /* Encaissements mensuels, séparés par devise : le graphique ne superpose
+       pas deux monnaies sur la même barre. */
     const revenueMonths = [];
     for (let i = 5; i >= 0; i -= 1) {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       revenueMonths.push({
         key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
         mois: MONTH_FMT.format(d).replace(".", ""),
-        encaisse: 0,
+        amounts: [],
       });
     }
+    const receiptsByMonth = new Map();
     for (const receipt of receipts) {
       const d = receipt.date;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const bucket = revenueMonths.find((m) => m.key === key);
-      if (bucket) bucket.encaisse = Math.round((bucket.encaisse + receipt.amount) * 100) / 100;
+      const bucket = receiptsByMonth.get(key) ?? [];
+      bucket.push(receipt);
+      receiptsByMonth.set(key, bucket);
     }
+    for (const month of revenueMonths) {
+      month.amounts = sumByCurrency(receiptsByMonth.get(month.key) ?? []);
+    }
+
+    /* Devises réellement présentes dans les documents lus : elles alimentent
+       les pilules du sélecteur (DA et EUR y figurent toujours). */
+    const currencies = [
+      ...new Set(
+        [...invoiceList, ...quoteList].map((item) => normalizeCurrency(item.currency)),
+      ),
+    ].sort(
+      (left, right) => currencyRank(left) - currencyRank(right) || left.localeCompare(right),
+    );
+
+    const revenueCurrencies = [
+      ...new Set(receipts.map((receipt) => normalizeCurrency(receipt.currency))),
+    ].sort(
+      (left, right) => currencyRank(left) - currencyRank(right) || left.localeCompare(right),
+    );
 
     const pipelineStages = PROSPECT_COLUMNS.map((status) => ({
       etape: PROSPECT_STATUS[status],
@@ -415,7 +472,7 @@ export default function ControlCenter() {
     const milestonesReached = extraMilestones.filter((m) => m.status === "REACHED").length;
 
     return {
-      currency,
+      currencies,
       activeProjects,
       projectHealth,
       onHoldProjects,
@@ -427,14 +484,16 @@ export default function ControlCenter() {
       myEntries: myEntries.slice(0, 8),
       dueSoon,
       dueOverdue,
-      collectedTotal,
-      collectedMonth,
-      outstanding,
+      collectedTotals,
+      monthReceiptTotals,
+      billedTotals,
+      outstandingTotals,
+      overdueTotals,
       unpaidInvoices,
       overdueInvoicesCount,
       openQuotesCount: openQuotes.length,
-      openQuotesTotal,
       revenueMonths,
+      revenueCurrencies,
       pipelineStages,
       prospectList,
       milestonesTotal,
@@ -495,22 +554,37 @@ export default function ControlCenter() {
     (canReadProjects && projects.items === null && projects.loading) ||
     (canReadInvoices && invoices.items === null && invoices.loading);
 
-  const finance = agency.data ? {
-    ...agency.data.invoices,
-    collected: agency.data.collected,
-    rate: Math.round((agency.data.collectionRate ?? 0) * 100),
-  } : invoicesReady ? {
-    open: { total: computed.outstanding, currency: computed.currency, count: computed.unpaidInvoices.length },
-    overdue: {
-      total: computed.unpaidInvoices.filter((invoice) => invoice.overdue).reduce((sum, invoice) => sum + invoice.remaining, 0),
-      currency: computed.currency,
-      count: computed.overdueInvoicesCount,
-    },
-    collected: { total: computed.collectedTotal, currency: computed.currency },
-  } : {};
+  /* Taux d'encaissement PAR DEVISE. Un ratio entre un total en dinars et un
+     total en euros ne veut rien dire : chaque devise a donc le sien. En portée
+     « toutes », le volet affiche un taux par monnaie plutôt qu'un chiffre
+     unique qui mélangerait les deux. */
+  const rateFor = (currency) => {
+    const billed = computed.billedTotals.find((amount) => amount.currency === currency)?.total ?? 0;
+    const collected = computed.collectedTotals.find((amount) => amount.currency === currency)?.total ?? 0;
+    return billed > 0 ? Math.round((collected / billed) * 100) : null;
+  };
+  const rateText =
+    scope === ALL_CURRENCIES
+      ? computed.currencies.length
+        ? computed.currencies.map((currency) => `${currency} ${rateFor(currency) ?? "—"} %`).join(" · ")
+        : "— % encaissé"
+      : `${rateFor(scope) ?? "—"} % encaissé`;
 
-  /* Taux d'encaissement affiché dans le volet détaillé. */
-  const rate = Number.isFinite(Number(finance.rate)) ? Number(finance.rate) : null;
+  /* Montant d'une ligne de document : sa devise est celle de la ligne, jamais
+     celle d'une autre facture lue avant elle. */
+  const moneyIn = (value, currency) => (Number.isFinite(Number(value)) ? formatMoney(value, currency) : "—");
+
+  /* Totaux agrégés : la portée choisit la devise, `amountsPair` sépare la
+     valeur principale de la seconde monnaie. */
+  const collectedPair = amountsPair(computed.collectedTotals, scope);
+  const monthPair = amountsPair(computed.monthReceiptTotals, scope);
+  const outstandingPair = amountsPair(computed.outstandingTotals, scope);
+  const monthBadge =
+    !invoicesReady
+      ? "Encaissements"
+      : scope === ALL_CURRENCIES && computed.monthReceiptTotals.length === 0
+        ? "Aucun encaissement ce mois"
+        : `+ ${monthPair.value}${monthPair.secondary ? ` · ${monthPair.secondary}` : ""} ce mois`;
 
   /* Devis ouverts (mêmes critères que le mémo) pour la file de validation. */
   const openQuotes = quotesReady ? (quotes.items ?? EMPTY).filter((quote) => OPEN_QUOTE.includes(quote.status)) : EMPTY;
@@ -537,7 +611,6 @@ export default function ControlCenter() {
   /* Préparation de l'affichage (aucune requête supplémentaire)              */
   /* ---------------------------------------------------------------------- */
 
-  const money = (value) => (Number.isFinite(Number(value)) ? formatMoney(value, computed.currency) : "—");
 
   /* Accès direct : uniquement des rubriques réellement autorisées. */
   const quickLinks = [
@@ -562,8 +635,9 @@ export default function ControlCenter() {
           tone: "green",
           deco: true,
           decoIcon: Sparkles,
-          badge: invoicesReady ? `+ ${money(computed.collectedMonth)} ce mois` : "Encaissements",
-          value: invoicesReady ? money(computed.collectedTotal) : "…",
+          badge: monthBadge,
+          value: invoicesReady ? collectedPair.value : "…",
+          secondary: invoicesReady ? collectedPair.secondary : null,
           label: "Chiffre d’affaires encaissé",
           href: "/espace-equipe/factures",
         }
@@ -582,7 +656,8 @@ export default function ControlCenter() {
           id: "outstanding",
           tone: "yellow",
           badge: quotesReady ? plural(computed.openQuotesCount, "devis ouvert", "devis ouverts") : "Facturation",
-          value: invoicesReady ? money(computed.outstanding) : "…",
+          value: invoicesReady ? outstandingPair.value : "…",
+          secondary: invoicesReady ? outstandingPair.secondary : null,
           label: "Reste à encaisser",
           href: "/espace-equipe/factures",
         }
@@ -629,7 +704,7 @@ export default function ControlCenter() {
           label: invoice.dueDate ? `${invoice.overdue ? "Échue le" : "Échéance"} ${formatDateOnly(invoice.dueDate)}` : "Sans échéance",
         },
       ],
-      info: `Reste ${money(invoice.remaining)}`,
+      info: `Reste ${moneyIn(invoice.remaining, invoice.currency)}`,
       status: invoice.overdue ? "En retard" : (INVOICE_STATUS[invoice.status] ?? invoice.status),
       statusIcon: invoice.overdue ? TriangleAlert : Hourglass,
       statusTone: invoice.overdue ? "pink" : "yellow",
@@ -680,7 +755,7 @@ export default function ControlCenter() {
           label: quote.validUntil ? `Valable jusqu’au ${formatDateOnly(quote.validUntil)}` : "Sans limite de validité",
         },
       ],
-      info: money(quote.total),
+      info: moneyIn(quote.total, quote.currency),
       status: QUOTE_STATUS[quote.status] ?? quote.status,
       statusIcon: Hourglass,
       statusTone: quote.status === "VIEWED" ? "yellow" : "plain",
@@ -756,6 +831,20 @@ export default function ControlCenter() {
         </div>
       ) : null}
 
+      {/* 0. Devise d'affichage : DA, EUR ou les deux. La préférence suit
+             l'utilisateur d'un écran à l'autre ; elle ne convertit rien. */}
+      {canReadInvoices || canAgency ? (
+        <section aria-label="Devise d’affichage des montants" className="flex flex-col gap-2">
+          <CurrencyScopeToggle available={computed.currencies} label="Devise des montants" />
+          {scope !== ALL_CURRENCIES && computed.currencies.length > 0 && !computed.currencies.includes(scope) ? (
+            <p className="sui-card__desc">
+              Aucun document en {currencyShortLabel(scope)} pour le moment. Choisissez une autre devise (ou la
+              portée « les deux ») pour voir les montants en {computed.currencies.map((currency) => currencyShortLabel(currency)).join(" · ")}.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       {/* 1. Indicateurs pastel, dont la carte fantôme des points d'attention. */}
       {initialLoading ? (
         <KpiSkeleton />
@@ -769,6 +858,7 @@ export default function ControlCenter() {
             deco: kpi.deco,
             decoIcon: kpi.decoIcon,
             label: kpi.label,
+            secondary: kpi.secondary,
             value: kpi.href ? (
               <Link href={kpi.href} className="sui-kpi__link">
                 {kpi.value}
@@ -866,19 +956,19 @@ export default function ControlCenter() {
         <div className="sui-details__body">
           <div className="sui-split">
             {canReadInvoices ? (
-              <Panel title="Facturation" action={<span className="sui-section__count">{rate == null ? "—" : `${rate} % encaissé`}</span>}>
+              <Panel title="Facturation" action={<span className="sui-section__count">{rateText}</span>}>
                 <dl className="sui-money">
                   <div>
                     <dt>Encours</dt>
-                    <dd>{money(finance.open?.total)}</dd>
+                    <dd><CurrencyAmounts amounts={computed.outstandingTotals} scope={scope} /></dd>
                   </div>
                   <div>
                     <dt>En retard</dt>
-                    <dd>{money(finance.overdue?.total)}</dd>
+                    <dd><CurrencyAmounts amounts={computed.overdueTotals} scope={scope} /></dd>
                   </div>
                   <div>
                     <dt>Encaissé</dt>
-                    <dd>{money(finance.collected?.total)}</dd>
+                    <dd><CurrencyAmounts amounts={computed.collectedTotals} scope={scope} /></dd>
                   </div>
                 </dl>
                 <Button href="/espace-equipe/factures" icon={ReceiptText}>
@@ -941,15 +1031,31 @@ export default function ControlCenter() {
 
             {canReadInvoices ? (
               <Panel title="Encaissements mensuels" action={<span className="sui-section__count">6 mois</span>}>
-                <BarList
-                  rows={computed.revenueMonths.map((month) => ({
-                    id: month.key,
-                    label: month.mois,
-                    value: month.encaisse,
-                    text: invoicesReady ? money(month.encaisse) : "…",
-                  }))}
-                  empty="Aucun encaissement sur la période."
-                />
+                {(scope === ALL_CURRENCIES && computed.revenueCurrencies.length > 0
+                  ? computed.revenueCurrencies
+                  : [scope === ALL_CURRENCIES ? DEFAULT_CURRENCY : scope]
+                ).map((currency) => (
+                  <div key={currency} className="flex flex-col gap-1">
+                    {scope === ALL_CURRENCIES ? (
+                      <p className="sui-card__desc">En {currencyShortLabel(currency)}</p>
+                    ) : null}
+                    <BarList
+                      rows={computed.revenueMonths.map((month) => {
+                        const amount = month.amounts.find((entry) => entry.currency === currency)?.total ?? 0;
+                        return {
+                          id: `${month.key}-${currency}`,
+                          label: month.mois,
+                          value: amount,
+                          text: invoicesReady ? formatMoney(amount, currency) : "…",
+                        };
+                      })}
+                      empty={`Aucun encaissement en ${currencyShortLabel(currency)} sur la période.`}
+                    />
+                  </div>
+                ))}
+                <p className="sui-card__desc">
+                  Chaque devise est tracée séparément : aucun total ne mélange des dinars et des euros.
+                </p>
                 <Button href="/espace-equipe/factures" icon={ReceiptText}>
                   Détail des factures
                 </Button>
@@ -981,7 +1087,7 @@ export default function ControlCenter() {
           {canAgency ? (
             <Panel title="Vue d’ensemble de l’agence">
               {agency.data ? (
-                <AgencyView data={agency.data} />
+                <AgencyView data={agency.data} scope={scope} />
               ) : (
                 <p className="sui-card__desc">
                   {agency.loading ? "Chargement de la vue agence…" : "La vue agence est indisponible pour le moment."}

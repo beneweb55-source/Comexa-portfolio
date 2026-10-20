@@ -6,6 +6,7 @@ import Link from "next/link";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { formatDate, formatMoney, messageOf } from "@/lib/api";
+import { DEFAULT_CURRENCY } from "@/lib/currency";
 import { can } from "@/lib/access";
 import { PROSPECT_COLUMNS, PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE, PROSPECT_TRANSITIONS } from "@/lib/commercial";
 import { useAuth } from "@/lib/session";
@@ -286,7 +287,7 @@ function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overla
         <span className={`text-[12px] ${theme.muted}`}>{PROSPECT_SOURCE[prospect.source] ?? prospect.source}</span>
       </div>
       {prospect.estimatedBudget ? (
-        <p className={`mt-2 text-[12.5px] ${theme.soft}`}>Budget estimé {formatMoney(prospect.estimatedBudget, "EUR")}</p>
+        <p className={`mt-2 text-[12.5px] ${theme.soft}`}>Budget estimé {formatMoney(prospect.estimatedBudget, DEFAULT_CURRENCY)}</p>
       ) : null}
 
       {canWrite && !overlay && targets.length > 0 ? (

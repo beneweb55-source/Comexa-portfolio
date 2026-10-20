@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Landmark, RefreshCw } from "lucide-react";
 import { formatDate, formatMoney, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
+import { ALL_CURRENCIES, normalizeCurrency } from "@/lib/currency";
+import { useDisplayCurrency } from "@/lib/use-display-currency";
 import { useAuth } from "@/lib/session";
 import { Badge, Card, Empty, Notice, Skeleton, secondaryButton } from "@/components/workspace/ui";
 
@@ -61,6 +63,7 @@ function accountSuffix(id) {
 
 export default function BalancePanel() {
   const { request, user } = useAuth();
+  const { scope } = useDisplayCurrency();
   // `balances === null` signifie « pas encore repondu » : l'etat de chargement
   // est celui de la donnee, pas un etat a part qui pourrait diverger d'elle.
   const [balances, setBalances] = useState(null);
@@ -101,8 +104,16 @@ export default function BalancePanel() {
   const soldes = balances ?? [];
   const mouvements = transactions ?? [];
 
-  // Carte principale : la devise DZD en priorité, sinon la première enregistrée.
-  const principal = soldes.find((solde) => String(solde.currency).toLocaleUpperCase("fr-FR") === "DZD") ?? soldes[0] ?? null;
+  // Carte principale : la devise d'affichage choisie, sinon le dinar, sinon la
+  // première enregistrée. Les autres soldes restent listés juste en dessous —
+  // changer de devise ne cache donc jamais un compte.
+  const principal =
+    (scope !== ALL_CURRENCIES
+      ? soldes.find((solde) => normalizeCurrency(solde.currency) === scope)
+      : null) ??
+    soldes.find((solde) => normalizeCurrency(solde.currency) === "DZD") ??
+    soldes[0] ??
+    null;
   const autres = soldes.filter((solde) => solde !== principal);
   const titulaire = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
 

@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, CalendarDays, CircleAlert, Hash, ReceiptText, TriangleAlert } from "lucide-react";
 import { formatDateOnly, formatMoney } from "@/lib/api";
+import { ALL_CURRENCIES, amountsPair, currencyRank, currencyShortLabel, normalizeCurrency } from "@/lib/currency";
+import { useDisplayCurrency } from "@/lib/use-display-currency";
 import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, remainingDue } from "@/lib/commercial";
 import { useListing } from "@/lib/use-listing";
 import { useAllListing } from "@/lib/use-all-listing";
 import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
-import { Alert, FilterPills, ItemCard, ItemGrid, KpiGrid, StatusPill } from "@/components/softui";
+import { Alert, CurrencyAmounts, CurrencyScopeToggle, FilterPills, ItemCard, ItemGrid, KpiGrid, StatusPill } from "@/components/softui";
 import { ListTable, ViewToggle, useViewMode } from "@/components/softui/ListView";
 import { useShellQuery } from "@/components/softui/Shell";
 import { InvoicePdfActions } from "@/components/workspace/invoices";
@@ -26,8 +28,12 @@ const BILLED = ["SENT", "PARTIALLY_PAID", "PAID", "OVERDUE"];
 const toneOf = (status) => TONE_MAP[INVOICE_STATUS_TONE[status]] ?? "plain";
 
 /**
- * Totaux par devise : additionner des euros et des dinars n'aurait aucun sens.
- * La synthèse affiche la devise la plus représentée et signale les autres.
+ * Totaux PAR DEVISE : additionner des euros et des dinars n'aurait aucun sens.
+ *
+ * La liste reçue est déjà restreinte à la portée choisie (« DA », « EUR » ou
+ * toutes) ; ce résumé ne fait donc que remplir un seau par devise, sans jamais
+ * reporter le total d'une monnaie sur une autre. Les montants sont ensuite
+ * choisis par `amountsPair` / `CurrencyAmounts`, qui ne mélangent rien.
  */
 function summarize(list, now) {
   const counts = Object.fromEntries(STATUS_ORDER.map((key) => [key, 0]));
@@ -35,7 +41,7 @@ function summarize(list, now) {
   for (const invoice of list) {
     counts[invoice.status] = (counts[invoice.status] ?? 0) + 1;
     if (!BILLED.includes(invoice.status)) continue;
-    const currency = invoice.currency || "EUR";
+    const currency = normalizeCurrency(invoice.currency);
     const bucket = byCurrency.get(currency) ?? { currency, invoices: 0, billed: 0, paid: 0, due: 0, overdueAmount: 0 };
     bucket.invoices += 1;
     bucket.billed += Number(invoice.total) || 0;
@@ -44,17 +50,32 @@ function summarize(list, now) {
     if (invoice.status === "OVERDUE") bucket.overdueAmount += remainingDue(invoice);
     byCurrency.set(currency, bucket);
   }
-  const buckets = [...byCurrency.values()].sort((a, b) => b.invoices - a.invoices);
-  const main = buckets[0] ?? { currency: "EUR", invoices: 0, billed: 0, paid: 0, due: 0, overdueAmount: 0 };
+  const buckets = [...byCurrency.values()]
+    .map((bucket) => ({
+      ...bucket,
+      billed: Math.round(bucket.billed * 100) / 100,
+      paid: Math.round(bucket.paid * 100) / 100,
+      due: Math.round(bucket.due * 100) / 100,
+      overdueAmount: Math.round(bucket.overdueAmount * 100) / 100,
+    }))
+    .sort((a, b) => currencyRank(a.currency) - currencyRank(b.currency) || a.currency.localeCompare(b.currency));
+
+  const amounts = (key) => buckets.map((bucket) => ({ currency: bucket.currency, total: bucket[key] }));
   const open = list.filter((invoice) => OPEN.includes(invoice.status));
   const pastDue = open.filter((invoice) => invoice.dueDate && isDeadlinePassed(invoice.dueDate, now));
+
   return {
     total: list.length,
     counts,
-    main,
-    otherCurrencies: buckets.length - 1,
-    /* Même devise que le montant affiché à côté. */
-    open: open.filter((invoice) => (invoice.currency || "EUR") === main.currency).length,
+    buckets,
+    billedAmounts: amounts("billed"),
+    paidAmounts: amounts("paid"),
+    dueAmounts: amounts("due"),
+    overdueAmounts: amounts("overdueAmount"),
+    open,
+    /* Comptes de factures, pas montants : la devise ne les change pas. */
+    invoiceCount: buckets.reduce((total, bucket) => total + bucket.invoices, 0),
+    openCount: open.length,
     overdue: counts.OVERDUE ?? 0,
     pastDue: pastDue.length,
   };
@@ -62,6 +83,9 @@ function summarize(list, now) {
 
 export default function FacturesEquipePage() {
   const { query } = useShellQuery();
+  /* La portée choisie vaut à la fois pour les totaux ET pour la liste : choisir
+     « EUR » ne laisse pas des totaux en dinars au-dessus de factures en euros. */
+  const { scope } = useDisplayCurrency();
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
   /* Une liste de factures se lit en colonnes (montants, échéances) : la vue
@@ -72,16 +96,39 @@ export default function FacturesEquipePage() {
   const params = new URLSearchParams({ page: String(page), perPage: "50" });
   if (filter) params.set("status", filter);
   if (query.trim()) params.set("search", query.trim());
+  if (scope !== ALL_CURRENCIES) params.set("currency", scope);
 
   const invoices = useListing(`/invoices?${params.toString()}`);
   const all = useAllListing("/invoices?perPage=100");
   const items = invoices.items ?? [];
+  const allItems = useMemo(() => all.items ?? [], [all.items]);
 
-  /* Synthèse sur TOUTES les factures accessibles, indépendante du filtre actif. */
-  const summary = useMemo(() => summarize(all.items ?? [], now), [all.items, now]);
+  const availableCurrencies = useMemo(
+    () =>
+      [...new Set(allItems.map((invoice) => normalizeCurrency(invoice.currency)))].sort(
+        (left, right) => currencyRank(left) - currencyRank(right) || left.localeCompare(right),
+      ),
+    [allItems],
+  );
+
+  /* Synthèse sur TOUTES les factures accessibles, restreinte à la portée. */
+  const scopedItems = useMemo(
+    () =>
+      scope === ALL_CURRENCIES
+        ? allItems
+        : allItems.filter((invoice) => normalizeCurrency(invoice.currency) === scope),
+    [allItems, scope],
+  );
+  const summary = useMemo(() => summarize(scopedItems, now), [scopedItems, now]);
   const ready = all.items !== null;
-  const money = (value) => (ready ? formatMoney(value, summary.main.currency) : "…");
-  const currencyNote = summary.otherCurrencies > 0 ? ` · +${summary.otherCurrencies} devise${summary.otherCurrencies > 1 ? "s" : ""}` : "";
+
+  const billedPair = amountsPair(summary.billedAmounts, scope);
+  const paidPair = amountsPair(summary.paidAmounts, scope);
+  const duePair = amountsPair(summary.dueAmounts, scope);
+  const currencyNote =
+    scope === ALL_CURRENCIES && summary.buckets.length > 1
+      ? ` · ${summary.buckets.length} devises`
+      : "";
 
   const filters = [
     { id: "", label: "Toutes", count: ready ? summary.total : undefined },
@@ -99,28 +146,60 @@ export default function FacturesEquipePage() {
       {invoices.error ? <Alert icon={CircleAlert}>{invoices.error}</Alert> : null}
       {!invoices.error && all.error ? <Alert icon={CircleAlert}>Synthèse indisponible : {all.error}</Alert> : null}
 
+      <div className="flex flex-col gap-2">
+        <CurrencyScopeToggle
+          available={availableCurrencies}
+          label="Devise des factures"
+          onScopeChange={() => setPage(1)}
+        />
+        {ready && scope !== ALL_CURRENCIES && allItems.length > scopedItems.length ? (
+          <p className="sui-card__desc">
+            {allItems.length - scopedItems.length} facture{allItems.length - scopedItems.length > 1 ? "s" : ""} dans une autre devise{" "}
+            {allItems.length - scopedItems.length > 1 ? "sont masquées" : "est masquée"}. Choisissez « Les deux » pour tout
+            afficher, chacune dans sa monnaie.
+          </p>
+        ) : null}
+      </div>
+
       <KpiGrid
         label="Synthèse de la facturation"
         items={[
           {
             id: "billed",
             tone: "blue",
-            badge: ready ? `${summary.main.invoices} facture${summary.main.invoices > 1 ? "s" : ""} émise${summary.main.invoices > 1 ? "s" : ""}${currencyNote}` : "Facturation",
-            value: money(summary.main.billed),
+            badge: ready
+              ? `${summary.invoiceCount} facture${summary.invoiceCount > 1 ? "s" : ""} émise${summary.invoiceCount > 1 ? "s" : ""}${currencyNote}`
+              : "Facturation",
+            value: ready ? billedPair.value : "…",
+            secondary: ready ? billedPair.secondary : null,
             label: "Total facturé",
           },
-          { id: "paid", tone: "green", badge: "Paiements reçus", value: money(summary.main.paid), label: "Encaissé" },
+          {
+            id: "paid",
+            tone: "green",
+            badge: "Paiements reçus",
+            value: ready ? paidPair.value : "…",
+            secondary: ready ? paidPair.secondary : null,
+            label: "Encaissé",
+          },
           {
             id: "due",
             tone: "yellow",
-            badge: ready ? `${summary.open} facture${summary.open > 1 ? "s" : ""} ouverte${summary.open > 1 ? "s" : ""}` : "Soldes",
-            value: money(summary.main.due),
+            badge: ready
+              ? `${summary.openCount} facture${summary.openCount > 1 ? "s" : ""} ouverte${summary.openCount > 1 ? "s" : ""}`
+              : "Soldes",
+            value: ready ? duePair.value : "…",
+            secondary: ready ? duePair.secondary : null,
             label: "Reste à encaisser",
           },
           {
             id: "overdue",
             tone: summary.overdue ? "pink" : "lilac",
-            badge: summary.overdue ? money(summary.main.overdueAmount) : "Aucun retard",
+            badge: summary.overdue ? (
+              <CurrencyAmounts amounts={summary.overdueAmounts} scope={scope} />
+            ) : (
+              "Aucun retard"
+            ),
             value: ready ? summary.overdue : "…",
             label: summary.overdue > 1 ? "Factures en retard" : "Facture en retard",
           },
@@ -142,8 +221,8 @@ export default function FacturesEquipePage() {
         {invoices.items === null && !invoices.error ? <SkeletonList rows={4} /> : null}
         {invoices.items !== null && items.length === 0 ? (
           <Empty icon={ReceiptText}>
-            {query.trim() || filter
-              ? "Aucune facture ne correspond à ces critères."
+            {query.trim() || filter || scope !== ALL_CURRENCIES
+              ? `Aucune facture ne correspond à ces critères${scope !== ALL_CURRENCIES ? ` en ${currencyShortLabel(scope)}` : ""}.`
               : "Aucune facture pour le moment. Une facture se génère depuis un devis accepté."}
           </Empty>
         ) : null}

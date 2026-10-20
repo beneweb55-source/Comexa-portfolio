@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
 import { formatDate, formatMoney } from "@/lib/api";
+import { DEFAULT_CURRENCY } from "@/lib/currency";
+import { CurrencyAmounts } from "@/components/softui";
 import { PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
 import { INVOICE_STATUS, INVOICE_STATUS_TONE, PAYMENT_METHOD, PROSPECT_STATUS } from "@/lib/commercial";
 import { Badge, Card, Empty } from "@/components/workspace/ui";
@@ -127,8 +129,26 @@ export function Tabs({ tabs, initial = 0 }) {
   );
 }
 
+/**
+ * Montants d'une section du tableau de bord agence.
+ *
+ * Le backend expose `byCurrency` pour chaque agrégat : c'est la seule forme qui
+ * permette d'afficher les deux monnaies sans les additionner. Les anciennes
+ * réponses (ou un agrégat vide) n'ont que `currency` / `total` : on retombe
+ * alors sur ce couple, jamais sur un total supposé commun.
+ */
+function amountsOf(section) {
+  if (Array.isArray(section?.byCurrency) && section.byCurrency.length > 0) {
+    return section.byCurrency;
+  }
+  if (section?.currency) {
+    return [{ currency: section.currency, total: section.total ?? 0 }];
+  }
+  return [];
+}
+
 /** Vue de l'agence : données de GET /dashboard, réparties en trois onglets. */
-export function AgencyView({ data }) {
+export function AgencyView({ data, scope = DEFAULT_CURRENCY }) {
   const d = data;
   const openInvoices = d.invoices?.open ?? {};
   const overdue = d.invoices?.overdue ?? {};
@@ -170,10 +190,10 @@ export function AgencyView({ data }) {
       <div className="flex flex-col gap-4">
         <h3 className="text-[15px] font-semibold">Facturation</h3>
         <div className="grid grid-cols-2 gap-3">
-          <Stat label="Encours" value={formatMoney(openInvoices.total, openInvoices.currency)} hint={`${openInvoices.count ?? 0} facture(s)`} />
-          <Stat label="En retard" value={formatMoney(overdue.total, overdue.currency)} hint={`${overdue.count ?? 0} facture(s)`} />
-          <Stat label="Émis sur la période" value={formatMoney(issued.total, issued.currency)} hint={`${issued.count ?? 0} facture(s)`} />
-          <Stat label="Encaissé" value={formatMoney(collected.total, collected.currency)} hint={`${collected.count ?? 0} paiement(s)`} />
+          <Stat label="Encours" value={<CurrencyAmounts amounts={amountsOf(openInvoices)} scope={scope} />} hint={`${openInvoices.count ?? 0} facture(s)`} />
+          <Stat label="En retard" value={<CurrencyAmounts amounts={amountsOf(overdue)} scope={scope} />} hint={`${overdue.count ?? 0} facture(s)`} />
+          <Stat label="Émis sur la période" value={<CurrencyAmounts amounts={amountsOf(issued)} scope={scope} />} hint={`${issued.count ?? 0} facture(s)`} />
+          <Stat label="Encaissé" value={<CurrencyAmounts amounts={amountsOf(collected)} scope={scope} />} hint={`${collected.count ?? 0} paiement(s)`} />
         </div>
         {collected.byMethod?.length ? (
           <div>

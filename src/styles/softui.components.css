@@ -787,6 +787,14 @@
   white-space: nowrap;
 }
 
+/* Une pastille peut porter deux devises (portée « les deux ») : on autorise ce
+   contenu à passer à la ligne, sans jamais couper un montant en deux. */
+.sui-kpi__badge .sui-amounts {
+  flex-wrap: wrap;
+  gap: 0 6px;
+  white-space: normal;
+}
+
 .sui-kpi__deco {
   display: grid;
   place-items: center;
@@ -802,6 +810,19 @@
   letter-spacing: var(--tracking-tight);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* Deuxième devise d'un indicateur : même montant, autre monnaie. Volontairement
+   plus petite que la valeur principale, mais assez lisible pour être comparée
+   d'un coup d'œil (portée « les deux »). */
+.sui-kpi__secondary {
+  margin: 4px 0 0;
+  font-size: calc(14px * var(--zoom, 1));
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
   overflow-wrap: anywhere;
 }
 
@@ -850,6 +871,45 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* Portée d'affichage des montants : « DA / EUR / les deux ». La légende est
+   visible, parce que deux pilules de devises seules ne disent pas si elles
+   filtrent la liste ou choisissent la monnaie des totaux. */
+.sui-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.sui-scope__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Total multi-devises : les montants restent séparés, jamais additionnés. */
+.sui-amounts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sui-amounts__item {
+  white-space: nowrap;
+}
+
+.sui-amounts__sep {
+  margin-right: 8px;
+  color: var(--muted);
 }
 
 .sui-filters li {

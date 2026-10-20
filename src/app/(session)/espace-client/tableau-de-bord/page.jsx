@@ -7,6 +7,7 @@ import { DataView } from "@/components/workspace/DataView";
 import { Button } from "@/components/softui/primitives";
 import { Panel } from "@/components/softui/panels";
 import { Empty, Notice, SkeletonList } from "@/components/workspace/ui";
+import CurrencyScopeToggle from "@/components/softui/CurrencyScopeToggle";
 
 /**
  * Tableau de bord de l'espace client.
@@ -40,6 +41,8 @@ export default function TableauDeBordClientPage() {
           Vue d’ensemble complète <ArrowUpRight size={16} strokeWidth={1.9} aria-hidden="true" />
         </Link>
       </Panel>
+
+      <CurrencyScopeToggle label="Devise de mes montants" />
 
       <Panel title="Indicateurs de votre compte" subtitle="Synthèse en temps réel des données de votre espace client.">
         {dashboard.loading && !dashboard.data ? <SkeletonList rows={3} /> : null}

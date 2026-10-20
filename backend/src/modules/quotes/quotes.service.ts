@@ -180,6 +180,7 @@ export class QuotesService {
       ...(!ownClientId && query.clientId ? { clientId: query.clientId } : {}),
       ...(query.prospectId ? { prospectId: query.prospectId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.currency ? { currency: query.currency.toUpperCase() } : {}),
       ...(search
         ? {
             OR: [
