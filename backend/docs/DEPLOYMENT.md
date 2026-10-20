@@ -1173,6 +1173,13 @@ migration. L'URL directe est celle qui convient : l'hote pooli gere mal le DDL.
 > Ne jamais lancer `npm run db:reset` (`prisma migrate reset --force`) contre la
 > base Neon : cette commande **efface** les donnees avant de rejouer les
 > migrations. Elle ne vise que la base locale.
+>
+> Pour vider la base de production de ses seules donnees metier — factures,
+> clients, devis, projets — sans toucher au schema ni a la structure, le script
+> dedie existe : `npm run db:purge -- --yes`. Il affiche l'hote de la base
+> avant de supprimer quoi que ce soit, et ne touche ni au schema ni aux
+> parametres. Ce n'est PAS une etape de deploiement : c'est un outil de
+> remise a zero, a manier avec la meme prudence que `db:reset`.
 
 #### Le premier administrateur, puis sa mise en service
 

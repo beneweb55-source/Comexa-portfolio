@@ -26,6 +26,7 @@
     "prisma:validate": "prisma validate",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
+    "db:purge": "tsx scripts/purge-business-data.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "integration:token": "tsx scripts/create-integration-token.ts"
   },

@@ -29,8 +29,9 @@ installe les roles, les codes de permission, et le contenu public du site
 (services, packs, temoignages, realisations, questions, partenaires).
 
 > **`npm run db:reset` est destructeur.** Il vaut `prisma migrate reset --force`
-> et **efface toutes les donnees**. Cette API partage une base Neon, y compris
-> avec la suite de tests e2e : ne le lancez pas sur une base qui compte.
+> et **efface toutes les donnees**. Pour vider la base sans toucher au schema,
+> `npm run db:purge -- --yes` est plus surgical : il ne supprime que les
+> donnees metier. Dans les deux cas, ne lancez rien sur une base qui compte.
 
 ---
 
@@ -96,6 +97,38 @@ peut pas elargir ce perimetre.
 
 ---
 
+## 5. Purge des donnees metier
+
+```bash
+npm run db:purge            # simulation : compte tout, ne supprime rien
+npm run db:purge -- --yes   # suppression effective
+```
+
+Supprime les **donnees metier** — factures, devis, paiements, clients,
+prospects, projets, taches, documents, messages, soldes, repartitions — et
+laisse intacte la **structure** du produit : comptes de l'equipe, roles,
+permissions, parametres, devises, taux de change, packs, services, contenu
+public.
+
+Deux garde-fous : la simulation est le mode par defaut (rien n'est supprime
+sans `--yes`), et l'hote de la base est affiche avant toute suppression. Le
+detail de l'ordre de suppression — qui est un contrat : PostgreSQL refuse de
+supprimer une ligne encore referencee — est dans l'en-tete du script.
+
+Options :
+
+| Option | Effet |
+|---|---|
+| `--yes` | Supprime. Sans elle, le script ne fait que compter. |
+| `--no-reset-counters` | Ne remet pas la numerotation a zero (`FAC-2026-0043` pour la premiere facture recreee). |
+| `--keep-client-accounts` | Laisse les comptes de l'espace client survenir a la suppression de leur client. |
+
+Deux limites a connaitre : les **fichiers** des documents supprimes restent
+dans le stockage objet, et la purge emporte le client coquille du seed — un
+`npm run db:seed` le restaure.
+
+---
+
 ## 6. Docker
 
 ```bash
@@ -134,14 +167,14 @@ rester un geste delibere, jamais un effet de bord d'un redemarrage.
 
 ---
 
-## 6. `npm run lint`
+## 7. `npm run lint`
 
 ```bash
-npm run lint    # eslint "{src,test,prisma}/**/*.ts" --fix
+npm run lint    # eslint "{src,prisma,scripts}/**/*.ts" --fix
 ```
 
 **Il fonctionne, et sort propre sur tout l'arbre.** Mesure du 29/09/2026 :
-`./node_modules/.bin/eslint "{src,test,prisma}/**/*.ts"` sort en code `0`, sans
+`./node_modules/.bin/eslint "{src,prisma,scripts}/**/*.ts"` sort en code `0`, sans
 un seul diagnostic.
 
 C'est possible parce que ce dossier porte desormais son propre
@@ -186,7 +219,7 @@ Le script porte `--fix`. Sur un arbre propre, c'est sans effet. Mais si vous
 modifiez les regles, lancez d'abord la commande **sans** `--fix` :
 
 ```bash
-./node_modules/.bin/eslint "{src,test,prisma}/**/*.ts"
+./node_modules/.bin/eslint "{src,prisma,scripts}/**/*.ts"
 ```
 
 et lisez le nombre de diagnostics. C'est la seule facon de decider si un jeu de
