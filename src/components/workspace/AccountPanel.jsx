@@ -235,8 +235,8 @@ export default function AccountPanel() {
         title="Sessions ouvertes"
         subtitle="Les appareils actuellement connectés à votre compte."
         action={
-          <button type="button" className={secondaryButton} onClick={logoutEverywhere}>
-            <LogOut size={15} strokeWidth={1.9} aria-hidden="true" /> Déconnecter partout
+          <button type="button" className={`${secondaryButton} sui-btn--sm`} onClick={logoutEverywhere}>
+            <LogOut size={14} strokeWidth={2} aria-hidden="true" /> Déconnecter partout
           </button>
         }
       >
@@ -260,6 +260,7 @@ export default function AccountPanel() {
                 </span>
                 <span className="sui-lines__end">
                   <Button
+                    size="sm"
                     onClick={() => action.run(`session:${session.id}`, `/auth/sessions/${session.id}`, { method: "DELETE" }, "Session fermée.")}
                     disabled={action.busy === `session:${session.id}`}
                   >

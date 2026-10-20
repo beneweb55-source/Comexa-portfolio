@@ -5,5 +5,6 @@
         <item name="android:windowBackground">@color/shell</item>
         <item name="android:statusBarColor">@color/shell</item>
         <item name="android:navigationBarColor">@color/shell</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

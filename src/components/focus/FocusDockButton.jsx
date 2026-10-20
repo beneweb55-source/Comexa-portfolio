@@ -26,6 +26,7 @@ export default function FocusDockButton() {
   return (
     <button
       type="button"
+      data-role="focus-trigger"
       className={`sui-dock-timer__trigger${active ? " is-active" : ""}`}
       onClick={focus.openFocus}
       aria-label={label}

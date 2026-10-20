@@ -99,8 +99,10 @@
   --sui-appbar-h: 56px;
   --sui-tabbar-h: 62px;
   --sui-touch: 44px;
-  --sui-safe-top: env(safe-area-inset-top, 0px);
-  --sui-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --sui-webview-safe-top: 0px;
+  --sui-webview-safe-bottom: 0px;
+  --sui-safe-top: max(env(safe-area-inset-top, 0px), var(--sui-webview-safe-top, 0px));
+  --sui-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--sui-webview-safe-bottom, 0px));
   --desk-w: 25%;
   --desk-min: 292px;
   --desk-max: 384px;

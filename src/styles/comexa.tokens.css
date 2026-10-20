@@ -167,6 +167,6 @@
   --comexa-bp-phone: 767px;
   --comexa-bp-tablet: 1023px;
   --comexa-touch: 44px;
-  --comexa-safe-top: env(safe-area-inset-top, 0px);
-  --comexa-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --comexa-safe-top: max(env(safe-area-inset-top, 0px), var(--sui-webview-safe-top, 0px));
+  --comexa-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--sui-webview-safe-bottom, 0px));
 }

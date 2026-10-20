@@ -10,13 +10,20 @@ import { motion } from "framer-motion";
 import { staggerItem } from "./motion";
 import { ProgressBar } from "./ItemCard";
 
-export function Panel({ title, action, children, className = "", style }) {
+export function Panel({ title, subtitle, action, children, className = "", style }) {
   return (
     <section className={`sui-panel ${className}`.trim()} style={style}>
-      {title ? (
+      {title || subtitle || action ? (
         <div className="sui-section__head">
-          <h2 className="sui-section__title">{title}</h2>
-          {action}
+          {subtitle ? (
+            <div className="min-w-0">
+              {title ? <h2 className="sui-section__title">{title}</h2> : null}
+              <p className="sui-panel__sub">{subtitle}</p>
+            </div>
+          ) : title ? (
+            <h2 className="sui-section__title">{title}</h2>
+          ) : null}
+          {action ? <div className="sui-card__actions">{action}</div> : null}
         </div>
       ) : null}
       {children}
