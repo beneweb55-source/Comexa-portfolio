@@ -97,7 +97,7 @@ export default function DevisClientPage({ params }) {
 
       <Card title="Détail des prestations">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left text-[14px]">
+          <table className="cx-stack-table w-full text-left text-[14px]">
             <thead className="border-b border-[var(--comexa-border-soft)] text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">
               <tr>
                 <th className="py-2 pr-3">Prestation</th>
@@ -109,13 +109,13 @@ export default function DevisClientPage({ params }) {
             <tbody>
               {items.map((line) => (
                 <tr key={line.id} className="border-b border-[var(--comexa-border-soft)] align-top">
-                  <td className="py-3 pr-3">
+                  <td className="py-3 pr-3" data-label="Prestation">
                     <p className="font-medium text-[var(--comexa-ink)]">{line.title}</p>
                     {line.description ? <p className="text-[13px] text-[var(--comexa-ink-muted)]">{line.description}</p> : null}
                   </td>
-                  <td className="py-3 pr-3 text-right">{Number(line.quantity)}</td>
-                  <td className="py-3 pr-3 text-right">{formatMoney(line.unitPrice, data.currency)}</td>
-                  <td className="py-3 text-right font-medium">{formatMoney(line.lineTotal, data.currency)}</td>
+                  <td className="py-3 pr-3 text-right" data-label="Qté">{Number(line.quantity)}</td>
+                  <td className="py-3 pr-3 text-right" data-label="Prix HT">{formatMoney(line.unitPrice, data.currency)}</td>
+                  <td className="py-3 text-right font-medium" data-label="Total HT">{formatMoney(line.lineTotal, data.currency)}</td>
                 </tr>
               ))}
             </tbody>

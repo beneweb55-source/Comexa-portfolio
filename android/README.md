@@ -106,6 +106,19 @@ natifs n'existent pas. Le temps réel du site (socket) couvre les notifications
 à l'intérieur de l'application ; des push hors application demanderaient un
 service FCM côté backend — hors périmètre actuel (« aucune API ajoutée »).
 
+## Icône
+
+Le symbole est celui du logo officiel (`public/comexa-logo-horizontal-transparent.png`) :
+les deux dalles parallèles, sans le mot « Comexa » ni le slogan. Le tracé
+vectoriel reprend cette silhouette (pas un pictogramme générique) et les bleus
+mesurés dans le fichier. Fond uni `#071422` (bleu nuit, presque noir).
+
+L'icône adaptative (`mipmap-anydpi-v26`) sépare le fond, le premier plan et la
+couche monochrome (icônes thématiques Android 13+). Le symbole tient dans le
+cercle de sécurité de 66 dp : les masques cercle, squircle et carré arrondi ne
+le coupent pas. Les densités `mipmap-*` et `ic_launcher_round` couvrent
+Android 7 à 7.1 (`minSdk` 24), avant les icônes adaptatives.
+
 ## Contenu du dossier
 
 | Chemin | Rôle |
@@ -113,5 +126,6 @@ service FCM côté backend — hors périmètre actuel (« aucune API ajoutée �
 | `app/src/main/java/dz/comexa/android/MainActivity.java` | WebView, verrou de navigation, téléchargements, hors-ligne, bord à bord |
 | `app/src/main/java/dz/comexa/android/AppConfig.java` | origine + chemins ouverts (miroir de `desktop/config.js`) |
 | `app/src/main/assets/offline.html` | page hors-ligne, partagée avec le desktop |
-| `app/src/main/res/…` | icône adaptative et densités, thème noir de coque |
+| `app/src/main/res/…` | icône adaptative (premier plan vectoriel, fond, monochrome thématique) et densités héritées, thème noir de coque |
+| `store/ic_launcher_512.png` | icône 512 px pour la fiche Play Store |
 | `gradle/wrapper/` | wrapper Gradle 8.11.1 |

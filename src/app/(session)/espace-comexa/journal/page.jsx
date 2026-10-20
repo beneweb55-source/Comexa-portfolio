@@ -80,7 +80,7 @@ export default function JournalPage() {
 
       {items.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-left text-[13.5px]">
+          <table className="cx-stack-table w-full border-collapse text-left text-[13.5px]">
             <thead>
               <tr className="border-b border-[var(--comexa-border-soft)] text-[var(--comexa-ink-muted)]">
                 <th className="py-2 pr-4 font-medium">Date</th>
@@ -93,11 +93,11 @@ export default function JournalPage() {
             <tbody>
               {items.map((entry) => (
                 <tr key={entry.id} className="border-b border-[var(--comexa-border-soft)] align-top">
-                  <td className="py-2 pr-4 whitespace-nowrap">{formatDate(entry.createdAt)}</td>
-                  <td className="py-2 pr-4">{entry.actorEmail ?? "Système"}</td>
-                  <td className="py-2 pr-4"><span className="block font-semibold">{auditActionLabel(entry.action)}</span><code className="text-[12px] text-[var(--muted)]">{entry.action}</code></td>
-                  <td className="py-2 pr-4">{entry.entityType ? `${entry.entityType}` : "—"}</td>
-                  <td className="py-2 text-[var(--comexa-ink-muted)]">{entry.ipAddress ?? "—"}</td>
+                  <td className="py-2 pr-4 whitespace-nowrap" data-label="Date">{formatDate(entry.createdAt)}</td>
+                  <td className="py-2 pr-4" data-label="Auteur">{entry.actorEmail ?? "Système"}</td>
+                  <td className="py-2 pr-4" data-label="Action"><span className="block font-semibold">{auditActionLabel(entry.action)}</span><code className="text-[12px] text-[var(--muted)]">{entry.action}</code></td>
+                  <td className="py-2 pr-4" data-label="Objet">{entry.entityType ? `${entry.entityType}` : "—"}</td>
+                  <td className="py-2 text-[var(--comexa-ink-muted)]" data-label="Adresse">{entry.ipAddress ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

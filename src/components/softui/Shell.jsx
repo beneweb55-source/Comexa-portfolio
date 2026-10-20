@@ -19,8 +19,9 @@
  *   7. dock flottant : actions de l'espace, minuteur et console Comexa.
  *
  * Responsive : < 1024 px le rail disparaît et le panneau devient un tiroir ;
- * < 768 px la navbar devient une barre d'icônes en bas, le sélecteur d'espace
- * passe dans le tiroir des rubriques et le dock se compacte.
+ * < 768 px (et téléphone à l'horizontale) la navbar et le dock laissent place
+ * à une barre d'application (espace, recherche, minuteur) et à des onglets
+ * en bas. Les actions rapides du dock vivent dans le tiroir « Plus ».
  */
 
 import {
@@ -33,17 +34,18 @@ import {
   useRef,
   useState,
 } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   CheckSquare,
+  ChevronDown,
   FileText,
   FolderKanban,
   Globe,
   LayoutGrid,
   Search,
-  Settings2,
   TriangleAlert,
   UserRound,
   Wallet,
@@ -80,6 +82,7 @@ import {
   sectionMeta,
   sectionOf,
 } from "./space-config";
+import logoLight from "../../../public/comexa-logo-horizontal-clair-transparent.png";
 
 /* -------------------------------------------------------------------------- */
 /* Contexte exposé aux pages : recherche du bandeau, action principale         */
@@ -136,6 +139,52 @@ function isActivePath(pathname, href) {
   if (!pathname || !href) return false;
   if (href === "/espace-client") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Libellés courts des onglets du bas — jamais le titre desktop tronqué. */
+const MOBILE_TAB = {
+  "": "Accueil",
+  "tableau-de-bord": "Accueil",
+  taches: "Tâches",
+  calendrier: "Agenda",
+  temps: "Temps",
+  "rapports-journaliers": "Rapports",
+  notifications: "Alertes",
+  projets: "Projets",
+  clients: "Clients",
+  devis: "Devis",
+  factures: "Factures",
+  commandes: "Commandes",
+  commander: "Packs",
+  modifications: "Demandes",
+  messagerie: "Messages",
+  contenu: "Contenu",
+  membres: "Membres",
+  roles: "Rôles",
+  integrations: "Jetons",
+  journal: "Journal",
+  parametres: "Réglages",
+  contacts: "Contacts",
+  prospects: "Prospects",
+  demandes: "Demandes",
+  analytique: "Stats",
+  repartition: "Parts",
+  rapports: "Rapports",
+};
+
+function mobileTabLabel(href, fallback) {
+  if (href === "/espace-client/tableau-de-bord") return "Synthèse";
+  const mapped = MOBILE_TAB[sectionOf(href)];
+  if (mapped) return mapped;
+  const word = String(fallback ?? "Page").split(" ")[0];
+  return word.length > 9 ? `${word.slice(0, 8)}…` : word;
+}
+
+/** `dockEnd` est un nœud ou une fonction, pour pouvoir le monter deux fois
+ *  (dock bureau + barre mobile) sans partager la même instance React. */
+function DockEnd({ end }) {
+  if (!end) return null;
+  return typeof end === "function" ? end() : end;
 }
 
 /** Densité du panneau principal, mémorisée localement (boutons + / − du rail). */
@@ -559,7 +608,18 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
               user={baseUser ?? user}
               badge={isWorkspace ? null : "espace client"}
               homeHref={homeHref}
+              onOpenMenu={() => setNavOpen(true)}
               onActiveTabMove={isMobile ? undefined : onActiveTabMove}
+            />
+
+            <MobileAppBar
+              homeHref={homeHref}
+              spaceLabel={isWorkspace ? (SPACES[area]?.shortLabel ?? title) : "Client"}
+              onOpenMenu={() => setNavOpen(true)}
+              onSearch={() => setCmdkOpen(true)}
+              notificationsHref={canReadNotifications ? notificationsHref : null}
+              unreadCount={unreadCount}
+              tools={dockEnd ? <DockEnd end={dockEnd} /> : null}
             />
 
             {/* Languette alignée sur l'onglet actif (masquée sans onglet actif). */}
@@ -615,9 +675,9 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                       searchPlaceholder={`Rechercher dans ${pageHeading.toLowerCase()}…`}
                       searchLabel={`Rechercher dans ${pageHeading}`}
                       onGlobalSearch={() => setCmdkOpen(true)}
-                      primaryAction={isMobile ? null : primaryAction}
+                      primaryAction={primaryAction}
                     />
-                    {isMobile && primaryAction ? (
+                    {primaryAction ? (
                       <div className="sui-mobile-primary">
                         <PageHeaderAction action={primaryAction} />
                       </div>
@@ -632,20 +692,18 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
 
             <Dock
               items={dockItems}
-              end={dockEnd}
+              end={dockEnd ? <DockEnd end={dockEnd} /> : null}
               hidden={dockHidden}
               onReveal={() => setDockHidden(false)}
               label={isWorkspace ? `Actions rapides — ${title}` : "Actions rapides de mon espace"}
             />
 
-            {/* Barre d'icônes mobile : la navbar descend en bas de la coque.
-                « Mon compte » y a SA PLACE DÉDIÉE : solde, mot de passe et
-                sessions sont consultés tous les jours, ils ne doivent pas
-                passer par le tiroir « Rubriques ». */}
-            {isMobile ? (
-              <nav className="sui-mobile-tabbar" aria-label="Navigation principale">
+            {/* Onglets du téléphone : toujours dans le DOM, révélés par CSS
+                (y compris en paysage). « Compte » a sa place dédiée. */}
+            <nav className="sui-mobile-tabbar" aria-label="Navigation principale">
                 {navItems.slice(0, 3).map((item) => {
                   const active = item.href === activeHref;
+                  const short = mobileTabLabel(item.href, item.label);
                   return (
                     <Link
                       key={item.href}
@@ -656,7 +714,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                       title={item.longLabel ?? item.label}
                     >
                       <item.icon size={20} strokeWidth={1.75} aria-hidden="true" />
-                      <span>{item.label}</span>
+                      <span>{short}</span>
                     </Link>
                   );
                 })}
@@ -667,22 +725,21 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                   aria-label="Mon compte"
                   title="Mon compte"
                 >
-                  <Wallet size={20} strokeWidth={1.75} aria-hidden="true" />
-                  <span>Mon compte</span>
+                  <UserRound size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <span>Compte</span>
                 </Link>
                 <button
                   type="button"
                   className={`sui-mobile-tab${navOpen ? " sui-mobile-tab--active" : ""}`}
                   aria-expanded={navOpen}
-                  aria-label={unreadElsewhere ? `Rubriques et espaces, ${unreadElsewhere} non lues dans les autres espaces` : "Rubriques et espaces"}
+                  aria-label={unreadElsewhere ? `Plus de rubriques, ${unreadElsewhere} non lues dans les autres espaces` : "Plus de rubriques"}
                   onClick={() => setNavOpen(true)}
                 >
-                  <Settings2 size={20} strokeWidth={1.75} aria-hidden="true" />
-                  <span>Rubriques</span>
+                  <LayoutGrid size={20} strokeWidth={1.75} aria-hidden="true" />
+                  <span>Plus</span>
                   {unreadElsewhere ? <span className="sui-mobile-tab__dot" aria-hidden="true" /> : null}
                 </button>
-              </nav>
-            ) : null}
+            </nav>
 
             {/* Tiroir du panneau de suivi (< 1024 px). */}
             {isCompact && deskOpen ? (
@@ -703,6 +760,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                   area={area}
                   groupedLinks={groupedLinks}
                   accountHref={accountHref}
+                  quickActions={dockItems.filter((item) => item.label !== "Toutes les rubriques")}
                   onClose={() => setNavOpen(false)}
                   onOpenCommandPalette={() => {
                     setNavOpen(false);
@@ -762,7 +820,34 @@ function PageHeaderAction({ action }) {
 /* Tiroir de navigation (et sélecteur d'espace sur mobile)                     */
 /* -------------------------------------------------------------------------- */
 
-function NavDrawer({ title, area, groupedLinks, accountHref, onClose, onOpenCommandPalette }) {
+function MobileAppBar({ homeHref, spaceLabel, onOpenMenu, onSearch, notificationsHref, unreadCount, tools }) {
+  const notifLabel = unreadCount ? `Notifications, ${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Notifications";
+  return (
+    <header className="sui-appbar">
+      <Link href={homeHref} className="sui-appbar__logo" aria-label="Accueil de l’espace">
+        <Image src={logoLight} alt="" width={96} height={22} priority />
+      </Link>
+      <button type="button" className="sui-appbar__space" onClick={onOpenMenu} aria-haspopup="dialog">
+        <span>{spaceLabel}</span>
+        <ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
+      </button>
+      <div className="sui-appbar__tools">
+        {tools}
+        <button type="button" className="sui-appbar__icon" aria-label="Rechercher dans l’espace" onClick={onSearch}>
+          <Search size={18} strokeWidth={1.75} aria-hidden="true" />
+        </button>
+        {notificationsHref ? (
+          <Link href={notificationsHref} className="sui-appbar__icon" aria-label={notifLabel}>
+            <Bell size={18} strokeWidth={1.75} aria-hidden="true" />
+            {unreadCount ? <span className="sui-appbar__badge">{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
+          </Link>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+function NavDrawer({ title, area, groupedLinks, accountHref, quickActions = [], onClose, onOpenCommandPalette }) {
   const titleId = useId();
   const firstLinkRef = useRef(null);
 
@@ -776,7 +861,7 @@ function NavDrawer({ title, area, groupedLinks, accountHref, onClose, onOpenComm
   }, [onClose]);
 
   return (
-    <div className="sui-drawer" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className="sui-drawer sui-drawer--nav" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <div className="sui-drawer__head">
         <div>
           <h2 className="sui-drawer__title" id={titleId}>
@@ -800,6 +885,42 @@ function NavDrawer({ title, area, groupedLinks, accountHref, onClose, onOpenComm
         <Search size={17} strokeWidth={1.75} aria-hidden="true" />
         Rechercher dans {title.toLowerCase()}
       </button>
+
+      {quickActions.length ? (
+        <div className="sui-drawer__group">
+          <span className="sui-drawer__group-label">Actions rapides</span>
+          <div className="sui-drawer__actions">
+            {quickActions.map((item) => {
+              const Icon = item.icon ?? LayoutGrid;
+              const inner = (
+                <>
+                  <span className="sui-drawer__action-icon" style={{ "--tone-bg": `var(--${item.tone ?? "blue"})` }} aria-hidden="true">
+                    <Icon size={16} strokeWidth={1.75} />
+                  </span>
+                  <span>{item.label}</span>
+                </>
+              );
+              return item.href ? (
+                <Link key={item.label} href={item.href} className="sui-drawer__action" onClick={onClose}>
+                  {inner}
+                </Link>
+              ) : (
+                <button
+                  key={item.label}
+                  type="button"
+                  className="sui-drawer__action"
+                  onClick={() => {
+                    onClose();
+                    item.onClick?.();
+                  }}
+                >
+                  {inner}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="sui-drawer__body">
         {groupedLinks.map(({ group, items }, groupIndex) => (

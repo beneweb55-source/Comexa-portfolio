@@ -9,6 +9,14 @@ import { AuthProvider } from "@/lib/session";
 import { SpacesProvider } from "@/lib/spaces-context";
 
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0b2545",
+  interactiveWidget: "resizes-content",
+};
+
 export const metadata = {
   metadataBase: new URL("https://comexa.dz"),
   title: {
@@ -38,6 +46,7 @@ export default function RootLayout({ children }) {
     <html
       lang="fr"
       className="h-full bg-white antialiased"
+      style={{ colorScheme: "light" }}
     >
       <body
         suppressHydrationWarning

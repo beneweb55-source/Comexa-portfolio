@@ -9,7 +9,7 @@ export function AuthCard({ eyebrow = "Espace Comexa", title, subtitle, intro, ch
   const description = subtitle ?? intro;
 
   return (
-    <main className="relative flex min-h-screen flex-col justify-center overflow-hidden px-5 py-12">
+    <main className="cx-auth relative flex min-h-dvh flex-col justify-center overflow-x-clip">
       {/* Halo atmosphérique Comexa */}
       <div
         aria-hidden="true"

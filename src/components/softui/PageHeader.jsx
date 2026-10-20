@@ -73,7 +73,11 @@ export default function PageHeader({
           ) : null}
           {actions}
           <HeaderAction action={secondaryAction} />
-          <HeaderAction action={primaryAction} primary />
+          {primaryAction ? (
+            <span className="sui-head__primary">
+              <HeaderAction action={primaryAction} primary />
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>

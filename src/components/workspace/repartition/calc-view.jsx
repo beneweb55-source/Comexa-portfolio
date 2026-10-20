@@ -296,9 +296,9 @@ function RoundCard({ round, canManage, busy, onApply }) {
                       </span>
                     </span>
                   </td>
-                  <td className="is-end">{formatPercent(row.percentage)}</td>
-                  <td className="is-end">{formatAmount(row.calculatedAmount)}</td>
-                  <td className="is-end">
+                  <td className="is-end" data-label="%">{formatPercent(row.percentage)}</td>
+                  <td className="is-end" data-label="Montant">{formatAmount(row.calculatedAmount)}</td>
+                  <td className="is-end" data-label="Arrondi">
                     {itemTrace ? (
                       <span
                         className="sui-tabular text-[12px] text-[var(--muted)]"
@@ -322,9 +322,9 @@ function RoundCard({ round, canManage, busy, onApply }) {
                   <span>{trace ? "Trace : plus grand reste, au centime" : ""}</span>
                 </span>
               </td>
-              <td className="is-end">100,00 %</td>
-              <td className="is-end">{formatAmount(total)}</td>
-              <td className="is-end">
+              <td className="is-end" data-label="%">100,00 %</td>
+              <td className="is-end" data-label="Montant">{formatAmount(total)}</td>
+              <td className="is-end" data-label="Arrondi">
                 {trace ? (
                   <span className="sui-tabular text-[12px] text-[var(--muted)]">
                     {formatAmount(trace.total)} = base

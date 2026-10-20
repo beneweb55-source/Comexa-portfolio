@@ -1,0 +1,1119 @@
+/*
+ * Comexa — système responsive (mobile d'abord, bureau préservé).
+ *
+ * Cette feuille est importée en dernier et n'est pas dans un @layer : elle
+ * corrige la coque, le site public, les formulaires, les tableaux et les
+ * volets sans dupliquer une media query par page.
+ *
+ * Seuils :
+ *   ≤ 380   téléphone étroit (320–360)
+ *   ≤ 430   téléphone courant
+ *   ≤ 720   tableaux → cartes, formulaires empilés
+ *   ≤ 767   chrome applicatif (barre haute + onglets)
+ *   ≤ 932 × hauteur ≤ 500   téléphone à l'horizontale (même chrome)
+ *   768–1023  tablette : navbar + menu des rubriques, pas de rail
+ *   ≥ 1024  bureau inchangé
+ *
+ * Le défilement horizontal de page est interdit. Un défilement interne n'est
+ * conservé que lorsqu'il est utile (semaine du calendrier, code).
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Garde-fous globaux                                                          */
+/* -------------------------------------------------------------------------- */
+
+html {
+  color-scheme: light;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.sui-viewport,
+.cx-pub,
+.cx-auth,
+.sui-hub {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+.sui-viewport :where(p, h1, h2, h3, h4, li, dd, figcaption),
+.cx-pub :where(p, h1, h2, h3, h4, li) {
+  overflow-wrap: break-word;
+}
+
+.sui-viewport pre,
+.cx-pub pre,
+.sui-viewport code {
+  max-width: 100%;
+}
+
+.sui-viewport pre,
+.cx-pub pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.recharts-responsive-container,
+.recharts-wrapper {
+  max-width: 100% !important;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  touch-action: manipulation;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Chrome applicatif — téléphone (et paysage court)                           */
+/* -------------------------------------------------------------------------- */
+
+.sui-appbar {
+  display: none;
+}
+
+.sui-head__primary {
+  display: contents;
+}
+
+.sui-nav__compact-menu {
+  display: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sui-nav__compact-menu:hover,
+.sui-nav__compact-menu:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Action principale dupliquée : le bureau la garde dans l'en-tête, le
+   téléphone la voit en pleine largeur sous le titre. */
+.sui-mobile-primary {
+  display: none;
+}
+
+@media (max-width: 767px), (max-width: 932px) and (max-height: 500px) {
+  .sui-nav,
+  .sui-notch,
+  .sui-dockwrap,
+  .sui-rail {
+    display: none !important;
+  }
+
+  .sui-appbar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    height: calc(var(--sui-appbar-h) + var(--sui-safe-top));
+    padding: var(--sui-safe-top) 8px 0 12px;
+    background: var(--shell);
+    color: var(--shell-ink);
+    z-index: 42;
+  }
+
+  .sui-appbar__logo {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    border-radius: 8px;
+  }
+
+  .sui-appbar__logo img {
+    height: 22px;
+    width: auto;
+  }
+
+  .sui-appbar__space {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 8px 0 4px;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .sui-appbar__space span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sui-appbar__space svg {
+    flex: 0 0 auto;
+    opacity: 0.7;
+  }
+
+  .sui-appbar__tools {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .sui-appbar__icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .sui-appbar__icon:active,
+  .sui-appbar__space:active {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .sui-appbar__badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    display: grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 99px;
+    background: var(--green);
+    color: var(--ink);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger:not(.is-active) span,
+  .sui-appbar .sui-dock-timer__task {
+    display: none;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger.is-active {
+    width: auto;
+    max-width: 64px;
+    padding: 0 6px;
+    gap: 4px;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger.is-active .cx-timer-pill__trigger-time {
+    display: inline;
+    font-size: 12px;
+  }
+
+  .sui-appbar .sui-dock-timer__panel {
+    position: fixed;
+    top: auto;
+    right: 10px;
+    bottom: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 10px);
+    left: 10px;
+    z-index: 80;
+    width: auto;
+    max-width: none;
+    max-height: min(72dvh, 640px);
+    translate: none;
+  }
+
+  .sui-mobile-tabbar {
+    display: flex;
+    height: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom));
+    padding: 4px 6px var(--sui-safe-bottom);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--shell);
+  }
+
+  .sui-mobile-tab {
+    min-height: 48px;
+    gap: 2px;
+    padding: 4px 2px 6px;
+    border-radius: 14px;
+    font-size: 10.5px;
+    letter-spacing: -0.01em;
+    background: transparent;
+  }
+
+  .sui-mobile-tab--active {
+    background: transparent;
+    color: #fff;
+  }
+
+  .sui-mobile-tab--active::after {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+
+  .sui-shell__body {
+    border-radius: 0;
+  }
+
+  .sui-main__scroll {
+    padding: 16px 14px calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 20px);
+  }
+
+  .sui-canvas-inner {
+    gap: 16px;
+  }
+
+  .sui-head {
+    gap: 12px;
+  }
+
+  .sui-head__left {
+    flex-basis: 100%;
+    gap: 12px;
+  }
+
+  .sui-head__icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sui-head__icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .sui-head__title {
+    font-size: clamp(1.35rem, 6.2vw, 1.7rem);
+    line-height: 1.15;
+  }
+
+  .sui-head__sub {
+    display: -webkit-box;
+    margin-top: 4px;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-size: 13.5px;
+  }
+
+  .sui-head__actions {
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
+  }
+
+  .sui-head__primary {
+    display: none;
+  }
+
+  .sui-mobile-primary {
+    display: flex;
+    margin-top: -6px;
+  }
+
+  .sui-mobile-primary .sui-btn {
+    width: 100%;
+    min-height: 48px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .sui-search {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .sui-head__kbd,
+  .sui-head__global {
+    display: none;
+  }
+
+  .sui-drawer {
+    width: 100%;
+    border-radius: 0;
+    padding: calc(12px + var(--sui-safe-top)) 16px calc(16px + var(--sui-safe-bottom));
+  }
+
+  .sui-drawer--nav::before {
+    content: "";
+    display: block;
+    width: 36px;
+    height: 4px;
+    margin: 0 auto 2px;
+    border-radius: 99px;
+    background: rgba(17, 17, 17, 0.16);
+  }
+
+  .sui-drawer--right {
+    width: 100%;
+    border-radius: 22px 22px 0 0;
+    top: auto;
+    height: min(86dvh, 100%);
+    padding-bottom: calc(16px + var(--sui-safe-bottom));
+  }
+
+  .sui-drawer__link {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  .sui-notif-live {
+    right: 12px;
+    left: 12px;
+    bottom: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 12px);
+    width: auto;
+  }
+
+  .sui-chat__fab {
+    right: 14px;
+    bottom: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 14px);
+  }
+
+  .sui-kpis {
+    gap: 10px;
+  }
+
+  .sui-kpi {
+    min-height: 0;
+    padding: 14px;
+  }
+}
+
+/* Tablette : le rail a disparu, un bouton ouvre toutes les rubriques. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sui-nav__compact-menu {
+    display: inline-grid;
+  }
+
+  .sui-nav {
+    gap: 10px;
+    padding-inline: 12px;
+  }
+
+  .sui-nav__label {
+    max-width: 9rem;
+  }
+
+  .sui-main__scroll {
+    padding-inline: 18px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tiroir : actions rapides                                                    */
+/* -------------------------------------------------------------------------- */
+
+.sui-drawer__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sui-drawer__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sui-drawer__action:active,
+.sui-drawer__link:active {
+  background: #eceaec;
+}
+
+.sui-drawer__action-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--tone-bg, var(--blue));
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Tableaux → cartes (téléphone). Le bureau garde le tableau.                 */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .sui-table-wrap,
+  .overflow-x-auto:has(> .sui-table),
+  .overflow-x-auto:has(> .cx-stack-table) {
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .sui-table,
+  .cx-stack-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    border-collapse: separate;
+    background: transparent;
+  }
+
+  .sui-table thead,
+  .cx-stack-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .sui-table tbody,
+  .cx-stack-table tbody,
+  .sui-table tr,
+  .cx-stack-table tr,
+  .sui-table td,
+  .cx-stack-table td {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .sui-table tr,
+  .cx-stack-table tr {
+    margin: 0 0 10px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--card, #fff);
+    box-shadow: var(--shadow-card, 0 8px 24px rgba(0, 0, 0, 0.06));
+  }
+
+  .sui-table td,
+  .cx-stack-table td {
+    padding: 7px 0;
+    border: 0;
+    border-bottom: 1px solid var(--line-soft, rgba(17, 17, 17, 0.06));
+    text-align: right !important;
+    white-space: normal !important;
+  }
+
+  .sui-table td:last-child,
+  .cx-stack-table td:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .sui-table td:first-child,
+  .cx-stack-table td:first-child {
+    padding-top: 0;
+    padding-bottom: 8px;
+    border-bottom: 0;
+    text-align: left !important;
+    font-size: 15px;
+  }
+
+  .sui-table td[data-label]:not(:first-child),
+  .cx-stack-table td[data-label]:not(:first-child) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .sui-table td[data-label]:not(:first-child)::before,
+  .cx-stack-table td[data-label]:not(:first-child)::before {
+    content: attr(data-label);
+    flex: 1 1 auto;
+    color: var(--muted, #666);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-align: left;
+    text-transform: none;
+  }
+
+  .sui-table .is-end,
+  .cx-stack-table .is-end {
+    text-align: right;
+  }
+
+  .sui-pagination .flex {
+    width: 100%;
+  }
+
+  .sui-pagination .sui-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Formulaires, dialogues, densité                                             */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .cx-input,
+  .cx-select,
+  .cx-textarea,
+  .sui-input,
+  .sui-search input,
+  .sui-cmdk__input,
+  .cx-home-form input:not([type="checkbox"]):not([type="radio"]),
+  .cx-home-form textarea,
+  .cx-home-form select {
+    font-size: 16px;
+  }
+
+  .cx-input,
+  .cx-select,
+  .sui-input {
+    min-height: 48px;
+  }
+
+  .sui-field {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .sui-field .sui-input,
+  .sui-field select,
+  .sui-field textarea,
+  .cx-field .cx-input,
+  .cx-field select,
+  .cx-field textarea,
+  .sui-main__scroll select.sui-input,
+  .sui-main__scroll input.sui-input,
+  .sui-main__scroll textarea.sui-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .sui-main__scroll [class*="min-w-"] {
+    min-width: 0 !important;
+    max-width: 100%;
+  }
+
+  .sui-newtask > .sui-btn,
+  .sui-viewport form.flex > .sui-btn,
+  .sui-viewport form.flex-wrap > .sui-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  button[aria-label="Afficher le mot de passe"],
+  button[aria-label="Masquer le mot de passe"] {
+    width: 44px;
+    height: 44px;
+  }
+
+  .cx-auth .relative .cx-input {
+    padding-right: 52px !important;
+  }
+
+  .cx-pub-nav__desktop-account .cx-user-menu__trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .sui-dialog-backdrop,
+  .sui-cmdk-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .sui-dialog,
+  .sui-cmdk {
+    width: 100%;
+    max-width: none;
+    max-height: min(92dvh, 100%);
+    border-radius: 24px 24px 0 0;
+    padding-bottom: var(--sui-safe-bottom);
+  }
+
+  .sui-dialog__head,
+  .sui-dialog__body {
+    padding-inline: 16px;
+  }
+
+  .sui-dialog__foot {
+    position: sticky;
+    bottom: 0;
+    padding: 12px 16px calc(14px + var(--sui-safe-bottom));
+    background: linear-gradient(180deg, rgba(253, 253, 253, 0), var(--card) 28%);
+  }
+
+  .sui-dialog__foot > * {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+  }
+
+  .sui-cmdk {
+    max-height: min(88dvh, 100%);
+  }
+
+  .sui-cmdk__footer {
+    display: none;
+  }
+
+  .sui-section__head {
+    align-items: flex-start;
+  }
+
+  .sui-card__actions,
+  .sui-section__head .sui-card__actions,
+  .sui-card__actions form,
+  .sui-card__actions .flex,
+  .sui-viewport form.flex {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .sui-card__actions form .sui-input,
+  .sui-card__actions .sui-input {
+    flex: 1 1 100%;
+  }
+
+  .sui-viewport .ml-auto.grid {
+    margin-left: 0;
+    max-width: none;
+    width: 100%;
+  }
+
+  .sui-viewer {
+    width: 100%;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .sui-cal__views {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    border-radius: 18px;
+  }
+
+  .sui-cal__tools,
+  .sui-cal__nav {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .sui-cal__title {
+    flex: 1 1 100%;
+    font-size: 15px;
+  }
+
+  .sui-cal__grid {
+    height: min(68dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .sui-cal__grid--week .rbc-time-view,
+  .sui-cal__grid--day .rbc-time-view {
+    min-width: 560px;
+  }
+
+  .sui-cal .rbc-header,
+  .sui-cal .rbc-button-link {
+    font-size: 11px;
+  }
+
+  /* Messagerie : une colonne, le fil occupe l'écran restant. */
+  .sui-main__scroll:has(.sui-chat--page) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sui-main__scroll:has(.sui-chat--page) .sui-canvas-inner {
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 10px;
+  }
+
+  .sui-main__scroll:has(.sui-chat--page) .sui-head,
+  .sui-main__scroll:has(.sui-chat--page) .sui-mobile-primary {
+    flex: 0 0 auto;
+  }
+
+  .sui-chat--page,
+  .sui-chat--page .sui-chat,
+  .sui-chat--page .sui-chat__body,
+  .sui-chat--page .sui-chat__aside,
+  .sui-chat--page .sui-chat__main {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  .sui-chat--page .sui-chat {
+    min-height: 0;
+    border-radius: 20px;
+  }
+
+  .sui-chat__row {
+    min-height: 64px;
+    padding-inline: 14px;
+  }
+
+  .sui-chat__composer .sui-input,
+  .sui-chat__composer textarea {
+    font-size: 16px;
+  }
+
+  .sui-focus__sticky {
+    padding-bottom: calc(16px + var(--sui-safe-bottom));
+  }
+}
+
+@media (max-width: 420px) {
+  .sui-kpis,
+  .sui-viewport .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .sui-main__scroll {
+    padding-inline: 12px;
+  }
+
+  .sui-mobile-tab {
+    font-size: 10px;
+  }
+
+  .sui-panel,
+  .sui-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .sui-shortcuts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Site public                                                                 */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 720px) {
+  .cx-pub-nav {
+    top: 0;
+    margin-top: 0;
+    padding-top: var(--comexa-safe-top);
+    padding-inline: 0;
+  }
+
+  .cx-pub-nav__bar {
+    max-width: none;
+    border-radius: 0 0 22px 22px;
+    border-top: 0;
+    min-height: 58px;
+    padding-inline: 14px 10px;
+    box-shadow: 0 10px 28px rgba(11, 37, 69, 0.07);
+  }
+
+  .cx-pub-drawer {
+    padding: calc(var(--comexa-safe-top) + 68px) 12px calc(12px + var(--comexa-safe-bottom));
+  }
+
+  .cx-pub-drawer__panel {
+    border-radius: 22px;
+    padding: 8px;
+  }
+
+  .cx-pub-drawer__link {
+    min-height: 52px;
+    font-size: 17px;
+  }
+
+  .cx-pub-section {
+    padding-block: clamp(48px, 10vw, 72px);
+    scroll-margin-top: calc(72px + var(--comexa-safe-top));
+  }
+
+  .cx-home-hero {
+    padding-top: 20px;
+  }
+
+  .cx-home-hero__visual {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 0 0;
+  }
+
+  .cx-home-chip {
+    position: static;
+    align-self: flex-start;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .cx-home-chip--bottom {
+    align-self: flex-end;
+  }
+
+  .cx-pub-cta-row {
+    width: 100%;
+  }
+
+  .cx-pub-cta-row > .cx-btn,
+  .cx-pub-cta-row > a.cx-btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .cx-home-needs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cx-home-need {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cx-pub-footer {
+    padding-bottom: var(--comexa-safe-bottom);
+  }
+
+  .cx-pub-footer__base {
+    padding-bottom: calc(20px + var(--comexa-safe-bottom));
+  }
+}
+
+@media (max-width: 380px) {
+  .sui-appbar__logo {
+    display: none;
+  }
+
+  .cx-home-hero__title {
+    font-size: 2.05rem;
+    max-width: 12ch;
+  }
+
+  .cx-pub-h2 {
+    font-size: 1.65rem;
+  }
+
+  .cx-pub-container,
+  .cx-pub-nav {
+    --comexa-margin-mobile: 14px;
+  }
+
+  .cx-pub-lead,
+  .cx-pub-head__aside p {
+    font-size: 15.5px;
+  }
+
+  .cx-home-service,
+  .cx-pub-work__body,
+  .cx-home-form {
+    padding: 16px;
+  }
+
+  .cx-pub-footer__tagline {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 768px) {
+  .cx-auth {
+    padding-inline: 24px;
+    padding-block: 48px;
+  }
+}
+
+/* Authentification : carte pleine, champs confortables, encoche respectée. */
+.cx-auth {
+  min-height: 100dvh;
+  padding-top: max(20px, var(--comexa-safe-top));
+  padding-bottom: max(24px, var(--comexa-safe-bottom));
+  padding-inline: 16px;
+}
+
+@media (max-width: 430px) {
+  .cx-auth .cx-card {
+    padding: 20px 16px !important;
+    border-radius: 22px !important;
+  }
+
+  .cx-auth h1 {
+    font-size: 1.4rem !important;
+  }
+
+  .cx-auth .cx-btn--sm span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .cx-auth .cx-btn--sm {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+/* Hub des espaces */
+@media (max-width: 430px) {
+  .sui-hub {
+    gap: 18px;
+    padding: calc(16px + var(--sui-safe-top)) 16px calc(24px + var(--sui-safe-bottom));
+  }
+
+  .sui-hubcard {
+    padding: 16px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Paysage court : moins de chrome vertical                                    */
+/* -------------------------------------------------------------------------- */
+
+@media (max-height: 430px) and (orientation: landscape) {
+  .sui-head__sub,
+  .sui-head__crumb,
+  .sui-head__icon {
+    display: none;
+  }
+
+  .sui-appbar {
+    height: calc(48px + var(--sui-safe-top));
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .sui-mobile-tab {
+    min-height: 44px;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .sui-mobile-tab span {
+    font-size: 12px;
+  }
+
+  .sui-head__sub {
+    -webkit-line-clamp: 1;
+  }
+
+  .cx-pub-section {
+    padding-block: 36px;
+  }
+
+  .cx-auth {
+    justify-content: flex-start;
+    padding-block: 12px;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Toucher, survol collant, mouvement réduit                                   */
+/* -------------------------------------------------------------------------- */
+
+@media (hover: none) {
+  .sui-pill:hover,
+  .sui-btn:hover,
+  .sui-iconbtn:hover,
+  .sui-card:hover,
+  .sui-dock__btn:hover,
+  .cx-home-service:hover,
+  .cx-pub-work:hover,
+  .sui-shortcut:hover {
+    transform: none;
+  }
+
+  .sui-btn:active,
+  .sui-mobile-tab:active,
+  .cx-btn:active,
+  .sui-drawer__action:active {
+    transform: scale(0.98);
+  }
+}
+
+@media (pointer: coarse) {
+  .sui-btn--sm {
+    min-height: 44px;
+  }
+
+  .sui-iconbtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  [role="toolbar"] > button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sui-appbar,
+  .sui-mobile-tab,
+  .sui-drawer,
+  .sui-dialog,
+  .cx-pub-drawer,
+  .cx-pub-drawer__panel {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .sui-btn:active,
+  .sui-mobile-tab:active,
+  .cx-btn:active {
+    transform: none;
+  }
+}
