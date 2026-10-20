@@ -4,9 +4,8 @@ import type { Prisma } from '../../generated/prisma/client.js';
 // `composeAnd` est une regle de surete, pas un utilitaire de confort : deux
 // copies divergeraient le jour ou l'une serait corrigee. Il est donc DEFINI une
 // seule fois, dans `prospects/prospect-scope.ts`, et simplement REEXPORTE ici
-// (voir la derniere ligne de ce fichier). `client-scope.spec.ts` verifie
-// l'identite des deux references — pas seulement l'egalite de leur
-// comportement — donc la propriete est tenue par un test, pas par ce commentaire.
+// (voir la derniere ligne de ce fichier). L'identite des deux references est
+// donc tenue par le code lui-meme, pas par ce commentaire.
 //
 // CE BLOC A DIT LE CONTRAIRE, ET C'ETAIT FAUX. Il justifiait cet emplacement par
 // l'impossibilite d'ecrire dans `src/common/`, presente comme « hors perimetre de

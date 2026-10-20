@@ -6,9 +6,9 @@ import { fittedImageSize, readImageSize } from './image-size.js';
  *
  * Ce module est VOLONTAIREMENT PUR : il ne connaît ni Prisma, ni Nest, ni la
  * configuration. Il reçoit un `DocumentModel` (que des chaînes déjà formatées)
- * et un `PDFDocument`, et il dessine. On peut donc le tester sans base de
- * données ni client Prisma généré — c'est exactement ce que fait
- * `document-layout.spec.ts`, qui compte les pages produites.
+ * et un `PDFDocument`, et il dessine. On peut donc l'exercer sans base de
+ * données ni client Prisma généré — et compter les pages produites sans autre
+ * dépendance.
  *
  * ---------------------------------------------------------------------------
  * POURQUOI IL A ÉTÉ RÉÉCRIT : LA DEUXIÈME PAGE PRESQUE VIDE

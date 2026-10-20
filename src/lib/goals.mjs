@@ -1,6 +1,6 @@
 /**
  * Objectifs personnels : teintes, compte à rebours, avancement.
- * Fonctions pures, testées sous `npm run test:unit`. L'avancement affiché vient
+ * Fonctions pures, sans dépendance à React ni à l'API. L'avancement affiché vient
  * du serveur (`progress`) ; le recalcul local ne sert qu'aux mises à jour
  * optimistes (case cochée avant la réponse).
  */

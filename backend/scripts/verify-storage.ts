@@ -50,11 +50,10 @@
  * le secret dans un terminal, un journal de CI ou une conversation.
  */
 
-// En PREMIER, et pour la meme raison que dans `env.validation.spec.ts` : ce
-// script importe `env.validation.ts`, dont les decorateurs appellent
-// `Reflect.defineMetadata`. Le polyfill arrive aujourd'hui par le graphe
-// d'imports de `class-validator`, donc par effet de bord d'un autre paquet ; ce
-// script ne veut pas en dependre.
+// En PREMIER : ce script importe `env.validation.ts`, dont les decorateurs
+// appellent `Reflect.defineMetadata`. Le polyfill arrive aujourd'hui par le
+// graphe d'imports de `class-validator`, donc par effet de bord d'un autre
+// paquet ; ce script ne veut pas en dependre.
 import 'reflect-metadata';
 
 import { randomUUID } from 'node:crypto';

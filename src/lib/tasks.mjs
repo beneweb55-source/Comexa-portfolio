@@ -1,7 +1,7 @@
 /**
  * Tâches : chemins d'API et profil du créateur.
  *
- * Fonctions pures, testées sous `npm run test:unit`. Elles portent la règle du
+ * Fonctions pures, sans dépendance à React ni à l'API. Elles portent la règle du
  * filtre « par personne » à un seul endroit : le filtre est un IDENTIFIANT de
  * compte (`reporterId`), jamais un nom — deux homonymes restent deux personnes,
  * et un renommage ne déplace pas les tâches.

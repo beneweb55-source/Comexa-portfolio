@@ -165,9 +165,9 @@ export function isClientRole(roles: readonly string[]): boolean {
  * ligne n'est lue avant le refus.
  *
  * NOTE : ce commentaire a annonce un 422 et une liste vide ; ni l'un ni l'autre
- * n'a jamais ete le comportement. Les tests epinglent 403 depuis l'origine
- * (`document-visibility.spec.ts`, « refuse un client qui demande les documents
- * internes »), et c'est donc le commentaire qui etait faux — pas le code.
+ * n'a jamais ete le comportement. Le comportement est un 403 depuis l'origine
+ * (« refuse un client qui demande les documents internes »), et c'est donc le
+ * commentaire qui etait faux — pas le code.
  */
 export function narrowVisibilities(
   allowed: readonly DocumentVisibility[],

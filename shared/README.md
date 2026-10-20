@@ -63,14 +63,12 @@ npm run openapi:export
 > `@IsEmail` -> `format: email`), en plus de resoudre le type reel des champs
 > optionnels. Un `tsc` nu produit donc un document plus pauvre : mesure, 463
 > feuilles en moins, 46 valeurs fausses — dont 45 types ecrits `object` — et 67
-> operations sur 165 concernees. Le detail est dans `backend/docs/TESTING.md`.
+> operations sur 165 concernees.
 
-Le tenir a jour ne repose pas sur la discipline, contrairement aux deux autres :
-`backend/test/docs.e2e-spec.ts` compare ce fichier a la sortie fraiche de
-`configureApp` et **echoue** s'il a pris du retard, en nommant les operations et
-les schemas concernes. Un DTO modifie sans relancer l'export fait donc tomber la
-suite e2e —
-ce qui est exactement le moment ou l'on veut l'apprendre, et non celui ou
+Le tenir a jour repose sur une commande, et non sur la discipline :
+`npm run openapi:export` (dans `backend/`) regenere ce fichier depuis la sortie
+fraiche de `configureApp`. Un DTO modifie sans relancer l'export laisse donc un
+contrat perime — c'est le moment ou l'on veut l'apprendre, et non celui ou
 quelqu'un integre un contrat perime.
 
 ## Comment consommer

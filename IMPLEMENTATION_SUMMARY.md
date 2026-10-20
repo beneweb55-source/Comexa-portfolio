@@ -105,9 +105,7 @@ Ce document résume l'implémentation des fonctionnalités suivantes pour Comexa
 ### 📁 Fichiers générés
 
 - `backend/prisma/schema.prisma` (90K) - Schéma complet
-- `backend/prisma/schema.prisma.backup` - Sauvegarde
-- `backend/prisma/schema.prisma.new` - Version intermédiaire
-- `scripts/apply-schema-additions-final.mjs` - Script d'intégration
+- `backend/prisma/migrations/` - Migrations appliquées par Prisma
 
 ---
 
@@ -323,10 +321,6 @@ backend/
 │   │
 │   └── app.module.ts                    # Module principal
 │
-└── scripts/
-    ├── apply-schema-additions-v4.mjs   # Script ancien
-    └── apply-schema-additions-final.mjs # Script final
-
 frontend/
 └── src/
     └── components/

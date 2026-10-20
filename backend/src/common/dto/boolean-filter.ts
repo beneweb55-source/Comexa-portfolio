@@ -79,10 +79,10 @@ import { IsBoolean, IsOptional } from 'class-validator';
  * ----------------------------------------------------------------------------
  * LA MESURE
  * ----------------------------------------------------------------------------
- * La table de verite de ce contrat est executee par
- * `src/common/dto/boolean-filter.spec.ts`, qui monte le vrai `ValidationPipe` et
- * couvre les trente et une proprietes booleennes d'entree de `src/`. Ce fichier
- * a ete ecrit AVANT le correctif et etait rouge sur trente d'entre elles.
+ * La table de verite de ce contrat a ete etablie contre le vrai
+ * `ValidationPipe` : elle couvre les trente et une proprietes booleennes
+ * d'entree de `src/`. Ce fichier a ete ecrit AVANT le correctif, et le contrat
+ * etait alors rouge sur trente d'entre elles.
  */
 
 /** Message par defaut du validateur. Les sites qui veulent mieux le surchargent. */

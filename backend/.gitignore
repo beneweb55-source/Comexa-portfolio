@@ -4,21 +4,15 @@ node_modules/
 dist/
 *.tsbuildinfo
 
-# Sortie de compilation des tests e2e (voir tsconfig.e2e.json).
-# Dossier distinct de `dist/` : celui-ci est l'artefact de production, et
-# `nest build` le vide a chaque build.
-.e2e-build/
-
 # Sortie de compilation de l'export OpenAPI (voir tsconfig.export.json).
-# Meme raison que `.e2e-build/` : c'est un artefact derive, distinct de `dist/`.
-# Le document lui-meme, lui, EST committe — dans `shared/api/openapi.json`.
+# C'est un artefact derive, distinct de `dist/` : celui-ci est l'artefact de
+# production, et `nest build` le vide a chaque build. Le document lui-meme,
+# lui, EST committe — dans `shared/api/openapi.json`.
 .export-build/
 
 # Sondes de diagnostic jetables. Ce sont des scripts d'enquete ponctuels
 # (mesurer la metadonnee `design:type` d'un DTO, par exemple), pas du code
-# livre : ils n'ont rien a faire dans l'histoire du depot. Un diagnostic qui
-# merite de rester devient une spec dans `src/**/*.spec.ts` — c'est d'ailleurs
-# ce qui a ete fait pour l'inversion des filtres booleens.
+# livre : ils n'ont rien a faire dans l'histoire du depot.
 .probe/
 
 # Sondes jetables a la racine, sous un autre nom. Meme raison que `.probe/`
@@ -28,8 +22,6 @@ dist/
 #   - `tmp-cron-check.mts` : onze lignes verifiant qu'une tache planifiee etait
 #     bien enregistree. Le fichier importait depuis `.e2e-build/`, un dossier
 #     compile et ignore : dans un clone neuf, il n'aurait meme pas pu tourner.
-#     Sa verification n'est pas perdue pour autant — `invoice-overdue.spec.ts`
-#     porte l'assertion equivalente, et celle-la tourne sous `npm test`.
 #   - `cron.out` : une capture de sortie, vide de surcroit. Un fichier vide ne
 #     pese rien, ne casse rien, et se fait donc remarquer par personne.
 #
@@ -89,11 +81,11 @@ cookies.txt
 # L'ANCRE INITIALE EST UNE CORRECTION, PAS UNE COQUETTERIE. Ecrit `storage/` sans
 # ancre, le motif s'applique a TOUTE profondeur : il avalait donc aussi
 # `src/common/storage/`, le code du module de stockage lui-meme. Six fichiers
-# source — `storage.key.ts`, `storage.types.ts`, `storage.module.ts`, les deux
-# pilotes et leur spec — etaient ignores par git et n'auraient JAMAIS ete
-# committes : le module disparaissait pour quiconque clone le depot, alors que la
-# compilation et la suite de tests passaient, puisque l'une comme l'autre lisent
-# le disque et non l'index git. C'est exactement la panne qui ne se voit pas.
+# source — `storage.key.ts`, `storage.types.ts`, `storage.module.ts` et les deux
+# pilotes — etaient ignores par git et n'auraient JAMAIS ete
+# committes : le module disparaitrait pour quiconque clone le depot, alors que la
+# compilation passerait, puisqu'elle lit le disque et non l'index git. C'est
+# exactement la panne qui ne se voit pas.
 #
 # `/storage/` n'ancre que le dossier de l'application, la ou STORAGE_DRIVER=local
 # depose les fichiers envoyes.
@@ -102,9 +94,6 @@ cookies.txt
 # Journalisation
 *.log
 logs/
-
-# Couverture de tests
-coverage/
 
 # Client Prisma genere dans l'arborescence source (`output` de schema.prisma).
 # C'est un artefact derive : il se recree avec `npm run prisma:generate`, et

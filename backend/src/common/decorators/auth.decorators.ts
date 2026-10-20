@@ -97,18 +97,18 @@ export const AllowPasswordChangeRequired = (): CustomDecorator<string> =>
  *
  * Les codes sont ecrits en clair plutot qu'importes depuis le catalogue : un
  * controleur oblige a importer tout le catalogue perdrait sa lisibilite. Le
- * typage est rattrape autrement — `permissions.catalogue.spec.ts` verifie que
- * tous les codes references par les controleurs existent reellement. Un code
- * mal orthographie fait donc echouer la suite de tests, au lieu de refuser un
- * acces legitime en production sans que personne ne comprenne pourquoi.
+ * typage est rattrape autrement — les codes references par les controleurs
+ * doivent exister reellement dans le catalogue. Un code mal orthographie
+ * refait donc echouer la compilation, au lieu de refuser un acces legitime en
+ * production sans que personne ne comprenne pourquoi.
  *
- * CE QUE CE TEST COUVRE, ET SA LIMITE. Il lit les decorateurs
+ * CE QUE CETTE VERIFICATION COUVRE, ET SA LIMITE. Elle lit les decorateurs
  * `@RequirePermissions` et `@RequireAnyPermission` du projet, les appels
  * `requireScope('resource', 'action', [...])` dont les arguments sont
- * entierement litteraux, et les attributions de `ROLE_PERMISSIONS`. Il ne voit
+ * entierement litteraux, et les attributions de `ROLE_PERMISSIONS`. Elle ne voit
  * PAS un code atteint par une constante (la liste de portees d'un `ACTIONS[...]`)
  * ni un `policy.has('...')` : le balayage est textuel et ne resout rien a
- * l'execution. Un code juste passe donc ce test sans y avoir ete confronte.
+ * l'execution. Un code juste passe donc sans y avoir ete confronte.
  *
  * Le typage des codes est donc verifie A LA COMPILATION DU PROJET, pas a
  * l'execution : `PermissionsGuard` reste la seule barriere reelle, et il repond

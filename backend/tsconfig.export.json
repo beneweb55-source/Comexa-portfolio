@@ -2,26 +2,23 @@
   // Configuration de compilation pour L'EXPORT DU DOCUMENT OpenAPI
   // (`npm run openapi:export`, voir `scripts/export-openapi.ts`).
   //
-  // POURQUOI UNE TROISIEME CONFIGURATION, ET PAS `tsconfig.e2e.json`.
+  // POURQUOI UNE CONFIGURATION DEDIEE, ET PAS `tsconfig.json` TEL QUEL.
   //
-  // `tsconfig.e2e.json` compile `src/`, `test/` et `prisma/` — il herite du
-  // `include` de `tsconfig.json`, et n'en change que la sortie. Reutiliser sa
-  // sortie pour cet export marcherait par accident, mais ferait dependre deux
-  // artefacts l'un de l'autre : `.e2e-build/` appartient a `test:e2e`, qui le
-  // remplit par `npm run build:e2e`. Un export qui lirait dedans serait casse le
-  // jour ou `test:e2e` change de dossier, et le lien entre les deux ne serait
-  // ecrit nulle part.
+  // `tsconfig.json` compile `src/` ET `prisma/` — il herite de son `include`,
+  // et n'en change que la sortie. Reutiliser sa sortie pour cet export
+  // marcherait par accident, mais confondrait deux artefacts : `dist/`
+  // appartient a la production (`nest build` le vide a chaque build, voir
+  // `deleteOutDir` dans `nest-cli.json`), et un export qui y ecrirait serait
+  // casse le jour ou la production viendrait a builder.
   //
   // `include` REMPLACE celui du parent — ce n'est pas un ajout. La liste ne
   // contient donc que ce qui est necessaire : `src/` (l'application) et le seul
-  // script d'export. `test/` et `prisma/` en sortent : ni les specs ni le seed
-  // n'ont leur mot a dire dans le document OpenAPI, et les compiler ici ne
-  // ferait qu'allonger la commande.
+  // script d'export. `prisma/` en sort : le seed n'a pas son mot a dire dans
+  // le document OpenAPI, et le compiler ici ne ferait qu'allonger la commande.
   //
-  // `incremental` est desactive pour la meme raison que dans
-  // `tsconfig.e2e.json` : le `.tsbuildinfo` de la racine decrit la compilation
-  // vers `dist/`, et le partager entre deux `outDir` differents produit des
-  // compilations partielles silencieusement fausses.
+  // `incremental` est desactive : le `.tsbuildinfo` de la racine decrit la
+  // compilation vers `dist/`, et le partager entre deux `outDir` differents
+  // produit des compilations partielles silencieusement fausses.
   //
   // CE FICHIER EST COMPILE PAR `nest build -p`, PAS PAR `tsc -p` (voir
   // `openapi:export` dans `package.json`). Ce n'est pas un detail de gout :
@@ -34,8 +31,7 @@
   // Un export passe par `tsc` ecrirait donc dans `shared/api/openapi.json` un
   // contrat PLUS PAUVRE que celui que `npm run start:dev` sert sur `/api/docs` :
   // mesure, 463 feuilles en moins, 46 valeurs fausses — dont 45 types ecrits
-  // `object` — et 67 operations sur 165 concernees. Le detail est dans
-  // `docs/TESTING.md`.
+  // `object` — et 67 operations sur 165 concernees.
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./.export-build",

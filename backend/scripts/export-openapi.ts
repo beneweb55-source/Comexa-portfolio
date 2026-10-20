@@ -25,11 +25,10 @@
  * POURQUOI IL EST COMPILE AVANT D'ETRE EXECUTE
  * -----------------------------------------------------------------------------
  * `tsx` s'appuie sur esbuild, qui n'emet PAS la metadonnee `design:paramtypes`
- * malgre `emitDecoratorMetadata: true` (la mesure est ecrite en tete de
- * `tsconfig.e2e.json`). Or ce script demarre le VRAI `AppModule` : sous `tsx`,
- * Nest croirait chaque constructeur vide et l'application echouerait au
- * demarrage. D'ou `nest build -p tsconfig.export.json`, puis l'execution du
- * JavaScript compile — exactement la recette de `test:e2e`.
+ * malgre `emitDecoratorMetadata: true`. Or ce script demarre le VRAI
+ * `AppModule` : sous `tsx`, Nest croirait chaque constructeur vide et
+ * l'application echouerait au demarrage. D'ou `nest build -p
+ * tsconfig.export.json`, puis l'execution du JavaScript compile.
  *
  * `nest build` ET NON `tsc` : c'est le seul qui applique le plugin Swagger de
  * `nest-cli.json`, donc le seul dont la sortie donne le document que
@@ -41,15 +40,14 @@
  * Compile par `tsc`, ce script ecrirait donc un contrat PLUS PAUVRE que celui
  * que le serveur de developpement affiche : mesure, 463 feuilles en moins, 46
  * valeurs fausses — dont 45 types ecrits `object` — et 67 operations sur 165
- * concernees. Le detail est dans `docs/TESTING.md`.
+ * concernees.
  *
  * -----------------------------------------------------------------------------
  * CE QU'IL FAUT POUR LE LANCER, ET CE QU'IL FAUT SAVOIR
  * -----------------------------------------------------------------------------
  * `backend/.env` avec `DATABASE_URL` : le script demarre `AppModule`, donc
  * `PrismaService.onModuleInit` ouvre une connexion. AUCUNE ECRITURE et aucune
- * lecture de donnee metier — la connexion est le prix de l'assemblage reel,
- * comme pour les specs e2e.
+ * lecture de donnee metier — la connexion est le prix de l'assemblage reel.
  *
  * `NODE_ENV` NE DOIT PAS VALOIR `production`. C'est la condition meme qui fait
  * retourner `undefined` a `configureApp` : le script le detecte et refuse,
@@ -57,9 +55,8 @@
  *
  * LE DOCUMENT DEPEND DE `API_PREFIX`. Les chemins qu'il contient portent le
  * prefixe (`/api/...`), pris dans `.env` — par defaut `api`. Un prefixe
- * different produirait un contrat different, et `test/docs.e2e-spec.ts`
- * comparerait alors deux documents issus de deux configurations : c'est la
- * raison pour laquelle ce test se contente de lire `.env`, sans override.
+ * different produirait un contrat different : c'est la raison pour laquelle ce
+ * script se contente de lire `.env`, sans override.
  *
  * -----------------------------------------------------------------------------
  * USAGE
@@ -68,9 +65,9 @@
  *     npm run openapi:export -- ../shared/api/openapi.json
  *
  * Le second argument est le chemin de sortie, resolu depuis `backend/`. Changer
- * de destination ne change RIEN pour `test/docs.e2e-spec.ts`, qui lit toujours
+ * de destination ne change RIEN pour le contrat commite, qui reste toujours
  * `shared/api/openapi.json` : ecrire ailleurs produit un document que personne
- * ne verifie.
+ * ne lit.
  */
 import 'dotenv/config';
 import 'reflect-metadata';
@@ -84,7 +81,7 @@ import { serializeOpenApi } from '../src/common/openapi/serialize-openapi.js';
 /** Destination par defaut : le contrat du frontend, a la racine du depot. */
 const DESTINATION_PAR_DEFAUT = '../shared/api/openapi.json';
 
-/** Les seules methodes comptees comme operations, comme dans `docs.e2e-spec.ts`. */
+/** Les seules methodes comptees comme operations dans le document. */
 const METHODES_HTTP = ['get', 'post', 'put', 'patch', 'delete'] as const;
 
 /** Nom attendu du paquet : sert a verifier que l'on tourne bien depuis `backend/`. */
@@ -211,8 +208,8 @@ async function main(): Promise<void> {
       `  routes   : ${operations}`,
       `  taille   : ${ko(octets)} (${octets} octets)`,
       '',
-      'Ce fichier est committe : `test/docs.e2e-spec.ts` le compare au document',
-      "reellement genere par `configureApp`, et echoue s'il a pris du retard sur le code.",
+      'Ce fichier est committe : il fait reference au document',
+      'reellement genere par `configureApp`. Le regenere quand le code change.',
       '',
     ].join('\n'),
   );

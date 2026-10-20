@@ -1,5 +1,5 @@
 /**
- * Mise en forme du minuteur. Fonctions pures, testées sous `npm run test:unit`.
+ * Mise en forme du minuteur. Fonctions pures, sans dépendance à React ni à l'API.
  */
 
 /** `HH:MM:SS`, jamais négatif. */

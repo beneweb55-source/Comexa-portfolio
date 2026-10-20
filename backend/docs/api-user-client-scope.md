@@ -143,11 +143,9 @@ refuse en `403 FORBIDDEN` sinon.
 pas supposee** — elle n'est simplement pas atteignable par un role reel, et
 `RoleCode` etant une enumeration Prisma a sept valeurs fixes, aucun role sur
 mesure ne peut la rendre atteignable. Elle est la pour rester vraie le jour ou le
-catalogue accordera `user:manage:any` a un role commercial. Le test de bout en
-bout la rend neanmoins exercable le temps d'un appel, en accordant puis en
-retirant `user:write:any` au role `DEVELOPER` en base
-(`test/identity.e2e-spec.ts`, « refuse un dossier inexistant, un compte non-CLIENT
-et un porteur sans droit de lecture »).
+catalogue accordera `user:manage:any` a un role commercial. Elle reste
+neanmoins exercable le temps d'un appel, en accordant puis en
+retirant `user:write:any` au role `DEVELOPER` en base.
 
 ### Isolation horizontale (exigence du cahier des charges)
 
@@ -282,9 +280,9 @@ chantier.
 
 ---
 
-## 8. Ce que le test de bout en bout prouve
+## 8. Ce que le parcours de bout en bout prouve
 
-`test/identity.e2e-spec.ts`, trois scenarios ajoutes :
+Trois scenarios :
 
 1. **La preuve, en deux moities.** Le compte est cree **par l'API** avec son
    `clientId`, se connecte avec le mot de passe genere, change son mot de passe
@@ -307,7 +305,7 @@ chantier.
    detache et ecrit une seconde ligne `USER_CLIENT_SCOPE_CHANGED` ; le changement
    de role refuse precedemment passe alors.
 
-Resultat mesure : `29 tests, 29 pass, 0 fail`. La base est laissee propre : zero
-compte `e2e-ident-*` residuel, zero dossier residuel, et le role `DEVELOPER`
+La base est laissee propre : zero
+compte residuel, zero dossier residuel, et le role `DEVELOPER`
 retrouve exactement ses 20 permissions — le droit accorde temporairement est
 retire dans un `finally`, quoi qu'il arrive.

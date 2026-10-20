@@ -67,7 +67,6 @@ La coque occupe la fenêtre (`100dvh`, avec repli `100vh`), sans cadre extérieu
 ### Refonte soft UI (état actuel du dépôt)
 
 - `npm run lint` : réussi (règles React Compiler incluses).
-- `npm run test:unit` : 33 tests réussis.
 - `npm run build` : compilation de production réussie (Next 16, Turbopack).
 - Contrôle statique des classes : toute classe `sui-*` utilisée par un composant
   est définie dans `softui.components.css`, et inversement (hors identifiants

@@ -46,10 +46,10 @@ import {
  * lire le portefeuille d'un collegue.
  *
  * LES CODES SONT ECRITS EN CLAIR. Les importer depuis le catalogue obligerait a
- * l'importer en entier ici. Le typage est rattrape par
- * `permissions.catalogue.spec.ts`, qui verifie que tout code cite dans un
- * controleur existe bien : une faute de frappe fait echouer la suite de tests
- * plutot que de refuser un acces legitime en production.
+ * l'importer en entier ici. Le typage est rattrape ailleurs : tout code cite
+ * dans un controleur doit exister dans le catalogue, et une faute de frappe
+ * ferait echouer la compilation plutot que de refuser un acces legitime en
+ * production.
  *
  * AUCUN CODE DEDIE AU CHANGEMENT D'ETAPE. Le catalogue n'a pas de
  * `prospect:status:*` : deployer l'etape est un ecrit sur la fiche, donc

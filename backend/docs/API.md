@@ -497,8 +497,8 @@ Le catalogue compte **100 codes** de la forme `ressource:action:portee`
 (exactement trois segments). Chaque role detient une liste de codes ; `ADMIN`
 detient `'ALL'`.
 
-Le typage est verifie a la compilation et par `permissions.catalogue.spec.ts` :
-un code mal orthographie fait echouer la suite de tests plutot que de refuser
+Le typage est verifie a la compilation :
+un code mal orthographie fait echouer la compilation plutot que de refuser
 silencieusement un acces legitime en production.
 
 ### Les six portees, et pourquoi il y en a deux sortes
@@ -738,22 +738,20 @@ connexion PostgreSQL, sans lire ni ecrire aucune donnee metier — et elle refus
 de tourner si `NODE_ENV` vaut `production`, cas ou `configureApp` ne construit
 aucun document.
 
-Corriger le fichier a la main ne sert a rien : `test/docs.e2e-spec.ts` le compare
-a la sortie fraiche et echoue au premier ecart, en nommant les operations **et
-les schemas** concernes. Un DTO modifie sans relancer l'export fait donc tomber
-la suite e2e.
+Corriger le fichier a la main ne sert a rien : `npm run openapi:export` le
+regenere depuis la sortie fraiche. Un DTO modifie sans relancer l'export laisse
+donc un contrat perime.
 
 L'egalite entre ce fichier et ce que sert le serveur de developpement tient a un
 detail de compilation : **le plugin Swagger de `nest-cli.json`**. Il n'est
 applique que par `nest build`, jamais par `tsc`. Ce plugin lit les decorateurs
 class-validator et recopie leurs bornes dans le schema (`@MaxLength` ->
 `maxLength`, `@Min` -> `minimum`, `@IsEmail` -> `format: email`), en plus de
-resoudre le type reel des champs optionnels. Les deux commandes qui produisent ou
-verifient ce document (`openapi:export` et `build:e2e`) passent donc par
+resoudre le type reel des champs optionnels. La commande qui produit ce
+document (`openapi:export`) passe donc par
 `nest build` — sinon le document committe serait plus pauvre que celui de
 `/api/docs` : c'etait le cas, 463 feuilles en moins, 46 valeurs fausses et 67
-operations sur 165 concernees. Le detail de cette mesure est dans
-`docs/TESTING.md`. En local, `npm run start:dev` sert donc **ce meme** document
+operations sur 165 concernees. En local, `npm run start:dev` sert donc **ce meme** document
 sur `/api/docs`, avec l'interface Swagger pour l'explorer.
 
 ### Authentification : une exigence globale, et des exceptions declarees
@@ -782,12 +780,12 @@ onze routes de contenu public. L'inventaire complet est en §10, ou ces routes s
 reconnaissent a leur colonne **Permission** valant `publique`. Les trois sources
 doivent concorder : l'inventaire, les `@Public()` du code, et le document genere.
 
-Deux tests tiennent cet accord entre le code et le document :
-`src/common/decorators/public.decorator.spec.ts` verifie la mecanique du
-decorateur, et `test/docs.e2e-spec.ts` verifie le document que `configureApp`
-produit reellement — il compare notamment le nombre de routes publiques
-documentees au nombre de `@Public()` ecrits dans les sources, et l'egalite entre
-le document genere et `shared/api/openapi.json`.
+L'accord entre le code et le document est tenu par la construction elle-meme :
+`common/decorators/public.decorator.ts` est la seule source, et le document est
+produit par la meme fonction d'assemblage que le serveur. Un `@Public()` ajoute
+au code se retrouve donc automatiquement dans le document, avec `security: []` —
+l'inventaire, les `@Public()` du code et le document genere ne peuvent pas
+diverger.
 
 ---
 
@@ -877,9 +875,7 @@ l'injection de dependances** : esbuild n'emet pas la metadonnee
 plus quoi injecter. Le symptome est
 `Nest can't resolve dependencies of the JwtAuthGuard (?, Symbol(...))`.
 
-C'est pourquoi `test:e2e` compile d'abord (`npm run build:e2e`) et pourquoi la
-production demarre par `node dist/main.js`. `npm test` sous `tsx` reste valide : la
-suite unite ne teste que des fonctions pures, sans conteneur d'injection.
+C'est pourquoi la production demarre par `node dist/main.js`, et non par `tsx`.
 
 ### Image Docker non verifiee
 

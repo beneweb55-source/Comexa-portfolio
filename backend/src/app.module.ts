@@ -212,7 +212,7 @@ const isProduction = process.env.NODE_ENV === 'production';
      * personnes est une liste ou la derniere ecriture gagne — et rien ne le
      * signale, puisque le fichier reste valide et la compilation reste verte.
      *
-     * SANS CES TROIS LIGNES, `test/identity.e2e-spec.ts` repond 404 PARTOUT :
+     * SANS CES TROIS LIGNES, L'API REPOND 404 PARTOUT :
      * les controleurs existent, la route n'est pas montee. C'est le mode de
      * defaillance le plus couteux a diagnostiquer, parce que le code des
      * controleurs est juste et que le symptome est un 404, pas une erreur.
