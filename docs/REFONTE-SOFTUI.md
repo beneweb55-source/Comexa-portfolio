@@ -65,7 +65,7 @@ tangents au bord noir.
 | `espace-equipe/clients` | Grille de cartes : initiales en pastille, référence, secteur/ville/pays, statut ; filtres en pilules ; la recherche du bandeau alimente le paramètre `search` de l'API. |
 | `espace-equipe/projets` | Bandeau de KPI, filtres de statut avec compteurs, progression teintée par statut, bascule **Cartes / Liste** (`softui/ListView`, choix mémorisé). |
 | `espace-equipe/devis` | Filtres en pilules, montant en pilule blanche, bouton principal noir conditionné à `quote:write:any`. |
-| `espace-equipe/factures` | KPI par devise (facturé, encaissé, reste à encaisser, en retard), filtres avec compteurs, échéance dépassée signalée, vue **Liste** par défaut (tableau) ou cartes. |
+| `espace-equipe/factures` | KPI par devise (facturé, encaissé, reste à encaisser, en retard), sélecteur **DA / EUR / les deux** mémorisé (défaut : DA), filtres avec compteurs, échéance dépassée signalée, vue **Liste** par défaut (tableau) ou cartes. |
 | `espace-equipe/commandes` | Reste un **tableau** (file d'actions), habillé soft UI : pilules de filtre, alertes pastel, boutons secondaire/principal, statuts en pilules. Toute la logique (validation, démarrage, paiement, confirmations) est conservée. |
 | Autres pages `espace-equipe/*` et `espace-client/*` | Bénéficient de la coque (navbar, rail, en-tête, Admin Desk, dock, tiroirs) sans modification de page. |
 

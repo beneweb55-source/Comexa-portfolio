@@ -17,29 +17,15 @@
  *   - LES TARIFS PUBLICS (prix de départ des services) : DA, EUR ou USD. Le
  *     site vitrine annonce des prix et peut vouloir le dollar.
  *
- * Le libellé porte le nom complet de la devise pour que « DA » ne se confonde
- * pas avec une autre abréviation ; le code reste la valeur envoyée.
+ * LES OPTIONS VIENNENT DE `lib/currency.js` : les codes, les libellés et le
+ * formatage des montants n'existent qu'à un seul endroit. Ajouter une devise
+ * ici sans l'ajouter là-bas ferait réapparaître un affichage à deux vitesses.
  */
 
+import { CURRENCY_OPTIONS, CONTENT_CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "@/lib/currency";
 import { selectClass } from "@/components/workspace/ui";
 
-/** Devises d'un document commercial, dans l'ordre d'usage attendu. */
-export const CURRENCY_OPTIONS = [
-  { code: "DZD", label: "DA · Dinar algérien" },
-  { code: "EUR", label: "EUR · Euro" },
-];
-
-/** Devises des tarifs publics : une de plus que les documents. */
-export const CONTENT_CURRENCY_OPTIONS = [...CURRENCY_OPTIONS, { code: "USD", label: "USD · Dollar américain" }];
-
-/** Devise par défaut : alignée sur `Project.currency` et `Quote.currency`. */
-export const DEFAULT_CURRENCY = "DZD";
-
-/** Libellé d'une devise, sans plantage si le code n'est pas dans la liste. */
-export function currencyLabel(code, options = CURRENCY_OPTIONS) {
-  const found = options.find((option) => option.code === code);
-  return found ? found.label : (code || "—");
-}
+export { CURRENCY_OPTIONS, CONTENT_CURRENCY_OPTIONS, DEFAULT_CURRENCY, currencyLabel } from "@/lib/currency";
 
 export default function CurrencySelect({
   id,

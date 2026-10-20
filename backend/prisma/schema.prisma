@@ -2032,7 +2032,7 @@ model ModificationRequest {
   /// le chiffrage eventuel repasse par un devis.
   estimatedMinutes  Int?
   extraCost         Decimal? @db.Decimal(14, 2)
-  extraCostCurrency String   @default("EUR")
+  extraCostCurrency String   @default("DZD")
 
   requestedById String?
   requestedBy   User?     @relation("ModificationRequester", fields: [requestedById], references: [id], onDelete: SetNull)

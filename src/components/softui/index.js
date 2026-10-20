@@ -11,6 +11,8 @@ export { default as PageHeader } from "./PageHeader";
 export { default as AdminDeskPanel } from "./AdminDeskPanel";
 export { default as Dock } from "./Dock";
 export { default as KpiCard, KpiGrid } from "./KpiCard";
+export { default as CurrencyAmounts } from "./CurrencyAmounts";
+export { default as CurrencyScopeToggle } from "./CurrencyScopeToggle";
 export { default as ItemCard, ItemGrid, ProgressBar } from "./ItemCard";
 export { default as Tooltip } from "./Tooltip";
 export { Panel, ActivityList, HealthList } from "./panels";

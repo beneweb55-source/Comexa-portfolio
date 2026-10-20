@@ -282,6 +282,14 @@ export class ListQuotesQueryDto extends PaginationQueryDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  /** Devise du document (DZD, EUR...). Filtre applique avant la pagination. */
+  @ApiPropertyOptional({ description: 'Devise ISO 4217 (ex. DZD, EUR).' })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(3)
+  currency?: string;
 }
 
 /** Nombre de lignes maximum par piece. Exporte pour les tests de borne. */

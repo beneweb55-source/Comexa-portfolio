@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
+import { DEFAULT_CURRENCY } from "@/lib/currency";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE } from "@/lib/commercial";
@@ -106,7 +107,7 @@ export default function ProspectDetailPage({ params }) {
           </div>
           <div>
             <dt className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">Budget estimé</dt>
-            <dd>{data.estimatedBudget ? formatMoney(data.estimatedBudget, "EUR") : "—"}</dd>
+            <dd>{data.estimatedBudget ? formatMoney(data.estimatedBudget, DEFAULT_CURRENCY) : "—"}</dd>
           </div>
           {data.notes ? (
             <div className="sm:col-span-2">

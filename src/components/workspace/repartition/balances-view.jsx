@@ -279,9 +279,9 @@ export default function BalancesView() {
                 onChange={(event) => setFilters({ ...filters, currency: event.target.value })}
               >
                 <option value="">Toutes les devises</option>
-                <option value="DZD">DZD</option>
-                <option value="EUR">EUR</option>
-                <option value="USD">USD</option>
+                <option value="DZD">DA · Dinar algérien</option>
+                <option value="EUR">EUR · Euro</option>
+                <option value="USD">USD · Dollar américain</option>
               </select>
             </Field>
 
