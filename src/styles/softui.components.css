@@ -4170,26 +4170,36 @@ textarea.sui-input {
   font-weight: 700;
 }
 
-/* État vide : cadre pointillé, icône dans un cercle pastel, phrase centrée. */
+/* État vide : cadre pointillé compact, icône centrée dans un cercle pastel. */
 .sui-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 28px 18px;
-  border: 2px dashed rgba(17, 17, 17, 0.16);
-  border-radius: var(--r-card);
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 16px;
+  border: 1.5px dashed rgba(17, 17, 17, 0.14);
+  border-radius: 18px;
   text-align: center;
 }
 
 .sui-empty__icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  margin-inline: auto;
   border-radius: 50%;
   background: var(--lilac);
   color: var(--ink);
+  line-height: 0;
+}
+
+.sui-empty__icon svg {
+  display: block;
+  flex: 0 0 auto;
 }
 
 .sui-empty__copy {
@@ -4431,7 +4441,8 @@ select.sui-input {
   flex-direction: column;
   gap: 4px;
   margin: 12px 0 0;
-  padding-left: 20px;
+  padding-left: 18px;
+  list-style: decimal;
   font-size: var(--fs-small);
   font-weight: 500;
   color: var(--ink);

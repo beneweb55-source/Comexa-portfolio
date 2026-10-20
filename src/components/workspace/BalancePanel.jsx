@@ -108,11 +108,12 @@ export default function BalancePanel() {
 
   return (
     <Card
+      className="sui-panel--balance"
       title="Mon solde"
       subtitle="Ce que Comexa vous doit, par devise — comme un compte bancaire."
       action={
-        <button type="button" className={secondaryButton} onClick={load} disabled={loading}>
-          <RefreshCw size={15} strokeWidth={1.9} className={loading ? "sui-spin" : ""} aria-hidden="true" /> Actualiser
+        <button type="button" className={`${secondaryButton} sui-btn--sm`} onClick={load} disabled={loading}>
+          <RefreshCw size={14} strokeWidth={2} className={loading ? "sui-spin" : ""} aria-hidden="true" /> Actualiser
         </button>
       }
     >

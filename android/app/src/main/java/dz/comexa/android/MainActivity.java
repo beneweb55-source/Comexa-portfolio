@@ -12,8 +12,12 @@ import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.DisplayCutout;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.widget.FrameLayout;
 import android.webkit.CookieManager;
 import android.webkit.HttpAuthHandler;
 import android.webkit.SslErrorHandler;
@@ -54,14 +58,25 @@ public class MainActivity extends Activity {
     /** Noir de la coque (`--shell`) : les barres système le prolongent. */
     private static final String SHELL_COLOR = "#0b0a0f";
 
+    private FrameLayout rootContainer;
     private WebView web;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        int shellColor = Color.parseColor(SHELL_COLOR);
+        rootContainer = new FrameLayout(this);
+        rootContainer.setBackgroundColor(shellColor);
+
         web = new WebView(this);
-        setContentView(web);
+        web.setBackgroundColor(shellColor);
+        rootContainer.addView(
+                web,
+                new FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(rootContainer);
 
         applyEdgeToEdge();
         configureWebSettings();
@@ -85,15 +100,24 @@ public class MainActivity extends Activity {
 
     /**
      * Bord à bord : la fenêtre s'étire sous les barres système, assorties au
-     * noir de la coque, et le contenu utile est rembourré par les insets — la
-     * navbar du site arrive exactement sous l'horloge, sans marge blanche.
+     * noir de la coque, et le conteneur parent est rembourré par les insets
+     * (barres système, encoche caméra et clavier) pour que le viewport WebView
+     * démarre exactement sous l'horloge et au-dessus de la barre de navigation.
      */
+    @SuppressWarnings("deprecation")
     private void applyEdgeToEdge() {
-        getWindow().setStatusBarColor(Color.parseColor(SHELL_COLOR));
-        getWindow().setNavigationBarColor(Color.parseColor(SHELL_COLOR));
+        int shellColor = Color.parseColor(SHELL_COLOR);
+        getWindow().setStatusBarColor(shellColor);
+        getWindow().setNavigationBarColor(shellColor);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             getWindow().setDecorFitsSystemWindows(false);
+            WindowInsetsController controller = getWindow().getInsetsController();
+            if (controller != null) {
+                int mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(0, mask);
+            }
         } else {
             getWindow().getDecorView().setSystemUiVisibility(
                     View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -101,25 +125,30 @@ public class MainActivity extends Activity {
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
 
-        web.setOnApplyWindowInsetsListener((view, insets) -> {
-            int left;
-            int top;
-            int right;
-            int bottom;
+        rootContainer.setOnApplyWindowInsetsListener((view, insets) -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                left = bars.left;
-                top = bars.top;
-                right = bars.right;
-                bottom = bars.bottom;
-            } else {
-                left = insets.getSystemWindowInsetLeft();
-                top = insets.getSystemWindowInsetTop();
-                right = insets.getSystemWindowInsetRight();
-                bottom = insets.getSystemWindowInsetBottom();
+                android.graphics.Insets safe = insets.getInsets(
+                        WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout()
+                                | WindowInsets.Type.ime());
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+                return WindowInsets.CONSUMED;
+            }
+            int left = insets.getSystemWindowInsetLeft();
+            int top = insets.getSystemWindowInsetTop();
+            int right = insets.getSystemWindowInsetRight();
+            int bottom = insets.getSystemWindowInsetBottom();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                DisplayCutout cutout = insets.getDisplayCutout();
+                if (cutout != null) {
+                    left = Math.max(left, cutout.getSafeInsetLeft());
+                    top = Math.max(top, cutout.getSafeInsetTop());
+                    right = Math.max(right, cutout.getSafeInsetRight());
+                    bottom = Math.max(bottom, cutout.getSafeInsetBottom());
+                }
             }
             view.setPadding(left, top, right, bottom);
-            return insets;
+            return insets.consumeSystemWindowInsets();
         });
     }
 

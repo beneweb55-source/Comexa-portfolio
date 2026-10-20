@@ -122,23 +122,44 @@ summary {
     flex: 0 0 auto;
     align-items: center;
     gap: 6px;
-    height: calc(var(--sui-appbar-h) + var(--sui-safe-top));
-    padding: var(--sui-safe-top) 8px 0 12px;
+    min-height: calc(var(--sui-appbar-h) + var(--sui-safe-top));
+    height: auto;
+    padding: var(--sui-safe-top) max(8px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
     background: var(--shell);
     color: var(--shell-ink);
     z-index: 42;
   }
 
   .sui-appbar__logo {
+    position: relative;
     display: inline-flex;
     flex: 0 0 auto;
     align-items: center;
+    min-height: 44px;
+    padding-inline: 2px;
     border-radius: 8px;
   }
 
   .sui-appbar__logo img {
-    height: 22px;
+    display: block;
+    height: 19px;
     width: auto;
+    max-width: none;
+  }
+
+  /* Dès que l'espace latéral se resserre (< 430 px) ou qu'un décompte actif
+     s'affiche dans la barre, on affiche l'emblème officiel Comexa (sans le
+     mot-symbole long) pour laisser le nom complet de l'espace respirer. */
+  .sui-appbar:has(.sui-dock-timer__trigger.is-active) .sui-appbar__logo {
+    width: 24px;
+    padding-inline: 0;
+    overflow: hidden;
+  }
+
+  .sui-appbar:has(.sui-dock-timer__trigger.is-active) .sui-appbar__logo img {
+    height: 21px;
+    object-fit: cover;
+    object-position: left center;
   }
 
   .sui-appbar__space {
@@ -169,22 +190,24 @@ summary {
 
   .sui-appbar__space svg {
     flex: 0 0 auto;
-    opacity: 0.7;
+    opacity: 0.72;
   }
 
   .sui-appbar__tools {
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
   }
 
   .sui-appbar__icon {
     position: relative;
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
+    min-width: 40px;
+    min-height: 40px;
     border: 0;
     border-radius: 50%;
     background: transparent;
@@ -200,8 +223,8 @@ summary {
 
   .sui-appbar__badge {
     position: absolute;
-    top: 4px;
-    right: 2px;
+    top: 5px;
+    right: 3px;
     display: grid;
     place-items: center;
     min-width: 16px;
@@ -221,22 +244,42 @@ summary {
   }
 
   .sui-appbar .sui-dock-timer__trigger {
-    width: 44px;
-    height: 44px;
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
     justify-content: center;
     padding: 0;
+    flex: 0 0 auto;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger::after {
+    content: "";
+    position: absolute;
+    inset: -3px -2px;
   }
 
   .sui-appbar .sui-dock-timer__trigger.is-active {
     width: auto;
-    max-width: 64px;
-    padding: 0 6px;
-    gap: 4px;
+    max-width: none;
+    height: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  .sui-appbar .sui-dock-timer__trigger.is-active::after {
+    inset: -5px -2px;
   }
 
   .sui-appbar .sui-dock-timer__trigger.is-active .cx-timer-pill__trigger-time {
     display: inline;
     font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
   }
 
   .sui-appbar .sui-dock-timer__panel {
@@ -254,24 +297,39 @@ summary {
 
   .sui-mobile-tabbar {
     display: flex;
-    height: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom));
-    padding: 4px 6px var(--sui-safe-bottom);
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    align-items: center;
+    min-height: calc(var(--sui-tabbar-h) + var(--sui-safe-bottom));
+    height: auto;
+    padding: 5px max(6px, env(safe-area-inset-right, 0px)) max(6px, var(--sui-safe-bottom)) max(6px, env(safe-area-inset-left, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
     background: var(--shell);
+    z-index: 42;
   }
 
   .sui-mobile-tab {
+    flex: 1 1 0;
+    min-width: 0;
     min-height: 48px;
-    gap: 2px;
-    padding: 4px 2px 6px;
+    gap: 3px;
+    padding: 4px 2px 5px;
     border-radius: 14px;
-    font-size: 10.5px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.15;
     letter-spacing: -0.01em;
+    white-space: nowrap;
     background: transparent;
   }
 
+  .sui-mobile-tab span:not(.sui-mobile-tab__dot) {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .sui-mobile-tab--active {
-    background: transparent;
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
   }
 
@@ -288,44 +346,125 @@ summary {
   }
 
   .sui-main__scroll {
-    padding: 16px 14px calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 20px);
+    padding: 16px max(16px, env(safe-area-inset-right, 0px)) calc(var(--sui-tabbar-h) + var(--sui-safe-bottom) + 28px) max(16px, env(safe-area-inset-left, 0px));
   }
 
   .sui-canvas-inner {
-    gap: 16px;
+    gap: 14px;
+  }
+
+  .sui-main__scroll .gap-6 {
+    gap: 14px;
   }
 
   .sui-head {
-    gap: 12px;
+    gap: 10px;
   }
 
   .sui-head__left {
     flex-basis: 100%;
-    gap: 12px;
+    gap: 11px;
   }
 
   .sui-head__icon {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
   }
 
   .sui-head__icon svg {
-    width: 20px;
-    height: 20px;
+    width: 19px;
+    height: 19px;
+  }
+
+  .sui-head__crumb {
+    font-size: 11px;
   }
 
   .sui-head__title {
-    font-size: clamp(1.35rem, 6.2vw, 1.7rem);
+    font-size: clamp(1.24rem, 5.4vw, 1.55rem);
     line-height: 1.15;
   }
 
   .sui-head__sub {
     display: -webkit-box;
-    margin-top: 4px;
+    margin-top: 3px;
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-    font-size: 13.5px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .sui-panel,
+  .sui-card {
+    padding: 18px;
+    border-radius: 22px;
+  }
+
+  .sui-section__title {
+    font-size: 16.5px;
+    line-height: 1.25;
+  }
+
+  .sui-panel__sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .sui-empty {
+    gap: 7px;
+    padding: 15px 14px;
+    border-radius: 16px;
+  }
+
+  .sui-empty__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .sui-empty__copy {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .sui-identity {
+    gap: 14px;
+  }
+
+  .sui-identity__avatar,
+  .sui-identity__avatar .cx-avatar {
+    width: 54px !important;
+    height: 54px !important;
+    font-size: 19px !important;
+  }
+
+  .sui-identity__name {
+    font-size: clamp(1.2rem, 5.2vw, 1.45rem);
+    line-height: 1.18;
+  }
+
+  .sui-identity__mail {
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .sui-identity__roles {
+    margin-top: 8px;
+    font-size: 12.5px;
+  }
+
+  .sui-identity__meta {
+    width: 100%;
+    margin-left: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line-soft);
+    gap: 10px 20px;
+  }
+
+  .sui-code-big {
+    font-size: clamp(20px, 6.4vw, 26px);
+    letter-spacing: 0.22em;
   }
 
   .sui-head__actions {
@@ -361,10 +500,23 @@ summary {
     display: none;
   }
 
-  .sui-drawer {
-    width: 100%;
+  .sui-scrim {
+    position: fixed;
+    inset: 0;
     border-radius: 0;
-    padding: calc(12px + var(--sui-safe-top)) 16px calc(16px + var(--sui-safe-bottom));
+  }
+
+  .sui-drawer {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - max(var(--sui-safe-top, 0px), 12px) - 36px);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 16px calc(20px + var(--sui-safe-bottom, 0px));
   }
 
   .sui-drawer--nav::before {
@@ -665,16 +817,21 @@ summary {
   .sui-dialog-backdrop,
   .sui-cmdk-backdrop {
     align-items: flex-end;
-    padding: 0;
+    padding: max(12px, calc(var(--sui-safe-top, 0px) + 8px)) 0 0;
   }
 
   .sui-dialog,
   .sui-cmdk {
     width: 100%;
     max-width: none;
-    max-height: min(92dvh, 100%);
+    max-height: calc(100dvh - max(var(--sui-safe-top, 0px), 12px) - 24px);
     border-radius: 24px 24px 0 0;
     padding-bottom: var(--sui-safe-bottom);
+  }
+
+  .sui-focus {
+    padding-top: max(20px, calc(var(--sui-safe-top, 0px) + 12px));
+    padding-bottom: max(20px, calc(var(--sui-safe-bottom, 0px) + 12px));
   }
 
   .sui-dialog__head,
@@ -695,7 +852,7 @@ summary {
   }
 
   .sui-cmdk {
-    max-height: min(88dvh, 100%);
+    max-height: calc(100dvh - max(var(--sui-safe-top, 0px), 12px) - 36px);
   }
 
   .sui-cmdk__footer {
@@ -703,13 +860,43 @@ summary {
   }
 
   .sui-section__head {
+    flex-wrap: wrap;
     align-items: flex-start;
+    gap: 8px 10px;
   }
 
+  .sui-section__head > .min-w-0,
+  .sui-section__head > .sui-section__title {
+    flex: 1 1 158px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .sui-panel--balance .sui-card__head > .min-w-0 {
+    flex: 1 1 136px;
+  }
+
+  /* Les boutons isolés et pastilles (« Actualiser », « Non lié », « Ajouter »)
+     restent proportionnés à leur contenu et alignés à droite ; seules les
+     barres d'outils contenant un formulaire ou un filtre passent sur 100 %. */
   .sui-card__actions,
-  .sui-section__head .sui-card__actions,
+  .sui-section__head .sui-card__actions {
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+
+  .sui-card__actions .sui-btn,
+  .sui-section__head .sui-card__actions .sui-btn {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .sui-card__actions:has(form, .sui-input, select),
+  .sui-section__head .sui-card__actions:has(form, .sui-input, select),
   .sui-card__actions form,
-  .sui-card__actions .flex,
   .sui-viewport form.flex {
     width: 100%;
     margin-left: 0;
@@ -719,6 +906,41 @@ summary {
   .sui-card__actions form .sui-input,
   .sui-card__actions .sui-input {
     flex: 1 1 100%;
+  }
+
+  /* Relevé d'opérations et sessions ouvertes : aucun texte essentiel coupé. */
+  .sui-lines--rows > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 6px 10px;
+    padding: 10px 0;
+  }
+
+  .sui-lines--rows > li > .sui-lines__icon {
+    margin-top: 2px;
+  }
+
+  .sui-lines--rows > li > .sui-lines__copy {
+    min-width: 0;
+  }
+
+  .sui-lines--rows > li > .sui-lines__copy strong,
+  .sui-lines--rows > li > .sui-lines__copy span {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .sui-lines--rows > li > .sui-lines__copy span {
+    line-height: 1.45;
+  }
+
+  .sui-lines--rows > li > .sui-lines__end {
+    grid-column: 2;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    margin-top: 2px;
   }
 
   .sui-viewport .ml-auto.grid {
@@ -816,28 +1038,130 @@ summary {
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 430px) {
+  /* Sous 430 px, la barre haute affiche l'emblème carré officiel Comexa : la
+     marque reste présente tout en libérant 72 px pour le nom complet de
+     l'espace et les actions rapides. */
+  .sui-appbar__logo {
+    width: 24px;
+    padding-inline: 0;
+    overflow: hidden;
+  }
+
+  .sui-appbar__logo img {
+    height: 21px;
+    object-fit: cover;
+    object-position: left center;
+  }
+
+  /* Lorsqu'un décompte en direct tourne en haut sur un écran étroit, le
+     déclencheur secondaire au repos cède sa place dans la barre (il reste
+     accessible en un geste dans « Plus → Actions rapides »). */
+  .sui-appbar:has(.sui-dock-timer__trigger.is-active) [data-role="focus-trigger"]:not(.is-active) {
+    display: none;
+  }
+
+  .sui-main__scroll {
+    padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px));
+    padding-top: 14px;
+  }
+
   .sui-kpis,
   .sui-viewport .grid-cols-3 {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .sui-main__scroll {
-    padding-inline: 12px;
+  .sui-panel,
+  .sui-card {
+    padding: 16px;
+    border-radius: 20px;
   }
 
-  .sui-mobile-tab {
-    font-size: 10px;
+  .sui-kpi {
+    padding: 14px 16px 16px;
+    border-radius: 22px;
+  }
+
+  .sui-kpi__value {
+    font-size: clamp(1.5rem, 6.8vw, 1.9rem);
+  }
+
+  .sui-shortcuts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Ajout rapide de tâche : champ lisible en entier même à 320–390 px. */
+  .sui-composer {
+    padding: 12px 14px;
+  }
+
+  .sui-composer__line {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .sui-composer__line input {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .sui-composer__line > .sui-btn {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .sui-appbar {
+    gap: 4px;
+    padding-inline: max(10px, env(safe-area-inset-left, 0px)) max(6px, env(safe-area-inset-right, 0px));
+  }
+
+  /* Sur très petit écran (320–360 px), on garde le minuteur, la recherche et
+     les notifications en accès direct ; le mode concentration reste à un clic
+     dans « Plus → Actions rapides » sauf s'il est en cours. */
+  .sui-appbar [data-role="focus-trigger"]:not(.is-active) {
+    display: none;
+  }
+
+  .sui-appbar__icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sui-main__scroll {
+    padding-inline: max(12px, env(safe-area-inset-left, 0px)) max(12px, env(safe-area-inset-right, 0px));
+    padding-top: 12px;
+  }
+
+  .sui-canvas-inner,
+  .sui-main__scroll .gap-6 {
+    gap: 12px;
   }
 
   .sui-panel,
   .sui-card {
     padding: 14px;
-    border-radius: 20px;
+    border-radius: 18px;
   }
 
-  .sui-shortcuts {
-    grid-template-columns: minmax(0, 1fr);
+  .sui-section__title {
+    font-size: 15.5px;
+  }
+
+  .sui-panel__sub {
+    font-size: 12px;
+  }
+
+  .sui-identity__avatar,
+  .sui-identity__avatar .cx-avatar {
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 17px !important;
+  }
+
+  .sui-mobile-tab {
+    font-size: 10.5px;
+    padding-inline: 1px;
   }
 }
 
@@ -931,11 +1255,13 @@ summary {
   }
 }
 
-@media (max-width: 380px) {
-  .sui-appbar__logo {
+@media (max-width: 340px) {
+  .sui-appbar:has(.sui-dock-timer__trigger.is-active) .sui-appbar__logo {
     display: none;
   }
+}
 
+@media (max-width: 380px) {
   .cx-home-hero__title {
     font-size: 2.05rem;
     max-width: 12ch;
@@ -1086,12 +1412,29 @@ summary {
 
 @media (pointer: coarse) {
   .sui-btn--sm {
-    min-height: 44px;
+    position: relative;
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 
-  .sui-iconbtn {
+  .sui-btn--sm::after {
+    content: "";
+    position: absolute;
+    inset: -3px -2px;
+  }
+
+  .sui-iconbtn:not(.sui-head__global) {
     width: 44px;
     height: 44px;
+  }
+
+  .sui-head__global {
+    width: auto;
+    min-width: 44px;
+    min-height: 44px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   [role="toolbar"] > button {

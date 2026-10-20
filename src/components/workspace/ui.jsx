@@ -118,7 +118,7 @@ export function Empty({ children, icon: CustomIcon, action }) {
   return (
     <div className="sui-empty">
       <span className="sui-empty__icon" aria-hidden="true">
-        <IconComponent size={19} strokeWidth={1.75} />
+        <IconComponent size={18} strokeWidth={1.8} />
       </span>
       <div className="sui-empty__copy">{children}</div>
       {action ? <div className="mt-1">{action}</div> : null}

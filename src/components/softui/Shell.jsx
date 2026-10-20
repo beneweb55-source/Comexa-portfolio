@@ -46,12 +46,14 @@ import {
   Globe,
   LayoutGrid,
   Search,
+  Target,
   TriangleAlert,
   UserRound,
   Wallet,
   X,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useOptionalFocus } from "@/components/focus/FocusProvider";
 import { can as canFor } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
@@ -248,6 +250,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
   const router = useRouter();
   const { user, baseUser, request } = useAuth();
   const { unreadBySpace, refreshUnread } = useSpaces();
+  const focus = useOptionalFocus();
   const isWorkspace = SPACE_IDS.includes(area);
   const skipId = useId();
   const can = useCallback((code) => canFor(user, code), [user]);
@@ -535,10 +538,20 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
       // Sous 768 px, « Mon compte » vit déjà dans la barre du bas : le
       // dupliquer dans le dock ne ferait qu'encombrer une barre étroite.
       ...(!isMobile ? [{ label: "Mon compte", href: accountHref, icon: Wallet, tone: "green" }] : []),
+      ...(isMobile && focus
+        ? [
+            {
+              label: focus.session ? "Concentration en cours" : "Mode concentration",
+              icon: Target,
+              tone: "blue",
+              onClick: focus.openFocus,
+            },
+          ]
+        : []),
       ...items,
       { label: "Toutes les rubriques", icon: LayoutGrid, tone: "ink", onClick: () => setNavOpen(true) },
     ];
-  }, [area, can, consoleAvailable, accountHref, isMobile]);
+  }, [area, can, consoleAvailable, accountHref, isMobile, focus]);
 
   /* ---------------------------------------------------------------------- */
   /* Actions du rail                                                         */
@@ -849,10 +862,10 @@ function MobileAppBar({ homeHref, spaceLabel, onOpenMenu, onSearch, notification
 
 function NavDrawer({ title, area, groupedLinks, accountHref, quickActions = [], onClose, onOpenCommandPalette }) {
   const titleId = useId();
-  const firstLinkRef = useRef(null);
+  const closeBtnRef = useRef(null);
 
   useEffect(() => {
-    firstLinkRef.current?.focus();
+    closeBtnRef.current?.focus({ preventScroll: true });
     function onKey(event) {
       if (event.key === "Escape") onClose();
     }
@@ -869,68 +882,69 @@ function NavDrawer({ title, area, groupedLinks, accountHref, quickActions = [], 
           </h2>
           <p className="sui-desk__sub">Toutes les rubriques autorisées de cet espace.</p>
         </div>
-        <button type="button" className="sui-iconbtn" aria-label="Fermer les rubriques" onClick={onClose}>
+        <button ref={closeBtnRef} type="button" className="sui-iconbtn" aria-label="Fermer les rubriques" onClick={onClose}>
           <X size={19} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </div>
 
-      {SPACE_IDS.includes(area) ? (
-        <div className="sui-drawer__group">
-          <span className="sui-drawer__group-label">Espaces de travail</span>
-          <SpaceSwitcherList active={area} onNavigate={onClose} />
-        </div>
-      ) : null}
-
-      <button type="button" className="sui-btn sui-btn--dark" onClick={onOpenCommandPalette}>
-        <Search size={17} strokeWidth={1.75} aria-hidden="true" />
-        Rechercher dans {title.toLowerCase()}
-      </button>
-
-      {quickActions.length ? (
-        <div className="sui-drawer__group">
-          <span className="sui-drawer__group-label">Actions rapides</span>
-          <div className="sui-drawer__actions">
-            {quickActions.map((item) => {
-              const Icon = item.icon ?? LayoutGrid;
-              const inner = (
-                <>
-                  <span className="sui-drawer__action-icon" style={{ "--tone-bg": `var(--${item.tone ?? "blue"})` }} aria-hidden="true">
-                    <Icon size={16} strokeWidth={1.75} />
-                  </span>
-                  <span>{item.label}</span>
-                </>
-              );
-              return item.href ? (
-                <Link key={item.label} href={item.href} className="sui-drawer__action" onClick={onClose}>
-                  {inner}
-                </Link>
-              ) : (
-                <button
-                  key={item.label}
-                  type="button"
-                  className="sui-drawer__action"
-                  onClick={() => {
-                    onClose();
-                    item.onClick?.();
-                  }}
-                >
-                  {inner}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-
       <div className="sui-drawer__body">
-        {groupedLinks.map(({ group, items }, groupIndex) => (
+        {SPACE_IDS.includes(area) ? (
+          <div className="sui-drawer__group">
+            <span className="sui-drawer__group-label">Espaces de travail</span>
+            <SpaceSwitcherList active={area} onNavigate={onClose} />
+          </div>
+        ) : null}
+
+        <div className="sui-drawer__group">
+          <button type="button" className="sui-btn sui-btn--dark w-full justify-center" onClick={onOpenCommandPalette}>
+            <Search size={17} strokeWidth={1.75} aria-hidden="true" />
+            Rechercher dans {title.toLowerCase()}
+          </button>
+        </div>
+
+        {quickActions.length ? (
+          <div className="sui-drawer__group">
+            <span className="sui-drawer__group-label">Actions rapides</span>
+            <div className="sui-drawer__actions">
+              {quickActions.map((item) => {
+                const Icon = item.icon ?? LayoutGrid;
+                const inner = (
+                  <>
+                    <span className="sui-drawer__action-icon" style={{ "--tone-bg": `var(--${item.tone ?? "blue"})` }} aria-hidden="true">
+                      <Icon size={16} strokeWidth={1.75} />
+                    </span>
+                    <span>{item.label}</span>
+                  </>
+                );
+                return item.href ? (
+                  <Link key={item.label} href={item.href} className="sui-drawer__action" onClick={onClose}>
+                    {inner}
+                  </Link>
+                ) : (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className="sui-drawer__action"
+                    onClick={() => {
+                      onClose();
+                      item.onClick?.();
+                    }}
+                  >
+                    {inner}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {groupedLinks.map(({ group, items }) => (
           <div className="sui-drawer__group" key={group}>
             <span className="sui-drawer__group-label">{group}</span>
             <div className="sui-drawer__grid">
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <Link
                   key={item.href}
-                  ref={index === 0 && groupIndex === 0 ? firstLinkRef : undefined}
                   href={item.href}
                   className={`sui-drawer__link${item.active ? " sui-drawer__link--active" : ""}`}
                   aria-current={item.active ? "page" : undefined}
