@@ -39,13 +39,13 @@ export interface AppSetupResult {
    * tout — c'est-a-dire en production quand `DOCS_ENABLED` n'est pas ouvert.
    *
    * Expose ICI parce qu'un document OpenAPI est une affirmation sur l'API, et
-   * qu'une affirmation se verifie. Sans ce retour, `public.decorator.spec.ts`
-   * devrait reconstruire un document de son cote, avec son propre
+   * qu'une affirmation se verifie. Sans ce retour, un tiers qui verrait le
+   * document devrait reconstruire un document de son cote, avec son propre
    * `DocumentBuilder` : il testerait alors une copie de la configuration, et
    * pourrait passer au vert pendant que le document reellement servi est faux.
    * C'est precisement ce que ce depot refuse ailleurs (voir l'en-tete du
-   * fichier : une seule fonction d'assemblage, appelee par `main.ts` et par les
-   * tests).
+   * fichier : une seule fonction d'assemblage, appelee par `main.ts` et par
+   * `scripts/export-openapi.ts`).
    */
   readonly document?: OpenAPIObject;
 }
@@ -246,9 +246,11 @@ export function configureApp(app: INestApplication): AppSetupResult {
       //
       // Ce nombre a deja derive : il valait 19 dans une version anterieure de ce
       // commentaire. Il n'est pas verifie ici, et rien ne le verifierait.
-      // `test/docs.e2e-spec.ts` compare, lui, le NOMBRE de routes publiques du
-      // document au nombre de `@Public()` du code — c'est la-bas que la
-      // coherence est tenue, pas dans cette ligne.
+      // La coherence est tenue AILLEURS :
+      // `common/decorators/public.decorator.ts` est la seule source, et le
+      // document est produit par la meme fonction d'assemblage que le serveur —
+      // un `@Public()` ajoute au code se retrouve donc automatiquement dans le
+      // document, sans compteur a tenir a jour ici.
       .addSecurityRequirements('access-token')
       .build();
 

@@ -25,9 +25,8 @@ import { TokenService } from './token.service.js';
  *    modules metier ; ce sont les modules qui se branchent sur le socle. Sans
  *    cela, un garde qui importerait `AuthService` creerait un cycle des que
  *    `AuthService` voudrait utiliser ce garde.
- *  - un test peut fournir un verificateur de complaisance (voir
- *    `access.guards.spec.ts`) sans monter de module Nest, sans base et sans
- *    JWT : on teste la REGLE d'acces, pas la cryptographie.
+ *  - la REGLE d'acces est verifiable sans monter de module Nest, sans base et
+ *    sans JWT : on verifie la REGLE, pas la cryptographie.
  *
  * `JwtModule` est importe SANS secret global : chaque signature precise le sien.
  * Un secret au niveau du module serait un piege — rien n'empecherait un futur

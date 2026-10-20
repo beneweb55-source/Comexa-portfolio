@@ -28,8 +28,7 @@ import { emptyToUndefined, toStringArray } from './transforms.js';
  * `enableImplicitConversion`, la conversion du pipe s'applique AVANT les
  * `@Transform`, donc `Boolean('false')` valait `true` et le filtre etait
  * inverse. Le piege, la trace de mesure et la table de verite sont documentes
- * une seule fois, dans `common/dto/boolean-filter.ts`, et verifies par
- * `common/dto/boolean-filter.spec.ts`.
+ * une seule fois, dans `common/dto/boolean-filter.ts`.
  */
 
 /**

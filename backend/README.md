@@ -85,29 +85,11 @@ peut pas elargir ce perimetre.
 
 ---
 
-## 4. Tests
-
-```bash
-npm test          # specs unitaires — AUCUNE base de donnees, ~secondes
-npm run test:e2e  # bout en bout — VRAIE base Neon, ~10 minutes, serial
-```
-
-La suite e2e frappe une base **partagee et cumulative**. Deux regles en
-decoulent, et elles sont non negociables : aucune assertion sur un etat global,
-et chaque spec nettoie ses propres fixtures. `docs/TESTING.md` explique le
-pourquoi, les pieges d'assemblage et l'inventaire des suites.
-
-Les tests demarrent l'application par `configureApp()` — la meme fonction que
-`main.ts`. Ce qui est teste est donc ce qui est deploye.
-
----
-
-## 5. Documentation
+## 4. Documentation
 
 | Fichier | Contenu |
 |---|---|
 | `docs/API.md` | Le contrat HTTP : routes, permissions, enveloppe, codes d'erreur, ecarts connus. |
-| `docs/TESTING.md` | Les deux suites, la base partagee, les regles que chaque spec doit suivre. |
 | `docs/security-audit.md` | Revue de securite : RBAC, IDOR, mot de passe, en-tetes. |
 | `docs/DEPLOYMENT.md` | Le runbook de mise en production : VM, TLS, stockage objet, courriel. |
 | `/api/docs` | OpenAPI genere depuis le code. **Hors production** ; en production, seulement si `DOCS_ENABLED=true`, et alors derriere un mot de passe (`DOCS_USER` / `DOCS_PASSWORD`), saisi dans une page de connexion servie par le serveur — le meme couple reste utilisable en HTTP Basic par `curl` et Postman. |
@@ -152,7 +134,7 @@ rester un geste delibere, jamais un effet de bord d'un redemarrage.
 
 ---
 
-## 7. `npm run lint`
+## 6. `npm run lint`
 
 ```bash
 npm run lint    # eslint "{src,test,prisma}/**/*.ts" --fix

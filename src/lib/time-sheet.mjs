@@ -3,7 +3,7 @@
  *
  * Aucune dépendance à React ni à l'API : ces fonctions transforment une liste
  * de saisies (celles que l'API a déjà bornées au périmètre du porteur) en
- * chiffres affichés par les cartes de la page. Testées sous `npm run test:unit`.
+ * chiffres affichés par les cartes de la page.
  */
 
 import { localDateInputValue } from "./timer-utils.mjs";

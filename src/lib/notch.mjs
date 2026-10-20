@@ -21,7 +21,7 @@
  *  - `height` : profondeur sous la navbar (le dessin chevauche la barre de 1 px,
  *    `y = 0` étant la dernière rangée noire, pour que les deux noirs se soudent).
  *
- * Fonctions pures : testées sous `npm run test:unit`.
+ * Fonctions pures : sans dépendance à React ni à l'API.
  */
 
 export const NOTCH = Object.freeze({

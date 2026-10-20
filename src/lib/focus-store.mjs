@@ -3,7 +3,7 @@
  *
  * Ce module ne connaît ni React ni le minuteur : il lit et écrit un état dans
  * un stockage clé/valeur, et calcule des statistiques. Tout est PUR, donc
- * testable sans navigateur (voir `focus-store.test.mjs`).
+ * exerçable sans navigateur.
  *
  * POURQUOI CET ÉTAT VIT CÔTÉ CLIENT. Une session de concentration n'a pas
  * besoin d'être partagée entre les appareils : elle dure le temps d'un bloc de

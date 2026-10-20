@@ -7,13 +7,12 @@
  *   npm run smoke:prod -- https://autre-service.onrender.com
  *   SMOKE_BASE_URL=https://... npm run smoke:prod
  *
- * POURQUOI CE SCRIPT EXISTE, ET CE QU'IL AJOUTE AUX TESTS E2E.
+ * POURQUOI CE SCRIPT EXISTE.
  *
- * `test/full-chain.e2e-spec.ts` parcourt deja la chaine complete, et il le fait
- * bien : il ecrit par une route, relit par une AUTRE, et confronte les
- * references au motif `PREFIX-ANNEE-NNNN`. Mais il monte l'application EN
- * MEMOIRE par `Test.createTestingModule`, sur `127.0.0.1`. Il ne prouve donc
- * rien de ce qui n'existe qu'une fois deploye :
+ * Il parcourt la chaine complete sur le service REELLEMENT DEPLOYE, en
+ * ecrivant par une route, en relisant par une AUTRE, et en confrontant les
+ * references au motif `PREFIX-ANNEE-NNNN`. Il ne prouve donc rien de ce qui
+ * n'existe qu'une fois deploye :
  *
  *   - que le conteneur Render demarre avec les variables qu'il a vraiment ;
  *   - que Neon est joignable DEPUIS Render, et pas seulement depuis cette machine ;
@@ -24,28 +23,27 @@
  *     comme prevu derriere le terminateur TLS de l'hebergeur.
  *
  * Ce sont exactement les six points sur lesquels un deploiement echoue alors que
- * la suite locale est verte. Ce script les exerce tous, dans l'ordre du cahier
+ * le code est correct. Ce script les exerce tous, dans l'ordre du cahier
  * des charges :
  *
  *     VISITEUR -> PROSPECT -> DEVIS -> ACCEPTATION -> CLIENT -> PROJET
  *              -> EQUIPE -> TACHES -> AVANCEMENT -> FACTURE -> PAIEMENT
  *              -> PROJET TERMINE
  *
- * LA MEME REGLE QUE LE FICHIER E2E : CREER, PUIS RELIRE, PUIS CONSTATER.
+ * LA REGLE : CREER, PUIS RELIRE, PUIS CONSTATER.
  *
  * Chaque etape ECRIT par une route, RELIT par une autre, et compare. Un 201 dit
  * « la requete a ete acceptee » ; il ne dit pas « l'etat a change ». Les
  * references sont confrontees a `PREFIX-ANNEE-NNNN`, ce qui prouve que la table
  * `Counter` est traversee et pas seulement qu'une colonne est remplie.
  *
- * LES SEPT DIFFERENCES AVEC LE FICHIER E2E, ET POURQUOI ELLES SONT OBLIGATOIRES.
+ * LES SEPT CONTRAINTES DU PARCOURS A DISTANCE, ET POURQUOI ELLES SONT
+ * OBLIGATOIRES.
  *
- * 1. AUCUN ACCES PRISMA POUR CREER QUOI QUE CE SOIT. Le fichier e2e ecrit
- *    directement en base l'administrateur, le developpeur et les deux porteurs
- *    clients. A distance, ce chemin n'existe pas : tout compte passe par
- *    `POST /api/users`. C'est une contrainte, et elle rend ce script PLUS
- *    probant que l'e2e sur un point precis — l'API d'administration des comptes
- *    est reellement exercee, elle qui n'etait jamais testee ici.
+ * 1. AUCUN ACCES PRISMA POUR CREER QUOI QUE CE SOIT. A distance, ce chemin
+ *    n'existe pas : tout compte passe par `POST /api/users`. C'est une
+ *    contrainte, et elle rend ce script PLUS probant sur un point precis —
+ *    l'API d'administration des comptes est reellement exercee.
  *
  * 2. LE DEVELOPPEUR N'OUVRE AUCUNE SESSION. `POST /projects/:id/members` prend un
  *    identifiant d'utilisateur, pas un jeton : son compte est donc cree puis
@@ -53,7 +51,7 @@
  *    que dix par minute.
  *
  * 3. TROIS CONNEXIONS, PAS QUATRE. Administrateur, porteur A, porteur B. Le
- *    parcours « compte neuf au mot de passe impose » du fichier e2e est FONDU
+ *    parcours « compte neuf au mot de passe impose » est FONDU
  *    dans la creation du porteur A : ce compte-la nait de toute facon avec un
  *    mot de passe temporaire, il est donc bloque sur une route metier, puis
  *    change son mot de passe, puis le MEME jeton rouvre la route. C'etait
@@ -65,8 +63,7 @@
  *    sur `POST /auth/login`. Un script qui tire en rafale se ferait repondre 429
  *    au milieu du parcours, et l'echec accuserait le service au lieu du script.
  *
- * 5. LE STOCKAGE OBJET EST EXERCE DE BOUT EN BOUT. Le fichier e2e depose quatre
- *    documents et les supprime, mais ne suit jamais le lien signe. Ici, un
+ * 5. LE STOCKAGE OBJET EST EXERCE DE BOUT EN BOUT. Un
  *    document est relu par `/content`, puis par le lien signe de `/download` qui
  *    est REELLEMENT OUVERT et compare OCTET PAR OCTET au contenu envoye. C'est
  *    le seul controle qui prouve que Backblaze est joignable et le bucket correct.
@@ -78,8 +75,7 @@
  *
  * 7. L'AGE DE GARDE SUR LE BALAYAGE EST CONSERVE. Une execution interrompue
  *    laisse des comptes. Les balayer sans seuil d'age supprimerait les comptes
- *    d'une execution VOISINE en cours — le fichier e2e documente ce bug, et il a
- *    coute une soiree. Le seuil est repris tel quel.
+ *    d'une execution VOISINE en cours. Le seuil est impose pour cette raison.
  *
  * CE QU'IL NETTOIE, ET CE QU'IL FAUT SAVOIR AVANT DE LE LANCER.
  *
@@ -135,7 +131,7 @@ const MARKER = 'smoke-prod';
 const RUN = Date.now();
 
 /**
- * Age minimal d'un reste abandonne, repris du fichier e2e et pour la meme raison.
+ * Age minimal d'un reste abandonne, pour la meme raison que ci-dessus.
  *
  * Cette execution dure moins de deux minutes. Un objet de plus de trente minutes
  * ne peut donc pas appartenir a une execution vivante ; ce qui est plus vieux est
@@ -154,7 +150,7 @@ const STALE_AFTER_MS = 30 * 60 * 1000;
  */
 const PACE_MS = 500;
 
-/** Le mot de passe des comptes crees. Deja valide par la politique (voir e2e). */
+/** Le mot de passe des comptes crees. Deja valide par la politique de robustesse. */
 const NEW_PASSWORD = 'Boussole-Fractale-77-Zircon';
 
 const DEV_EMAIL = `${MARKER}-dev-${RUN}@comexa.example`;
@@ -416,7 +412,7 @@ interface ProjectView extends Reference {
   /**
    * Le projet porte son client en OBJET imbrique, pas en `clientId` plat : les
    * devis et factures exposent `clientId`, les projets exposent `client.id`.
-   * Cette divergence a deja fait echouer le fichier e2e — le typage ne pouvait
+   * Cette divergence a deja fait echouer ce parcours — le typage ne pouvait
    * pas la rattraper, puisqu'une reponse JSON n'est pas validee.
    */
   client: Identified | null;
@@ -1017,10 +1013,9 @@ async function runChain(created: Gathered, adminSession: AdminSession): Promise<
   step('EQUIPE — un developpeur cree PAR L API est ajoute au projet');
   // =========================================================================
   //
-  // Le fichier e2e ecrit ce compte directement en base. Ici, ce chemin n'existe
-  // pas : le compte passe par `POST /api/users`. C'est une couverture EN PLUS,
-  // pas une contrainte contournee — l'administration des comptes est ainsi
-  // exercee pour de vrai, elle qui n'etait jamais testee par ce parcours.
+  // Ce compte passe par `POST /api/users`, comme tous les autres : c'est une
+  // couverture EN PLUS, pas une contrainte contournee — l'administration des
+  // comptes est ainsi exercee pour de vrai.
   const devResponse = await call('POST', '/users', {
     token: admin,
     body: {

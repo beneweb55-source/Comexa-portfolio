@@ -29,8 +29,8 @@
 /**
  * Les sept types partageables. Liste LITTERALE, volontairement : ce fichier
  * doit rester une FEUILLE du graphe — ni Prisma, ni Nest, ni le client genere.
- * Les valeurs sont celles de l'enum Prisma `SharedResourceType` ; le test
- * `shared-resource-card.spec.ts` verifie qu'elles ne divergent pas.
+ * Les valeurs sont celles de l'enum Prisma `SharedResourceType` ; elles ne
+ * doivent pas diverger de lui.
  */
 export const SHAREABLE_RESOURCE_TYPES = [
   'PROJECT',

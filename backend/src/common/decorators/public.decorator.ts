@@ -31,8 +31,9 @@ export const IS_PUBLIC_KEY = 'isPublic';
  *
  * Fusionner les deux declarations ici plutot que de les repeter sur chaque route
  * donne l'invariant suivant : une route ne peut pas devenir publique sans que sa
- * documentation suive. `public.decorator.spec.ts` le verifie sur le document
- * reellement genere, et non sur une intention.
+ * documentation suive. Le document OpenAPI etant produit par la meme fonction
+ * d'assemblage que le serveur, l'invariant tient sur le document reellement
+ * genere, et non sur une intention.
  *
  * ---------------------------------------------------------------------------
  * LE `summary: undefined` N'EST PAS UNE NEGLIGENCE
@@ -55,8 +56,9 @@ export const IS_PUBLIC_KEY = 'isPublic';
  *
  * Le passer explicitement a `undefined` le fait retirer par le `pickBy`
  * ci-dessus, et la fusion conserve le resume ecrit par la route.
- * `public.decorator.spec.ts` verifie ce point precis, car c'est exactement le
- * genre d'astuce qu'un futur nettoyage pourrait supprimer en croyant bien faire.
+ * C'est exactement le genre d'astuce qu'un futur nettoyage pourrait supprimer en
+ * croyant bien faire : la ligne n'est donc pas un detail, elle porte le resume
+ * de dix-neuf routes a la fois.
  */
 export const Public = () =>
   applyDecorators(

@@ -1,7 +1,7 @@
 /**
  * Statuts de tâche : miroir d'affichage des règles du serveur
- * (`backend/src/modules/tasks/task-rules.ts`). Fonctions pures, testées sous
- * `npm run test:unit`.
+ * (`backend/src/modules/tasks/task-rules.ts`). Fonctions pures, sans dépendance
+ * à React ni à l'API.
  *
  * Le serveur reste la référence : ces règles servent à ne PROPOSER que des
  * gestes qu'il acceptera (une case à cocher grisée plutôt qu'une erreur 422),
