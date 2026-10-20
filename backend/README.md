@@ -106,9 +106,13 @@ npm run db:purge -- --yes   # suppression effective
 
 Supprime les **donnees metier** — factures, devis, paiements, clients,
 prospects, projets, taches, documents, messages, soldes, repartitions — et
-laisse intacte la **structure** du produit : comptes de l'equipe, roles,
-permissions, parametres, devises, taux de change, packs, services, contenu
-public.
+laisse intacte la **structure** du produit : comptes, roles, permissions,
+parametres, devises, taux de change, packs, services, contenu public.
+
+**Aucun compte n'est supprime.** Ni les comptes de l'equipe, ni les comptes
+techniques des integrations, ni les comptes de l'espace client. Un compte est
+une identite, pas une donnee : l'effacer emporterait l'historique de ce que la
+personne a fait et la tracabilite que le journal d'audit pretend garantir.
 
 Deux garde-fous : la simulation est le mode par defaut (rien n'est supprime
 sans `--yes`), et l'hote de la base est affiche avant toute suppression. Le
@@ -121,11 +125,13 @@ Options :
 |---|---|
 | `--yes` | Supprime. Sans elle, le script ne fait que compter. |
 | `--no-reset-counters` | Ne remet pas la numerotation a zero (`FAC-2026-0043` pour la premiere facture recreee). |
-| `--keep-client-accounts` | Laisse les comptes de l'espace client survenir a la suppression de leur client. |
 
-Deux limites a connaitre : les **fichiers** des documents supprimes restent
-dans le stockage objet, et la purge emporte le client coquille du seed — un
-`npm run db:seed` le restaure.
+Trois limites a connaitre : les **fichiers** des documents supprimes restent
+dans le stockage objet ; la purge emporte le client coquille du seed, et les
+comptes qui y etaient rattaches se retrouvent **sans dossier** (l'espace
+client leur repond `403 — ce compte client n'est rattache a aucun dossier`,
+message prevu pour ce cas) ; un `npm run db:seed` recree le client et rattache
+les comptes existants.
 
 ---
 

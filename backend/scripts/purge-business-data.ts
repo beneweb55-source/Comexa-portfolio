@@ -61,15 +61,29 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
  * et le script ne devine pas. Passez par le driver de stockage pour ca.
  *
  * -----------------------------------------------------------------------------
- * LES COMPTEES DE L'ESPACE CLIENT
+ * LES COMPTES NE SONT JAMAIS SUPPRIMES
  * -----------------------------------------------------------------------------
- * Un compte de l'espace client porte `clientId` (relation `ClientPortalAccount`).
- * Supprimer son client met `clientId` a NULL (`ON DELETE SET NULL`) : le
- * compte survit, orphelin, et l'application le prendrait pour un compte
- * d'equipe sans dossier. Ces comptes-la sont donc supprimes AVEC leur client.
- * Ce qui est supprime est compte : les comptes d'equipe, les comptes
- * techniques (`isServiceAccount`, ceux des integrations n8n) et les comptes
- * de l'espace client marques `--keep-client-accounts` survivent.
+ * Ce script ne touche PAS a la table `users`. Aucun compte n'est efface, quel
+ * que soit son role : ni les comptes de l'equipe, ni les comptes techniques
+ * (`isServiceAccount`, ceux des integrations n8n), ni les comptes de l'espace
+ * client.
+ *
+ * Un compte n'est pas une donnee metier : c'est une IDENTITE. Le supprimer
+ * effacerait l'historique de ce que la personne a fait — ses activites, ses
+ * messages, ses saisies de temps — et avec lui la tracabilite que le journal
+ * d'audit pretend justement garantir. Purger les factures sans effacer ceux
+ * qui les ont emises serait une base qui ne dit plus qui a fait quoi.
+ *
+ * CE QU'IL ADVIENT AU COMPTE D'UN CLIENT SUPPRIME. La relation
+ * `ClientPortalAccount` est en `ON DELETE SET NULL` : le compte survit, mais
+ * `clientId` passe a NULL. Il peut toujours se connecter ; l'espace client lui
+ * repond `403 — ce compte client n'est rattache a aucun dossier`, message
+ * prevu pour ce cas exact (voir `client-scope.ts`). Ce n'est ni une panne ni
+ * une donnee corrompue : c'est un compte sans dossier, et l'agent qui le
+ * rattache a nouveau le fait depuis l'administration.
+ *
+ * `npm run db:seed` fait cette mise en liaison : il recree le client
+ * coquille `CLI-2026-0001` et rattache le compte existant a ce nouveau client.
  *
  * -----------------------------------------------------------------------------
  * LES COMPTEURS DE NUMEROTATION
@@ -92,13 +106,13 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
  * -----------------------------------------------------------------------------
  * APRES LA PURGE : RE-SEMER
  * -----------------------------------------------------------------------------
- * La purge emporte aussi ce que le seed avait ecrit comme donnees metier : le
- * client coquille `CLI-2026-0001` et le compte de l'espace client qui y etait
- * rattache. Le role CLIENT se retrouve donc sans compte, et l'espace client
- * n'est plus connectable.
+ * La purge emporte le client coquille `CLI-2026-0001` du seed, puisque c'est
+ * un client. Le COMPTE qui y etait rattache, lui, survit : il se retrouve
+ * simplement sans dossier.
  *
- * `npm run db:seed` restaure tout cela : il est idempotent, il ne touche qu'a
- * ce qui manque, et il ne reinjecte AUCUNE donnee metier. C'est la suite
+ * `npm run db:seed` restaure le tout : il est idempotent, il ne touche qu'a
+ * ce qui manque, il recree le client et rattache le compte existant a ce
+ * nouveau client, et il ne reinjecte AUCUNE donnee metier. C'est la suite
  * logique d'une purge, et l'ordre compte : on purge, puis on re-seme.
  */
 
@@ -152,8 +166,6 @@ function hostOf(url: string): string {
 const confirmed = process.argv.includes('--yes');
 /** `--no-reset-counters` : la numerotation repart d'ou elle en etait. */
 const resetCounters = !process.argv.includes('--no-reset-counters');
-/** `--keep-client-accounts` : les comptes de l'espace client survivent a leur client. */
-const keepClientAccounts = process.argv.includes('--keep-client-accounts');
 
 /**
  * Le plan de suppression, DANS L'ORDRE.
@@ -468,20 +480,6 @@ function buildPlan(): Step[] {
   ];
 }
 
-/**
- * Les comptes de l'espace client, releves AVANT la suppression des clients.
- *
- * `ON DELETE SET NULL` viderait `clientId` sans supprimer le compte : il faut
- * donc les identifier pendant qu'ils sont encore rattaches.
- */
-async function findClientPortalAccounts(): Promise<string[]> {
-  const accounts = await prisma.user.findMany({
-    where: { clientId: { not: null }, isServiceAccount: false },
-    select: { id: true },
-  });
-  return accounts.map((a) => a.id);
-}
-
 async function main(): Promise<void> {
   const host = hostOf(databaseUrl);
   const plan = buildPlan();
@@ -497,20 +495,12 @@ async function main(): Promise<void> {
 
   // --- Le plan, compte avant coup -----------------------------------------
   const counts = await Promise.all(plan.map((step) => step.count()));
-  const clientPortalAccounts = await findClientPortalAccounts();
 
   const rows: Array<[string, string, number]> = plan.map((step, i) => [
     step.model,
     step.label,
     counts[i] as number,
   ]);
-  if (!keepClientAccounts && clientPortalAccounts.length > 0) {
-    rows.push([
-      'User',
-      "comptes de l'espace client (sans leur client)",
-      clientPortalAccounts.length,
-    ]);
-  }
 
   const largeur = Math.max(...rows.map((r) => r[1].length));
   let total = 0;
@@ -528,7 +518,7 @@ async function main(): Promise<void> {
   const packages = await prisma.package.count();
   console.log('  Ce qui survit (structure du produit) :');
   console.log(
-    `    ${users} compte(s), ${roles} role(s), ${currencies} devise(s), ${packages} pack(s)`,
+    `    ${users} compte(s) — AUCUN n'est supprime, ${roles} role(s), ${currencies} devise(s), ${packages} pack(s)`,
   );
   console.log('    permissions, parametres, taux de change, services, contenu public, compteurs');
   console.log('');
@@ -555,12 +545,6 @@ async function main(): Promise<void> {
     if (n > 0) console.log(`  ${String(n).padStart(6)}  ${step.label}`);
   }
 
-  // Les comptes de l'espace client, apres leurs clients.
-  if (!keepClientAccounts && clientPortalAccounts.length > 0) {
-    const n = await prisma.user.deleteMany({ where: { id: { in: clientPortalAccounts } } });
-    console.log(`  ${String(n.count).padStart(6)}  comptes de l'espace client`);
-  }
-
   // La numerotation repart de zero : plus aucun document n'existe.
   if (resetCounters) {
     const n = await prisma.counter.updateMany({ where: {}, data: { value: 0 } });
@@ -573,8 +557,9 @@ async function main(): Promise<void> {
   console.log('  RAPPEL : les FICHIERS des documents supprimes sont encore dans le');
   console.log("  stockage objet. La base est propre ; le bucket ne l'est pas.");
   console.log('');
-  console.log("  La purge a emporte les COMPTES DE L'ESPACE CLIENT et le client");
-  console.log('  coquille du seed. Pour les retrouver : npm run db:seed');
+  console.log('  Les COMPTES sont conserves. Ceux qui etaient rattaches a un client');
+  console.log('  sont maintenant sans dossier : npm run db:seed recree le client');
+  console.log('  et rattache les comptes existants.');
   console.log('');
 }
 
