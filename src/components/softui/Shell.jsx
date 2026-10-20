@@ -65,6 +65,8 @@ import { TASK_STATUS } from "@/lib/labels";
 import { formatDate, messageOf } from "@/lib/api";
 import { SPACES, SPACE_IDS } from "@/lib/spaces";
 import { useSpaces } from "@/lib/spaces-context";
+import { DocumentDeletionFeedback } from "@/components/workspace/DeleteDocumentButton";
+import Onboarding from "./Onboarding";
 import AdminDeskPanel from "./AdminDeskPanel";
 import Dock from "./Dock";
 import Navbar from "./Navbar";
@@ -614,6 +616,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
           </a>
 
           <div className="sui-shell" ref={shellRef}>
+            <DocumentDeletionFeedback />
             <Navbar
               items={navItems}
               activeHref={activeHref}
@@ -670,6 +673,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
 
               <main className="sui-main" id={skipId} aria-label={pageHeading}>
                 <div className="sui-main__scroll" ref={scrollRef} style={{ "--zoom": zoom }}>
+                  <Onboarding area={area} />
                   <motion.div
                     key={pathname}
                     className="sui-canvas-inner"

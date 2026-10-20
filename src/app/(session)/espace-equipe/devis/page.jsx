@@ -1,5 +1,7 @@
 "use client";
 
+import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
+
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus } from "lucide-react";
@@ -107,6 +109,7 @@ export default function DevisEquipePage() {
                   status={QUOTE_STATUS[quote.status] ?? quote.status}
                   statusTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain"}
                   actions={[
+                    <DeleteDocumentButton key="delete" resource="quotes" id={quote.id} label={quote.reference} />,
                     <QuotePdfActions key={`pdf-${quote.id}`} quoteId={quote.id} reference={quote.reference} />,
                     {
                       icon: ArrowUpRight,

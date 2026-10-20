@@ -1,5 +1,7 @@
 "use client";
 
+import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
+
 import { use, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/session";
@@ -382,6 +384,7 @@ export default function ProjetEquipePage({ params }) {
                   {document.category} · {document.visibility} · version {document.version}
                 </p>
               </div>
+              <DeleteDocumentButton resource="documents" id={document.id} label={document.name} />
               <button type="button" onClick={() => handleDownload(document)} className={secondaryButton}>
                 Télécharger
               </button>

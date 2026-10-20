@@ -1,5 +1,7 @@
 "use client";
 
+import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
+
 import { use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -61,6 +63,7 @@ export default function DevisDetailPage({ params }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <DeleteDocumentButton resource="quotes" id={id} label={data.reference} returnTo="/espace-equipe/devis" />
       <nav className="text-[14px] text-[var(--comexa-ink-soft)]">
         <Link href="/espace-equipe/devis" className="hover:underline">
           ← Retour aux devis

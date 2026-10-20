@@ -1,5 +1,7 @@
 "use client";
 
+import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
+
 import { use, useState } from "react";
 import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/api";
@@ -117,6 +119,7 @@ export default function FactureDetailPage({ params }) {
         </div>
       </Card>
 
+      <DeleteDocumentButton resource="invoices" id={id} label={data.reference} returnTo="/espace-equipe/factures" />
       <InvoicePdfActions invoiceId={data.id} reference={data.reference} />
 
       {canAcceptPayment && due > 0 && canRecordPayment ? (

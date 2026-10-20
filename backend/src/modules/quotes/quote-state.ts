@@ -21,9 +21,9 @@ export function canEditQuote(status: QuoteStatus): boolean {
   return status === QuoteStatus.DRAFT;
 }
 
-/** Suppression (logique) : reservee au brouillon, pour la meme raison. */
+/** Suppression persistée : tous les statuts, sous réserve du droit delete. */
 export function canDeleteQuote(status: QuoteStatus): boolean {
-  return status === QuoteStatus.DRAFT;
+  return Object.values(QuoteStatus).includes(status);
 }
 
 /** On n'envoie qu'un brouillon : renvoyer un devis deja parti le redate. */
