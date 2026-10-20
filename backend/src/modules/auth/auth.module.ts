@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ACCESS_TOKEN_VERIFIER, PRINCIPAL_LOADER } from '../../common/guards/access.guards.js';
 import { MailModule } from '../../common/mail/mail.module.js';
+import { OnboardingService } from './onboarding.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PrincipalService } from './principal.service.js';
@@ -43,6 +44,7 @@ import { TokenService } from './token.service.js';
   imports: [JwtModule.register({}), MailModule],
   controllers: [AuthController],
   providers: [
+    OnboardingService,
     AuthService,
     TokenService,
     PrincipalService,

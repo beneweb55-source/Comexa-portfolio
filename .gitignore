@@ -42,3 +42,6 @@ next-env.d.ts
 # ...mais le MODELE de ces fichiers doit voyager avec le depot : sans lui,
 # personne ne peut savoir quelles variables renseigner. Aucun secret ici.
 !.env.example
+
+# Local browser QA artifacts
+/.cache/

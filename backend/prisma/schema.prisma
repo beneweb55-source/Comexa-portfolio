@@ -490,6 +490,7 @@ model User {
   id           String     @id @default(cuid())
   email        String     @unique
   passwordHash String
+  onboardingProgress OnboardingProgress[]
   dailyReports DailyReport[]
   firstName    String
   lastName     String
@@ -2864,4 +2865,21 @@ model DailyReport {
   @@unique([userId, reportDate])
   @@index([reportDate])
   @@map("daily_reports")
+}
+
+/// Progression personnelle, versionnée et indépendante des permissions.
+model OnboardingProgress {
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area String
+  step Int @default(0)
+  status String @default("active")
+  completedChapterIds String[] @default([])
+  knownChapterIds String[] @default([])
+  currentChapterId String?
+  curriculumVersion Int @default(1)
+  revision Int @default(0)
+  updatedAt DateTime @updatedAt
+  @@id([userId, area])
+  @@map("onboarding_progress")
 }

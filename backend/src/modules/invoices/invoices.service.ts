@@ -28,7 +28,6 @@ import {
 import { lockInvoice } from './invoice-lock.js';
 import {
   canCancelInvoice,
-  canEditInvoice,
   canSendInvoice,
   paidAtFor,
   statusAfterPayment,
@@ -681,15 +680,15 @@ export class InvoicesService {
       throw AppException.notFound('INVOICE_NOT_FOUND', "Cette facture n'existe pas.");
     }
 
-    if (!canEditInvoice(before.status)) {
-      throw AppException.conflict(
-        'INVOICE_NOT_DELETABLE',
-        "Seul un brouillon peut etre supprime. Une facture envoyee s'annule, pour garder sa trace.",
-      );
-    }
-
     await this.prisma.$transaction(async (tx) => {
-      await tx.invoice.update({ where: { id: invoiceId }, data: { deletedAt: new Date() } });
+      // Condition atomique : une deuxième suppression ne réécrit pas la trace.
+      const removed = await tx.invoice.updateMany({
+        where: { id: invoiceId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (removed.count !== 1) {
+        throw AppException.notFound('INVOICE_NOT_FOUND', 'Document introuvable.');
+      }
 
       await this.activity.record(
         {

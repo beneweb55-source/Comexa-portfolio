@@ -124,6 +124,8 @@ export const COMEXA_ONLY = new Set([
   "testimonial:moderate:any",
   "partner:write:any",
   "faq:write:any",
+  "currency:manage:any",
+  "exchangerate:manage:any",
 ]);
 
 const COMEXA_READS = new Set([
@@ -141,6 +143,8 @@ const COMEXA_READS = new Set([
   "notification:manage:own",
   // Son solde : une donnee « a moi », lisible partout ou l'on ouvre son compte.
   "balance:read:own",
+  "currency:read:any",
+  "exchangerate:read:any",
 ]);
 
 const COMEXA_ENTRY = new Set([
@@ -156,6 +160,8 @@ const COMEXA_ENTRY = new Set([
   "testimonial:read:any",
   "partner:read:any",
   "faq:read:any",
+  "currency:read:any",
+  "exchangerate:read:any",
 ]);
 
 const PERSONAL_ONLY = new Set(["task:read:personal", "task:write:personal", "calendar:read:own"]);

@@ -142,6 +142,17 @@ export function AuthProvider({ children }) {
     [refresh],
   );
 
+  /** Relit les droits réels sans réémettre de jeton ni conserver une ancienne session. */
+  const refreshProfile = useCallback(async () => {
+    const { data } = await request("/auth/me", { space: null });
+    setState((current) => {
+      if (current.status !== "authenticated" || current.user?.id !== data?.id) return current;
+      if (JSON.stringify(current.user) === JSON.stringify(data)) return current;
+      return { ...current, user: data };
+    });
+    return data;
+  }, [request]);
+
   const value = useMemo(
     () => ({
       status: state.status,
@@ -169,8 +180,9 @@ export function AuthProvider({ children }) {
       request,
       download,
       blobUrl,
+      refreshProfile,
     }),
-    [state, login, logout, request, download, blobUrl],
+    [state, login, logout, request, download, blobUrl, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,5 +1,7 @@
 "use client";
 
+import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
+
 import { useMemo, useState } from "react";
 import { ArrowUpRight, CalendarDays, CircleAlert, Hash, ReceiptText, TriangleAlert } from "lucide-react";
 import { formatDateOnly, formatMoney } from "@/lib/api";
@@ -249,6 +251,7 @@ export default function FacturesEquipePage() {
                   status={INVOICE_STATUS[invoice.status] ?? invoice.status}
                   statusTone={tone}
                   actions={[
+                    <DeleteDocumentButton key="delete" resource="invoices" id={invoice.id} label={invoice.reference} />,
                     <InvoicePdfActions
                       key={`pdf-${invoice.id}`}
                       invoiceId={invoice.id}
@@ -314,6 +317,10 @@ export default function FacturesEquipePage() {
                   if (!OPEN.includes(invoice.status)) return <span className="sui-table__muted">—</span>;
                   return <strong>{formatMoney(remaining, invoice.currency)}</strong>;
                 },
+              },
+              {
+                key: "delete", label: "Suppression",
+                render: (invoice) => <DeleteDocumentButton resource="invoices" id={invoice.id} label={invoice.reference} />,
               },
               {
                 key: "pdf",

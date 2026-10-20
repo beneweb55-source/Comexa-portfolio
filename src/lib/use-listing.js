@@ -1,5 +1,7 @@
 "use client";
 
+import { WORKSPACE_UPDATED } from "@/lib/workspace-updates.mjs";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/session";
 import { messageOf } from "@/lib/api";
@@ -52,6 +54,14 @@ export function useListing(path) {
       activeRequest.current?.abort();
       activeRequest.current = null;
     };
+  }, [reload]);
+
+  useEffect(() => {
+    const refreshDocuments = (event) => {
+      if (/^\/(quotes|invoices|documents)(\/|\?|$)/.test(event.detail?.path ?? "")) reload();
+    };
+    window.addEventListener(WORKSPACE_UPDATED, refreshDocuments);
+    return () => window.removeEventListener(WORKSPACE_UPDATED, refreshDocuments);
   }, [reload]);
 
   return { ...state, reload };
