@@ -86,7 +86,7 @@ export function ListTable({ columns, rows, rowHref, label, rowKey = (row) => row
               {columns.map((column, index) => {
                 const content = column.render(row);
                 return (
-                  <td key={column.key} className={[column.align === "end" ? "is-end" : "", column.className ?? ""].filter(Boolean).join(" ") || undefined}>
+                  <td key={column.key} data-label={column.label} className={[column.align === "end" ? "is-end" : "", column.className ?? ""].filter(Boolean).join(" ") || undefined}>
                     {index === 0 && rowHref ? (
                       <Link href={rowHref(row)} className="sui-table__link">
                         {content}

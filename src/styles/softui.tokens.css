@@ -94,6 +94,13 @@
   /* --- Gabarits ---------------------------------------------------------- */
   --nav-h: 64px;
   --rail-w: 56px;
+  /* Chrome mobile : barre d'application + barre d'onglets. Le téléphone n'est
+     pas une réduction du bureau — ces hauteurs réservent le contenu. */
+  --sui-appbar-h: 56px;
+  --sui-tabbar-h: 62px;
+  --sui-touch: 44px;
+  --sui-safe-top: env(safe-area-inset-top, 0px);
+  --sui-safe-bottom: env(safe-area-inset-bottom, 0px);
   --desk-w: 25%;
   --desk-min: 292px;
   --desk-max: 384px;

@@ -61,12 +61,14 @@ export default function SpaceLayout({ space, children, withTimer = true, withCon
       space={space}
       groups={groups}
       dockEnd={
-        timerAllowed ? (
-          <>
-            <TimerPill variant="dock" />
-            <FocusDockButton />
-          </>
-        ) : null
+        timerAllowed
+          ? () => (
+              <>
+                <TimerPill variant="dock" />
+                <FocusDockButton />
+              </>
+            )
+          : null
       }
       consoleAvailable={withConsole}
     >

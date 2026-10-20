@@ -121,7 +121,7 @@ function ListTable({ rows }) {
           {rows.slice(0, 200).map((row, i) => (
             <tr key={row?.id ?? i}>
               {columns.map((c) => (
-                <td key={c}>{formatValue(c, row?.[c], row ?? {})}</td>
+                <td key={c} data-label={labelOf(c)}>{formatValue(c, row?.[c], row ?? {})}</td>
               ))}
             </tr>
           ))}

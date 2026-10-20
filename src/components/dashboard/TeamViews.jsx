@@ -53,14 +53,14 @@ function Table({ columns, rows, empty }) {
   if (!rows.length) return <Empty title={empty} />;
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left text-[14px]">
+      <table className="cx-stack-table w-full text-left text-[14px]">
         <thead className="text-[12.5px] text-[var(--comexa-ink-muted)]">
           <tr>{columns.map((c) => <th key={c.key} className="pb-2 pr-4 font-medium">{c.label}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.id ?? row.reference} className="border-t border-[var(--comexa-border-soft)]">
-              {columns.map((c) => <td key={c.key} className="py-2.5 pr-4 align-middle">{c.render(row)}</td>)}
+              {columns.map((c) => <td key={c.key} data-label={c.label} className="py-2.5 pr-4 align-middle">{c.render(row)}</td>)}
             </tr>
           ))}
         </tbody>

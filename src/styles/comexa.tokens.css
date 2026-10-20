@@ -161,4 +161,12 @@
      dans l'en-tête, le voile du tiroir mobile couvre tout sauf la barre. */
   --comexa-z-header: 40;
   --comexa-z-drawer: 50;
+
+  /* Seuils partagés (documentation + media queries de comexa.responsive.css).
+     phone ≤ 767, phone-paysage court, tablet ≤ 1023, desk ≥ 1024. */
+  --comexa-bp-phone: 767px;
+  --comexa-bp-tablet: 1023px;
+  --comexa-touch: 44px;
+  --comexa-safe-top: env(safe-area-inset-top, 0px);
+  --comexa-safe-bottom: env(safe-area-inset-bottom, 0px);
 }

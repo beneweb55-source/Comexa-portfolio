@@ -21,13 +21,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useLayoutEffect, useRef } from "react";
 import { LayoutGroup, motion } from "framer-motion";
+import { Menu } from "lucide-react";
 import logoLight from "../../../public/comexa-logo-horizontal-clair-transparent.png";
 import UserMenu from "@/components/workspace/UserMenu";
 import SpaceSwitcher from "./SpaceSwitcher";
 import Tooltip from "./Tooltip";
 import { layoutSpring } from "./motion";
 
-export default function Navbar({ items, activeHref, space, user, homeHref = "/", badge, profile, onActiveTabMove }) {
+export default function Navbar({ items, activeHref, space, user, homeHref = "/", badge, profile, onActiveTabMove, onOpenMenu }) {
   const active = items.find((item) => item.href === activeHref);
   const listRef = useRef(null);
 
@@ -106,6 +107,11 @@ export default function Navbar({ items, activeHref, space, user, homeHref = "/",
       </nav>
 
       <div className="sui-nav__profile">
+        {onOpenMenu ? (
+          <button type="button" className="sui-nav__compact-menu" aria-label="Toutes les rubriques" onClick={onOpenMenu}>
+            <Menu size={18} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+        ) : null}
         <span className="sui-visually-hidden" aria-live="polite">
           {active ? `Section active : ${active.label}` : ""}
         </span>

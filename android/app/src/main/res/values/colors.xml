@@ -1,5 +1,7 @@
 <resources>
-    <!-- Noir de la coque soft UI (jeton « shell » du front) : barres système
-         et fond d'icône adaptative. -->
+    <!-- Noir de la coque soft UI (jeton « shell » du front) : barres système. -->
     <color name="shell">#0B0A0F</color>
+    <!-- Fond d'icône : bleu nuit presque noir, aplat, sans dégradé. -->
+    <color name="ic_launcher_background">#071422</color>
 </resources>
+

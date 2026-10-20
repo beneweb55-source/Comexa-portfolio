@@ -465,12 +465,12 @@ export default function BalancesView() {
                         <span>{row.transactionCount} opération(s)</span>
                       </span>
                     </td>
-                    <td>{row.currency}</td>
-                    <td className="is-end">{formatAmount(row.accrued)}</td>
-                    <td className="is-end">{formatAmount(row.paid)}</td>
-                    <td className="is-end">{formatAmount(row.advances)}</td>
-                    <td className="is-end">{formatAmount(row.adjustments)}</td>
-                    <td className="is-end">
+                    <td data-label="Devise">{row.currency}</td>
+                    <td className="is-end" data-label="Part accumulée">{formatAmount(row.accrued)}</td>
+                    <td className="is-end" data-label="Versements">{formatAmount(row.paid)}</td>
+                    <td className="is-end" data-label="Avances">{formatAmount(row.advances)}</td>
+                    <td className="is-end" data-label="Ajustements">{formatAmount(row.adjustments)}</td>
+                    <td className="is-end" data-label="Reste dû">
                       <span className={Number(row.remaining) < 0 ? "sui-amount sui-amount--down" : "sui-amount sui-amount--up"}>
                         {formatAmount(row.remaining)}
                       </span>
