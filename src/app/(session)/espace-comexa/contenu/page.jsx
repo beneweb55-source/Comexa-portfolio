@@ -216,7 +216,7 @@ function ContentList({ config }) {
                     {item[config.toggle] ? "Masquer" : "Afficher"}
                   </button>
                 ) : null}
-                {canWrite ? <button type="button" className={secondaryButton} onClick={() => setEditing(item)}>Modifier</button> : null}
+                {canWrite ? <button type="button" className={secondaryButton} onClick={() => setEditing(item)} data-coach-id={config.key === "services" ? "service-edit-button" : undefined}>Modifier</button> : null}
                 {config.key === "packages" ? (
                   <button type="button" className={secondaryButton} onClick={() => setOpenRates(openRates === item.id ? null : item.id)}>
                     Tarifs
@@ -325,7 +325,7 @@ function ContentForm({ config, item, onClose, onSaved }) {
           );
         })}
         <div className="flex gap-3 md:col-span-2">
-          <button type="submit" disabled={busy} className={primaryButton}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
+          <button type="submit" disabled={busy} className={primaryButton} data-coach-id={config.key === "services" ? "service-form-submit" : undefined}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
           <button type="button" onClick={onClose} className={secondaryButton}>Annuler</button>
         </div>
       </form>

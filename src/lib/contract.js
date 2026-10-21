@@ -32,10 +32,11 @@ export const REQUIRED_FEATURES = [
   "goals",
   "timerTasks",
   "taskAssignees",
+  "training",
 ];
 
 /** Version du contrat attendue (informative, affichee dans le diagnostic). */
-export const EXPECTED_CONTRACT_VERSION = "2026-10-16.1";
+export const EXPECTED_CONTRACT_VERSION = "2026-10-21.1";
 
 /**
  * Interroge la sante de l'API et compare au contrat attendu.

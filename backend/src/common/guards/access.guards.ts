@@ -21,6 +21,14 @@ import {
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import { AppException, ErrorCode } from '../errors/app-error.js';
 import { claimsIntegrationToken } from '../auth/integration-token.js';
+import {
+  TRAINING_TOKEN_RESOLVER,
+  TRAINING_TOKEN_TYPE,
+  peekJwtClaims,
+  peekTokenType,
+  type TrainingTokenResolver,
+} from '../auth/training-token.js';
+import { markTrainingScope } from '../training/training-scope.js';
 import { AccessPolicy, type AuthenticatedUser } from '../auth/principal.js';
 import {
   SPACE_HEADER,
@@ -139,6 +147,9 @@ export class JwtAuthGuard implements CanActivate {
     @Optional()
     @Inject(INTEGRATION_PRINCIPAL_RESOLVER)
     private readonly integrations?: IntegrationPrincipalResolver,
+    @Optional()
+    @Inject(TRAINING_TOKEN_RESOLVER)
+    private readonly training?: TrainingTokenResolver,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -277,22 +288,32 @@ export class JwtAuthGuard implements CanActivate {
   }
 
   /**
-   * Aiguille entre les DEUX sortes de porteurs.
+   * Aiguille entre les TROIS sortes de porteurs.
    *
    * Le tri se fait sur la FORME du jeton, sans requete : un JWT commence par
-   * `eyJ` (l'en-tete JSON encode), un jeton d'integration par `cxi_`. Les deux
-   * mondes ne se melangent donc jamais — une session de navigateur ne devient pas
-   * un acces machine, et inversement.
+   * `eyJ` (l'en-tete JSON encode), un jeton d'integration par `cxi_`. Un JWT,
+   * lui, porte son `typ` dans son corps (`access` ou `training`) — lu ici SANS
+   * verifier la signature, puisque ce n'est qu'un ROUTAGE : le claim falsifie
+   * dirige le jeton vers le verificateur qui le refusera.
+   *
+   * Les trois mondes ne se melangent donc jamais : une session de navigateur ne
+   * devient pas un acces machine, un jeton de formation n'ouvre jamais un
+   * traitement de production, et un access token n'ecrit jamais dans la base
+   * d'entrainement.
    *
    * Sans resolveur d'integration enregistre (module absent), un jeton `cxi_`
    * echoue proprement en 401 au lieu de partir dans la verification JWT : mieux
    * vaut un refus net qu'une erreur obscure signee par le mauvais composant.
+   * Idem pour le resolveur de formation.
    */
   private async resolvePrincipal(token: string): Promise<AuthenticatedUser> {
     // Le PREFIXE route, la FORME valide. Un jeton `cxi_` mal forme reste un
     // jeton d'integration : c'est le service des integrations qui doit le
     // refuser, pour que la reponse dise ce qu'il faut corriger.
     if (!claimsIntegrationToken(token)) {
+      if (peekTokenType(peekJwtClaims(token)) === TRAINING_TOKEN_TYPE) {
+        return this.resolveTrainingUser(token);
+      }
       return this.resolveUser(token);
     }
 
@@ -304,6 +325,34 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return this.integrations.resolve(token);
+  }
+
+  /**
+   * Jeton de formation : verifier, recharger l'identite REELLE, puis marquer le
+   * scope.
+   *
+   * L'ordre est une decision, pas un detail : `principals.load` s'execute
+   * ENCORE en production (le scope n'est pas marque), donc le porteur, ses
+   * roles et ses permissions sont ceux du vrai compte. Un exercice qui modifie
+   * des droits dans la base fictive ne change jamais les acces reels du
+   * membre — et la securite ne depend jamais de donnees d'exercice.
+   *
+   * Ensuite seulement, `markTrainingScope` fait basculer la continuation de la
+   * requete vers la base d'entrainement : tous les services metiers appeles par
+   * le contrôleur ecriront la-bas, sans qu'aucun d'eux ait besoin de le savoir.
+   */
+  private async resolveTrainingUser(token: string): Promise<AuthenticatedUser> {
+    if (!this.training) {
+      throw AppException.unauthenticated(
+        'TRAINING_DISABLED',
+        'Le mode formation n’est pas actif sur ce serveur.',
+      );
+    }
+
+    const info = await this.training.resolveTrainingToken(token);
+    const resolved = await this.principals.load(info.userId);
+    markTrainingScope(info.sessionId, info.userId);
+    return resolved;
   }
 }
 

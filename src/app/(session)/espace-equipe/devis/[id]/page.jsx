@@ -125,7 +125,7 @@ export default function DevisDetailPage({ params }) {
 
         <div className="mt-6 flex flex-wrap gap-3">
           {data.status === "DRAFT" && canSendQuote ? (
-            <button type="button" onClick={send} disabled={Boolean(action.busy)} className={primaryButton}>
+            <button type="button" onClick={send} disabled={Boolean(action.busy)} className={primaryButton} data-coach-id="devis-send-button">
               {action.busy === "send" ? "Envoi…" : "Envoyer au client"}
             </button>
           ) : null}

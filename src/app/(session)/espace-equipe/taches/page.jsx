@@ -260,7 +260,7 @@ function Board({ projectId, focusId }) {
 
       {canReadTasks ? (
         <>
-          <div className="sui-board-filters">
+          <div className="sui-board-filters" data-coach-id="taches-board">
             <TaskCreatorFilter
               creators={creators.items}
               value={creatorId}
@@ -434,10 +434,10 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
   }
 
   return (
-    <form onSubmit={submit} className="sui-newtask flex flex-wrap items-end gap-3">
+    <form onSubmit={submit} className="sui-newtask flex flex-wrap items-end gap-3" data-coach-id="taches-create-form">
       {error ? <div className="w-full"><Notice>{error}</Notice></div> : null}
       <Field id="new-task-title" label="Nouvelle tâche">
-        <input id="new-task-title" className={`${inputClass} !w-[340px] max-w-full`} maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Maquette de la page d’accueil" />
+        <input id="new-task-title" data-coach-id="taches-create-title" className={`${inputClass} !w-[340px] max-w-full`} maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Maquette de la page d’accueil" />
       </Field>
       {canAssign ? (
         <Field id="new-task-assignee" label="Confier à">
@@ -463,7 +463,7 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
           ))}
         </select>
       </Field>
-      <button type="submit" disabled={busy || title.trim().length < 2} className={primaryButton}>{busy ? "Ajout…" : "Ajouter"}</button>
+      <button type="submit" disabled={busy || title.trim().length < 2} className={primaryButton} data-coach-id="taches-create-submit">{busy ? "Ajout…" : "Ajouter"}</button>
       {ownOnly ? <p className="w-full text-[12.5px] text-[var(--comexa-ink-muted)]">La tâche vous sera assignée : vous la retrouverez dans « Mes tâches ».</p> : null}
     </form>
   );

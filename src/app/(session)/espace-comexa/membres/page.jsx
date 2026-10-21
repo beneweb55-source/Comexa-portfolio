@@ -132,7 +132,7 @@ export default function MembresPage() {
         subtitle="Gérez les comptes de l’équipe, leurs rôles RBAC et leurs accès."
         action={
           canManageMembers ? (
-            <button type="button" className={primaryButton} onClick={() => setCreating(true)}>
+            <button type="button" className={primaryButton} onClick={() => setCreating(true)} data-coach-id="membre-invite-button">
               <Plus size={15} /> Ajouter un membre
             </button>
           ) : null
@@ -353,7 +353,7 @@ function CreateMember({ roles, onCancel, onCreated }) {
           <input id="new-phone" className={inputClass} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </Field>
       </div>
-      <fieldset className="flex flex-col gap-2 sm:col-span-2">
+      <fieldset className="flex flex-col gap-2 sm:col-span-2" data-coach-id="membre-form-role">
         <legend className="cx-label">Rôles attribués *</legend>
         <div className="flex flex-wrap gap-2">
           {roles.map((role) => (
@@ -366,7 +366,7 @@ function CreateMember({ roles, onCancel, onCreated }) {
       </fieldset>
       <div className="flex justify-end gap-2 pt-2 sm:col-span-2">
         <button type="button" onClick={onCancel} className={secondaryButton}>Annuler</button>
-        <button type="submit" disabled={busy} className={primaryButton}>{busy ? "Création…" : "Créer le compte"}</button>
+        <button type="submit" disabled={busy} className={primaryButton} data-coach-id="membre-form-submit">{busy ? "Création…" : "Créer le compte"}</button>
       </div>
     </form>
   );

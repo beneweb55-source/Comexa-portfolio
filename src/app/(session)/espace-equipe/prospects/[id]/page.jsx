@@ -126,7 +126,7 @@ export default function ProspectDetailPage({ params }) {
           {isConverted ? (
             <span className="self-center text-[14px] text-[var(--comexa-ink-soft)]">Ce prospect est déjà converti en client.</span>
           ) : canConvertProspect ? (
-            <button type="button" onClick={convert} disabled={Boolean(action.busy)} className={secondaryButton}>
+            <button type="button" onClick={convert} disabled={Boolean(action.busy)} className={secondaryButton} data-coach-id="prospect-convert-button">
               {action.busy === "convert" ? "Conversion…" : "Convertir en client"}
             </button>
           ) : null}

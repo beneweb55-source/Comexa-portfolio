@@ -137,7 +137,7 @@ export default function DevisClientPage({ params }) {
         <Card title="Votre décision">
           {confirming === null ? (
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => setConfirming("accept")} className={primaryButton}>
+              <button type="button" onClick={() => setConfirming("accept")} className={primaryButton} data-coach-id="devis-accept-button">
                 Accepter le devis
               </button>
               <button type="button" onClick={() => setConfirming("refuse")} className={secondaryButton}>
@@ -153,7 +153,7 @@ export default function DevisClientPage({ params }) {
                 transmise.
               </p>
               <div className="flex gap-3">
-                <button type="button" onClick={accept} disabled={action.busy === "accept"} className={primaryButton}>
+                <button type="button" onClick={accept} disabled={action.busy === "accept"} className={primaryButton} data-coach-id="devis-accept-confirm">
                   {action.busy === "accept" ? "Validation…" : "Confirmer l'acceptation"}
                 </button>
                 <button type="button" onClick={() => setConfirming(null)} className={secondaryButton}>

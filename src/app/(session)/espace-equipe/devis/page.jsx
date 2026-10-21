@@ -78,7 +78,7 @@ export default function DevisEquipePage() {
             icon={FileText}
             action={
               canCreateQuote ? (
-                <Link href="/espace-equipe/devis/nouveau" className={primaryButton}>
+                <Link href="/espace-equipe/devis/nouveau" className={primaryButton} data-coach-id="devis-create-button">
                   <Plus size={15} /> Créer un devis
                 </Link>
               ) : null

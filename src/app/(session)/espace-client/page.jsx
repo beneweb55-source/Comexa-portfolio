@@ -118,6 +118,7 @@ export default function EspaceClientPage() {
           2. DEVIS EN ATTENTE DE RÉPONSE
          ==================================================================== */}
       {quotesVisible && openQuotes.length > 0 ? (
+        <div data-coach-id="client-devis-list">
         <Panel
           title="Devis en attente de votre décision"
           subtitle="Consultez le détail des prestations pour accepter ou refuser la proposition."
@@ -146,6 +147,7 @@ export default function EspaceClientPage() {
             ))}
           </ul>
         </Panel>
+        </div>
       ) : null}
 
       {/* ====================================================================

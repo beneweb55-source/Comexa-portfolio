@@ -38,6 +38,7 @@ export default function ModificationsClientPage() {
         action={
           <button
             type="button"
+            data-coach-id="modification-create-button"
             className={primaryButton}
             onClick={() => setShowForm(true)}
             disabled={projects.loading || (projects.items ?? []).length === 0}
@@ -54,7 +55,7 @@ export default function ModificationsClientPage() {
             icon={Wrench}
             action={
               (projects.items ?? []).length > 0 ? (
-                <button type="button" className={primaryButton} onClick={() => setShowForm(true)}>
+                <button type="button" className={primaryButton} onClick={() => setShowForm(true)} data-coach-id="modification-create-button">
                   <Plus size={15} /> Déposer une demande
                 </button>
               ) : null
@@ -157,7 +158,7 @@ function NewRequest({ projects, projectsMeta, projectsLoading, onProjectPageChan
         <Pagination meta={projectsMeta} onPageChange={changeProjectPage} loading={projectsLoading} label="Pagination des projets accessibles" />
       </Field>
       <Field id="mod-title" label="Titre" hint="Trois caractères minimum.">
-        <input id="mod-title" required minLength={3} maxLength={160} className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+        <input id="mod-title" data-coach-id="modification-form-title" required minLength={3} maxLength={160} className={inputClass} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
       </Field>
       <Field id="mod-priority" label="Priorité">
         <select id="mod-priority" className={selectClass} value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
@@ -171,7 +172,7 @@ function NewRequest({ projects, projectsMeta, projectsLoading, onProjectPageChan
       </Field>
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" onClick={onCancel} className={secondaryButton}>Annuler</button>
-        <button type="submit" disabled={busy || projectsLoading || !form.projectId} className={primaryButton}>{busy ? "Envoi…" : "Envoyer la demande"}</button>
+        <button type="submit" disabled={busy || projectsLoading || !form.projectId} className={primaryButton} data-coach-id="modification-form-submit">{busy ? "Envoi…" : "Envoyer la demande"}</button>
       </div>
     </form>
   );

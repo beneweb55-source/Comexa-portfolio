@@ -23,6 +23,46 @@ const NETWORK_MESSAGE = "Le serveur est injoignable pour le moment. Réessayez d
 /** En-tête de l'espace de travail actif (voir `lib/spaces.js`). */
 const SPACE_HEADER = "X-Comexa-Space";
 
+// ---------------------------------------------------------------------------
+// MODE FORMATION — le point d'ancrage unique du jeton de formation.
+//
+// Quand une session de formation est ouverte (voir `lib/training/`), TOUTES
+// les requêtes métier partent avec le jeton de FORMATION : le serveur route
+// alors les écritures vers la base d'entraînement (scope porté par le jeton,
+// jamais par un en-tête ou un paramètre). C'est le même formulaire, les mêmes
+// composants, les mêmes règles métier — seule la base change.
+//
+// DEUX EXCEPTIONS, et ce sont les seules :
+//  - les routes `/auth/*` (connexion, rafraîchissement, mot de passe) restent
+//    sur le jeton réel : l'identité ne se gère pas dans une base fictive ;
+//  - `fetchProtectedBlob` (documents) utilise le jeton de formation quand il
+//    est actif, pour télécharger les pièces d'exercice.
+//
+// Aucune route ne peut choisir elle-même : c'est la présence du jeton de
+// formation qui décide, posée par `setTrainingToken`.
+// ---------------------------------------------------------------------------
+
+let trainingToken = null;
+
+/** (Dés)active le jeton de formation pour les requêtes suivantes. */
+export function setTrainingToken(token) {
+  trainingToken = token || null;
+}
+
+/** Le jeton de formation actif, ou `null`. */
+export function getTrainingToken() {
+  return trainingToken;
+}
+
+function isAuthPath(path) {
+  return typeof path === "string" && (path === "/auth" || path.startsWith("/auth/"));
+}
+
+function effectiveToken(path, token) {
+  if (trainingToken && !isAuthPath(path)) return trainingToken;
+  return token;
+}
+
 /**
  * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
@@ -31,7 +71,8 @@ const SPACE_HEADER = "X-Comexa-Space";
 export async function apiFetch(path, { method = "GET", body, token, signal, space } = {}) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const bearer = effectiveToken(path, token);
+  if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
 
   let response;
@@ -109,8 +150,9 @@ export async function apiFetch(path, { method = "GET", body, token, signal, spac
  * jeton d'accès, exactement comme le téléchargement.
  */
 export async function fetchProtectedBlob(path, { token, space }) {
+  const bearer = effectiveToken(path, token);
   const response = await fetch(`/api${path}`, {
-    headers: { Authorization: `Bearer ${token}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
+    headers: { Authorization: `Bearer ${bearer}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
     credentials: "same-origin",
     cache: "no-store",
   });

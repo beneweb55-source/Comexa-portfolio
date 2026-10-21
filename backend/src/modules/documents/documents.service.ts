@@ -1,4 +1,5 @@
 /// <reference types="multer" />
+import { isTrainingScope } from '../../common/training/training-scope.js';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
@@ -203,7 +204,10 @@ export class DocumentsService {
     // leve ici, avant toute ecriture. C'est le seul point ou le client pourrait
     // influencer la cle, et il n'influence que l'EXTENSION, choisie dans une
     // table fermee.
-    const storageKey = buildStorageKey('documents', file.mimetype);
+    // MODE FORMATION : l'objet part sous un préfixe réservé — les fichiers
+    // d'exercice ne côtoient jamais les documents réels dans le stockage.
+    const baseKey = buildStorageKey('documents', file.mimetype);
+    const storageKey = isTrainingScope() ? `training/${baseKey}` : baseKey;
 
     const attachments = await this.resolveAttachments(user, scope, dto);
     const originalName = sanitizeOriginalName(file.originalname);
