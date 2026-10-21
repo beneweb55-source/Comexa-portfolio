@@ -18,7 +18,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, setTrainingToken } from "@/lib/api";
+import { apiFetch, onTrainingTokenDropped, setTrainingToken } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 
 const TrainingContext = createContext(null);
@@ -38,6 +38,20 @@ export function TrainingProvider({ children }) {
   useEffect(() => {
     authedRef.current = { user, token };
   }, [user, token]);
+
+  // Si le serveur rejette le jeton de formation (session expirée, fermée
+  // depuis un autre onglet…), `api.js` l'abandonne pour débloquer les
+  // requêtes : l'état local doit suivre, sinon la bannière resterait
+  // « MODE FORMATION actif » alors que tout est repassé en production.
+  useEffect(
+    () =>
+      onTrainingTokenDropped(() => {
+        setState((s) =>
+          s.status === "active" ? { ...s, status: "ready", sessionId: null, expiresAt: null } : s,
+        );
+      }),
+    [],
+  );
 
   // État initial : la formation est-elle configurée sur ce serveur ?
   useEffect(() => {
@@ -76,6 +90,12 @@ export function TrainingProvider({ children }) {
         const { data } = await request("/training/enter", {
           method: "POST",
           body: missionId ? { missionId } : {},
+          // L'ouverture amorce la base d'entraînement (miroir d'identités,
+          // données fictives) et peut réveiller un serveur endormi : on lui
+          // laisse plus que le délai ordinaire — mais un délai quand même,
+          // pour que le bouton « Ouverture de l'environnement… » retombe
+          // toujours sur une erreur lisible au lieu de tourner sans fin.
+          timeoutMs: 120_000,
         });
         setTrainingToken(data.token);
         setState((s) => ({

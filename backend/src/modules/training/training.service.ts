@@ -107,6 +107,13 @@ export class TrainingService {
 
     await this.seedEnvironment(training, actor.id);
 
+    // Une seule session de formation vivante par membre : rouvrir
+    // l'environnement ferme la précédente. Sans cela, les sessions (et leurs
+    // jetons, valables 4 h) s'empilaient à chaque entrée — et un ancien jeton
+    // encore présenté par un onglet resté ouvert continuait d'être accepté
+    // alors que l'utilisateur croyait être reparti de zéro.
+    await this.trainingTokens.endSessions(actor.id);
+
     const issued = await this.trainingTokens.issue(actor.id, missionId ?? null);
     this.logger.log(`Session de formation ouverte pour ${actor.id}`);
     return {
