@@ -18,9 +18,7 @@ import { PrismaClient } from '../generated/prisma/client.js';
  * `enableShutdownHooks()`, sans quoi le pool survivrait au processus et les
  * tests de bout en bout laisseraient des connexions ouvertes derriere eux.
  *
- * UNE SEULE BASE. Le routage « formation / production » a disparu avec le mode
- * formation : il n'y a plus de base d'exercice, donc plus de risque d'ecrire
- * dans la mauvaise. Le guide de demarrage parle du travail REEL du membre et
+ * UNE SEULE BASE : l'application parle du travail REEL du membre et
  * n'a besoin d'aucune redirection.
  */
 @Injectable()
@@ -47,9 +45,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   /**
    * Alias historique des lectures « hors scope ».
    *
-   * Il ne designe plus qu'une seule base — la production — mais le nom reste
-   * utilise par le guide de demarrage : il documente l'intention (« ceci parle
-   * du travail reel ») sans imposer un second client.
+   * Il ne designe plus qu'une seule base — la production.
    */
   get prodClient(): PrismaClient {
     return this;

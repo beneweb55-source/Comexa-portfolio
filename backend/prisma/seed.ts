@@ -865,9 +865,9 @@ async function main(): Promise<void> {
     console.log('\n  Comptes de demonstration : deja existants, mots de passe inchanges.');
   }
 
-  console.log('\n  Aucune donnee metier n\'est injectee :');
+  console.log("\n  Aucune donnee metier n'est injectee :");
   console.log('    ni devis, ni projet, ni tache, ni facture, ni paiement.');
-  console.log('    Le premier document cree par l\'API prend le numero 1.');
+  console.log("    Le premier document cree par l'API prend le numero 1.");
   console.log(
     `    Le seul client present, ${formatReference(REFERENCE_PREFIXES.CLIENT, REFERENCE_SEED_YEAR, 1)}, ` +
       'est une coquille vide : il rend le role CLIENT connectable.',

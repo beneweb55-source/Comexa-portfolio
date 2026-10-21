@@ -305,7 +305,6 @@ export class JwtAuthGuard implements CanActivate {
 
     return this.integrations.resolve(token);
   }
-
 }
 
 @Injectable()

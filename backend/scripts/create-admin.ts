@@ -13,7 +13,9 @@ if (!connectionString) {
 // Affiché AVANT toute opération : quand le compte « existe pourtant » dans une
 // autre base, c'est ce nom d'hôte qui tranche (incident 2026-10-21). Comparer
 // avec l'hôte de DATABASE_URL dans le tableau de bord Render.
-console.log(`Base cible : ${hostOf(connectionString) ?? 'hôte illisible'} (${databaseTargetOf(connectionString)})`);
+console.log(
+  `Base cible : ${hostOf(connectionString) ?? 'hôte illisible'} (${databaseTargetOf(connectionString)})`,
+);
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 

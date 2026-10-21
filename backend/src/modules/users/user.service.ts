@@ -158,7 +158,9 @@ export class UserService {
     ]);
 
     lightRows.sort(compareMembers);
-    const pageIds = lightRows.slice(pagination.skip, pagination.skip + pagination.take).map((row) => row.id);
+    const pageIds = lightRows
+      .slice(pagination.skip, pagination.skip + pagination.take)
+      .map((row) => row.id);
 
     const rows = pageIds.length
       ? await this.prisma.user.findMany({ where: { id: { in: pageIds } }, select: USER_SELECT })

@@ -7,7 +7,6 @@ import PublicChrome from "@/components/PublicChrome";
 import RouteHistory from "@/components/RouteHistory";
 import SafeAreaSync from "@/components/SafeAreaSync";
 import { AuthProvider } from "@/lib/session";
-import { GuideProvider } from "@/lib/guide/guide-context";
 import { SpacesProvider } from "@/lib/spaces-context";
 
 
@@ -57,10 +56,8 @@ export default function RootLayout({ children }) {
         <SafeAreaSync />
         <AuthProvider>
           <SpacesProvider>
-            <GuideProvider>
-              <RouteHistory />
-              <PublicChrome>{children}</PublicChrome>
-            </GuideProvider>
+            <RouteHistory />
+            <PublicChrome>{children}</PublicChrome>
           </SpacesProvider>
         </AuthProvider>
       </body>

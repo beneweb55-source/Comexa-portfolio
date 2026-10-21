@@ -1,7 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrencyService } from './currency.service.js';
-import { CreateCurrencyDto, ListCurrenciesQueryDto, UpdateCurrencyDto } from './dto/currency.dto.js';
+import {
+  CreateCurrencyDto,
+  ListCurrenciesQueryDto,
+  UpdateCurrencyDto,
+} from './dto/currency.dto.js';
 import { paginated, resolvePagination, type Paginated } from '../../common/dto/pagination.dto.js';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequirePermissions } from '../../common/decorators/auth.decorators.js';
@@ -55,7 +59,11 @@ export class CurrencyController {
     // malgré tout paginée, avec la taille réelle, pour que le contrat de
     // réponse soit le même partout dans l'API — un client qui lit `meta.total`
     // n'a pas à savoir que cette collection est particulière.
-    return paginated(currencies, currencies.length, resolvePagination({ page: 1, perPage: currencies.length }));
+    return paginated(
+      currencies,
+      currencies.length,
+      resolvePagination({ page: 1, perPage: currencies.length }),
+    );
   }
 
   @Get('default')
@@ -82,10 +90,7 @@ export class CurrencyController {
   @Post()
   @RequirePermissions('currency:manage:any')
   @ApiOperation({ summary: 'Créer une nouvelle devise' })
-  async create(
-    @Body() dto: CreateCurrencyDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async create(@Body() dto: CreateCurrencyDto, @CurrentUser() user: AuthenticatedUser) {
     const currency = await this.currencyService.create(
       {
         code: dto.code,
@@ -127,10 +132,7 @@ export class CurrencyController {
   @Delete(':id')
   @RequirePermissions('currency:manage:any')
   @ApiOperation({ summary: 'Désactiver une devise' })
-  async deactivate(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async deactivate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const currency = await this.currencyService.deactivate(
       id,
       { id: user.id },

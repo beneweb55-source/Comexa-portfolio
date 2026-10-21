@@ -73,9 +73,7 @@ export class BalanceController {
 
   @Get('me/all')
   @ApiOperation({ summary: 'Obtenir tous mes soldes' })
-  async getAllMyBalances(
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<MemberBalance[]> {
+  async getAllMyBalances(@CurrentUser() user: AuthenticatedUser): Promise<MemberBalance[]> {
     return this.balanceService.getAllBalances(user.id, new AccessPolicy(user));
   }
 
@@ -90,10 +88,7 @@ export class BalanceController {
     // Un membre ne voit QUE ses propres lignes : la lecture « any » est
     // réservée à l'administration, et cette route renvoie un tableau filtré
     // sur son propre identifiant.
-    return this.balanceService.listBalances(
-      { userId: user.id, currency },
-      new AccessPolicy(user),
-    );
+    return this.balanceService.listBalances({ userId: user.id, currency }, new AccessPolicy(user));
   }
 
   @Get('me/transactions')

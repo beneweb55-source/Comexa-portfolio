@@ -69,11 +69,7 @@ function isEnvelope(value: unknown): value is {
 } {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    candidate.success === true &&
-    typeof candidate.message === 'string' &&
-    'data' in candidate
-  );
+  return candidate.success === true && typeof candidate.message === 'string' && 'data' in candidate;
 }
 
 /**

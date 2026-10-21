@@ -91,7 +91,9 @@ export class AccessPolicy {
 
   /** « Prénom Nom » du porteur, pour les messages adressés à d'autres (notifications). */
   get displayName(): string {
-    return [this.user.firstName, this.user.lastName].filter(Boolean).join(' ').trim() || this.user.email;
+    return (
+      [this.user.firstName, this.user.lastName].filter(Boolean).join(' ').trim() || this.user.email
+    );
   }
 
   get clientId(): string | null {

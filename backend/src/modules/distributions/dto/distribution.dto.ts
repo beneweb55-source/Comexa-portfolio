@@ -49,12 +49,12 @@ export class CreateBeneficiaryDto {
   @IsNotEmpty()
   percentage!: string;
 
-  @ApiPropertyOptional({ description: 'ID de l\'utilisateur (pour MEMBER)' })
+  @ApiPropertyOptional({ description: "ID de l'utilisateur (pour MEMBER)" })
   @IsOptional()
   @IsString()
   userId?: string;
 
-  @ApiProperty({ description: 'Ordre d\'affichage', default: 0 })
+  @ApiProperty({ description: "Ordre d'affichage", default: 0 })
   @IsInt()
   order!: number;
 }
@@ -85,7 +85,7 @@ export class CreateDistributionConfigDto {
   @IsEnum(DistributionBaseType)
   baseType?: DistributionBaseType;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet (ISO)' })
+  @ApiPropertyOptional({ description: "Date d'effet (ISO)" })
   @IsOptional()
   @IsDateString()
   effectiveDate?: string;
@@ -128,7 +128,7 @@ export class ReviseDistributionConfigDto {
   @IsEnum(DistributionBaseType)
   baseType?: DistributionBaseType;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet de la nouvelle version (ISO)' })
+  @ApiPropertyOptional({ description: "Date d'effet de la nouvelle version (ISO)" })
   @IsOptional()
   @IsDateString()
   effectiveDate?: string;
@@ -163,8 +163,7 @@ export class CalculateDistributionQueryDto {
   configId?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Clé d\'idempotence : deux appels avec la même clé rendent la même répartition',
+    description: "Clé d'idempotence : deux appels avec la même clé rendent la même répartition",
   })
   @IsOptional()
   @IsString()
@@ -185,8 +184,7 @@ export class CalculateDistributionDto {
   configId?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Clé d\'idempotence : deux appels avec la même clé rendent la même répartition',
+    description: "Clé d'idempotence : deux appels avec la même clé rendent la même répartition",
   })
   @IsOptional()
   @IsString()

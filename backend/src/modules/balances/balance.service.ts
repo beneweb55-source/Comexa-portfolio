@@ -144,10 +144,7 @@ export class BalanceService {
   /**
    * Obtenir tous les soldes d'un membre
    */
-  async getAllBalances(
-    userId: string,
-    policy: AccessPolicy,
-  ): Promise<MemberBalance[]> {
+  async getAllBalances(userId: string, policy: AccessPolicy): Promise<MemberBalance[]> {
     // Vérifier les permissions
     if (policy.userId !== userId) {
       policy.requireScope('balance', 'read', [SCOPE_ANY]);
@@ -217,10 +214,7 @@ export class BalanceService {
   /**
    * Obtenir une transaction par ID
    */
-  async getTransactionById(
-    id: string,
-    policy: AccessPolicy,
-  ): Promise<BalanceTransaction | null> {
+  async getTransactionById(id: string, policy: AccessPolicy): Promise<BalanceTransaction | null> {
     const transaction = await this.prisma.balanceTransaction.findUnique({
       where: { id },
     });
@@ -483,8 +477,9 @@ export class BalanceService {
         }
       }
 
-      const type =
-        signed.isNegative() ? BalanceTransactionType.DEBIT : BalanceTransactionType.CREDIT;
+      const type = signed.isNegative()
+        ? BalanceTransactionType.DEBIT
+        : BalanceTransactionType.CREDIT;
 
       const transaction = await this.createTransaction(
         {
@@ -555,10 +550,7 @@ export class BalanceService {
     }
 
     if (original.status === BalanceTransactionStatus.CANCELLED) {
-      throw AppException.badRequest(
-        'TRANSACTION_CANCELLED',
-        'Cette opération est déjà annulée.',
-      );
+      throw AppException.badRequest('TRANSACTION_CANCELLED', 'Cette opération est déjà annulée.');
     }
 
     const alreadyReversed = await this.prisma.balanceTransaction.count({
@@ -566,10 +558,7 @@ export class BalanceService {
     });
 
     if (alreadyReversed > 0) {
-      throw AppException.conflict(
-        'ALREADY_REVERSED',
-        'Cette opération a déjà été contre-passée.',
-      );
+      throw AppException.conflict('ALREADY_REVERSED', 'Cette opération a déjà été contre-passée.');
     }
 
     const signed =
@@ -828,8 +817,7 @@ export class BalanceService {
   ): Promise<BalanceTransaction> {
     policy.requireScope('balance', 'manage', [SCOPE_ANY]);
 
-    const decimalAmount =
-      amount instanceof Prisma.Decimal ? amount : new Prisma.Decimal(amount);
+    const decimalAmount = amount instanceof Prisma.Decimal ? amount : new Prisma.Decimal(amount);
     const normalizedCurrency = currency.toUpperCase();
 
     return this.prisma.$transaction(async (tx) => {

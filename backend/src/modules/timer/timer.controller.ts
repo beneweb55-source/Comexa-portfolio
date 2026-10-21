@@ -3,7 +3,12 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AccessPolicy, type AuthenticatedUser } from '../../common/auth/principal.js';
 import { CurrentUser, RequireAnyPermission } from '../../common/decorators/auth.decorators.js';
 import { RequestMeta, type RequestContext } from '../projects/request-meta.decorator.js';
-import { StartTimerDto, StopTimerDto, TimerTasksQueryDto, UpdateTimerDto } from './dto/timer.dto.js';
+import {
+  StartTimerDto,
+  StopTimerDto,
+  TimerTasksQueryDto,
+  UpdateTimerDto,
+} from './dto/timer.dto.js';
 import { TimerService } from './timer.service.js';
 
 /**
@@ -37,7 +42,9 @@ export class TimerController {
 
   @Patch('timer')
   @RequireAnyPermission('time:write:own', 'time:write:any')
-  @ApiOperation({ summary: 'Corriger la session en cours (tache, note) sans perdre le temps ecoule.' })
+  @ApiOperation({
+    summary: 'Corriger la session en cours (tache, note) sans perdre le temps ecoule.',
+  })
   async update(
     @Body() dto: UpdateTimerDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -48,7 +55,9 @@ export class TimerController {
 
   @Get('timer/tasks')
   @RequireAnyPermission('time:write:own', 'time:write:any')
-  @ApiOperation({ summary: 'Taches que le porteur peut chronometrer (meme filtre que le demarrage).' })
+  @ApiOperation({
+    summary: 'Taches que le porteur peut chronometrer (meme filtre que le demarrage).',
+  })
   async tasks(@Query() query: TimerTasksQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.timer.chronometrableTasks(query, new AccessPolicy(user));
   }

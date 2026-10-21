@@ -10,7 +10,12 @@ import { TaskAccessService } from '../tasks/task-access.service.js';
 import { CLOSED_TASK_STATUSES, taskWriteWhereFor } from '../tasks/task-rules.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 import { normalizeWorkDay } from '../time-entries/time-rules.js';
-import type { StartTimerDto, StopTimerDto, TimerTasksQueryDto, UpdateTimerDto } from './dto/timer.dto.js';
+import type {
+  StartTimerDto,
+  StopTimerDto,
+  TimerTasksQueryDto,
+  UpdateTimerDto,
+} from './dto/timer.dto.js';
 import {
   canPauseTimer,
   canResumeTimer,
@@ -217,7 +222,10 @@ export class TimerService {
     };
 
     const [todayTotals, weekTotals, entries] = await Promise.all([
-      this.prisma.timeEntry.aggregate({ where: { ...base, spentOn: today }, _sum: { minutes: true } }),
+      this.prisma.timeEntry.aggregate({
+        where: { ...base, spentOn: today },
+        _sum: { minutes: true },
+      }),
       this.prisma.timeEntry.aggregate({
         where: { ...base, spentOn: { gte: weekStart, lte: today } },
         _sum: { minutes: true },
@@ -440,7 +448,8 @@ export class TimerService {
 
     let nextTaskId = session.taskId;
     if (dto.taskId !== undefined) {
-      nextTaskId = dto.taskId === null ? null : (await this.tasks.requireWritable(dto.taskId, policy)).id;
+      nextTaskId =
+        dto.taskId === null ? null : (await this.tasks.requireWritable(dto.taskId, policy)).id;
     }
     const taskChanged = nextTaskId !== session.taskId;
     const noteChanged = dto.note !== undefined;
@@ -513,7 +522,10 @@ export class TimerService {
       },
     });
     if (stopped.count !== 1) {
-      throw AppException.conflict('TIMER_STATE_CONFLICT', 'Le minuteur a déjà été terminé ailleurs.');
+      throw AppException.conflict(
+        'TIMER_STATE_CONFLICT',
+        'Le minuteur a déjà été terminé ailleurs.',
+      );
     }
 
     await this.audit.record({

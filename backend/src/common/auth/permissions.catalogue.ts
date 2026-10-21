@@ -548,8 +548,7 @@ export const ROLES: Record<RoleCode, { name: string; description: string }> = {
   },
   [RoleCode.SOCIAL_MEDIA_MANAGER]: {
     name: 'Gestion reseaux sociaux',
-    description:
-      'Gere les reseaux sociaux ; travaille sur les taches qui lui sont assignees.',
+    description: 'Gere les reseaux sociaux ; travaille sur les taches qui lui sont assignees.',
   },
   [RoleCode.SALES]: {
     name: 'Commercial',

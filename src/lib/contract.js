@@ -32,7 +32,6 @@ export const REQUIRED_FEATURES = [
   "goals",
   "timerTasks",
   "taskAssignees",
-  "guide",
 ];
 
 /** Version du contrat attendue (informative, affichee dans le diagnostic). */

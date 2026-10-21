@@ -187,7 +187,8 @@ export class UrlBuilderService {
     options: {
       message: string;
       redirectTo?: 'list' | 'detail' | 'settings' | 'dashboard' | string;
-      resourceType: 'invoice' | 'quote' | 'project' | 'client' | 'currency' | 'distribution' | 'conversation';
+      resourceType:
+        'invoice' | 'quote' | 'project' | 'client' | 'currency' | 'distribution' | 'conversation';
       resourceId?: string;
       openInNewTab?: boolean;
     },
@@ -205,11 +206,13 @@ export class UrlBuilderService {
     const { message, redirectTo, resourceType, resourceId, openInNewTab = true } = options;
 
     let url: string | undefined;
-    let action: {
-      type: 'open_tab' | 'redirect' | 'refresh';
-      url: string;
-      target: '_blank' | '_self';
-    } | undefined;
+    let action:
+      | {
+          type: 'open_tab' | 'redirect' | 'refresh';
+          url: string;
+          target: '_blank' | '_self';
+        }
+      | undefined;
 
     // Construire l'URL en fonction du type
     if (redirectTo && resourceId) {
@@ -278,13 +281,13 @@ export class UrlBuilderService {
     error: string,
     options?: {
       code?: string;
-      details?: any;
+      details?: unknown;
     },
   ): {
     success: false;
     error: string;
     code?: string;
-    details?: any;
+    details?: unknown;
   } {
     return {
       success: false,

@@ -35,7 +35,6 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
-import GuideDock from "@/components/guide/GuideDock";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -611,8 +610,6 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
     <ShellQueryContext.Provider value={contextValue}>
       <SoftMotionProvider>
         <div className="sui-viewport" data-space={area}>
-          {/* Guide de démarrage : une pastille discrète, une étape à la fois. */}
-          <GuideDock />
           <a className="sui-skip" href={`#${skipId}`}>
             Passer à la zone de travail
           </a>

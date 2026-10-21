@@ -116,10 +116,7 @@ export class CurrencyService {
     }
 
     if (!currency.isActive) {
-      throw AppException.badRequest(
-        'INACTIVE_CURRENCY',
-        `La devise ${code} n'est pas active`,
-      );
+      throw AppException.badRequest('INACTIVE_CURRENCY', `La devise ${code} n'est pas active`);
     }
 
     return currency;
@@ -129,7 +126,7 @@ export class CurrencyService {
    * Valider plusieurs devises
    */
   async validateMultiple(codes: string[], policy: AccessPolicy): Promise<Currency[]> {
-    return Promise.all(codes.map(code => this.validate(code, policy)));
+    return Promise.all(codes.map((code) => this.validate(code, policy)));
   }
 
   // ---------------------------------------------------------------------------

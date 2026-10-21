@@ -43,12 +43,12 @@ export class UpsertExchangeRateDto {
   @IsNotEmpty()
   rate!: string;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet (format: YYYY-MM-DD)' })
+  @ApiPropertyOptional({ description: "Date d'effet (format: YYYY-MM-DD)" })
   @IsOptional()
   @IsDateString()
   effectiveDate?: string;
 
-  @ApiProperty({ description: 'Source du taux (obligatoire)', example: 'Banque d\'Algérie' })
+  @ApiProperty({ description: 'Source du taux (obligatoire)', example: "Banque d'Algérie" })
   @IsString()
   @IsNotEmpty()
   source!: string;
