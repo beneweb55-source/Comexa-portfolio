@@ -32,17 +32,28 @@ const SPACE_HEADER = "X-Comexa-Space";
 // jamais par un en-tête ou un paramètre). C'est le même formulaire, les mêmes
 // composants, les mêmes règles métier — seule la base change.
 //
-// DEUX EXCEPTIONS, et ce sont les seules :
+// TROIS EXCEPTIONS, et ce sont les seules :
 //  - les routes `/auth/*` (connexion, rafraîchissement, mot de passe) restent
 //    sur le jeton réel : l'identité ne se gère pas dans une base fictive ;
+//  - les routes `/training/*` (entrer, sortir, catalogue, progression)
+//    restent sur le jeton réel : elles GÈRENT la session de formation, elles
+//    ne doivent donc jamais dépendre de son jeton. Sans cette exception, une
+//    session de formation expirée ou fermée (autre onglet, redémarrage du
+//    serveur) empoisonnait tout : `/training/enter` lui-même partait avec le
+//    jeton mort, répondait 401, et chaque sondage (minuteur, notifications,
+//    tâches) rejouait le même 401 après rafraîchissement — boucle sans fin,
+//    et « Ouverture de l'environnement… » ne retombait jamais ;
 //  - `fetchProtectedBlob` (documents) utilise le jeton de formation quand il
 //    est actif, pour télécharger les pièces d'exercice.
 //
-// Aucune route ne peut choisir elle-même : c'est la présence du jeton de
-// formation qui décide, posée par `setTrainingToken`.
+// Aucune autre route ne peut choisir elle-même : c'est la présence du jeton
+// de formation qui décide, posée par `setTrainingToken`.
 // ---------------------------------------------------------------------------
 
 let trainingToken = null;
+
+/** Abonnés prévenus quand un jeton de formation rejeté (401) est abandonné. */
+const trainingTokenDroppedListeners = new Set();
 
 /** (Dés)active le jeton de formation pour les requêtes suivantes. */
 export function setTrainingToken(token) {
@@ -54,12 +65,48 @@ export function getTrainingToken() {
   return trainingToken;
 }
 
+/**
+ * S'abonne à l'abandon automatique du jeton de formation (voir `apiFetch`).
+ * Rend la fonction de désabonnement. Le contexte de formation s'en sert pour
+ * éteindre sa bannière au lieu de rester « MODE FORMATION actif » avec un
+ * jeton que le serveur refuse.
+ */
+export function onTrainingTokenDropped(listener) {
+  trainingTokenDroppedListeners.add(listener);
+  return () => trainingTokenDroppedListeners.delete(listener);
+}
+
+/**
+ * Abandonne le jeton de formation EN COURS d'utilisation parce que le serveur
+ * vient de le refuser (401) : la session de formation est expirée, fermée ou
+ * révoquée. Continuer à le présenter ne produirait que des 401 — y compris
+ * après un rafraîchissement du vrai jeton, puisque c'est lui qui est envoyé.
+ * Le retirer rend la main au jeton réel : la requête rejouée par
+ * `session.request` repart sur la production, et l'utilisateur peut rouvrir
+ * l'environnement depuis « Mon parcours ».
+ */
+function dropRejectedTrainingToken(usedToken) {
+  if (!usedToken || usedToken !== trainingToken) return;
+  trainingToken = null;
+  for (const listener of trainingTokenDroppedListeners) {
+    try {
+      listener();
+    } catch {
+      // Un abonné défaillant ne doit pas masquer la réponse HTTP en cours.
+    }
+  }
+}
+
 function isAuthPath(path) {
   return typeof path === "string" && (path === "/auth" || path.startsWith("/auth/"));
 }
 
+function isTrainingPath(path) {
+  return typeof path === "string" && (path === "/training" || path.startsWith("/training/"));
+}
+
 function effectiveToken(path, token) {
-  if (trainingToken && !isAuthPath(path)) return trainingToken;
+  if (trainingToken && !isAuthPath(path) && !isTrainingPath(path)) return trainingToken;
   return token;
 }
 
@@ -68,12 +115,38 @@ function effectiveToken(path, token) {
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
  * requête garde les droits du rôle (espace client, site public, connexion).
  */
-export async function apiFetch(path, { method = "GET", body, token, signal, space } = {}) {
+/** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+export async function apiFetch(
+  path,
+  { method = "GET", body, token, signal, space, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const bearer = effectiveToken(path, token);
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
+
+  // AUCUNE requête sans délai maximal. Sans lui, un serveur qui ne répond pas
+  // (réveil d'un hébergement endormi, amorçage de la base d'entraînement qui
+  // traîne) laissait l'interface figée sur son indicateur de chargement —
+  // « Ouverture de l'environnement… » pour toujours, sans erreur ni issue.
+  // Le signal de l'appelant reste maître : son annulation n'est pas convertie
+  // en erreur réseau.
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs)
+      : null;
+  if (signal) {
+    if (signal.aborted) controller.abort();
+    else signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
 
   let response;
   try {
@@ -83,11 +156,28 @@ export async function apiFetch(path, { method = "GET", body, token, signal, spac
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: "same-origin",
       cache: "no-store",
-      signal,
+      signal: controller.signal,
     });
   } catch (error) {
-    if (error?.name === "AbortError") throw error;
+    if (error?.name === "AbortError" && !timedOut) throw error;
+    if (timedOut) {
+      throw new ApiError(
+        0,
+        "TIMEOUT",
+        "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
+      );
+    }
     throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  // Un 401 sur un jeton de FORMATION signe la fin de cette session de
+  // formation (expirée, fermée, révoquée) : on l'abandonne immédiatement
+  // pour que le rejeu — après rafraîchissement du vrai jeton — reparte avec
+  // le jeton réel au lieu de représenter indéfiniment le jeton mort.
+  if (response.status === 401 && trainingToken && bearer === trainingToken) {
+    dropRejectedTrainingToken(bearer);
   }
 
   const text = await response.text();
