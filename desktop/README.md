@@ -38,6 +38,18 @@ domaine** part dans le navigateur du système. `window.open` et les liens
 Sans réseau, une page locale `offline.html` explique la situation et propose de
 réessayer.
 
+## L'écran d'entrée porte l'esthétique du dashboard
+
+La fenêtre s'ouvre sur `/espaces`, le hub des espaces — et ce hub est habillé
+**comme le dashboard**, avec les mêmes pièces : la coque noire bord à bord, la
+navbar noire et sa languette sous l'onglet actif, le rail gauche, le panneau
+clair, les cartes pastel et le dock flottant (`src/components/softui/HubScreen.jsx`).
+
+Les deux applications n'affichent donc jamais une page de site public : le
+premier écran du `.exe` est déjà le produit. La **page de connexion** — que l'on
+rencontre avant d'être connecté — repose sur la même coque : barre noire, marque
+claire, panneau clair.
+
 ## Lancer en développement
 
 ```bash

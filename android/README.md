@@ -51,6 +51,20 @@ Identique au desktop (`desktop/config.js` ↔ `AppConfig.java`) : `/espaces`,
 périmètre ramène au hub. Sans réseau, la page locale `offline.html` (servie
 sans origine privilégiée) propose de réessayer.
 
+## L'écran d'entrée porte l'esthétique du dashboard
+
+Le hub `/espaces` — l'écran d'accueil de l'APK — est habillé **comme le
+dashboard**, avec les mêmes pièces : la coque noire bord à bord, la navbar
+noire et sa languette sous l'onglet actif, le rail gauche, le panneau clair,
+les cartes pastel et le dock flottant (`src/components/softui/HubScreen.jsx`).
+
+Sur téléphone, la coque bascule sur son chrome mobile : barre d'application
+noire en haut (marque claire), barre d'onglets en bas. La **page de
+connexion** — avant d'être connecté — repose sur la même coque.
+
+L'application n'affiche donc jamais une page de site public : le premier
+écran de l'APK est déjà le produit.
+
 ## Adresse du service
 
 Configurable à la compilation, sans toucher au code :

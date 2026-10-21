@@ -27,6 +27,10 @@ export default function SideRail({
   canZoomOut,
   notificationsHref,
   extra,
+  /* Libellé du bouton qui ouvre le tiroir de navigation. Dans un espace, ce
+     tiroir liste les rubriques ; sur le hub des espaces, il liste les espaces
+     eux-mêmes : le libellé suit donc le contenu. */
+  navigationLabel = "Toutes les rubriques",
 }) {
   return (
     <div className="sui-rail">
@@ -35,8 +39,8 @@ export default function SideRail({
           <Share2 size={18} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </Tooltip>
-      <Tooltip label="Toutes les rubriques" placement="right">
-        <button ref={navigationButtonRef} type="button" className="sui-rail__btn" aria-label="Ouvrir toutes les rubriques" onClick={onOpenNavigation}>
+      <Tooltip label={navigationLabel} placement="right">
+        <button ref={navigationButtonRef} type="button" className="sui-rail__btn" aria-label={`Ouvrir : ${navigationLabel.toLowerCase()}`} onClick={onOpenNavigation}>
           <MenuIcon size={18} strokeWidth={1.75} aria-hidden="true" />
         </button>
       </Tooltip>
