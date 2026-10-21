@@ -47,9 +47,9 @@ export const INTEGRATION_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
  *
  * 250, et non 40. Un plafond n'a de sens que rapporte a la TAILLE DU
  * CATALOGUE : `ALL_PERMISSION_CODES` compte un peu plus de cent codes, dont
- * tous sauf `INTEGRATION_MANAGED_CODES` sont attribuables a une integration
- * (voir `integration-token.spec.ts`, qui verifie que le catalogue entier
- * passe). A 40, le plafond serait descendu SOUS le plus large besoin legitime —
+ * tous sauf `INTEGRATION_MANAGED_CODES` sont attribuables a une integration —
+ * le catalogue entier passe sous ce plafond. A 40, le plafond serait descendu
+ * SOUS le plus large besoin legitime —
  * une integration d'agence qui pilote projets, taches, agenda, CRM et
  * facturation en une seule connexion — et aurait oblige a tailler dans les
  * droits au hasard, ou a contourner la regle.

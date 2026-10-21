@@ -6,12 +6,16 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Req,
   Res,
   createParamDecorator,
   type ExecutionContext,
 } from '@nestjs/common';
+import { OnboardingService, trainingAccess } from './onboarding.service.js';
+import { OnboardingDto } from './dto/onboarding.dto.js';
+import { IgnoreSpace, ScopedByService } from '../../common/decorators/auth.decorators.js';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -84,6 +88,7 @@ interface SessionResponse {
 @Controller('auth')
 export class AuthController {
   constructor(
+    private readonly onboardingService: OnboardingService,
     private readonly auth: AuthService,
     private readonly config: ConfigService,
   ) {}
@@ -296,6 +301,27 @@ export class AuthController {
   @ApiOperation({ summary: "Profil et permissions de l'utilisateur connecte." })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<AuthProfile> {
     return this.auth.me(user.id);
+  }
+
+  @Get('onboarding')
+  @IgnoreSpace()
+  @ScopedByService()
+  async onboarding(@CurrentUser() user: AuthenticatedUser) {
+    return this.onboardingService.list(user);
+  }
+
+  @Patch('onboarding')
+  @IgnoreSpace()
+  @ScopedByService()
+  async saveOnboarding(@CurrentUser() user: AuthenticatedUser, @Body() dto: OnboardingDto) {
+    return this.onboardingService.save(user, dto);
+  }
+
+  @Get('onboarding/access')
+  @IgnoreSpace()
+  @ScopedByService()
+  async onboardingAccess(@CurrentUser() user: AuthenticatedUser) {
+    return trainingAccess(user);
   }
 
   @Get('sessions')

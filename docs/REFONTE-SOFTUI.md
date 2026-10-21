@@ -65,7 +65,7 @@ tangents au bord noir.
 | `espace-equipe/clients` | Grille de cartes : initiales en pastille, référence, secteur/ville/pays, statut ; filtres en pilules ; la recherche du bandeau alimente le paramètre `search` de l'API. |
 | `espace-equipe/projets` | Bandeau de KPI, filtres de statut avec compteurs, progression teintée par statut, bascule **Cartes / Liste** (`softui/ListView`, choix mémorisé). |
 | `espace-equipe/devis` | Filtres en pilules, montant en pilule blanche, bouton principal noir conditionné à `quote:write:any`. |
-| `espace-equipe/factures` | KPI par devise (facturé, encaissé, reste à encaisser, en retard), filtres avec compteurs, échéance dépassée signalée, vue **Liste** par défaut (tableau) ou cartes. |
+| `espace-equipe/factures` | KPI par devise (facturé, encaissé, reste à encaisser, en retard), sélecteur **DA / EUR / les deux** mémorisé (défaut : DA), filtres avec compteurs, échéance dépassée signalée, vue **Liste** par défaut (tableau) ou cartes. |
 | `espace-equipe/commandes` | Reste un **tableau** (file d'actions), habillé soft UI : pilules de filtre, alertes pastel, boutons secondaire/principal, statuts en pilules. Toute la logique (validation, démarrage, paiement, confirmations) est conservée. |
 | Autres pages `espace-equipe/*` et `espace-client/*` | Bénéficient de la coque (navbar, rail, en-tête, Admin Desk, dock, tiroirs) sans modification de page. |
 
@@ -167,7 +167,6 @@ quelle dans `ControlCenter.jsx`), ainsi que `styles/workspace-liquid.css`
 ```bash
 npm run lint     # ESLint (règles React Compiler incluses)
 npm run build    # Next 16, Turbopack
-npm run test:unit
 ```
 
 Pour voir la coque remplie sans le backend Nest : le tableau de bord et les
@@ -211,7 +210,7 @@ tous les composants avec des données de démonstration, sans session.
 La languette noire qui descend sous l'onglet actif n'est plus un dessin figé de
 116 × 15 px : sa géométrie est **calculée** sur la pilule réellement rendue.
 
-- `src/lib/notch.mjs` (fonctions pures, `src/lib/notch.test.mjs`) :
+- `src/lib/notch.mjs` (fonctions pures) :
   `notchWidth(pillWidth)` renvoie la largeur du dessin — le **corps** de la
   languette mesure exactement la largeur de la pilule, les deux congés
   (`flare = 12 px`) débordent de part et d'autre ; `notchPath(width)` renvoie la

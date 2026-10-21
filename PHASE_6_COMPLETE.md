@@ -438,7 +438,6 @@ POST /api/currencies
 - 📄 **REDIRECTION_SYSTEM.md** - Documentation complète du système
 - 📄 **IMPLEMENTATION_SUMMARY.md** - Résumé de toutes les implémentations
 - 📄 **PHASE_6_COMPLETE.md** - Ce fichier
-- 🐧 **test_redirect_system.sh** - Script de test
 
 ---
 

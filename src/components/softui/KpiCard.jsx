@@ -12,7 +12,7 @@ import { Sparkles } from "lucide-react";
 import { staggerItem } from "./motion";
 import { toneBackground } from "./primitives";
 
-export function KpiCard({ value, label, tone = "blue", badge, deco, decoIcon: Deco = Sparkles, toneBg, className = "" }) {
+export function KpiCard({ value, secondary, label, tone = "blue", badge, deco, decoIcon: Deco = Sparkles, toneBg, className = "" }) {
   return (
     <motion.article
       variants={staggerItem}
@@ -28,6 +28,7 @@ export function KpiCard({ value, label, tone = "blue", badge, deco, decoIcon: De
         ) : null}
       </div>
       <p className="sui-kpi__value">{value}</p>
+      {secondary ? <p className="sui-kpi__secondary">{secondary}</p> : null}
       <p className="sui-kpi__label">{label}</p>
     </motion.article>
   );

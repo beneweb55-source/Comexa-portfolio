@@ -4,7 +4,7 @@ import { AppException } from '../../common/errors/app-error.js';
  * BORNES DE PERIODE D'UN RAPPORT.
  *
  * Ce fichier ne fait QUE du calcul de dates, sans base ni Nest : c'est ce qui
- * permet de le tester exhaustivement (`report-period.spec.ts`). Une borne
+ * permet de l'exercer exhaustivement. Une borne
  * fausse ne se voit pas a l'ecran — elle se voit six mois plus tard, quand
  * quelqu'un compare le rapport a sa comptabilite.
  *

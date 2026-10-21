@@ -39,12 +39,8 @@ cd backend && npm run start:dev
 BACKEND_URL=http://localhost:3001 npm run dev
 ```
 
-Les vérifications : `npm run lint` et `npm run build` à la racine, `npm test` et `npm run test:e2e` dans `backend/`.
-
-La suite bout-en-bout attend la **vérification d'adresse activée** (c'est le
-scénario qu'elle teste) : `EMAIL_VERIFICATION_REQUIRED=true npm run test:e2e`.
-Sans cette variable, le fichier `orders` échoue sur ses deux scénarios
-d'inscription — le serveur, lui, se comporte bien dans les deux cas.
+Les vérifications : `npm run lint` et `npm run build` à la racine, `npm run lint`
+et `npm run build` dans `backend/`.
 
 ## Répartition & soldes (espace équipe)
 

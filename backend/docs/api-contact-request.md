@@ -312,9 +312,9 @@ Points d'attention pour l'integration :
 
 ---
 
-## 8. Tests
+## 8. Scenarios verifies
 
-`test/crm.e2e-spec.ts` — sur la vraie base, par HTTP, a travers la chaine
+Sur la vraie base, par HTTP, a travers la chaine
 complete de gardes, pipe, filtre et intercepteur. Quatre scenarios :
 
 1. **conversion nominale** : une demande arrive par le **formulaire public**
@@ -336,8 +336,7 @@ Les fixtures autres que le formulaire public sont ecrites directement en base
 avec une reference tiree du compteur partage : faire tourner le formulaire pour
 chaque fixture epuiserait son quota (5 envois par minute) et declencherait la
 notification de l'agence a chaque fois, pour des demandes qui ne sont pas le
-sujet du test. Le fichier nettoie tout ce qu'il cree, dans l'ordre des cles
-etrangeres.
+sujet du scenario. Le nettoyage se fait dans l'ordre des cles etrangeres.
 
 ---
 
@@ -348,7 +347,6 @@ etrangeres.
 | `src/modules/prospects/prospects.service.ts` | modifie — `convertContactRequest`, interface `ProspectFromContactRequest`, trois helpers |
 | `src/modules/prospects/contact-request-conversion.controller.ts` | **cree** |
 | `src/modules/prospects/prospects.module.ts` | modifie — deuxieme controleur declare |
-| `test/crm.e2e-spec.ts` | modifie — quatre scenarios, `purge` etendu, helper `createRequest` |
 | `prisma/schema.prisma` | **non modifie** |
 | `prisma/migrations/` | **aucune migration ajoutee** |
 | `docs/API.md` | **non modifie** (ce fichier-ci est a fusionner) |

@@ -1,6 +1,8 @@
 "use client";
 
-import { formatDate, formatMoney } from "@/lib/api";
+import { formatDate } from "@/lib/api";
+import { DEFAULT_CURRENCY, amountsInScope, formatMoney } from "@/lib/currency";
+import { useDisplayCurrency } from "@/lib/use-display-currency";
 
 /*
  * Rendu générique de données agrégées (tableaux de bord, résultats de rapports).
@@ -32,7 +34,7 @@ export function labelOf(key) {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-export function formatValue(key, value, siblings = {}) {
+export function formatValue(key, value, siblings = {}, scope = null) {
   if (value === null || value === undefined || value === "") return "—";
   if (typeof value === "string" && ISO.test(value) && DATE_KEY.test(key)) return formatDate(value);
   if (typeof value === "number" || (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)))) {
@@ -43,8 +45,17 @@ export function formatValue(key, value, siblings = {}) {
       return hours > 0 ? `${hours} h ${String(rest).padStart(2, "0")}` : `${rest} min`;
     }
     if (MONEY_KEY.test(key) && !/count|percent|progress|status/i.test(key)) {
-      const currency = siblings.currency ?? "DZD";
-      return formatMoney(value, currency);
+      /* Un agrégat multi-devises porte `byCurrency` : c'est lui qui permet de
+         répondre à « en DA », « en EUR » ou « les deux ». Sans lui, la valeur
+         scalaire est déjà libellée dans `siblings.currency`. */
+      const byCurrency = Array.isArray(siblings.byCurrency) ? siblings.byCurrency : null;
+      if (byCurrency?.length && scope) {
+        const amounts = amountsInScope(byCurrency, scope);
+        return amounts.length
+          ? amounts.map((amount) => formatMoney(amount.total, amount.currency)).join(" · ")
+          : "—";
+      }
+      return formatMoney(value, siblings.currency ?? DEFAULT_CURRENCY);
     }
     return new Intl.NumberFormat("fr-FR").format(Number(value));
   }
@@ -54,6 +65,7 @@ export function formatValue(key, value, siblings = {}) {
 
 /** Un bloc : indicateurs, puis sous-sections et tableaux. */
 export function DataView({ value, title, depth = 0 }) {
+  const { scope } = useDisplayCurrency();
   if (value === null || value === undefined) return <p className="sui-card__desc">Aucune donnée.</p>;
   if (typeof value !== "object") return <p className="sui-body">{formatValue(title ?? "", value)}</p>;
 
@@ -72,7 +84,7 @@ export function DataView({ value, title, depth = 0 }) {
             .map(([k, v]) => (
               <div key={k} className="sui-stat">
                 <dt className="sui-field__label">{labelOf(k)}</dt>
-                <dd className="sui-stat__value">{formatValue(k, v, siblings)}</dd>
+                <dd className="sui-stat__value">{formatValue(k, v, siblings, scope)}</dd>
               </div>
             ))}
         </dl>

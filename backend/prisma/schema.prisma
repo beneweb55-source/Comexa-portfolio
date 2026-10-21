@@ -490,6 +490,7 @@ model User {
   id           String     @id @default(cuid())
   email        String     @unique
   passwordHash String
+  onboardingProgress OnboardingProgress[]
   dailyReports DailyReport[]
   firstName    String
   lastName     String
@@ -2035,7 +2036,7 @@ model ModificationRequest {
   /// le chiffrage eventuel repasse par un devis.
   estimatedMinutes  Int?
   extraCost         Decimal? @db.Decimal(14, 2)
-  extraCostCurrency String   @default("EUR")
+  extraCostCurrency String   @default("DZD")
 
   requestedById String?
   requestedBy   User?     @relation("ModificationRequester", fields: [requestedById], references: [id], onDelete: SetNull)
@@ -2960,4 +2961,21 @@ model TrainingAttempt {
   @@index([progressId])
   @@index([userId, missionId])
   @@map("training_attempts")
+}
+
+/// Progression personnelle, versionnée et indépendante des permissions.
+model OnboardingProgress {
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  area String
+  step Int @default(0)
+  status String @default("active")
+  completedChapterIds String[] @default([])
+  knownChapterIds String[] @default([])
+  currentChapterId String?
+  curriculumVersion Int @default(1)
+  revision Int @default(0)
+  updatedAt DateTime @updatedAt
+  @@id([userId, area])
+  @@map("onboarding_progress")
 }

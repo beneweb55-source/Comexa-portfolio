@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ACCESS_TOKEN_VERIFIER, PRINCIPAL_LOADER } from '../../common/guards/access.guards.js';
 import { MailModule } from '../../common/mail/mail.module.js';
+import { OnboardingService } from './onboarding.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PrincipalService } from './principal.service.js';
@@ -25,9 +26,8 @@ import { TokenService } from './token.service.js';
  *    modules metier ; ce sont les modules qui se branchent sur le socle. Sans
  *    cela, un garde qui importerait `AuthService` creerait un cycle des que
  *    `AuthService` voudrait utiliser ce garde.
- *  - un test peut fournir un verificateur de complaisance (voir
- *    `access.guards.spec.ts`) sans monter de module Nest, sans base et sans
- *    JWT : on teste la REGLE d'acces, pas la cryptographie.
+ *  - la REGLE d'acces est verifiable sans monter de module Nest, sans base et
+ *    sans JWT : on verifie la REGLE, pas la cryptographie.
  *
  * `JwtModule` est importe SANS secret global : chaque signature precise le sien.
  * Un secret au niveau du module serait un piege — rien n'empecherait un futur
@@ -44,6 +44,7 @@ import { TokenService } from './token.service.js';
   imports: [JwtModule.register({}), MailModule],
   controllers: [AuthController],
   providers: [
+    OnboardingService,
     AuthService,
     TokenService,
     PrincipalService,

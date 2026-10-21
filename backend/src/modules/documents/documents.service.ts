@@ -397,10 +397,16 @@ export class DocumentsService {
     const policy = new AccessPolicy(user);
     policy.requireScope('document', 'delete', [SCOPE_ANY]);
 
-    const document = await this.requireStored(user, id);
+    const document = await this.findReadable(user, id, DOCUMENT_STORED_FIELDS, true);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.document.update({ where: { id }, data: { deletedAt: new Date() } });
+      const removed = await tx.document.updateMany({
+        where: { id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (removed.count !== 1) {
+        throw AppException.notFound('DOCUMENT_NOT_FOUND', 'Document introuvable.');
+      }
 
       await this.activity.record(
         {
@@ -615,10 +621,11 @@ export class DocumentsService {
     user: AuthenticatedUser,
     id: string,
     select: T,
+    includeExpired = false,
   ): Promise<Prisma.DocumentGetPayload<{ select: T }>> {
     const access = this.accessFor(user);
     const where: Prisma.DocumentWhereInput = {
-      AND: [this.readWhere(user, access, {}), { id }],
+      AND: [this.readWhere(user, access, { includeExpired }), { id }],
     };
 
     const document = await this.prisma.document.findFirst({ where, select });

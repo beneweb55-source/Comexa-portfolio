@@ -202,16 +202,20 @@ validation éditoriale, délais de réponse aux demandes client.
 
 ### Exécutés et verts
 
-| Suite | Résultat |
-| --- | --- |
-| `training-scope.spec.ts` (portée ALS, modèles toujours-prod) | ✅ |
-| `prisma-routing.spec.ts` (routage fail-loud, pas de repli production) | ✅ |
-| `mission-verification.spec.ts` (critères, substitution `{{userId}}`/`{{now}}`) | ✅ |
-| `missions.spec.ts` (permissions réelles, ancrages réels, critères, filtre par profil) | ✅ |
-| Suite backend complète `npm test` | ✅ 1041/1043 — les 2 échecs sont **préexistants sur main** (`space-policy.spec.ts`, liés aux permissions `currency:read`/`exchangerate:read` de SALES), sans rapport avec la formation |
-| Frontend `npm run lint` | ✅ |
-| Frontend `npm run build` (4 pages `/formation` incluses) | ✅ |
-| Frontend `npm run test:unit` | ✅ 130/130 |
+Les suites de formation vivent dans `backend/tests/` et `tests/` (convention du
+dépôt : hors `src/`, comme les suites onboarding déjà présentes).
+
+| Suite | Commande | Résultat |
+| --- | --- | --- |
+| `backend/tests/training-scope.spec.ts` (portée ALS, modèles toujours-prod) | `cd backend && node --import tsx --test tests/training-scope.spec.ts` | ✅ |
+| `backend/tests/prisma-routing.spec.ts` (routage fail-loud, pas de repli production) | idem avec `tests/prisma-routing.spec.ts` | ✅ |
+| `backend/tests/mission-verification.spec.ts` (critères, `{{userId}}`/`{{now}}`) | idem | ✅ |
+| `backend/tests/missions.spec.ts` (permissions réelles, ancrages, filtre par profil) | idem | ✅ |
+| **Total formation** | `cd backend && node --import tsx --test tests/training-scope.spec.ts tests/mission-verification.spec.ts tests/missions.spec.ts tests/prisma-routing.spec.ts` | ✅ **25/25** |
+| `tests/contract.test.mjs` (poignée de contrat API, feature `training`) | `node --test tests/contract.test.mjs` | ✅ 5/5 |
+| Suites onboarding existantes (non régressées) | `npm run test:onboarding` | ✅ |
+| Frontend `npm run lint` | | ✅ |
+| Frontend `npm run build` (4 pages `/formation`) | | ✅ |
 
 ### Non exécutables ici
 
@@ -220,6 +224,9 @@ validation éditoriale, délais de réponse aux demandes client.
   de critères et de catalogues est couverte en unitaire ; l'intégration SQL
   (fixtures, reset, miroir d'identités) doit être validée sur un environnement
   avec `TRAINING_DATABASE_URL`.
+- Le dépôt ne propose plus les anciennes suites `npm test` / `npm run test:unit`
+  (purge volontaire du 20/10) : les commandes ci-dessus sont les suites
+  réellement présentes aujourd'hui.
 
 ### À valider manuellement (parcours réel)
 

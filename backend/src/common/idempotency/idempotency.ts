@@ -20,7 +20,7 @@
  * Tout ce qui est testable sans serveur est ici — validation de la cle, empreinte
  * du corps, duree de conservation. L'intercepteur qui les applique vit a cote et
  * reste une simple mecanique d'enregistrement. La consequence pratique : les
- * regles sont verifiees par `npm test`, sans PostgreSQL.
+ * regles sont verifiables sans PostgreSQL, et sans demarrer l'application.
  */
 import { createHash } from 'node:crypto';
 

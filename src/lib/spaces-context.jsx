@@ -31,6 +31,8 @@ const SUMMARY_INTERVAL_MS = 60_000;
 export function SpacesProvider({ children }) {
   const { status, user, request } = useAuth();
   const userId = user?.id ?? null;
+  // Une modification de permissions doit invalider les droits d'espace en cache.
+  const accessKey = JSON.stringify([user?.roles ?? [], [...(user?.permissions ?? [])].sort()]);
   const [server, setServer] = useState({ userId: null, spaces: null, failed: false });
   const [unread, setUnread] = useState({ userId: null, bySpace: {} });
 
@@ -47,7 +49,7 @@ export function SpacesProvider({ children }) {
         if (!controller.signal.aborted) setServer({ userId, spaces: null, failed: true });
       });
     return () => controller.abort();
-  }, [isMember, request, userId]);
+  }, [accessKey, isMember, request, userId]);
 
   const refreshUnread = useCallback(() => {
     if (!isMember || !userId) return;

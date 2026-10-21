@@ -129,7 +129,7 @@ export class DecideModificationRequestDto {
   @Max(1_000_000)
   extraCost?: number;
 
-  @ApiPropertyOptional({ default: 'EUR', maxLength: MAX_CURRENCY })
+  @ApiPropertyOptional({ default: 'DZD', maxLength: MAX_CURRENCY })
   @emptyToUndefined()
   @IsOptional()
   @IsString()

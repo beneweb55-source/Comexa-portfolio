@@ -90,7 +90,7 @@ function Form() {
       subject: header.subject.trim(),
       issueDate: header.issueDate,
       validUntil: header.validUntil,
-      currency: header.currency.trim().toUpperCase() || "EUR",
+      currency: header.currency.trim().toUpperCase() || DEFAULT_CURRENCY,
       taxRate: taxRate,
       notes: header.notes.trim() || undefined,
       terms: header.terms.trim() || undefined,

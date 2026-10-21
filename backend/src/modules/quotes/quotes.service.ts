@@ -44,7 +44,6 @@ import type {
   UpdateQuoteDto,
 } from './dto/quote.dto.js';
 import {
-  canDeleteQuote,
   canEditQuote,
   canSendQuote,
   quoteDecisionBlocker,
@@ -180,6 +179,7 @@ export class QuotesService {
       ...(!ownClientId && query.clientId ? { clientId: query.clientId } : {}),
       ...(query.prospectId ? { prospectId: query.prospectId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.currency ? { currency: query.currency.toUpperCase() } : {}),
       ...(search
         ? {
             OR: [
@@ -1000,15 +1000,15 @@ export class QuotesService {
       throw AppException.notFound('QUOTE_NOT_FOUND', "Ce devis n'existe pas.");
     }
 
-    if (!canDeleteQuote(before.status)) {
-      throw AppException.conflict(
-        'QUOTE_NOT_DELETABLE',
-        "Seul un brouillon peut etre supprime. Un devis envoye s'annule, pour garder sa trace.",
-      );
-    }
-
     await this.prisma.$transaction(async (tx) => {
-      await tx.quote.update({ where: { id: quoteId }, data: { deletedAt: new Date() } });
+      // Condition atomique : une deuxième suppression ne réécrit pas la trace.
+      const removed = await tx.quote.updateMany({
+        where: { id: quoteId, deletedAt: null },
+        data: { deletedAt: new Date() },
+      });
+      if (removed.count !== 1) {
+        throw AppException.notFound('QUOTE_NOT_FOUND', 'Document introuvable.');
+      }
 
       await this.activity.record(
         {

@@ -32,9 +32,7 @@ const eslintConfig = [
   {
     ignores: [
       'dist/**',
-      '.e2e-build/**',
       'node_modules/**',
-      'coverage/**',
       'storage/**',
       // Client Prisma genere : artefact derive, regenere par `prisma generate`.
       'src/generated/**',

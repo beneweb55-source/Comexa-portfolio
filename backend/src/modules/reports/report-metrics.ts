@@ -215,7 +215,7 @@ export function currencyAmounts(rows: readonly RawCurrencyAmount[]): CurrencyAmo
 /**
  * Section de montants : devise dominante en tete, detail complet dessous.
  *
- * Une liste vide produit `{ currency: 'EUR', total: '0.00', count: 0 }` et non
+ * Une liste vide produit `{ currency: 'DZD', total: '0.00', count: 0 }` et non
  * `null` : un tableau de bord sans facture doit afficher zero, pas un tiret.
  */
 export function amountSection(rows: readonly RawCurrencyAmount[]): AmountSection {
@@ -230,8 +230,15 @@ export function amountSection(rows: readonly RawCurrencyAmount[]): AmountSection
   };
 }
 
-/** Devise de repli quand aucune ligne n'existe — celle du schema. */
-export const FALLBACK_CURRENCY = 'EUR';
+/**
+ * Devise de repli quand aucune ligne n'existe — celle du schema.
+ *
+ * C'est le dinar : `Project.currency`, `Quote.currency`, `Invoice.currency`,
+ * `Payment.currency` et `Client.currency` portent tous `@default("DZD")`. Le
+ * repli doit dire la meme chose que la base ; l'euro ne doit pas reapparaitre
+ * comme devise implicite d'un rapport vide.
+ */
+export const FALLBACK_CURRENCY = 'DZD';
 
 /**
  * Devise principale d'un ensemble de totaux.
