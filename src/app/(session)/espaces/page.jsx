@@ -3,9 +3,10 @@
 /*
  * Hub des espaces de travail — `/espaces`.
  *
- * L'ÉCRAN D'ENTRÉE DE L'APPLICATION DESKTOP. La fenêtre Electron s'ouvre ici :
- * l'utilisateur choisit son espace au lieu d'être jeté dans un seul. Sur le site,
- * le même écran est rejoint depuis le sélecteur d'espace (« Tous les espaces »).
+ * L'ÉCRAN D'ENTRÉE DE L'APPLICATION DESKTOP ET ANDROID. La fenêtre Electron et
+ * la WebView Android s'ouvrent ici : l'utilisateur choisit son espace au lieu
+ * d'être jeté dans un seul. Sur le site, le même écran est rejoint depuis le
+ * sélecteur d'espace (« Tous les espaces »).
  *
  * RIEN N'EST INVENTÉ ICI. La liste des espaces vient de `GET /me/spaces` via
  * `useSpaces()`, donc de l'API qui applique la politique serveur — avec le miroir
@@ -15,6 +16,12 @@
  * que `visibleNavigation()` autorise avec les droits EFFECTIFS de l'espace. Pas
  * de nouvelle route métier, pas d'API ajoutée, pas de donnée simulée : cet écran
  * ne fait que présenter ce que le compte a déjà le droit d'ouvrir.
+ *
+ * L'HABILLAGE EST CELUI DU DASHBOARD. La présentation vit dans
+ * `components/softui/HubScreen.jsx` : la même coque noire, la même navbar, la
+ * même languette, le même rail, les mêmes cartes pastel et le même dock que
+ * l'espace de travail. Les deux applications mobiles et desktop ouvrent donc sur
+ * le même produit visuel que le dashboard — sans duplicer la maquette ici.
  *
  * VISITEUR NON CONNECTÉ : renvoyé vers `/connexion?next=/espaces`. C'est le
  * parcours de connexion existant, qui sait déjà revenir sur la page demandée
@@ -26,33 +33,26 @@
  * `homeFor()` lui donne déjà partout ailleurs.
  */
 
-import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
-import { ArrowUpRight, Compass, LogOut, ShoppingCart } from "lucide-react";
-import logo from "../../../../public/comexa-logo-horizontal-transparent.png";
-import { hasTeamAccess } from "@/lib/access";
-import { SPACE_IDS, SPACES } from "@/lib/spaces";
+import { Compass, ShoppingCart } from "lucide-react";
+import { hasTeamAccess, homeFor } from "@/lib/access";
+import { SPACE_IDS, SPACES, spaceForPath } from "@/lib/spaces";
 import { visibleNavigation } from "@/lib/space-navigation";
 import { useAuth } from "@/lib/session";
 import { useSpaces } from "@/lib/spaces-context";
-import { SPACE_ICON, roleLabelOf } from "@/components/softui/SpaceSwitcher";
-import { motion, SoftMotionProvider, cardHover, staggerItem, staggerParent } from "@/components/softui/motion";
-import { initialsOf, nameOf } from "@/components/workspace/UserMenu";
-import { Empty, SkeletonList } from "@/components/workspace/ui";
+import { SPACE_ICON } from "@/components/softui/SpaceSwitcher";
+import HubScreen from "@/components/softui/HubScreen";
 
 /** Chemin de ce hub : sert au retour après connexion. */
 const HUB_PATH = "/espaces";
-
-/** Rubriques inscrites sur une carte avant le « +N ». */
-const CHIPS_SHOWN = 4;
 
 /* Un client n'a pas d'espace dans `SPACES` (qui ne couvre que les trois espaces
    d'équipe) : sa carte reprend ce que son espace affiche réellement. */
 const CLIENT_ENTRY = {
   id: "client",
   label: "Espace client",
+  shortLabel: "Client",
   description: "Vos devis, vos factures, l’avancement de vos projets et vos échanges avec l’équipe.",
   tone: "blue",
   href: "/espace-client",
@@ -89,6 +89,7 @@ export default function EspacesHubPage() {
         return {
           id: space.id,
           label: meta.label,
+          shortLabel: meta.shortLabel,
           description: meta.description,
           tone: meta.tone,
           href: meta.home,
@@ -103,6 +104,23 @@ export default function EspacesHubPage() {
      droits réels et afficher des cartes serait mentir sur ce qui est ouvert. */
   const waiting = status === "loading" || (status === "authenticated" && team && !ready);
 
+  /* La page « Mon compte » suit l'espace d'accueil du compte : le personnel pour
+     un membre de l'équipe, l'espace client pour un client. */
+  const accountHref = useMemo(() => {
+    if (!account) return "/espace-client/compte";
+    if (!team) return "/espace-client/compte";
+    const home = homeFor(account);
+    const space = spaceForPath(home);
+    return space && SPACES[space] ? `${SPACES[space].prefix}/compte` : "/espace-client/compte";
+  }, [account, team]);
+
+  /* L'espace d'accueil du compte est celui que la connexion aurait ouvert :
+     c'est lui qui reçoit la carte mise en avant du hub. */
+  const highlightId = useMemo(() => {
+    if (!account) return null;
+    return spaceForPath(homeFor(account));
+  }, [account]);
+
   async function signOut() {
     await logout();
     router.replace("/connexion");
@@ -112,113 +130,13 @@ export default function EspacesHubPage() {
   if (status === "anonymous") return null;
 
   return (
-    <SoftMotionProvider>
-      <main className="sui-hub">
-        <div className="sui-hub__halo" aria-hidden="true" />
-
-        <header className="sui-hub__head">
-          <Image src={logo} alt="Comexa" width={168} height={39} priority className="sui-hub__logo" />
-
-          {account ? (
-            <div className="sui-hub__who">
-              <span className="sui-hub__avatar" aria-hidden="true">{initialsOf(account)}</span>
-              <span className="sui-hub__identity">
-                <span className="sui-hub__name">{nameOf(account)}</span>
-                {roleLabelOf(account) ? <span className="sui-hub__role">{roleLabelOf(account)}</span> : null}
-              </span>
-              <button type="button" className="sui-btn" onClick={signOut}>
-                <LogOut size={17} strokeWidth={1.75} aria-hidden="true" />
-                Se déconnecter
-              </button>
-            </div>
-          ) : null}
-        </header>
-
-        <section className="sui-hub__intro">
-          <p className="sui-hub__eyebrow">Espaces de travail</p>
-          <h1 className="sui-hub__title">Où voulez-vous travailler ?</h1>
-          <p className="sui-hub__lede">
-            Chaque espace n’affiche que ses propres données et le serveur y vérifie vos droits à
-            chaque requête. Seuls les espaces ouverts à votre compte apparaissent ici.
-          </p>
-        </section>
-
-        {waiting ? (
-          <div className="sui-hub__loading">
-            <SkeletonList rows={3} />
-          </div>
-        ) : entries.length ? (
-          <motion.ul
-            className="sui-hub__grid"
-            role="list"
-            variants={staggerParent}
-            initial="hidden"
-            animate="visible"
-          >
-            {entries.map((entry) => {
-              const Icon = entry.icon;
-              const hidden = entry.sections.length - CHIPS_SHOWN;
-              return (
-                <motion.li key={entry.id} variants={staggerItem} whileHover={cardHover} className="sui-hub__cell">
-                  <Link href={entry.href} className="sui-hubcard">
-                    <span className="sui-hubcard__top">
-                      <span className="sui-hubcard__icon" style={{ "--tone-bg": `var(--${entry.tone})` }} aria-hidden="true">
-                        <Icon size={22} strokeWidth={1.75} />
-                      </span>
-                      {entry.unread > 0 ? (
-                        <span className="sui-hubcard__badge">
-                          {entry.unread > 99 ? "99+" : entry.unread}
-                          <span className="sui-visually-hidden">
-                            {" "}
-                            notification{entry.unread > 1 ? "s" : ""} non lue{entry.unread > 1 ? "s" : ""}
-                          </span>
-                        </span>
-                      ) : null}
-                      <ArrowUpRight className="sui-hubcard__arrow" size={18} strokeWidth={1.9} aria-hidden="true" />
-                    </span>
-
-                    <span className="sui-hubcard__label">{entry.label}</span>
-                    <span className="sui-hubcard__desc">{entry.description}</span>
-
-                    {entry.sections.length ? (
-                      <span className="sui-hubcard__chips">
-                        {entry.sections.slice(0, CHIPS_SHOWN).map((label) => (
-                          <span key={label} className="sui-hubcard__chip">{label}</span>
-                        ))}
-                        {hidden > 0 ? (
-                          <span className="sui-hubcard__chip sui-hubcard__chip--more">+{hidden}</span>
-                        ) : null}
-                      </span>
-                    ) : null}
-
-                    <span className="sui-hubcard__cta">
-                      Ouvrir l’espace
-                      <ArrowUpRight size={15} strokeWidth={2.1} aria-hidden="true" />
-                    </span>
-                  </Link>
-                </motion.li>
-              );
-            })}
-          </motion.ul>
-        ) : (
-          <Empty
-            icon={Compass}
-            action={
-              <Link href="/connexion" className="sui-btn sui-btn--dark">
-                Se connecter
-              </Link>
-            }
-          >
-            Aucun espace de travail n’est ouvert pour ce compte. Si vous pensez que c’est une erreur,
-            un administrateur doit vous attribuer un rôle dans Comexa Space.
-          </Empty>
-        )}
-
-        <p className="sui-hub__foot">
-          Vos droits sont recalculés par le serveur à chaque espace ouvert — cette page ne fait que
-          les présenter.
-        </p>
-      </main>
-    </SoftMotionProvider>
+    <HubScreen
+      account={account}
+      entries={entries}
+      loading={waiting}
+      accountHref={accountHref}
+      highlightId={highlightId}
+      onSignOut={signOut}
+    />
   );
 }

@@ -29,6 +29,15 @@ Le site public est complété par deux espaces, protégés par session :
 - `/espace-client` : commandes, paiements, demandes de projet, suivi des projets.
 - `/espace-equipe` : commandes, demandes de projet, projets, clients, membres et droits.
 
+### Le hub des espaces
+
+`/espaces` est l'écran d'entrée de l'application desktop et de l'application
+Android : il présente les espaces ouverts au compte. Il est habillé **comme le
+dashboard** — la même coque noire, la même navbar et sa languette, le même
+rail, le même dock, les mêmes cartes pastel (`src/components/softui/HubScreen.jsx`)
+— et la page de connexion repose sur cette coque également. Ces deux
+applications n'affichent donc jamais une page de site public.
+
 Le front appelle l'API via `/api/*`, relayé par Next vers le backend. Configurez l'adresse du backend avec la variable `BACKEND_URL` (par défaut `http://localhost:3001`).
 
 ```bash

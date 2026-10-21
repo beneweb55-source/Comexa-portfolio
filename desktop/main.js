@@ -158,7 +158,11 @@ function createWindow() {
     // l'exécutable ne porte pas toujours la sienne. Absent sous macOS, qui
     // lit l'icône du bundle.
     icon: path.join(__dirname, "build", "icon.png"),
-    backgroundColor: "#dbe7ef", // fond de coquille, identique au site
+    // Fond de la coque noire du dashboard (`--shell`) : toutes les routes
+    // ouvertes à la fenêtre (hub des espaces, espaces, connexion) commencent
+    // par une barre noire. Le fond de fenêtre prend cette couleur, donc le
+    // démarrage ne montre jamais un éclair clair.
+    backgroundColor: "#0b0a0f",
     autoHideMenuBar: true,
     webPreferences: {
       contextIsolation: true,

@@ -1406,6 +1406,14 @@
   background: var(--lilac-strong);
 }
 
+/* Sur le lilas soutenu, le gris secondaire (`--muted`, 4,9:1 sur blanc) tombe
+   à 3,7:1 : l'encre des textes secondaires est assombrie pour rester lisible
+   (AA). */
+.sui-card--highlight .sui-card__desc,
+.sui-card--highlight .sui-card__meta li {
+  color: rgba(17, 17, 17, 0.82);
+}
+
 /* Carte fantôme : même traitement pointillé, bordure transparente pour garder
    le gabarit (aucun décalage au survol). */
 .sui-card--ghost {
@@ -7679,250 +7687,31 @@ html[data-focus-dnd="on"] .sui-notif-live {
    28. HUB DES ESPACES (`/espaces`) — l'écran d'entrée de l'application
    ========================================================================== */
 
-/* Même halo que la coque : le hub est une page de session, pas une page du site
-   public, et il doit avoir l'air d'appartenir au même produit. */
-.sui-hub {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 30px;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding: clamp(24px, 5vh, 64px) clamp(20px, 5vw, 64px) 40px;
-  background: var(--backdrop);
-  font-family: var(--font-sans);
-  color: var(--ink);
+/*
+ * Le hub n'a plus de maquette propre : il est habillé par la coque du
+ * dashboard (`sui-viewport`, `sui-shell`, `sui-nav`, `sui-rail`, `sui-main`,
+ * `sui-dock`). Ces quelques règles ne font queigner ce qui lui reste de
+ * spécifique — les indicateurs, la note de pied de section et les deux
+ * corrections d'ergonomie du tiroir.
+ */
+
+/* Trois indicateurs, pas quatre : la grille du dashboard en compte quatre
+   colonnes au-delà de 900 px. Une rangée de trois reste équilibrée, et la
+   carte d'espace mise en avant garde toute la place de la quatrième. */
+.sui-hub__kpis .sui-kpis {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.sui-hub__halo {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(1200px 720px at 12% -10%, rgba(255, 255, 255, 0.85), transparent 62%),
-    radial-gradient(980px 620px at 92% 4%, rgba(186, 214, 232, 0.55), transparent 60%);
+@container (min-width: 560px) {
+  .sui-hub__kpis .sui-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-/* Le contenu passe au-dessus du halo, sans `z-index` superflu. */
-.sui-hub > *:not(.sui-hub__halo) {
-  position: relative;
-  width: 100%;
-  max-width: 1080px;
-  margin-inline: auto;
-}
-
-.sui-hub__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.sui-hub__logo {
-  width: 152px;
-  height: auto;
-}
-
-.sui-hub__who {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sui-hub__avatar {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--lilac);
-  color: var(--ink);
-  font-size: var(--fs-small);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.sui-hub__identity {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.sui-hub__name {
-  font-size: var(--fs-body);
-  font-weight: 800;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.sui-hub__role {
-  font-size: var(--fs-micro);
-  color: var(--muted);
-}
-
-.sui-hub__intro {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 62ch;
-}
-
-.sui-hub__eyebrow {
-  margin: 0;
-  font-size: var(--fs-micro);
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.sui-hub__title {
-  margin: 0;
-  font-size: var(--fs-hero);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: var(--tracking-tight);
-}
-
-.sui-hub__lede {
-  margin: 0;
-  font-size: var(--fs-body);
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.sui-hub__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* Le `li` porte le survol animé (framer-motion), la carte reste un lien : un
-   seul élément cliquable par carte, donc un seul arrêt de tabulation. */
-.sui-hub__cell {
-  display: flex;
-  min-width: 0;
-}
-
-.sui-hubcard {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  padding: 22px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-card);
-  background: var(--card);
-  color: var(--ink);
-  text-decoration: none;
-  box-shadow: var(--shadow-card);
-  transition:
-    box-shadow var(--dur-base) var(--ease-out),
-    border-color var(--dur-base) var(--ease-out);
-}
-
-.sui-hubcard:hover,
-.sui-hubcard:focus-visible {
-  border-color: rgba(17, 17, 17, 0.18);
-  box-shadow: var(--shadow-card-hover);
-}
-
-.sui-hubcard__top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sui-hubcard__icon {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--tone-bg, var(--blue));
-  color: var(--ink);
-}
-
-.sui-hubcard__badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: var(--r-pill);
-  background: var(--pink);
-  font-size: var(--fs-micro);
-  font-weight: 800;
-}
-
-.sui-hubcard__arrow {
-  margin-left: auto;
-  color: var(--muted);
-  transition: transform var(--dur-fast) var(--ease-out);
-}
-
-.sui-hubcard:hover .sui-hubcard__arrow {
-  transform: translate(2px, -2px);
-  color: var(--ink);
-}
-
-.sui-hubcard__label {
-  font-size: var(--fs-title);
-  font-weight: 800;
-  line-height: 1.25;
-  letter-spacing: var(--tracking-tight);
-}
-
-.sui-hubcard__desc {
-  font-size: var(--fs-small);
-  line-height: 1.55;
-  color: var(--muted);
-}
-
-.sui-hubcard__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.sui-hubcard__chip {
-  padding: 4px 10px;
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  color: var(--muted);
-}
-
-.sui-hubcard__chip--more {
-  background: transparent;
-  border: 1px solid var(--line);
-}
-
-.sui-hubcard__cta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 6px;
-  font-size: var(--fs-small);
-  font-weight: 800;
-}
-
-.sui-hub__loading {
-  padding: 8px 0;
-}
-
-.sui-hub__foot {
-  margin: 0;
-  font-size: var(--fs-micro);
-  line-height: 1.5;
-  color: var(--muted);
+@container (min-width: 760px) {
+  .sui-hub__kpis .sui-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* Lien « Tous les espaces » du sélecteur : même gabarit que ses options. */
@@ -7951,26 +7740,111 @@ html[data-focus-dnd="on"] .sui-notif-live {
   color: var(--muted);
 }
 
-@media (max-width: 720px) {
-  .sui-hub {
-    gap: 22px;
-  }
-
-  .sui-hub__head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .sui-hub__who {
-    width: 100%;
-  }
-
-  .sui-hub__who .sui-btn {
-    margin-left: auto;
-  }
-
-  .sui-hub__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* Note de pied : une ligne discrète, dans le ton des libellés secondaires. */.sui-hub__note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px 16px;
+  border-radius: var(--r-card);
+  background: var(--surface);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  line-height: 1.55;
+  color: var(--muted);
 }
 
+.sui-hub__note svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  opacity: 0.85;
+}
+
+/* Le tiroir du hub contient aussi des boutons (se déconnecter) : on leur
+   donne la même tenue que les liens, sans la chasse ni le curseur par défaut
+   d'un `button`. */
+button.sui-drawer__link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   29. CONNEXION — la coque du dashboard, pas celle du site public
+   ========================================================================== */
+
+/*
+ * L'application desktop et l'application Android tombent sur `/connexion`
+ * quand le compte n'est pas encore connecté : c'est donc leur PREMIER écran.
+ * Il porte la même coque noire que le dashboard — barre noire, marque claire,
+ * panneau clair — pour que l'application ne commence pas par une page de site
+ * public avant de basculer dans le produit.
+ *
+ * Le formulaire n'a pas bougé : les champs utilisent déjà les primitives du
+ * design system (`sui-field`), et chaque page garde ses libellés, ses erreurs
+ * et ses liens.
+ */
+.cx-auth {
+  min-height: 100dvh;
+  padding: 0;
+  background: var(--shell);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* La coque occupe toute la fenêtre, comme dans l'espace de travail. */
+.cx-auth__shell {
+  min-height: 100dvh;
+}
+
+/* Panneau clair : la carte de connexion y flotte, centrée. */
+.cx-auth__panel {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  padding: clamp(24px, 5vh, 56px) 16px;
+  /* Le bas du panneau respecte la zone sûre (barre d'accueil d'un iPhone,
+     barre de navigation d'un Android) : la carte ne descend jamais dessous. */
+  padding-bottom: max(clamp(24px, 5vh, 56px), calc(24px + var(--sui-safe-bottom, 0px)));
+  background: var(--surface);
+  /* Un formulaire plus long que l'écran (inscription, mot de passe oublié)
+     doit défiler dans le panneau, pas être rogné par la coque. */
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.cx-auth__inner {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* La carte passe du verre public à la carte blanche du dashboard : sur le
+   panneau clair, elle garde le même relief que les cartes de l'espace. */
+.cx-auth .cx-card {
+  background: var(--card);
+  border: 0;
+  outline: 0;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* L'encre du dashboard (noir et gris) remplace l'encre bleu marine du site
+   public : la carte se lit comme celles de l'espace de travail. */
+.cx-auth .cx-h2 {
+  color: var(--ink);
+}
+
+.cx-auth .cx-small,
+.cx-auth .cx-eyebrow {
+  color: var(--muted);
+}
+
+.cx-auth__note {
+  color: var(--muted);
+}
