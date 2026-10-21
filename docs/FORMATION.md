@@ -99,25 +99,83 @@ l'entrée en formation est refusée avec un message explicite.
 
 ## 3. Le coach interactif
 
-- **Ciblage par composant réel** : chaque étape porte un `data-coach-id` posé sur
-  le vrai composant (bouton, formulaire, liste) — jamais une position
-  approximative, jamais un sélecteur CSS fragile. La liste des ancrages est
-  validée par test (`missions.spec.ts`).
-- **Surbrillance + infobulle** : titre, consigne, **pourquoi** cette action compte,
-  ce qui est attendu, indice dépliable, compteur d'étapes, précédent / suivant,
-  pause, quitter.
+- **Ciblage par composant réel** : chaque étape vise un `data-coach-id` posé sur
+  le vrai composant (bouton, formulaire, liste). Un test lit le code de
+  l'application (`backend/tests/missions.spec.ts`, « les cibles du coach
+  existent VRAIMENT dans le code ») et échoue si un ancrage annoncé n'existe
+  nulle part : c'était le cas de la mission personnelle, qui visait le tableau
+  de l'espace **équipe** et laissait donc l'apprenant devant un panneau
+  « cet élément n'est pas visible sur cette page ».
+- **JAMAIS DE CONTENEUR COMME PREUVE** : une étape `action` sur un tableau
+  (`taches-board`), une liste (`client-devis-list`) ou un projet avançait au
+  premier clic venu — la progression était feinte. Ces étapes ont été
+  supprimées : soit une cible précise (bouton d'envoi, de création), soit une
+  étape `verify` où le SERVEUR constate le résultat. Un test interdit le retour
+  de ce motif.
+- **Contrat d'étape lu par le navigateur** : le serveur envoie `page` (chemin
+  réel, normalisé depuis `navigateTo`, à défaut le module de la mission) et
+  `hint: { text, docPath }`. L'interface lit tout via
+  `src/lib/training/mission-steps.mjs` (`stepPage`, `stepHintText`,
+  `toStepIndex`, `isOnPage`). Sans cette couche, `step.page` valait
+  `undefined` : `router.push(undefined)` levait
+  « Cannot read properties of undefined (reading 'startsWith') », l'étape 1 ne
+  pouvait jamais avancer et l'infobulle affichait « ÉTAPE NaN SUR 5 ».
+- **Surbrillance + infobulle compacte** : frise d'étapes, compteur, consigne,
+  **« Pourquoi cette étape ? »** et **« Un doute ? L'aide »** dépliables,
+  précédent / suivant / pause / quitter, et raccourcis clavier (← →, Échap
+  pour la pause). Le panneau reste utilisable quand la cible est hors écran :
+  le libellé de la page réelle est nommé (« Mes tâches », « Devis »…) et le
+  bouton « Aller à … » y conduit.
 - **Avancement conditionné** :
   - `action` — n'avance que si l'apprenant clique réellement la cible ;
-  - `navigate` — n'avance qu'à l'arrivée sur la page attendue ;
-  - `verify` — interroge `GET /training/missions/:id/check` et n'avance **que si
-    le critère est satisfait sur les données d'exercice** ;
-  - `manual` — l'étape décrit un geste hors bouton (ex. arrêter le minuteur).
-- **Mode évaluation** (`assistance: "none"`) : coach réduit (bandeau + validation),
-  aucune indice, critères d'évaluation.
+  - `navigate` — n'avance qu'à l'arrivée sur la page attendue (comparaison de
+    chemin, sous-pages comprises) ;
+  - `verify` — interroge `GET /training/missions/:id/check` (sondage 3 s + clic
+    « J'ai terminé — vérifier ») et n'avance **que si le critère est satisfait
+    sur les données d'exercice** ;
+  - `manual` — l'étape décrit un geste que rien dans les données ne peut
+    prouver (lecture d'un devis) : l'apprenant confirme, et la PREUVE de la
+    mission reste une étape `verify`.
+- **Mode évaluation** (`assistance: "none"`) : coach réduit (consignes, liste
+  des critères vérifiés, validation), aucun guidage. La fenêtre de tentative est
+  remise à zéro au démarrage de l'évaluation : la démonstration doit être faite
+  PENDANT l'évaluation, pas héritée du parcours guidé.
 - **Reprise** : la session est mémorisée (`sessionStorage`) — recharger la page
-  reprend à la même étape.
+  ou revenir plus tard reprend à la même étape, et la carte du parcours devient
+  « Reprendre avec le coach ». Un instantané corrompu retombe sur l'étape 1
+  (`toStepIndex`), jamais sur `NaN`.
+- **Sortie propre** : quitter le mode formation depuis la bannière ferme aussi
+  la session de coach — sinon un scénario continuait de surligner des
+  composants réels avec les droits de production.
 - **Échecs enregistrés** : chaque validation non satisfaite crée une
-  `TrainingAttempt` avec les critères manquants (`errors`), pour le bilan.
+  `TrainingAttempt` avec les critères manquants (`errors`), et la carte de
+  validation détaille chaque critère (satisfait / manquant) au lieu d'un simple
+  « non validé ».
+- **Parcours à jour** : la carte de mission relit le catalogue après une
+  validation ou un abandon. Sans ce rechargement, une mission pourtant réussie
+  restait affichée « À commencer ».
+
+---
+
+## 3 bis. Intégrité des critères (le bac à sable est PARTAGÉ)
+
+Trois règles, chacune née d'un défaut constaté :
+
+1. **Une borne temporelle exprime le début de la TENTATIVE.** Les critères
+   « une saisie de temps vient d'être créée » utilisaient
+   `createdAt: { gte: "{{now}}" }` : `{{now}}` vaut l'instant de la
+   VÉRIFICATION, donc la comparaison était fausse par construction et la
+   mission « Suivre mon temps de travail » ne pouvait JAMAIS être validée. La
+   substitution `{{since}}` (début de la progression, conservé entre reprises,
+   réinitialisé en évaluation) la remplace. Un test interdit le retour de
+   `{{now}}` dans un critère temporel.
+2. **Chaque critère nomme SON porteur** quand l'objet peut appartenir à
+   plusieurs personnes (`assigneeId: "{{userId}}"`, `requestedById`,
+   `createdById`…). Sans cela, la tâche d'un autre apprenant satisfaisait le
+   critère à sa place — conséquence directe du bac à sable partagé.
+3. **Aucun critère ne se satisfait du vide.** `minCount`/`expectCount` sont
+   obligatoires (test `missions.spec.ts`), et un modèle Prisma inconnu lève une
+   erreur explicite (`mission-verification.ts`) au lieu de « réussir ».
 
 ---
 
@@ -235,10 +293,18 @@ dépôt : hors `src/`, comme les suites onboarding déjà présentes).
 | --- | --- | --- |
 | `backend/tests/training-scope.spec.ts` (portée ALS, modèles toujours-prod) | `cd backend && node --import tsx --test tests/training-scope.spec.ts` | ✅ |
 | `backend/tests/prisma-routing.spec.ts` (routage fail-loud, pas de repli production) | idem avec `tests/prisma-routing.spec.ts` | ✅ |
-| `backend/tests/mission-verification.spec.ts` (critères, `{{userId}}`/`{{now}}`) | idem | ✅ |
-| `backend/tests/missions.spec.ts` (permissions réelles, ancrages, filtre par profil) | idem | ✅ |
+| `backend/tests/mission-verification.spec.ts` (critères, `{{userId}}`/`{{now}}`/`{{since}}`, refus d'un modèle inconnu) | idem | ✅ |
+| `backend/tests/missions.spec.ts` (permissions réelles, ancrages **vérifiés contre le code de l'application**, `page` servie, interdiction des cibles-conteneurs) | idem | ✅ |
+| `tests/training-steps.test.mjs` (contrat d'étape côté navigateur : `page`, indice, `NaN`) | `node --test tests/training-steps.test.mjs` | ✅ 13/13 |
 | `backend/tests/training-fixtures.spec.ts` (réconciliation du miroir d'identités, idempotence et conflits des fixtures, sur faux client Prisma) | idem avec `tests/training-fixtures.spec.ts` | ✅ |
-| **Total formation** | `cd backend && node --import tsx --test tests/training-scope.spec.ts tests/mission-verification.spec.ts tests/missions.spec.ts tests/prisma-routing.spec.ts tests/training-fixtures.spec.ts` | ✅ **39/39** |
+| **Total formation (backend)** | `npm run test:training` | ✅ **17/17** sur les deux suites de catalogue/critères |
+| **Total formation (interface)** | `npm run test:training-ui` | ✅ **13/13** |
+
+> Les deux suites backend s'exécutent avec `node --import tsx` et n'ont besoin
+> que du module d'énumérations Prisma. `prisma-routing.spec.ts` et
+> `training-scope.spec.ts`, eux, instancient `PrismaService` : ils exigent un
+> client Prisma généré (`npm run prisma:generate`), donc un environnement avec
+> accès aux moteurs Prisma.
 | `tests/contract.test.mjs` (poignée de contrat API, feature `training`) | `node --test tests/contract.test.mjs` | ✅ 5/5 |
 | Suites onboarding existantes (non régressées) | `npm run test:onboarding` | ✅ |
 | Frontend `npm run lint` | | ✅ |

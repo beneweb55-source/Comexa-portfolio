@@ -1,9 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   TRAINING_MISSIONS,
   findMission,
   filterMissionsFor,
+  presentMission,
   type TrainingMission,
 } from "../src/modules/training/missions.js";
 import { PERMISSIONS } from "../src/common/auth/permissions.catalogue.js";
@@ -217,4 +221,84 @@ test("les critères de membre vérifient l'adresse ET le rôle exacts", () => {
         user.roles[0].role.code,
   );
   assert.equal(passing.length, 1, "un seul compte satisfait adresse + rôle exacts");
+});
+
+
+/* --------------------------------------------------------------------------
+   CONTRAT SERVI AU NAVIGATEUR
+   -------------------------------------------------------------------------- */
+
+test("chaque étape servie porte une `page` réelle (jamais undefined)", () => {
+  for (const mission of TRAINING_MISSIONS) {
+    const presented = presentMission(mission);
+    for (const step of presented.steps) {
+      assert.equal(
+        typeof step.page,
+        "string",
+        `${mission.id}/${step.id} sans page : router.push(undefined) planterait`,
+      );
+      assert.ok(
+        step.page.startsWith("/"),
+        `${mission.id}/${step.id} : la page doit être un chemin absolu, reçu « ${step.page} »`,
+      );
+    }
+    // La forme servie reste compatible : les champs historiques sont conservés.
+    assert.equal(presented.steps[0].advanceOn, mission.steps[0].advanceOn);
+    assert.equal(presented.steps[0].hint, mission.steps[0].hint);
+  }
+});
+
+test("les cibles du coach existent VRAIMENT dans le code de l'application", () => {
+  // test/ → racine du dépôt → src/
+  const root = fileURLToPath(new URL("../../", import.meta.url));
+  const sourceRoot = join(root, "src");
+  const anchors = new Set();
+
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory)) {
+      const full = join(directory, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!/\.(jsx|js)$/.test(entry)) continue;
+      const content = readFileSync(full, "utf8");
+      // Deux formes coexistent dans le code : l'attribut littéral
+      // (`data-coach-id="x"`) et l'attribut conditionnel
+      // (`data-coach-id={condition ? "x" : undefined}`). Ignorer la seconde
+      // faisait échouer le test sur un ancrage pourtant présent.
+      for (const match of content.matchAll(/data-coach-id=(?:"([^"]+)"|\{([^}]*)\})/g)) {
+        if (match[1]) anchors.add(match[1]);
+        for (const literal of (match[2] ?? "").matchAll(/"([^"]+)"/g)) anchors.add(literal[1]);
+      }
+    }
+  };
+  walk(sourceRoot);
+
+  for (const mission of TRAINING_MISSIONS) {
+    for (const step of mission.steps) {
+      if (step.advanceOn !== "action" || !step.target) continue;
+      assert.ok(
+        anchors.has(step.target),
+        `${mission.id}/${step.id} vise « ${step.target} », absent du code de l'application`,
+      );
+    }
+  }
+});
+
+test("aucune étape « action » ne se contente d'un conteneur pour prouver un changement", () => {
+  // Une étape `action` avance au clic observé. Viser un conteneur (tableau,
+  // liste) revenait à faire avancer le coach sur un clic N'IMPORTE OÙ : la
+  // progression était fausse. Ces étapes doivent passer en `verify`, où le
+  // serveur constate le changement dans les données.
+  const containers = new Set(["taches-board", "projets-list", "client-devis-list"]);
+  for (const mission of TRAINING_MISSIONS) {
+    for (const step of mission.steps) {
+      if (step.advanceOn !== "action") continue;
+      assert.ok(
+        !containers.has(step.target),
+        `${mission.id}/${step.id} : « ${step.target} » est un conteneur, pas une preuve`,
+      );
+    }
+  }
 });

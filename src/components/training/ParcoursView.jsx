@@ -17,7 +17,7 @@
  * finale » rejoue le scénario SANS assistance.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -53,6 +53,14 @@ const STATUS_LABEL = {
   FAILED: "À reprendre",
 };
 
+/** Nature d’une étape, telle que le coach l’exige pour avancer. */
+const STEP_KIND = {
+  navigate: { label: "Se rendre sur l’écran", tone: "var(--blue, #D7E8F9)" },
+  action: { label: "Faire l’action sur l’écran", tone: "var(--lilac, #EDD5F8)" },
+  verify: { label: "Prouvé par les données", tone: "var(--green, #D8EFBE)" },
+  manual: { label: "Geste guidé, sans cible", tone: "var(--yellow, #F9E6B9)" },
+};
+
 function LevelBadge({ level }) {
   return (
     <span
@@ -77,11 +85,30 @@ function LevelBadge({ level }) {
 function StatusChip({ progress }) {
   const status = progress?.status ?? "NOT_STARTED";
   const tone = status === "COMPLETED" ? "var(--green, #D8EFBE)" : status === "IN_PROGRESS" ? "var(--yellow, #F9E6B9)" : "var(--surface, #F6F4F5)";
+  // Niveau 5 : l’évaluation finale est une preuve distincte de la réussite
+  // guidée. L’afficher évite de croire une mission « terminée » alors qu’elle
+  // n’a jamais été démontrée sans assistance.
+  const evaluation =
+    progress?.evaluationPassed === true
+      ? { label: "Évaluation validée", tone: "var(--green, #D8EFBE)", icon: true }
+      : progress?.evaluationPassed === false
+        ? { label: "Évaluation à repasser", tone: "var(--pink, #F9D5DD)", icon: false }
+        : status === "COMPLETED"
+          ? { label: "Évaluation à passer", tone: "var(--surface, #F6F4F5)", icon: false }
+          : null;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, background: tone, borderRadius: 999, padding: "3px 10px" }}>
-      {status === "COMPLETED" ? <CheckCircle2 size={13} strokeWidth={2} aria-hidden="true" /> : null}
-      {STATUS_LABEL[status] ?? status}
-      {progress?.attempts > 0 ? ` · ${progress.attempts} tentative${progress.attempts > 1 ? "s" : ""}` : ""}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, background: tone, borderRadius: 999, padding: "3px 10px" }}>
+        {status === "COMPLETED" ? <CheckCircle2 size={13} strokeWidth={2} aria-hidden="true" /> : null}
+        {STATUS_LABEL[status] ?? status}
+        {progress?.attempts > 0 ? ` · ${progress.attempts} tentative${progress.attempts > 1 ? "s" : ""}` : ""}
+      </span>
+      {evaluation ? (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, background: evaluation.tone, borderRadius: 999, padding: "3px 10px" }}>
+          {evaluation.icon ? <CheckCircle2 size={13} strokeWidth={2} aria-hidden="true" /> : null}
+          {evaluation.label}
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -89,6 +116,33 @@ function StatusChip({ progress }) {
 function MissionDetails({ mission }) {
   return (
     <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+      <section>
+        <h4 style={{ margin: "0 0 6px", fontSize: 13, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+          Les {(mission.steps ?? []).length} étapes du coach
+        </h4>
+        <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "grid", gap: 6 }}>
+          {(mission.steps ?? []).map((step, index) => {
+            const kind = STEP_KIND[step.advanceOn] ?? STEP_KIND.manual;
+            return (
+              <li
+                key={step.id}
+                style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: "var(--surface, #F6F4F5)", borderRadius: 12, padding: "8px 10px" }}
+              >
+                <span style={{ width: 20, height: 20, borderRadius: 999, background: "#111", color: "#fff", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700, flex: "0 0 auto" }}>
+                  {index + 1}
+                </span>
+                <span style={{ flex: 1, minWidth: 120 }}>{step.title}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, background: kind.tone, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                  {kind.label}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+        <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "var(--ink-muted, #666)" }}>
+          Les étapes « prouvé par les données » ne s’avancent qu’après vérification serveur : le coach ne croit pas un clic.
+        </p>
+      </section>
       <section>
         <h4 style={{ margin: "0 0 4px", fontSize: 13, textTransform: "uppercase", letterSpacing: "0.04em" }}>Situation de départ</h4>
         <p style={{ margin: 0, fontSize: 13.5 }}>{mission.situation}</p>
@@ -165,6 +219,7 @@ export default function ParcoursView({ space }) {
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [report, setReport] = useState(null);
+  const reportRef = useRef(null);
   // Requêtes en vol : les boutons se désactivent pendant l'entrée en formation
   // ou le démarrage d'une mission — chaque clic supplémentaire lançait un
   // second POST parallèle au premier.
@@ -219,6 +274,40 @@ export default function ParcoursView({ space }) {
   }, [training.catalog, space]);
 
   const completed = missions.filter((m) => m.progress?.status === "COMPLETED").length;
+  const evaluated = missions.filter((m) => m.progress?.evaluationPassed === true).length;
+
+  // Regroupement par niveau : la progression se lit niveau par niveau, pas
+  // comme une liste indifférenciée de cartes.
+  const byLevel = useMemo(() => {
+    const groups = new Map();
+    for (const mission of missions) {
+      const list = groups.get(mission.level) ?? [];
+      list.push(mission);
+      groups.set(mission.level, list);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a - b);
+  }, [missions]);
+
+  /** `?bilan=1` : on arrive d’une mission validée, le bilan s’ouvre seul. */
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("bilan") !== "1") return undefined;
+    let cancelled = false;
+    training
+      .loadReport()
+      .then((data) => {
+        if (cancelled) return;
+        setReport(data);
+        // Après le rendu du bilan, on amène l’utilisateur dessus.
+        requestAnimationFrame(() => reportRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const start = useCallback(
     async (mission, assistance) => {
@@ -226,7 +315,10 @@ export default function ParcoursView({ space }) {
       setStarting(mission.id);
       try {
         setError(null);
-        await coach.startMission(mission, { assistance });
+        // Coach : on reprend à l’étape mémorisée si la mission est déjà en
+        // cours. Évaluation : scénario neuf, aucune reprise — la démonstration
+        // doit être faite en entier, sans assistance.
+        await coach.startMission(mission, { assistance, resume: assistance !== "none" });
       } catch (err) {
         setError(err?.message ?? "La mission n’a pas pu démarrer.");
       } finally {
@@ -282,7 +374,11 @@ export default function ParcoursView({ space }) {
                 ) : (
                   <Play size={15} strokeWidth={2} aria-hidden="true" />
                 )}
-                {entering ? "Ouverture de l’environnement…" : "Entrer en mode formation"}
+                {entering
+                  ? "Ouverture de l’environnement…"
+                  : training.activeSessionId
+                    ? "Reprendre l’environnement de formation"
+                    : "Entrer en mode formation"}
               </button>
             ) : (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 12.5, background: "var(--yellow, #F9E6B9)", borderRadius: 999, padding: "6px 12px" }}>
@@ -291,8 +387,13 @@ export default function ParcoursView({ space }) {
             )}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, flexWrap: "wrap" }}>
           <strong>{completed}</strong> mission{completed > 1 ? "s" : ""} réussie{completed > 1 ? "s" : ""} sur <strong>{missions.length}</strong>
+          {missions.length > 0 ? (
+            <span style={{ color: "var(--ink-muted, #666)" }}>
+              · {evaluated}/{missions.length} évaluation{evaluated > 1 ? "s" : ""} finale{evaluated > 1 ? "s" : ""} validée{evaluated > 1 ? "s" : ""}
+            </span>
+          ) : null}
           <div style={{ flex: 1, height: 8, background: "#E7E3E4", borderRadius: 999, overflow: "hidden" }}>
             <div
               style={{
@@ -326,61 +427,78 @@ export default function ParcoursView({ space }) {
           </p>
         </section>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {missions.map((mission) => {
-            const open = expanded === mission.id;
+        <div style={{ display: "grid", gap: 20 }}>
+          {byLevel.map(([level, list]) => {
+            const doneAtLevel = list.filter((mission) => mission.progress?.status === "COMPLETED").length;
             return (
-              <article
-                key={mission.id}
-                className="sui-card"
-                data-coach-id={`mission-card-${mission.id}`}
-                style={{ borderRadius: 24, padding: "16px 20px", background: "var(--card, #FDFDFD)", border: "1px solid rgba(17,17,17,0.08)" }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: 240 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-                      <LevelBadge level={mission.level} />
-                      <StatusChip progress={mission.progress} />
-                      <span style={{ fontSize: 12, color: "var(--ink-muted, #666)", fontWeight: 600 }}>{mission.roles.join(" · ")}</span>
-                    </div>
-                    <h3 style={{ margin: "0 0 4px", fontSize: 17 }}>{mission.title}</h3>
-                    <p style={{ margin: 0, color: "var(--ink-muted, #666)", fontSize: 13.5 }}>{mission.goal}</p>
-                  </div>
-                  <div style={{ display: "grid", gap: 8 }}>
-                    <button
-                      type="button"
-                      className="sui-btn sui-btn--dark"
-                      data-coach-id={`mission-start-${mission.id}`}
-                      disabled={starting !== null}
-                      aria-busy={starting === mission.id}
-                      onClick={() => start(mission, "full")}
-                    >
-                      <Play size={15} strokeWidth={2} aria-hidden="true" />
-                      {mission.progress?.status === "IN_PROGRESS" ? "Reprendre avec le coach" : "Commencer avec le coach"}
-                    </button>
-                    <button
-                      type="button"
-                      className="sui-btn sui-btn--ghost"
-                      data-coach-id={`mission-eval-${mission.id}`}
-                      disabled={starting !== null}
-                      aria-busy={starting === mission.id}
-                      onClick={() => start(mission, "none")}
-                    >
-                      <Target size={15} strokeWidth={2} aria-hidden="true" /> Évaluation finale (sans assistance)
-                    </button>
-                    <button
-                      type="button"
-                      className="sui-btn sui-btn--ghost"
-                      onClick={() => setExpanded(open ? null : mission.id)}
-                      aria-expanded={open}
-                    >
-                      {open ? <ChevronUp size={15} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />}
-                      {open ? "Replier le déroulé" : "Voir le déroulé"}
-                    </button>
-                  </div>
+              <section key={level} style={{ display: "grid", gap: 10 }}>
+                <header style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>
+                    Niveau {level} · {LEVEL_LABEL[level] ?? ""}
+                  </h3>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--ink-muted, #666)" }}>
+                    {doneAtLevel}/{list.length} réussie{doneAtLevel > 1 ? "s" : ""}
+                  </span>
+                </header>
+                <div style={{ display: "grid", gap: 12 }}>
+                  {list.map((mission) => {
+                    const open = expanded === mission.id;
+                    return (
+                      <article
+                        key={mission.id}
+                        className="sui-card"
+                        data-coach-id={`mission-card-${mission.id}`}
+                        style={{ borderRadius: 24, padding: "16px 20px", background: "var(--card, #FDFDFD)", border: "1px solid rgba(17,17,17,0.08)" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                          <div style={{ flex: 1, minWidth: 240 }}>
+                            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                              <LevelBadge level={mission.level} />
+                              <StatusChip progress={mission.progress} />
+                              <span style={{ fontSize: 12, color: "var(--ink-muted, #666)", fontWeight: 600 }}>{mission.roles.join(" · ")}</span>
+                            </div>
+                            <h3 style={{ margin: "0 0 4px", fontSize: 17 }}>{mission.title}</h3>
+                            <p style={{ margin: 0, color: "var(--ink-muted, #666)", fontSize: 13.5 }}>{mission.goal}</p>
+                          </div>
+                          <div style={{ display: "grid", gap: 8 }}>
+                            <button
+                              type="button"
+                              className="sui-btn sui-btn--dark"
+                              data-coach-id={`mission-start-${mission.id}`}
+                              disabled={starting !== null}
+                              aria-busy={starting === mission.id}
+                              onClick={() => start(mission, "full")}
+                            >
+                              <Play size={15} strokeWidth={2} aria-hidden="true" />
+                              {mission.progress?.status === "IN_PROGRESS" ? "Reprendre avec le coach" : "Commencer avec le coach"}
+                            </button>
+                            <button
+                              type="button"
+                              className="sui-btn sui-btn--ghost"
+                              data-coach-id={`mission-eval-${mission.id}`}
+                              disabled={starting !== null}
+                              aria-busy={starting === mission.id}
+                              onClick={() => start(mission, "none")}
+                            >
+                              <Target size={15} strokeWidth={2} aria-hidden="true" /> Évaluation finale (sans assistance)
+                            </button>
+                            <button
+                              type="button"
+                              className="sui-btn sui-btn--ghost"
+                              onClick={() => setExpanded(open ? null : mission.id)}
+                              aria-expanded={open}
+                            >
+                              {open ? <ChevronUp size={15} strokeWidth={2} aria-hidden="true" /> : <ChevronDown size={15} strokeWidth={2} aria-hidden="true" />}
+                              {open ? "Replier le déroulé" : "Voir le déroulé"}
+                            </button>
+                          </div>
+                        </div>
+                        {open ? <MissionDetails mission={mission} /> : null}
+                      </article>
+                    );
+                  })}
                 </div>
-                {open ? <MissionDetails mission={mission} /> : null}
-              </article>
+              </section>
             );
           })}
         </div>
@@ -388,6 +506,7 @@ export default function ParcoursView({ space }) {
 
       {/* Bilan */}
       <section
+        ref={reportRef}
         className="sui-card"
         data-coach-id="parcours-report"
         style={{ borderRadius: 24, padding: "18px 20px", background: "var(--green, #D8EFBE)" }}

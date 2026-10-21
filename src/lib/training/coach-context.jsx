@@ -29,6 +29,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useTraining } from "./training-context";
+import { isOnPage, stepPage, toStepIndex } from "./mission-steps.mjs";
 
 const CoachContext = createContext(null);
 
@@ -90,21 +91,50 @@ export function CoachProvider({ children }) {
     });
   }, []);
 
-  /** Démarre (ou reprend) une mission. Entre en mode formation si besoin. */
+  /**
+   * SORTIE DU MODE FORMATION : le coach ne survit pas au retour en production.
+   *
+   * « Quitter le mode formation » depuis la bannière retire le jeton de
+   * formation. Laisser la session de coach ouverte faisait alors continuer un
+   * scénario qui surlignait des composants RÉELS et interrogeait des critères
+   * d'exercice avec les droits de production : deux mondes mélangés. On ferme.
+   */
+  useEffect(() => {
+    if (training.active || !sessionRef.current) return;
+    setSession(null);
+    sessionRef.current = null;
+  }, [training.active]);
+
+  /**
+   * Démarre (ou reprend) une mission. Entre en mode formation si besoin.
+   *
+   * `resume` : une mission déjà commencée reprend à l'étape mémorisée dans
+   * `sessionStorage` (pause, changement d'onglet, rechargement). Sans reprise,
+   * on repart de la première étape — et le serveur, lui, conserve la tentative
+   * en cours : les critères déjà satisfaits restent satisfaits.
+   */
   const startMission = useCallback(
-    async (mission, { assistance = "full", resume = false } = {}) => {
+    async (mission, { assistance = "full", resume = true } = {}) => {
+      const steps = Array.isArray(mission?.steps) ? mission.steps : [];
+      if (steps.length === 0) {
+        throw new Error("Cette mission n’a aucune étape : le catalogue de formation est incomplet.");
+      }
+
+      // Reprise AVANT l'appel serveur : si l'instantané correspond, on ouvre
+      // directement le bon écran, sans faire clignoter la première étape.
+      let stepIndex = 0;
+      if (resume) {
+        const saved = restore(mission.id);
+        if (saved && saved.missionId === mission.id && saved.assistance === assistance) {
+          stepIndex = toStepIndex(saved.stepIndex, steps.length);
+        }
+      }
+
       if (!training.active) {
         await training.enter(mission.id);
       }
       await training.startMission(mission.id, assistance);
 
-      let stepIndex = 0;
-      if (resume) {
-        const saved = restore(mission.id);
-        if (saved && saved.missionId === mission.id && saved.assistance === assistance) {
-          stepIndex = Math.min(saved.stepIndex ?? 0, Math.max(mission.steps.length - 1, 0));
-        }
-      }
       setSessionSafe({
         mission,
         assistance,
@@ -115,9 +145,11 @@ export function CoachProvider({ children }) {
         note: null,
       });
       // Aller au bon écran tout de suite : le coach ne se promène pas seul,
-      // il propose — mais une mission commence où elle se passe.
-      const page = mission.steps[stepIndex]?.page;
-      if (page && pathname !== page) router.push(page);
+      // il propose — mais une mission commence où elle se passe. `stepPage`
+      // retombe sur le module réel de la mission quand l'étape ne nomme aucune
+      // page : on ne pousse JAMAIS `undefined` dans le routeur.
+      const page = stepPage(steps[stepIndex], mission);
+      if (page && !isOnPage(pathname, page)) router.push(page);
     },
     [training, setSessionSafe, router, pathname],
   );
@@ -126,8 +158,7 @@ export function CoachProvider({ children }) {
     (stepIndex) => {
       setSessionSafe((prev) => {
         if (!prev) return prev;
-        const bounded = Math.max(0, Math.min(stepIndex, prev.mission.steps.length - 1));
-        return { ...prev, stepIndex: bounded, note: null };
+        return { ...prev, stepIndex: toStepIndex(stepIndex, prev.mission.steps.length), note: null };
       });
     },
     [setSessionSafe],
@@ -173,8 +204,12 @@ export function CoachProvider({ children }) {
       }
       setSession(null);
       sessionRef.current = null;
+      // Le parcours affiché doit refléter l'état serveur (mission réussie,
+      // tentative en cours) : sans ce rechargement, la carte restait
+      // « À commencer » après une mission pourtant validée.
+      Promise.resolve(training.refreshCatalog?.()).catch(() => undefined);
     },
-    [],
+    [training],
   );
 
   /** Vérifie maintenant les critères (toute la mission) et rend le rapport. */
@@ -195,6 +230,9 @@ export function CoachProvider({ children }) {
   const validate = useCallback(async () => {
     const current = sessionRef.current;
     if (!current) return null;
+    // Une validation est déjà en cours : un second clic ne doit pas envoyer un
+    // deuxième POST /complete (deux tentatives tracées pour un seul geste).
+    if (current.phase === "validating") return null;
     setSessionSafe((prev) => (prev ? { ...prev, phase: "validating" } : prev));
     const result = await training.completeMission(current.mission.id, current.assistance);
     setSessionSafe((prev) =>
@@ -209,6 +247,9 @@ export function CoachProvider({ children }) {
           }
         : prev,
     );
+    // Le parcours (onglet « Mon parcours ») se met à jour immédiatement :
+    // statut, nombre de tentatives et bilan sont relus côté serveur.
+    Promise.resolve(training.refreshCatalog?.()).catch(() => undefined);
     return result;
   }, [training, setSessionSafe]);
 
@@ -235,7 +276,9 @@ export function CoachProvider({ children }) {
     if (!current || current.phase !== "running" || current.assistance === "none") return;
     const step = current.mission.steps[current.stepIndex];
     if (step?.advanceOn !== "navigate") return;
-    if (pathname === step.page || pathname.startsWith(`${step.page}/`)) {
+    // `stepPage` : le catalogue sert `page` (forme normalisée) ou
+    // `navigateTo` (forme historique) — jamais `undefined`.
+    if (isOnPage(pathname, stepPage(step, current.mission))) {
       next();
     }
   }, [pathname, next]);
@@ -266,16 +309,25 @@ export function CoachProvider({ children }) {
     if (step?.advanceOn !== "verify") return;
 
     let cancelled = false;
+    let validating = false;
+    const lastStep = current.stepIndex >= current.mission.steps.length - 1;
     const tick = async () => {
+      if (validating) return;
       try {
         const report = await training.checkMission(current.mission.id, { evaluation: false });
         if (cancelled || !report) return;
         const result = (report.results ?? []).find((r) => r.id === step.criterionId);
-        if (result?.met) {
+        if (!result?.met) return;
+        if (!lastStep) {
           next();
-        } else {
-          setSessionSafe((prev) => (prev ? { ...prev, pendingVerification: report } : prev));
+          return;
         }
+        // DERNIÈRE ÉTAPE VÉRIFIÉE : le critère est prouvé, la mission peut
+        // être validée sans clic supplémentaire. Sans cela, le coach restait
+        // bloqué sur l'étape finale alors que le serveur voyait déjà la
+        // preuve (« Valider la mission » restait à cliquer).
+        validating = true;
+        await validate();
       } catch {
         /* le sondage reprendra au prochain tic */
       }
@@ -286,7 +338,7 @@ export function CoachProvider({ children }) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [session?.stepIndex, session?.mission?.id, session?.phase, session?.assistance, training, next, setSessionSafe]);
+  }, [session?.stepIndex, session?.mission?.id, session?.phase, session?.assistance, training, next, validate, setSessionSafe]);
 
   const value = useMemo(
     () => ({

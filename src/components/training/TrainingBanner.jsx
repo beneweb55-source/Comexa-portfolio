@@ -9,12 +9,18 @@
  * production soit toujours explicite et jamais subi.
  */
 
-import { GraduationCap, LogOut, RotateCcw } from "lucide-react";
+import { GraduationCap, LogOut, Play, RotateCcw } from "lucide-react";
 import { useTraining } from "@/lib/training/training-context";
+import { useCoach } from "@/lib/training/coach-context";
 
 export default function TrainingBanner({ onReset }) {
-  const { active, banner, exit, reset } = useTraining();
+  const { active, banner, exit } = useTraining();
+  const { session, stepIndex, stepCount, resume } = useCoach();
   if (!active) return null;
+
+  // Mission en cours : la bannière rappelle OÙ l'on en est, même quand le
+  // panneau du coach a été mis en pause ou masqué par la taille de l'écran.
+  const running = session && (session.phase === "running" || session.phase === "paused");
 
   return (
     <div
@@ -43,6 +49,27 @@ export default function TrainingBanner({ onReset }) {
       <span style={{ fontWeight: 500, opacity: 0.8 }}>
         Les opérations que vous effectuez sont fictives : aucune donnée réelle n’est touchée.
       </span>
+      {running ? (
+        <span
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#111", color: "#fff", borderRadius: 999, padding: "4px 10px", fontSize: 12 }}
+        >
+          <span style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={session.mission.title}>
+            {session.mission.title}
+          </span>
+          <span style={{ opacity: 0.75 }}>
+            étape {stepIndex + 1}/{stepCount}
+          </span>
+          {session.phase === "paused" ? (
+            <button
+              type="button"
+              onClick={resume}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "#fff", fontWeight: 700, cursor: "pointer", padding: 0 }}
+            >
+              <Play size={12} strokeWidth={2.4} aria-hidden="true" /> Reprendre
+            </button>
+          ) : null}
+        </span>
+      ) : null}
       <span style={{ flex: 1 }} />
       {onReset ? (
         <button

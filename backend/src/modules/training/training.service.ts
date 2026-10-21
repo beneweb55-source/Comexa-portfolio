@@ -6,7 +6,9 @@ import {
   TRAINING_MISSIONS,
   findMission,
   filterMissionsFor,
+  presentMission,
   type AssistanceLevel,
+  type PresentedTrainingMission,
   type TrainingMission,
   type TrainingSpace,
 } from './missions.js';
@@ -54,7 +56,7 @@ export interface MissionProgressView {
   evaluationScore: number | null;
 }
 
-export interface CatalogEntry extends TrainingMission {
+export interface CatalogEntry extends PresentedTrainingMission {
   progress: MissionProgressView | null;
 }
 
@@ -212,7 +214,7 @@ export class TrainingService {
       for (const mission of filterMissionsFor(TRAINING_MISSIONS, space, permissions)) {
         const row = progressByMission.get(mission.id);
         entries.push({
-          ...mission,
+          ...presentMission(mission),
           progress: row
             ? {
                 status: row.status,
@@ -237,6 +239,24 @@ export class TrainingService {
   ): Promise<{ progress: MissionProgressView; attemptId: string }> {
     const mission = await this.requireMission(actor, missionId);
 
+    // FENÊTRE DE LA TENTATIVE — `startedAt` n'est PAS remis à zéro à chaque
+    // reprise. Les critères temporels (`createdAt >= {{since}}`) désignent
+    // « depuis le début de cette tentative » : reprendre une mission ne doit
+    // pas effacer le travail déjà fait (saisie de temps, tâche créée…). Un
+    // redémarrage après réussite ouvre, lui, une nouvelle fenêtre.
+    const existing = await this.prisma.prodClient.trainingMissionProgress.findUnique({
+      where: { userId_missionId: { userId: actor.id, missionId: mission.id } },
+    });
+    // En ÉVALUATION (`assistance: 'none'`), la fenêtre repart de zéro : la
+    // démonstration sans assistance doit être faite PENDANT l'évaluation, pas
+    // héritée du parcours guidé. Hors évaluation, une reprise conserve la
+    // fenêtre (le travail déjà accompli reste valable).
+    const evaluateFresh = assistance === 'none';
+    const startedAt =
+      !evaluateFresh && existing && existing.status === 'IN_PROGRESS' && existing.startedAt
+        ? existing.startedAt
+        : new Date();
+
     const progress = await this.prisma.prodClient.trainingMissionProgress.upsert({
       where: { userId_missionId: { userId: actor.id, missionId: mission.id } },
       create: {
@@ -245,12 +265,12 @@ export class TrainingService {
         space: mission.space,
         status: 'IN_PROGRESS',
         attempts: 1,
-        startedAt: new Date(),
+        startedAt,
       },
       update: {
         status: 'IN_PROGRESS',
         attempts: { increment: 1 },
-        startedAt: { set: new Date() },
+        startedAt: { set: startedAt },
       },
     });
 
@@ -281,7 +301,7 @@ export class TrainingService {
   ): Promise<VerificationReport> {
     const mission = await this.requireMission(actor, missionId);
     const criteria = evaluation ? mission.evaluation.criteria : mission.criteria;
-    return this.verify(criteria, actor.id);
+    return this.verify(criteria, actor.id, mission.id);
   }
 
   /**
@@ -303,7 +323,7 @@ export class TrainingService {
     const mission = await this.requireMission(actor, missionId);
     const isEvaluation = assistance === 'none';
     const criteria = isEvaluation ? mission.evaluation.criteria : mission.criteria;
-    const report = await this.verify(criteria, actor.id);
+    const report = await this.verify(criteria, actor.id, mission.id);
 
     const now = new Date();
     const progress = await this.prisma.prodClient.trainingMissionProgress.upsert({
@@ -431,6 +451,7 @@ export class TrainingService {
   private async verify(
     criteria: Parameters<typeof evaluateCriteria>[1],
     userId: string,
+    missionId?: string,
   ): Promise<VerificationReport> {
     if (!this.prisma.isTrainingConfigured()) {
       throw new AppException(
@@ -439,7 +460,24 @@ export class TrainingService {
       );
     }
     const training = await this.prisma.connectTraining();
-    return evaluateCriteria(training as unknown as VerificationDb, criteria, userId);
+    const since = await this.attemptWindow(userId, missionId);
+    return evaluateCriteria(training as unknown as VerificationDb, criteria, userId, new Date(), since);
+  }
+
+  /**
+   * Début de la tentative en cours, pour la substitution `{{since}}`.
+   *
+   * Sans progression connue (vérification avant tout `start`), on remonte à
+   * l'époque UNIX : le critère exige toujours une ligne RÉELLE, il n'est pas
+   * satisfait par le vide — on évite seulement un faux négatif.
+   */
+  private async attemptWindow(userId: string, missionId?: string): Promise<Date> {
+    if (!missionId) return new Date(0);
+    const progress = await this.prisma.prodClient.trainingMissionProgress.findUnique({
+      where: { userId_missionId: { userId, missionId } },
+      select: { startedAt: true },
+    });
+    return progress?.startedAt ?? new Date(0);
   }
 
   private toProgressView(row: {

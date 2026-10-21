@@ -68,3 +68,47 @@ Ces chemins temporaires ne sont pas des dépendances du produit. Les captures so
 5. Conserver les acquis existants, ne pas réinitialiser la table de progression lors d’une mise à jour de contenu. Donner une nouvelle clé uniquement à un véritable nouveau chapitre ; corriger une formulation sans changer arbitrairement son identifiant.
 
 Le rapport [suppression et accueil initial](SUPPRESSION_ET_ACCUEIL_QA.md) documente les changements historiques déjà présents ; les résultats et réserves ci-dessus concernent l’extension complète de formation.
+
+---
+
+## Passe de correction du 21 octobre 2026 — parcours guidé
+
+### Symptômes observés en production (captures du 21/10)
+
+| Symptôme | Cause réelle | Correction |
+|---|---|---|
+| `Uncaught TypeError: Cannot read properties of undefined (reading 'startsWith')` au clic sur le coach | Le catalogue sert `navigateTo`, l'interface lisait `step.page` → `router.push(undefined)` | `src/lib/training/mission-steps.mjs` (`stepPage`), lecture de `page` **ou** `navigateTo`, repli sur le module de la mission |
+| « ÉTAPE NaN SUR 5 » | Instantané de reprise non borné + index d'étape non validé | `toStepIndex` borne tout instantané (null, chaîne, NaN, hors limites) |
+| Panneau « Cet élément n'est pas visible sur cette page » sur l'écran de parcours | L'étape 1 n'avançait jamais (chemin `undefined`) et la cible personnelle n'existait que dans l'espace équipe | Navigation d'entrée de mission + ancrages `data-coach-id` ajoutés sur `TaskComposer` et la liste personnelle |
+| `« »` (libellé de page vide) dans l'infobulle | `step.page` rendu vide | `pageLabel()` nomme l'écran réel, sinon dérive un libellé lisible |
+| Rafale de `401 (Unauthorized)` sur `/api/notifications`, `/api/me/tasks`, `/api/notifications/summary` | Après l'échec de connexion, les écrans montés continuaient d'appeler l'API sans jeton | `apiFetch` répond localement `401 SESSION_ABSENTE` hors routes publiques ; `refresh` observe un délai de grâce de 10 s après échec (plus de POST `/auth/refresh` en boucle) |
+| `POST /api/auth/login 502 (Bad Gateway)` | Le proxy Vercel n'a pas joint l'API (backend Render endormi / redéploiement) — pas un défaut du code applicatif | Message explicite « passerelle 502/503/504 » + **un** rejeu automatique après 1,2 s pour `GET` et pour `login`/`refresh` uniquement |
+| Mission « Suivre mon temps de travail » impossible à valider | Critère `createdAt: { gte: "{{now}}" }` comparé à l'instant de vérification → faux par construction | Substitution `{{since}}` (début de tentative) + test qui interdit `{{now}}` sur un critère temporel |
+| Progression feinte (clic n'importe où dans un tableau) | Étapes `action` ciblant un conteneur (`taches-board`, `client-devis-list`) | Cibles précises ou étapes `verify` ; test qui interdit les cibles-conteneurs |
+| Mission validée mais carte toujours « À commencer » | Catalogue jamais relu après validation/abandon | `refreshCatalog()` après `validate()` et `quit()` |
+
+### Améliorations livrées avec les correctifs
+
+- Parcours regroupé **par niveau** avec avancement par niveau, compteur d'évaluations finales validées, badges « Évaluation validée / à passer / à repasser ».
+- « Voir le déroulé » affiche la **frise des étapes du coach** avec leur nature (se rendre / agir / prouvé par les données / geste guidé).
+- Reprise réelle : « Reprendre avec le coach » (instantané `sessionStorage`), bannière « MODE FORMATION » rappelant la mission et l'étape, bouton Reprendre si la mission est en pause.
+- Bilan ouvert automatiquement au retour d'une mission (`?bilan=1`) ; carte de validation détaillant chaque critère (satisfait / manquant).
+- Infobulle du coach compacte (« Pourquoi cette étape ? » et « Un doute ? L'aide » dépliables), raccourcis clavier ← → / Échap, état « Vérification… » réel (plus de bouton qui paraît bloqué).
+- Sortie du mode formation → la session de coach se ferme (plus de scénario guidé sur des données réelles).
+
+### Résultats exécutés dans cette passe
+
+| Commande | Résultat |
+|---|---|
+| `npm run test:training` (`missions.spec.ts` + `mission-verification.spec.ts`) | **17/17** ✅ |
+| `npm run test:training-ui` (`tests/training-steps.test.mjs`) | **13/13** ✅ |
+| `node --test tests/contract.test.mjs` | **5/5** ✅ |
+| `npx eslint` sur les fichiers modifiés (frontend) | 0 erreur ✅ |
+| `npx next build` | build de production réussi (toutes les routes, dont les 4 pages `/formation`) ✅ |
+| `npx tsc --ignoreConfig` sur `missions.ts` + `mission-verification.ts` (strict) | 0 erreur ✅ |
+
+### Limites de cette passe
+
+- **Pas de base PostgreSQL dans la sandbox** : les parcours n'ont pas été rejoués de bout en bout (création réelle, minuteur, validation). Les critères sont couverts en unitaire, la vérification réelle reste à recetter sur un environnement avec `TRAINING_DATABASE_URL`.
+- La génération du client Prisma (`prisma generate`) exige le téléchargement des moteurs, indisponible ici : le typecheck complet du backend et `prisma-routing.spec.ts` n'ont donc pas été exécutés (échec d'import du client généré, sans rapport avec ces changements). Les modules de catalogue et de critères (sans dépendance Prisma) sont, eux, vérifiés en `strict`.
+- Le `502` de connexion relève de l'hébergement (API endormie) : le code affiche désormais un message juste et rejoue une fois, mais ne peut pas garantir le réveil du backend.

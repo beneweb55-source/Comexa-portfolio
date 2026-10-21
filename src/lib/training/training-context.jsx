@@ -31,6 +31,10 @@ export function TrainingProvider({ children }) {
     banner: "MODE FORMATION — DONNÉES FICTIVES",
     sessionId: null,
     expiresAt: null,
+    // Session ouverte côté serveur lors d'un chargement précédent (le jeton,
+    // lui, ne survit pas au rechargement) : l'interface peut proposer de la
+    // rouvrir au lieu de laisser croire qu'aucune formation n'a commencé.
+    activeSessionId: null,
   });
   const [catalog, setCatalog] = useState(null);
   const [catalogError, setCatalogError] = useState(null);
@@ -65,6 +69,7 @@ export function TrainingProvider({ children }) {
           status: "ready",
           configured: Boolean(data?.configured),
           banner: data?.banner ?? s.banner,
+          activeSessionId: data?.activeSessionId ?? null,
         }));
       })
       .catch(() => {
@@ -105,6 +110,7 @@ export function TrainingProvider({ children }) {
           banner: data.banner ?? s.banner,
           sessionId: data.sessionId,
           expiresAt: data.expiresAt,
+          activeSessionId: data.sessionId,
         }));
         return data;
       })();
@@ -123,7 +129,7 @@ export function TrainingProvider({ children }) {
       await request("/training/exit", { method: "POST", body: {} });
     } finally {
       setTrainingToken(null);
-      setState((s) => ({ ...s, status: "ready", sessionId: null, expiresAt: null }));
+      setState((s) => ({ ...s, status: "ready", sessionId: null, expiresAt: null, activeSessionId: null }));
     }
   }, [request]);
 

@@ -16,20 +16,39 @@ import {
 } from '../src/modules/training/mission-verification.js';
 import type { MissionCriterion } from '../src/modules/training/missions.js';
 
-test('resolveWhere substitue {{userId}} et {{now}} en profondeur', () => {
+test('resolveWhere substitue {{userId}}, {{now}} et {{since}} en profondeur', () => {
   const now = new Date('2026-10-21T09:00:00Z');
+  const since = new Date('2026-10-21T08:00:00Z');
   const resolved = resolveWhere(
     {
       assigneeId: '{{userId}}',
       nested: { ownerId: '{{userId}}', createdAt: { gte: '{{now}}' } },
+      startedAfter: { gte: '{{since}}' },
       literal: 'reste tel quel',
     },
     'user-9',
     now,
+    since,
   );
   assert.equal(resolved.assigneeId, 'user-9');
   assert.deepEqual(resolved.nested, { ownerId: 'user-9', createdAt: { gte: now } });
+  // `{{since}}` = début de la tentative : c'est la seule borne qui puisse
+  // exprimer « créé APRÈS le début de la mission ». Avec `{{now}}`, la
+  // comparaison se faisait contre l'instant de la vérification et le critère
+  // était faux par construction.
+  assert.deepEqual(resolved.startedAfter, { gte: since });
   assert.equal(resolved.literal, 'reste tel quel');
+});
+
+test('{{since}} est utilisé par les critères temporels, jamais {{now}} sur createdAt', async () => {
+  const { TRAINING_MISSIONS } = await import('../src/modules/training/missions.js');
+  const suspects = TRAINING_MISSIONS.flatMap((mission) => [...mission.criteria, ...mission.evaluation.criteria])
+    .filter((criterion) => JSON.stringify(criterion.where).includes('{{now}}'));
+  assert.deepEqual(
+    suspects.map((criterion) => criterion.id),
+    [],
+    'un critère « créé après » doit utiliser {{since}} (début de tentative), pas {{now}}',
+  );
 });
 
 test('criterionMet : minCount par défaut 1, expectCount exact', () => {

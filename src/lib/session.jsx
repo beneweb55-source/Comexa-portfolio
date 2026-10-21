@@ -25,6 +25,11 @@ export function AuthProvider({ children }) {
   const [state, setState] = useState({ status: "loading", user: null, token: null });
   const tokenRef = useRef(null);
   const refreshing = useRef(null);
+  // Un rafraîchissement qui échoue (passerelle 502, backend endormi, cookie
+  // absent) ne doit pas être retenté par CHAQUE requête : sans ce délai de
+  // grâce, une page qui sonde (notifications, minuteur, tâches) produisait une
+  // rafale de POST /auth/refresh dans la console.
+  const refreshBlockedUntil = useRef(0);
 
   const applySession = useCallback((data) => {
     tokenRef.current = data.accessToken;
@@ -43,10 +48,18 @@ export function AuthProvider({ children }) {
   }, []);
 
   const refresh = useCallback(() => {
+    if (!refreshing.current && Date.now() < refreshBlockedUntil.current) {
+      return Promise.resolve(null);
+    }
     if (!refreshing.current) {
       refreshing.current = apiFetch("/auth/refresh", { method: "POST" })
-        .then(({ data }) => applySession(data))
+        .then(({ data }) => {
+          refreshBlockedUntil.current = 0;
+          return applySession(data);
+        })
         .catch(() => {
+          // Nouvelle tentative possible après 10 s, pas à chaque requête.
+          refreshBlockedUntil.current = Date.now() + 10_000;
           clearSession();
           return null;
         })

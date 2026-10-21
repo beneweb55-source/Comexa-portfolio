@@ -8,7 +8,16 @@
  *
  * Les substitutions disponibles dans `where` :
  *   `{{userId}}` — l'identité RÉELLE du membre en formation (base prod),
- *   `{{now}}`    — la date courante.
+ *   `{{now}}`    — la date courante (heure de la vérification),
+ *   `{{since}}`  — le début de la TENTATIVE en cours.
+ *
+ * `{{since}}` existe parce que `{{now}}` ne pouvait pas exprimer « après le
+ * début de la mission » : un critère `createdAt: { gte: "{{now}}" }` compare la
+ * date de création à l'instant de la VÉRIFICATION, donc il est faux par
+ * construction. La mission « Suivre mon temps de travail » était, de ce fait,
+ * impossible à valider — on pouvait saisir son temps, le serveur répondait
+ * toujours « pas encore ». `{{since}}` est fourni par le service à partir de
+ * `TrainingMissionProgress.startedAt`.
  *
  * Le code d'évaluation est une fonction pure du catalogue : `evaluateCriteria`
  * reçoit un client Prisma (ou un faux, dans les tests) et rend un rapport
@@ -46,25 +55,27 @@ export function resolveWhere(
   where: Readonly<Record<string, unknown>>,
   userId: string,
   now: Date = new Date(),
+  since: Date = now,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(where)) {
-    out[key] = resolveValue(value, userId, now);
+    out[key] = resolveValue(value, userId, now, since);
   }
   return out;
 }
 
-function resolveValue(value: unknown, userId: string, now: Date): unknown {
+function resolveValue(value: unknown, userId: string, now: Date, since: Date): unknown {
   if (typeof value === 'string') {
     if (value === '{{userId}}') return userId;
     if (value === '{{now}}') return now;
+    if (value === '{{since}}') return since;
     return value;
   }
-  if (Array.isArray(value)) return value.map((item) => resolveValue(item, userId, now));
+  if (Array.isArray(value)) return value.map((item) => resolveValue(item, userId, now, since));
   if (typeof value === 'object' && value !== null) {
     const out: Record<string, unknown> = {};
     for (const [key, inner] of Object.entries(value)) {
-      out[key] = resolveValue(inner, userId, now);
+      out[key] = resolveValue(inner, userId, now, since);
     }
     return out;
   }
@@ -90,6 +101,7 @@ export async function evaluateCriteria(
   criteria: readonly MissionCriterion[],
   userId: string,
   now: Date = new Date(),
+  since: Date = now,
 ): Promise<VerificationReport> {
   const results: CriterionResult[] = [];
 
@@ -100,7 +112,7 @@ export async function evaluateCriteria(
         `Critère de mission inconnu : le modèle « ${criterion.model} » n'existe pas dans la base d'entrainement.`,
       );
     }
-    const where = resolveWhere(criterion.where, userId, now);
+    const where = resolveWhere(criterion.where, userId, now, since);
     const count = await model.count({ where });
     results.push({
       id: criterion.id,

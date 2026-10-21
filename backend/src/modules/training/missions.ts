@@ -776,23 +776,14 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
         id: "personal-tache-assignee/advance",
         order: 4,
         title: "Faire avancer « Préparer la maquette »",
-        body: "Passez la tâche « Préparer la maquette » en cours (glissez-la vers « En cours », ou utilisez le contrôle de statut de la carte).",
+        body: "Passez la tâche « Préparer la maquette » en cours : glissez-la vers « En cours » ou utilisez le contrôle de statut de la carte.",
         why: "Le statut est l'information de travail partagée : le mettre à jour, c'est permettre à l'équipe de s'organiser.",
-        expect: "Le statut de la tâche change dans le tableau.",
-        advanceOn: "action",
-        target: "taches-board",
-        hint: { text: "Sur le tableau : glissez la carte vers la colonne « En cours »." },
-      },
-      {
-        id: "personal-tache-assignee/verify-status",
-        order: 5,
-        title: "Contrôler le statut",
-        body: "Le coach vérifie que « Préparer la maquette » n'est plus « À faire ».",
-        why: "Un statut juste dans les données = un tableau de bord honnête.",
-        expect: "Le changement de statut est détecté.",
+        expect: "Le statut de la tâche change dans les données — c'est ce que le coach vérifie.",
         advanceOn: "verify",
         criterionId: "tache-en-cours",
-        hint: { text: "La carte a changé de colonne." },
+        hint: {
+          text: "Sur le tableau : glissez la carte vers la colonne « En cours », ou ouvrez la tâche et choisissez son statut.",
+        },
       },
     ],
     checklist: [
@@ -818,7 +809,13 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
         label: "La tâche « Préparer la maquette » a quitté le statut « À faire »",
         resultLabel: "« Préparer la maquette » en cours",
         model: "task",
-        where: { title: "Préparer la maquette", status: { not: "TODO" } },
+        // `assigneeId` : le bac à sable est PARTAGÉ. Sans cette borne, la tâche
+        // d'un autre apprenant satisfaisait le critère à sa place.
+        where: {
+          title: "Préparer la maquette",
+          assigneeId: "{{userId}}",
+          status: { not: "TODO" },
+        },
         minCount: 1,
       },
     ],
@@ -840,7 +837,7 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
           label: "La tâche « Préparer la maquette » est terminée",
           resultLabel: "« Préparer la maquette » terminée",
           model: "task",
-          where: { title: "Préparer la maquette", status: "DONE" },
+          where: { title: "Préparer la maquette", assigneeId: "{{userId}}", status: "DONE" },
           minCount: 1,
         },
       ],
@@ -913,20 +910,12 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
         title: "Arrêter et clôturer",
         body: "Arrêtez le minuteur (bouton ■ « Terminer et enregistrer ») : la saisie de temps est alors enregistrée.",
         why: "L'arrêt clôture la session et crée la saisie réelle : c'est cette saisie que le coach vérifie.",
-        expect: "Une saisie de temps apparaît pour la tâche.",
-        advanceOn: "manual",
-        hint: { text: "Le bouton d'arrêt (■) est à côté de l'affichage du minuteur." },
-      },
-      {
-        id: "personal-journee/verify",
-        order: 4,
-        title: "Contrôler la saisie",
-        body: "Le coach vérifie qu'une saisie de temps existe pour « Préparer la maquette ».",
-        why: "Le temps enregistré dans les données est la seule valeur qui compte pour le suivi d'activité.",
-        expect: "La saisie de temps est détectée.",
+        expect: "Une saisie de temps apparaît pour la tâche — le coach la détecte et avance tout seul.",
         advanceOn: "verify",
         criterionId: "temps-saisi",
-        hint: { text: "Consultez « Mon temps » pour voir la ligne apparaître." },
+        hint: {
+          text: "Le bouton d'arrêt (■) est à côté de l'affichage du minuteur. La ligne apparaît ensuite dans « Mon temps ».",
+        },
       },
     ],
     checklist: [
@@ -947,7 +936,7 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
         where: {
           userId: "{{userId}}",
           task: { title: "Préparer la maquette" },
-          createdAt: { gte: "{{now}}" },
+          createdAt: { gte: "{{since}}" },
         },
         minCount: 1,
       },
@@ -965,7 +954,7 @@ const PERSONAL_MISSIONS: TrainingMission[] = [
           where: {
             userId: "{{userId}}",
             task: { title: "Préparer la maquette" },
-            createdAt: { gte: "{{now}}" },
+            createdAt: { gte: "{{since}}" },
           },
           minCount: 1,
         },
@@ -1285,8 +1274,11 @@ const CLIENT_MISSIONS: TrainingMission[] = [
         body: "Ouvrez le devis « Site vitrine » depuis la liste et parcourez ses lignes (prestations, prix, TVA, total).",
         why: "C'est le contenu du devis qui fait foi en cas de litige : la lecture détaillée est votre protection.",
         expect: "Le détail du devis s'affiche.",
-        advanceOn: "action",
-        target: "client-devis-list",
+        // `manual` et non `action` : rien dans les données ne prouve qu'une
+        // lecture a eu lieu. Une étape `action` sur la LISTE avançait au premier
+        // clic venu — la progression aurait été feinte. La preuve réelle de
+        // cette mission est l'acceptation, vérifiée à l'étape 4.
+        advanceOn: "manual",
         hint: { text: "Cliquez sur la ligne du devis pour ouvrir sa fiche complète." },
       },
       {
@@ -1502,4 +1494,44 @@ export function filterMissionsFor(
   return missions
     .filter((mission) => mission.space === space)
     .filter((mission) => mission.permissions.every((permission) => owned.has(permission)));
+}
+
+/* ==========================================================================
+   FORME ENVOYÉE AU NAVIGATEUR
+   ========================================================================== */
+
+/**
+ * Étape telle qu'elle est SERVIE (contrat de `GET /training/catalog`).
+ *
+ * `page` est ajouté par le serveur : c'est le chemin réel où se joue l'étape,
+ * `navigateTo` lorsqu'il existe, sinon le module de la mission. Le navigateur
+ * n'a donc plus à deviner — l'ancienne lecture `step.page`, toujours
+ * `undefined`, faisait planter `router.push` (« Cannot read properties of
+ * undefined (reading 'startsWith') ») et bloquait l'étape 1 de chaque mission.
+ *
+ * `navigateTo`, `target` et `hint` restent présents : contrat additif, aucun
+ * client existant n'est cassé.
+ */
+export interface PresentedTrainingStep extends TrainingStep {
+  /** Chemin réel de l'étape (jamais `undefined`). */
+  readonly page: string;
+}
+
+export interface PresentedTrainingMission extends Omit<TrainingMission, 'steps'> {
+  readonly steps: PresentedTrainingStep[];
+}
+
+/** Prépare une mission pour le navigateur : chaque étape reçoit sa `page`. */
+export function presentMission(mission: TrainingMission): PresentedTrainingMission {
+  const fallback = mission.realModuleHref?.startsWith('/') ? mission.realModuleHref : '/';
+  return {
+    ...mission,
+    steps: mission.steps.map((step) => ({
+      ...step,
+      page:
+        typeof step.navigateTo === 'string' && step.navigateTo.startsWith('/')
+          ? step.navigateTo
+          : fallback,
+    })),
+  };
 }

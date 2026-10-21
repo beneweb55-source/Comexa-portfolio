@@ -111,13 +111,45 @@ function effectiveToken(path, token) {
 }
 
 /**
+ * Routes qui répondent SANS jeton : contenu public, authentification, santé.
+ * Partout ailleurs, appeler le serveur sans jeton est une erreur de session —
+ * inutile d'aller chercher un 401 (voir `apiFetch`).
+ */
+const PUBLIC_PREFIXES = ["/public", "/auth", "/health"];
+
+function isPublicPath(path) {
+  if (typeof path !== "string") return false;
+  return PUBLIC_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/** Passerelle en erreur : le backend ne répond pas (démarrage, redéploiement). */
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+const GATEWAY_MESSAGE =
+  "Le serveur applicatif ne répond pas pour le moment (passerelle 502/503/504). " +
+  "Il démarre peut-être : réessayez dans quelques secondes.";
+
+/**
+ * Un 502 n'est pas une réponse métier : c'est la passerelle qui n'a pas joint
+ * l'API (backend endormi, redéploiement Render en cours). Rejouer UNE fois la
+ * lecture est sans risque et évite de présenter un échec à l'utilisateur pour
+ * un simple réveil ; on ne rejoue jamais une écriture métier.
+ */
+function retryableStatus(status, path, method) {
+  if (!GATEWAY_STATUSES.has(status)) return false;
+  if (method === "GET" || method === "HEAD") return true;
+  return path === "/auth/refresh" || path === "/auth/login";
+}
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+/**
  * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
  * requête garde les droits du rôle (espace client, site public, connexion).
  */
-/** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
-const DEFAULT_TIMEOUT_MS = 30_000;
-
 export async function apiFetch(
   path,
   { method = "GET", body, token, signal, space, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
@@ -127,6 +159,22 @@ export async function apiFetch(
   const bearer = effectiveToken(path, token);
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
+
+  // SESSION ABSENTE — on ne frappe pas le serveur pour récolter un 401.
+  //
+  // Après un échec de connexion (passerelle 502 sur `/auth/login`), les écrans
+  // déjà montés continuaient d'appeler `/api/notifications`, `/api/me/tasks`…
+  // Chaque sondage produisait un 401 dans la console, relançait un
+  // rafraîchissement, et l'utilisateur voyait une tempête d'erreurs au lieu
+  // d'un message clair. Sans jeton, hors routes publiques, la réponse est
+  // connue d'avance : on la rend localement.
+  if (!bearer && !isPublicPath(path)) {
+    throw new ApiError(
+      401,
+      "SESSION_ABSENTE",
+      "Votre session a expiré. Reconnectez-vous pour continuer.",
+    );
+  }
 
   // AUCUNE requête sans délai maximal. Sans lui, un serveur qui ne répond pas
   // (réveil d'un hébergement endormi, amorçage de la base d'entraînement qui
@@ -150,24 +198,33 @@ export async function apiFetch(
 
   let response;
   try {
-    response = await fetch(`/api${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error?.name === "AbortError" && !timedOut) throw error;
-    if (timedOut) {
-      throw new ApiError(
-        0,
-        "TIMEOUT",
-        "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
-      );
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        response = await fetch(`/api${path}`, {
+          method,
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error?.name === "AbortError" && !timedOut) throw error;
+        if (timedOut) {
+          throw new ApiError(
+            0,
+            "TIMEOUT",
+            "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
+          );
+        }
+        throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+      }
+      if (attempt === 0 && retryableStatus(response.status, path, method)) {
+        await delay(1200);
+        continue;
+      }
+      break;
     }
-    throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -192,10 +249,13 @@ export async function apiFetch(
 
   if (!response.ok || !json?.success) {
     const error = json?.error ?? {};
+    const fallback = GATEWAY_STATUSES.has(response.status)
+      ? GATEWAY_MESSAGE
+      : "Une erreur est survenue. Réessayez.";
     throw new ApiError(
       response.status,
       error.code ?? `HTTP_${response.status}`,
-      error.message ?? "Une erreur est survenue. Réessayez.",
+      error.message ?? fallback,
       error.details,
     );
   }
