@@ -85,7 +85,16 @@ const ROUTED_DOLLAR_METHODS = [
 ] as const;
 
 /**
- * Choix du client pour un delegate de modele. PURE, testee a l'unite.
+ * Ce delegate doit-il etre servi par le client d'entrainement ? PURE, testee
+ * a l'unite — et le BRANCHEMENT qui l'utilise est teste lui aussi (voir
+ * tests/prisma-routing.spec.ts : les getters installes sur l'instance).
+ *
+ * RETOURNE UN BOOLEEN, volontairement. Une version precedente renvoyait les
+ * chaines 'production' | 'training', et le getter ecrivait
+ * `clientForModel(...) ? clientFormation : original` : la chaine 'production'
+ * etant truthy, TOUT partait en formation, production comprise — jusqu'a la
+ * connexion elle-meme (2026-10-21). Un booleen dans un ternaire ne peut pas
+ * mentir ; une chaine, si.
  *
  * `isTraining` vient UNIQUEMENT du scope serveur (jeton de formation signé).
  * La disponibilite du client d'entrainement n'est PAS consultee ici : quand le
@@ -94,9 +103,8 @@ const ROUTED_DOLLAR_METHODS = [
  * explicite, jamais un repli silencieux vers la production. Un repli serait
  * exactement la fuite que ce mecanisme existe pour empecher.
  */
-export function clientForModel(model: string, isTraining: boolean): 'production' | 'training' {
-  if (!isTraining) return 'production';
-  return MODELS_TOUJOURS_PRODUCTION.has(model) ? 'production' : 'training';
+export function useTrainingClient(model: string, isTraining: boolean): boolean {
+  return isTraining && !MODELS_TOUJOURS_PRODUCTION.has(model);
 }
 
 @Injectable()
@@ -148,10 +156,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       Object.defineProperty(this, name, {
         configurable: true,
         get: () => {
-          // `this.trainingClient` LEVE si TRAINING_DATABASE_URL est absente :
-          // en scope de formation, une erreur nette vaut mieux qu'une ecriture
-          // silencieusement envoyee en production.
-          return clientForModel(name, isTrainingScope())
+          // `this.trainingClient` n'est evalue QUE si le scope est formation
+          // (le ternaire evalue sa condition en premier) : en production,
+          // l'absence de TRAINING_DATABASE_URL ne gene personne. En scope de
+          // formation, `this.trainingClient` LEVE une erreur nette : mieux
+          // vaut cela qu'une ecriture silencieusement envoyee en production.
+          return useTrainingClient(name, isTrainingScope())
             ? (this.trainingClient as unknown as Record<string, unknown>)[name]
             : original;
         },

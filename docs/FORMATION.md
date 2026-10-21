@@ -28,8 +28,10 @@ appliquée par le serveur, à chaque requête.
 
 1. **Base de données distincte** : `TRAINING_DATABASE_URL` pointe vers une base
    d'entraînement. `PrismaService` route chaque modèle vers le bon client
-   (`clientForModel(model, isTrainingScope)`), selon la portée ALS
-   (`training-scope.ts`) posée par le middleware.
+   (`useTrainingClient(model, isTrainingScope)`), selon la portée ALS
+   (`training-scope.ts`) posée par le middleware. Sans `TRAINING_DATABASE_URL`,
+   la **production fonctionne normalement** ; seule la formation est
+   indisponible (message explicite à l'entrée en formation).
 2. **Fail-loud, jamais fail-open** : si la portée de formation est active mais que
    le client d'entraînement n'est pas constructible (variable absente), la
    requête **échoue explicitement**. Un repli silencieux vers la production est
