@@ -9,7 +9,6 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { configureClientIp, parseTrustProxy } from './common/http/client-ip.js';
 import { docsSessionSecret, protectDocs } from './common/http/docs-access.js';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor.js';
-import { trainingScopeMiddleware } from './common/training/training-scope.js';
 import { docsEnabled } from './config/env.validation.js';
 import { API_CONTRACT, API_CONTRACT_HEADER } from './health/contract.js';
 
@@ -63,17 +62,6 @@ export function configureApp(app: INestApplication): AppSetupResult {
   const config = app.get(ConfigService);
   const isProduction = config.get<string>('NODE_ENV') === 'production';
   const apiPrefix = config.get<string>('API_PREFIX') ?? 'api';
-
-  // SCOPE DE FORMATION — enregistre EN PREMIER, avant tout le reste.
-  //
-  // Ce middleware ouvre le magasin `AsyncLocalStorage` de la requete. Le garde
-  // d'authentification y marquera `training = true` pour un jeton de formation,
-  // et le routeur Prisma lira ce drapeau pour choisir la base (reelle ou
-  // d'entrainement). Enregistre ici, il couvre toute la continuation : gardes,
-  // pipes, controleurs, services, transactions. Les taches planifiees et les
-  // passerelles WebSocket ne passent jamais par la — ils agissent donc
-  // toujours sur la production.
-  app.use(trainingScopeMiddleware);
 
   app.use(helmet());
   app.use(cookieParser());

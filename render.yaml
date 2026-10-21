@@ -29,12 +29,6 @@ services:
         sync: false           # pooler Supabase, port 6543, ?pgbouncer=true
       - key: DIRECT_URL
         sync: false           # direct Supabase, port 5432, migrations uniquement
-      # --- Formation : base d'entraînement DISTINCTE de la production.
-      # Sans elle, /training/status répond configured:false et l'ouverture de
-      # l'environnement échoue (503) : c'est LA variable du « Mon parcours ».
-      # Créer une seconde base Supabase et y appliquer les mêmes migrations.
-      - key: TRAINING_DATABASE_URL
-        sync: false           # base d'entraînement, ex. pooler Supabase du projet/base formation
       # --- Authentification : deux secrets DIFFÉRENTS (openssl rand -base64 48)
       - key: JWT_ACCESS_SECRET
         sync: false

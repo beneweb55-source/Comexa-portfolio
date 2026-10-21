@@ -10,7 +10,7 @@
 
 import {
   BarChart3,
-  GraduationCap,
+  Compass,
   Bell,
   Briefcase,
   CalendarDays,
@@ -46,7 +46,7 @@ import {
 const SECTION_META = {
   "*": {
     "tableau-de-bord": { icon: LayoutDashboard, shortLabel: "Tableau de bord" },
-    formation: { icon: GraduationCap, shortLabel: "Mon parcours" },
+    guide: { icon: Compass, shortLabel: "Premiers pas" },
     notifications: { icon: Bell, shortLabel: "Notifications" },
     compte: { icon: UserRound, shortLabel: "Mon compte" },
     calendrier: { icon: CalendarDays, shortLabel: "Calendrier" },

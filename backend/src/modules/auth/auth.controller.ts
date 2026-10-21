@@ -13,7 +13,7 @@ import {
   createParamDecorator,
   type ExecutionContext,
 } from '@nestjs/common';
-import { OnboardingService, trainingAccess } from './onboarding.service.js';
+import { OnboardingService, onboardingAreas } from './onboarding.service.js';
 import { OnboardingDto } from './dto/onboarding.dto.js';
 import { IgnoreSpace, ScopedByService } from '../../common/decorators/auth.decorators.js';
 import { ConfigService } from '@nestjs/config';
@@ -321,7 +321,7 @@ export class AuthController {
   @IgnoreSpace()
   @ScopedByService()
   async onboardingAccess(@CurrentUser() user: AuthenticatedUser) {
-    return trainingAccess(user);
+    return onboardingAreas(user);
   }
 
   @Get('sessions')

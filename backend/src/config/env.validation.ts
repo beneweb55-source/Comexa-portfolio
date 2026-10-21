@@ -106,30 +106,6 @@ export class EnvironmentVariables {
   REVALIDATE_SECRET?: string;
 
   /**
-   * FORMATION — base de données d'entraînement (optionnelle).
-   *
-   * Une SECONDE base PostgreSQL, schema identique (mêmes migrations), qui
-   * reçoit les données fictives manipulées pendant les parcours guidés. Elle
-   * est DISTINCTE de DATABASE_URL : c'est la garantie serveur qu'une écriture
-   * de formation n'atteint jamais la production — même un appel API direct ne
-   * peut pas l'atteindre, le routage se faisant sur le jeton de formation.
-   *
-   * Absente : le module de formation répond une erreur explicite ; tout le
-   * reste de l'application fonctionne normalement.
-   */
-  @IsOptional()
-  @IsString()
-  TRAINING_DATABASE_URL?: string;
-
-  /**
-   * Durée de vie d'un jeton de formation (formes : `45s`, `15m`, `2h`, `30d`,
-   * ou entier de secondes). Défaut : 4h.
-   */
-  @IsOptional()
-  @IsString()
-  TRAINING_TOKEN_TTL = '4h';
-
-  /**
    * Politique SameSite du cookie de rafraichissement.
    *
    * `lax` convient quand le frontend et l'API partagent le meme domaine

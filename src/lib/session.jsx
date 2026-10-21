@@ -12,7 +12,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiFetch, downloadFile, fetchProtectedBlob, setTrainingToken } from "@/lib/api";
+import { ApiError, apiFetch, downloadFile, fetchProtectedBlob } from "@/lib/api";
 
 import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
 
@@ -25,6 +25,11 @@ export function AuthProvider({ children }) {
   const [state, setState] = useState({ status: "loading", user: null, token: null });
   const tokenRef = useRef(null);
   const refreshing = useRef(null);
+  // Un rafraîchissement qui échoue (passerelle 502, backend endormi, cookie
+  // absent) ne doit pas être retenté par CHAQUE requête : sans ce délai de
+  // grâce, une page qui sonde (notifications, minuteur, tâches) produisait une
+  // rafale de POST /auth/refresh dans la console.
+  const refreshBlockedUntil = useRef(0);
 
   const applySession = useCallback((data) => {
     tokenRef.current = data.accessToken;
@@ -34,19 +39,22 @@ export function AuthProvider({ children }) {
 
   const clearSession = useCallback(() => {
     tokenRef.current = null;
-    // Le jeton de formation vit au niveau du module `api` : sans ce nettoyage,
-    // il survivait à la déconnexion et la session suivante (ou le compte
-    // suivant, sur le même poste) héritait d'un jeton mort qui faisait
-    // répondre 401 à toutes les requêtes métier.
-    setTrainingToken(null);
     setState({ status: "anonymous", user: null, token: null });
   }, []);
 
   const refresh = useCallback(() => {
+    if (!refreshing.current && Date.now() < refreshBlockedUntil.current) {
+      return Promise.resolve(null);
+    }
     if (!refreshing.current) {
       refreshing.current = apiFetch("/auth/refresh", { method: "POST" })
-        .then(({ data }) => applySession(data))
+        .then(({ data }) => {
+          refreshBlockedUntil.current = 0;
+          return applySession(data);
+        })
         .catch(() => {
+          // Nouvelle tentative possible après 10 s, pas à chaque requête.
+          refreshBlockedUntil.current = Date.now() + 10_000;
           clearSession();
           return null;
         })

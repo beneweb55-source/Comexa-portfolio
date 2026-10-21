@@ -23,110 +23,71 @@ const NETWORK_MESSAGE = "Le serveur est injoignable pour le moment. Réessayez d
 /** En-tête de l'espace de travail actif (voir `lib/spaces.js`). */
 const SPACE_HEADER = "X-Comexa-Space";
 
-// ---------------------------------------------------------------------------
-// MODE FORMATION — le point d'ancrage unique du jeton de formation.
-//
-// Quand une session de formation est ouverte (voir `lib/training/`), TOUTES
-// les requêtes métier partent avec le jeton de FORMATION : le serveur route
-// alors les écritures vers la base d'entraînement (scope porté par le jeton,
-// jamais par un en-tête ou un paramètre). C'est le même formulaire, les mêmes
-// composants, les mêmes règles métier — seule la base change.
-//
-// TROIS EXCEPTIONS, et ce sont les seules :
-//  - les routes `/auth/*` (connexion, rafraîchissement, mot de passe) restent
-//    sur le jeton réel : l'identité ne se gère pas dans une base fictive ;
-//  - les routes `/training/*` (entrer, sortir, catalogue, progression)
-//    restent sur le jeton réel : elles GÈRENT la session de formation, elles
-//    ne doivent donc jamais dépendre de son jeton. Sans cette exception, une
-//    session de formation expirée ou fermée (autre onglet, redémarrage du
-//    serveur) empoisonnait tout : `/training/enter` lui-même partait avec le
-//    jeton mort, répondait 401, et chaque sondage (minuteur, notifications,
-//    tâches) rejouait le même 401 après rafraîchissement — boucle sans fin,
-//    et « Ouverture de l'environnement… » ne retombait jamais ;
-//  - `fetchProtectedBlob` (documents) utilise le jeton de formation quand il
-//    est actif, pour télécharger les pièces d'exercice.
-//
-// Aucune autre route ne peut choisir elle-même : c'est la présence du jeton
-// de formation qui décide, posée par `setTrainingToken`.
-// ---------------------------------------------------------------------------
+/**
+ * Routes qui répondent SANS jeton : contenu public, authentification, santé.
+ * Partout ailleurs, appeler le serveur sans jeton est une erreur de session —
+ * inutile d'aller chercher un 401 (voir `apiFetch`).
+ */
+const PUBLIC_PREFIXES = ["/public", "/auth", "/health"];
 
-let trainingToken = null;
-
-/** Abonnés prévenus quand un jeton de formation rejeté (401) est abandonné. */
-const trainingTokenDroppedListeners = new Set();
-
-/** (Dés)active le jeton de formation pour les requêtes suivantes. */
-export function setTrainingToken(token) {
-  trainingToken = token || null;
+function isPublicPath(path) {
+  if (typeof path !== "string") return false;
+  return PUBLIC_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
-/** Le jeton de formation actif, ou `null`. */
-export function getTrainingToken() {
-  return trainingToken;
-}
+/** Passerelle en erreur : le backend ne répond pas (démarrage, redéploiement). */
+const GATEWAY_STATUSES = new Set([502, 503, 504]);
+const GATEWAY_MESSAGE =
+  "Le serveur applicatif ne répond pas pour le moment (passerelle 502/503/504). " +
+  "Il démarre peut-être : réessayez dans quelques secondes.";
 
 /**
- * S'abonne à l'abandon automatique du jeton de formation (voir `apiFetch`).
- * Rend la fonction de désabonnement. Le contexte de formation s'en sert pour
- * éteindre sa bannière au lieu de rester « MODE FORMATION actif » avec un
- * jeton que le serveur refuse.
+ * Un 502 n'est pas une réponse métier : c'est la passerelle qui n'a pas joint
+ * l'API (backend endormi, redéploiement Render en cours). Rejouer UNE fois la
+ * lecture est sans risque et évite de présenter un échec à l'utilisateur pour
+ * un simple réveil ; on ne rejoue jamais une écriture métier.
  */
-export function onTrainingTokenDropped(listener) {
-  trainingTokenDroppedListeners.add(listener);
-  return () => trainingTokenDroppedListeners.delete(listener);
+function retryableStatus(status, path, method) {
+  if (!GATEWAY_STATUSES.has(status)) return false;
+  if (method === "GET" || method === "HEAD") return true;
+  return path === "/auth/refresh" || path === "/auth/login";
 }
 
-/**
- * Abandonne le jeton de formation EN COURS d'utilisation parce que le serveur
- * vient de le refuser (401) : la session de formation est expirée, fermée ou
- * révoquée. Continuer à le présenter ne produirait que des 401 — y compris
- * après un rafraîchissement du vrai jeton, puisque c'est lui qui est envoyé.
- * Le retirer rend la main au jeton réel : la requête rejouée par
- * `session.request` repart sur la production, et l'utilisateur peut rouvrir
- * l'environnement depuis « Mon parcours ».
- */
-function dropRejectedTrainingToken(usedToken) {
-  if (!usedToken || usedToken !== trainingToken) return;
-  trainingToken = null;
-  for (const listener of trainingTokenDroppedListeners) {
-    try {
-      listener();
-    } catch {
-      // Un abonné défaillant ne doit pas masquer la réponse HTTP en cours.
-    }
-  }
-}
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function isAuthPath(path) {
-  return typeof path === "string" && (path === "/auth" || path.startsWith("/auth/"));
-}
-
-function isTrainingPath(path) {
-  return typeof path === "string" && (path === "/training" || path.startsWith("/training/"));
-}
-
-function effectiveToken(path, token) {
-  if (trainingToken && !isAuthPath(path) && !isTrainingPath(path)) return trainingToken;
-  return token;
-}
+/** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 /**
  * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
  * requête garde les droits du rôle (espace client, site public, connexion).
  */
-/** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
-const DEFAULT_TIMEOUT_MS = 30_000;
-
 export async function apiFetch(
   path,
   { method = "GET", body, token, signal, space, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
 ) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const bearer = effectiveToken(path, token);
+  const bearer = token;
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
+
+  // SESSION ABSENTE — on ne frappe pas le serveur pour récolter un 401.
+  //
+  // Après un échec de connexion (passerelle 502 sur `/auth/login`), les écrans
+  // déjà montés continuaient d'appeler `/api/notifications`, `/api/me/tasks`…
+  // Chaque sondage produisait un 401 dans la console, relançait un
+  // rafraîchissement, et l'utilisateur voyait une tempête d'erreurs au lieu
+  // d'un message clair. Sans jeton, hors routes publiques, la réponse est
+  // connue d'avance : on la rend localement.
+  if (!bearer && !isPublicPath(path)) {
+    throw new ApiError(
+      401,
+      "SESSION_ABSENTE",
+      "Votre session a expiré. Reconnectez-vous pour continuer.",
+    );
+  }
 
   // AUCUNE requête sans délai maximal. Sans lui, un serveur qui ne répond pas
   // (réveil d'un hébergement endormi, amorçage de la base d'entraînement qui
@@ -150,34 +111,35 @@ export async function apiFetch(
 
   let response;
   try {
-    response = await fetch(`/api${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: controller.signal,
-    });
-  } catch (error) {
-    if (error?.name === "AbortError" && !timedOut) throw error;
-    if (timedOut) {
-      throw new ApiError(
-        0,
-        "TIMEOUT",
-        "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
-      );
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        response = await fetch(`/api${path}`, {
+          method,
+          headers,
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (error?.name === "AbortError" && !timedOut) throw error;
+        if (timedOut) {
+          throw new ApiError(
+            0,
+            "TIMEOUT",
+            "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
+          );
+        }
+        throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+      }
+      if (attempt === 0 && retryableStatus(response.status, path, method)) {
+        await delay(1200);
+        continue;
+      }
+      break;
     }
-    throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
   } finally {
     if (timer) clearTimeout(timer);
-  }
-
-  // Un 401 sur un jeton de FORMATION signe la fin de cette session de
-  // formation (expirée, fermée, révoquée) : on l'abandonne immédiatement
-  // pour que le rejeu — après rafraîchissement du vrai jeton — reparte avec
-  // le jeton réel au lieu de représenter indéfiniment le jeton mort.
-  if (response.status === 401 && trainingToken && bearer === trainingToken) {
-    dropRejectedTrainingToken(bearer);
   }
 
   const text = await response.text();
@@ -192,10 +154,13 @@ export async function apiFetch(
 
   if (!response.ok || !json?.success) {
     const error = json?.error ?? {};
+    const fallback = GATEWAY_STATUSES.has(response.status)
+      ? GATEWAY_MESSAGE
+      : "Une erreur est survenue. Réessayez.";
     throw new ApiError(
       response.status,
       error.code ?? `HTTP_${response.status}`,
-      error.message ?? "Une erreur est survenue. Réessayez.",
+      error.message ?? fallback,
       error.details,
     );
   }
@@ -240,7 +205,7 @@ export async function apiFetch(
  * jeton d'accès, exactement comme le téléchargement.
  */
 export async function fetchProtectedBlob(path, { token, space }) {
-  const bearer = effectiveToken(path, token);
+  const bearer = token;
   const response = await fetch(`/api${path}`, {
     headers: { Authorization: `Bearer ${bearer}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
     credentials: "same-origin",

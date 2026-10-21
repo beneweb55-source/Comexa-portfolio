@@ -93,7 +93,15 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
   }
 
   return (
-    <form id="nouvelle-tache" className="sui-composer" onSubmit={submit} aria-label="Ajouter une tâche personnelle">
+    <form
+      id="nouvelle-tache"
+      className="sui-composer"
+      onSubmit={submit}
+      aria-label="Ajouter une tâche personnelle"
+      /* Ancrage du coach (mission « Prendre en main mes tâches ») : la cible
+         est le formulaire réel, pas une position calculée. */
+      data-coach-id="taches-create-form"
+    >
       <div className="sui-composer__line">
         <span className="sui-composer__plus" aria-hidden="true">
           <Plus size={18} strokeWidth={2.2} />
@@ -113,7 +121,12 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
             if (error) setError(null);
           }}
         />
-        <button type="submit" className="sui-btn sui-btn--dark sui-composer__submit" disabled={busy || title.trim().length < 2}>
+        <button
+          type="submit"
+          className="sui-btn sui-btn--dark sui-composer__submit"
+          data-coach-id="taches-create-submit"
+          disabled={busy || title.trim().length < 2}
+        >
           {busy ? "Ajout…" : "Ajouter"}
         </button>
       </div>

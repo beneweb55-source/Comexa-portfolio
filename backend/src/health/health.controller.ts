@@ -37,8 +37,6 @@ export class HealthController {
      * suffit ; jamais le nom d'hôte ni l'URL sur un endpoint public.
      */
     databaseTarget: DatabaseTarget;
-    /** `TRAINING_DATABASE_URL` est-elle renseignée sur CE serveur ? */
-    trainingDatabaseConfigured: boolean;
     uptimeSeconds: number;
     timestamp: string;
     contract: ApiContract;
@@ -55,7 +53,6 @@ export class HealthController {
       status: 'ok',
       database: 'up',
       databaseTarget: databaseTargetOf(process.env.DATABASE_URL),
-      trainingDatabaseConfigured: this.prisma.isTrainingConfigured(),
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
       // Le bloc `contract` permet au frontend de detecter un backend PERIME

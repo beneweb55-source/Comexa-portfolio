@@ -9,8 +9,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service.js';
 import type { OnboardingDto } from './dto/onboarding.dto.js';
 
-/** Formation personnelle : mêmes accès que le sélecteur, jamais ceux d'un rôle supposé. */
-export function trainingAccess(user: AuthenticatedUser) {
+/** Parcours accessibles : mêmes accès que le sélecteur, jamais ceux d'un rôle supposé. */
+export function onboardingAreas(user: AuthenticatedUser) {
   const permissions = user.rolePermissions ?? user.permissions;
   const principal = { ...user, permissions };
   const spaces = accessibleSpaces(principal).map((id) => ({
@@ -38,12 +38,12 @@ export class OnboardingService {
 
   async list(user: AuthenticatedUser) {
     return this.prisma.onboardingProgress.findMany({
-      where: { userId: user.id, area: { in: trainingAccess(user).map((space) => space.id) } },
+      where: { userId: user.id, area: { in: onboardingAreas(user).map((space) => space.id) } },
     });
   }
 
   async save(user: AuthenticatedUser, dto: OnboardingDto) {
-    if (!trainingAccess(user).some((space) => space.id === dto.area)) {
+    if (!onboardingAreas(user).some((space) => space.id === dto.area)) {
       throw AppException.forbidden('Ce parcours ne correspond à aucun de vos espaces accessibles.');
     }
     const ids = [...(dto.chapterIds ?? []), ...(dto.chapterId ? [dto.chapterId] : [])];
@@ -66,7 +66,7 @@ export class OnboardingService {
       if (dto.revision !== undefined && before.revision !== dto.revision) {
         throw AppException.conflict(
           'ONBOARDING_CONFLICT',
-          'Votre progression a changé sur un autre écran. Rechargez la formation puis réessayez.',
+          'Votre progression a changé sur un autre écran. Rechargez la page puis réessayez.',
         );
       }
       const completed = new Set(before.completedChapterIds);
@@ -104,7 +104,7 @@ export class OnboardingService {
       if (updated.count !== 1) {
         throw AppException.conflict(
           'ONBOARDING_CONFLICT',
-          'Progression modifiée simultanément. Rechargez la formation.',
+          'Progression modifiée simultanément. Rechargez la page.',
         );
       }
       return tx.onboardingProgress.findUniqueOrThrow({

@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test:onboarding": "npm run build --prefix backend && node --test tests/onboarding.test.mjs backend/tests/document-deletion.test.mjs backend/tests/onboarding.database.test.mjs",
-    "test:onboarding:browser": "node tests/onboarding.browser.mjs"
+    "test:onboarding:browser": "node tests/onboarding.browser.mjs",
+    "test:guide": "cd backend && node --import tsx --test tests/guide.spec.ts tests/guide.service.spec.ts",
+    "test:guide-ui": "node --test tests/guide-ui.test.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

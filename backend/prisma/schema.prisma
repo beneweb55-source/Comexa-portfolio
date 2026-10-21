@@ -602,9 +602,6 @@ model User {
   auditLogs               AuditLog[]
   generatedReports        Report[]
   updatedSettings         Setting[]
-  trainingSessions        TrainingSession[]
-  trainingProgress        TrainingMissionProgress[]
-  trainingAttempts        TrainingAttempt[]
 
   @@index([clientId])
   @@index([status])
@@ -2868,99 +2865,6 @@ model DailyReport {
   @@unique([userId, reportDate])
   @@index([reportDate])
   @@map("daily_reports")
-}
-
-// =============================================================================
-// FORMATION — etat pedagogique (DONNEES REELLES, jamais fictives)
-//
-// Ces trois modeles vivent en PRODUCTION, quoi qu'il arrive : ils decrivent
-// l'apprentissage d'un vrai membre de l'equipe, pas un objet d'exercice. Le
-// routeur de `PrismaService` les verrouille sur le client de production meme
-// pendant une session de formation (voir MODELS_TOUJOURS_PRODUCTION), et une
-// reinitialisation de l'environnement d'entrainement ne les touche pas.
-//
-// Les donnees d'EXERCICE (clients, projets, devis fictifs) sont creees dans la
-// base d'entrainement (`TRAINING_DATABASE_URL`) par les services metier REELS,
-// reutilises tels quels — aucun modele n'est declare ici pour elles.
-// =============================================================================
-
-/// Une session de formation ouverte : elle autorise un jeton de formation
-/// (typ `training`) tant qu'elle n'est ni revoquee ni echue. C'est l'ecriture
-/// serveur qui rend le jeton utilisable — un jeton signe dont la session est
-/// fermee est refuse par le garde.
-model TrainingSession {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// Mission eventuellement en cours au moment de l'ouverture (informatif).
-  missionId String?
-  startedAt DateTime  @default(now())
-  expiresAt DateTime
-  /// Fin volontaire (« Quitter le mode formation »).
-  endedAt   DateTime?
-  /// Revoquation (securite, reinitialisation de la session de l'utilisateur).
-  revokedAt DateTime?
-
-  @@index([userId, startedAt])
-  @@map("training_sessions")
-}
-
-enum TrainingMissionStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETED
-  FAILED
-}
-
-/// Progression d'une mission par un utilisateur. Une mission n'est JAMAIS
-/// reussie par un clic : `COMPLETED` n'est ecrit par le serveur qu'apres
-/// verification des criteres sur l'etat REEL de la base d'entrainement.
-model TrainingMissionProgress {
-  id                 String                 @id @default(cuid())
-  userId             String
-  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// Identifiant de mission (catalogue code dans `modules/training/missions.ts`).
-  missionId          String
-  /// Espace de travail concerne (`team`, `personal`, `comexa`, `client`).
-  space              String
-  status             TrainingMissionStatus  @default(NOT_STARTED)
-  /// Nombre de tentatives (demarrements), pour le bilan et la difficulte.
-  attempts           Int                    @default(0)
-  startedAt          DateTime?
-  completedAt        DateTime?
-  /// Derniere evaluation finale (mission sans assistance) reussie ou non.
-  evaluationPassed   Boolean?
-  evaluationScore    Int?
-  evaluationDetails  Json?
-  attemptRecords     TrainingAttempt[]
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @updatedAt
-
-  @@unique([userId, missionId])
-  @@index([userId, status])
-  @@map("training_mission_progress")
-}
-
-/// Une tentative de mission : trace pedagogique (etapes a reprendre, erreurs
-/// rencontrees) quand elle apporte une valeur reelle. Jamais un log technique.
-model TrainingAttempt {
-  id              String                 @id @default(cuid())
-  progressId      String
-  progress        TrainingMissionProgress @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  missionId       String
-  /// Niveau d'assistance demande : `full` (coach complet), `reduced`, `none` (evaluation).
-  assistanceLevel String                 @default("full")
-  startedAt       DateTime               @default(now())
-  finishedAt      DateTime?
-  success         Boolean?
-  /// Erreurs retenues pour la pedagogie : `{ step, code, message }` compacts.
-  errors          Json?
-
-  @@index([progressId])
-  @@index([userId, missionId])
-  @@map("training_attempts")
 }
 
 /// Progression personnelle, versionnée et indépendante des permissions.
