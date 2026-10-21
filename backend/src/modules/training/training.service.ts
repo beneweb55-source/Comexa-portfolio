@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import { AppException, ErrorCode } from '../../common/errors/app-error.js';
-import {
-  effectivePermissions,
-  type SpaceId,
-} from '../../common/spaces/space-policy.js';
+import { effectivePermissions, type SpaceId } from '../../common/spaces/space-policy.js';
 import {
   TRAINING_MISSIONS,
   findMission,
@@ -13,15 +10,21 @@ import {
   type TrainingMission,
   type TrainingSpace,
 } from './missions.js';
-import { evaluateCriteria, type VerificationDb, type VerificationReport } from './mission-verification.js';
+import {
+  evaluateCriteria,
+  type VerificationDb,
+  type VerificationReport,
+} from './mission-verification.js';
 import {
   ensureSharedFixtures,
   ensureUserFixtures,
+  isUniqueConstraintError,
   mirrorIdentities,
   wipeTrainingData,
 } from './training-fixtures.js';
 import { TrainingTokenService } from './training-token.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import type { PrismaClient } from '../../generated/prisma/client.js';
 
 /**
  * FORMATION — orchestration du parcours par rôle.
@@ -90,7 +93,10 @@ export class TrainingService {
    * rafraîchies, les données partagées créées si absentes, les objets du
    * membre (dossier client, tâche assignée) assurés.
    */
-  async enter(actor: AuthenticatedUser, missionId?: string): Promise<{
+  async enter(
+    actor: AuthenticatedUser,
+    missionId?: string,
+  ): Promise<{
     token: string;
     sessionId: string;
     expiresAt: Date;
@@ -99,9 +105,7 @@ export class TrainingService {
     this.requireConfigured();
     const training = await this.prisma.connectTraining();
 
-    await mirrorIdentities(this.prisma.prodClient, training);
-    await ensureSharedFixtures(training);
-    await ensureUserFixtures(training, actor.id);
+    await this.seedEnvironment(training, actor.id);
 
     const issued = await this.trainingTokens.issue(actor.id, missionId ?? null);
     this.logger.log(`Session de formation ouverte pour ${actor.id}`);
@@ -111,6 +115,47 @@ export class TrainingService {
       expiresAt: issued.expiresAt,
       banner: 'MODE FORMATION — DONNÉES FICTIVES',
     };
+  }
+
+  /**
+   * Amorce le bac à sable (miroir d'identités + fixtures), SÉQUENCÉ par processus
+   * et avec UNE seconde chance si un conflit d'unicité survit à la
+   * réconciliation interne.
+   *
+   * LE VERROU : `enter` est appelé par le navigateur, parfois en plusieurs
+   * exemplaires parallèles (double clic, coach qui entre en formation avant de
+   * démarrer une mission, deux onglets). Deux amorçages simultanés qui testent
+   * « existe-t-il ? » en même temps répondent tous les deux « non » et créent
+   * deux fois le même objet fictif (un client de fixture n'a PAS de contrainte
+   * d'unicité sur son nom — c'est légitime en production). Sérialiser
+   * l'amorçage dans le processus rend chaque `enter` suivant spectateur du
+   * premier ; le filet P2002 ci-dessous couvre le cas résiduel de deux
+   * processus distincts. Sans ces deux garde-fous, la panne se voyait côté
+   * navigateur en « Cette valeur existe deja » sur le bouton d'entrée.
+   */
+  private seedLock: Promise<unknown> = Promise.resolve();
+
+  private seedEnvironment(training: PrismaClient, actorId: string): Promise<void> {
+    const run = this.seedLock.then(() => this.seedWithConflictRetry(training, actorId));
+    this.seedLock = run.catch(() => undefined);
+    return run;
+  }
+
+  private async seedWithConflictRetry(training: PrismaClient, actorId: string): Promise<void> {
+    const seed = async (): Promise<void> => {
+      await mirrorIdentities(this.prisma.prodClient, training);
+      await ensureSharedFixtures(training);
+      await ensureUserFixtures(training, actorId);
+    };
+    try {
+      await seed();
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+      this.logger.warn(
+        `Conflit d'unicite pendant l'amorcage de la base d'entrainement (${actorId}) : reconciliation rejouee.`,
+      );
+      await seed();
+    }
   }
 
   /** QUITTE le mode formation : ferme les sessions actives (production). */
@@ -129,9 +174,7 @@ export class TrainingService {
     const training = await this.prisma.connectTraining();
 
     const tablesWiped = await wipeTrainingData(training);
-    await mirrorIdentities(this.prisma.prodClient, training);
-    await ensureSharedFixtures(training);
-    await ensureUserFixtures(training, actor.id);
+    await this.seedEnvironment(training, actor.id);
 
     this.logger.log(`Environnement de formation réinitialisé par ${actor.id}`);
     return {
@@ -307,7 +350,13 @@ export class TrainingService {
    * RÉELS (passage explicite vers la production).
    */
   async report(actor: AuthenticatedUser): Promise<{
-    mastered: { missionId: string; title: string; module: string; completedAt: Date | null; evaluationPassed: boolean | null }[];
+    mastered: {
+      missionId: string;
+      title: string;
+      module: string;
+      completedAt: Date | null;
+      evaluationPassed: boolean | null;
+    }[];
     remaining: { missionId: string; title: string; module: string; level: number }[];
     checklist: { missionId: string; items: string[] }[];
     toConfirm: string[];

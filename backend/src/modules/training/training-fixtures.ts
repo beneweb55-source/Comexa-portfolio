@@ -28,7 +28,10 @@
  * le numéro qui suit les fixtures, jamais un numéro déjà pris.
  */
 
-import { REFERENCE_PREFIXES, type ReferenceScope } from '../../common/references/reference.scopes.js';
+import {
+  REFERENCE_PREFIXES,
+  type ReferenceScope,
+} from '../../common/references/reference.scopes.js';
 import { formatReference, referenceYear } from '../../modules/counters/reference.js';
 import type { PrismaClient } from '../../generated/prisma/client.js';
 
@@ -59,6 +62,119 @@ async function nextReference(db: Db, scope: ReferenceScope): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Tolérance aux conflits d'unicité
+// ---------------------------------------------------------------------------
+
+/**
+ * Violation de contrainte d'unicité Prisma (P2002) ?
+ *
+ * `enter` est appelé par le navigateur, donc PARFOIS EN PLUSIEURS EXEMPLAIRES
+ * PARALLÈLES (double clic, bouton « commencer » qui entre en formation avant de
+ * démarrer la mission...). Deux amorçages simultanés qui créent le même objet
+ * fictif produisent un P2002 chez le perdant : ce n'est PAS une erreur, c'est la
+ * preuve que l'objet existe — on le constate et on continue. Sans cette
+ * tolérance, un double clic suffisait à afficher « Cette valeur existe deja ».
+ */
+export function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002'
+  );
+}
+
+/**
+ * Surface de delegate Prisma utilisée par la réconciliation du miroir.
+ *
+ * Les paramètres sont volontairement larges (`Record<string, unknown>`,
+ * `unknown`) : ce contrat structurel doit accepter un VRAI delegate Prisma
+ * (`training.permission`, `training.role`, `training.user`) sans conversion —
+ * la bivariance des méthodes fait le reste — et un delegate simulé dans les
+ * tests (`backend/tests/training-fixtures.spec.ts`).
+ */
+export interface MirrorDelegate {
+  findUnique(args: { where: Record<string, unknown> }): Promise<{ id: string } | null>;
+  findFirst(args: { where?: Record<string, unknown> }): Promise<{ id: string } | null>;
+  create(args: { data: unknown }): Promise<unknown>;
+  update(args: { where: Record<string, unknown>; data: unknown }): Promise<unknown>;
+  delete(args: { where: Record<string, unknown> }): Promise<unknown>;
+  upsert(args: {
+    where: Record<string, unknown>;
+    create: unknown;
+    update: unknown;
+  }): Promise<unknown>;
+}
+
+/**
+ * RÉCONCILIE UNE LIGNE D'IDENTITÉ entre production et base d'entraînement.
+ *
+ * Le miroir doit garantir une chose : la base d'exercice contient la ligne de
+ * production SOUS LE MÊME IDENTIFIANT (les écritures métier fictives portent des
+ * `userId` réels). Un `upsert` par `id` seul ne suffit PAS, et c'est une panne
+ * réelle observée en production (2026-10-21) : si la base d'entraînement contient
+ * une ligne PERIMEE portant la même clé naturelle (`email`, `code`) sous un AUTRE
+ * identifiant — base semée indépendamment, compte créé pendant un déploiement
+ * défectueux, identité de production recréée — le `create` de l'upsert heurte la
+ * contrainte d'unicité (P2002) à CHAQUE `enter`, et même `POST /training/reset`
+ * n'y change rien (les identités ne sont volontairement pas tronquées). Le
+ * parcours devenait inaccessible avec « Cette valeur existe deja (inconnu) ».
+ *
+ * La réconciliation, dans l'ordre :
+ *  1. une ligne périmée porte la clé naturelle sous un autre id ?
+ *     - si l'id de production est LIBRE : on REPOINTE la ligne périmée vers lui
+ *       (la mise à jour de clé primaire cascade — défaut `onUpdate` de Prisma —
+ *       les écritures d'exercice déjà liées suivent le mouvement) ;
+ *     - si l'id de production est DÉJÀ présent : la ligne périmée est un doublon
+ *       sans owner réel, on la supprime (ses liens suivent leurs `onDelete`) ;
+ *  2. upsert par id de production ;
+ *  3. si un miroir CONCURRENT a créé la ligne entre-temps (P2002), on réconcilie
+ *     une fois puis on rejoue l'upsert.
+ */
+export async function mirrorRow(
+  delegate: MirrorDelegate,
+  spec: {
+    id: string;
+    naturalKey: Record<string, unknown>;
+    create: unknown;
+    update: Record<string, unknown>;
+  },
+): Promise<void> {
+  const stale = await delegate.findFirst({ where: spec.naturalKey });
+  if (stale && stale.id !== spec.id) {
+    const holder = await delegate.findUnique({ where: { id: spec.id } });
+    if (holder) {
+      await delegate.delete({ where: { id: stale.id } });
+    } else {
+      await delegate.update({ where: { id: stale.id }, data: { id: spec.id, ...spec.update } });
+      return;
+    }
+  }
+
+  try {
+    await delegate.upsert({ where: { id: spec.id }, create: spec.create, update: spec.update });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    const blocker = await delegate.findFirst({ where: spec.naturalKey });
+    if (blocker && blocker.id !== spec.id) {
+      await delegate.delete({ where: { id: blocker.id } });
+    }
+    await delegate.upsert({ where: { id: spec.id }, create: spec.create, update: spec.update });
+  }
+}
+
+/**
+ * Crée un objet de fixture ; si un amorçage concurrent l'a créé entre le test
+ * d'existence et le `create` (P2002), rend `null` au lieu de propager l'erreur :
+ * l'objet existe, c'est exactement le résultat voulu.
+ */
+async function createSkippingConflict<T>(create: () => Promise<T>): Promise<T | null> {
+  try {
+    return await create();
+  } catch (error) {
+    if (isUniqueConstraintError(error)) return null;
+    throw error;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 1. Miroir d'identités
 // ---------------------------------------------------------------------------
 
@@ -75,29 +191,50 @@ export async function mirrorIdentities(prod: Db, training: Db): Promise<void> {
     prod.userRole.findMany(),
   ]);
 
+  // Chaque ligne est RÉCONCILIÉE (voir `mirrorRow`), pas simplement upsertée :
+  // une base d'entraînement qui contient déjà la même clé naturelle sous un
+  // autre identifiant ne doit plus jamais bloquer l'entrée en formation.
   for (const permission of permissions) {
-    await training.permission.upsert({
-      where: { id: permission.id },
+    await mirrorRow(training.permission, {
+      id: permission.id,
+      naturalKey: { code: permission.code },
       create: permission,
-      update: { description: permission.description },
+      update: {
+        resource: permission.resource,
+        action: permission.action,
+        scope: permission.scope,
+        description: permission.description,
+      },
     });
   }
   for (const role of roles) {
-    await training.role.upsert({
-      where: { id: role.id },
+    await mirrorRow(training.role, {
+      id: role.id,
+      naturalKey: { code: role.code },
       create: role,
-      update: { name: role.name, description: role.description },
+      update: { name: role.name, description: role.description, isSystem: role.isSystem },
     });
   }
   for (const user of users) {
-    await training.user.upsert({ where: { id: user.id }, create: user, update: user });
+    await mirrorRow(training.user, {
+      id: user.id,
+      naturalKey: { email: user.email },
+      create: user,
+      update: user,
+    });
   }
   for (const link of userRoles) {
-    await training.userRole.upsert({
-      where: { userId_roleId: { userId: link.userId, roleId: link.roleId } },
-      create: link,
-      update: {},
-    });
+    try {
+      await training.userRole.upsert({
+        where: { userId_roleId: { userId: link.userId, roleId: link.roleId } },
+        create: link,
+        update: {},
+      });
+    } catch (error) {
+      // Deux miroirs parallèles peuvent lier la même paire : le lien existe,
+      // c'est le résultat cherché.
+      if (!isUniqueConstraintError(error)) throw error;
+    }
   }
 }
 
@@ -156,13 +293,21 @@ const CLIENTS: readonly FixtureClient[] = [
     companyName: 'Coopérative Numérique',
     sector: 'collectif',
     city: 'Alger',
-    contact: { firstName: 'Nadia', lastName: 'Belkacem', email: 'nadia.belkacem@coop-numerique.example' },
+    contact: {
+      firstName: 'Nadia',
+      lastName: 'Belkacem',
+      email: 'nadia.belkacem@coop-numerique.example',
+    },
   },
   {
     companyName: 'Cabinet Falconi',
     sector: 'conseil',
     city: 'Oran',
-    contact: { firstName: 'Karim', lastName: 'Falconi', email: 'karim.falconi@cabinet-falconi.example' },
+    contact: {
+      firstName: 'Karim',
+      lastName: 'Falconi',
+      email: 'karim.falconi@cabinet-falconi.example',
+    },
   },
   {
     companyName: 'Dar El Mahatta',
@@ -173,8 +318,18 @@ const CLIENTS: readonly FixtureClient[] = [
 ];
 
 const PROSPECTS = [
-  { companyName: 'Maison Yacine', contactFirstName: 'Yacine', contactLastName: 'Amrani', email: 'contact@maison-yacine.example' },
-  { companyName: 'Studio Falco', contactFirstName: 'Elena', contactLastName: 'Falco', email: 'elena@studio-falco.example' },
+  {
+    companyName: 'Maison Yacine',
+    contactFirstName: 'Yacine',
+    contactLastName: 'Amrani',
+    email: 'contact@maison-yacine.example',
+  },
+  {
+    companyName: 'Studio Falco',
+    contactFirstName: 'Elena',
+    contactLastName: 'Falco',
+    email: 'elena@studio-falco.example',
+  },
 ];
 
 /**
@@ -196,14 +351,18 @@ export async function ensureSharedFixtures(db: Db): Promise<void> {
   for (const prospect of PROSPECTS) {
     const exists = await db.prospect.findFirst({ where: { email: prospect.email } });
     if (!exists) {
-      await db.prospect.create({
-        data: {
-          reference: await nextReference(db, 'PROSPECT'),
-          ...prospect,
-          status: 'NEW',
-          source: 'OTHER',
-        },
-      });
+      // `createSkippingConflict` : un second `enter` parallèle a pu créer la
+      // même ligne entre le test et le create — l'objet existe, rien à faire.
+      await createSkippingConflict(async () =>
+        db.prospect.create({
+          data: {
+            reference: await nextReference(db, 'PROSPECT'),
+            ...prospect,
+            status: 'NEW',
+            source: 'OTHER',
+          },
+        }),
+      );
     }
   }
 
@@ -211,26 +370,32 @@ export async function ensureSharedFixtures(db: Db): Promise<void> {
   for (const fixture of CLIENTS) {
     let client = await db.client.findFirst({ where: { companyName: fixture.companyName } });
     if (!client) {
-      client = await db.client.create({
-        data: {
-          reference: await nextReference(db, 'CLIENT'),
-          companyName: fixture.companyName,
-          sector: fixture.sector,
-          city: fixture.city,
-          country: 'Algérie',
-          currency: 'DZD',
-          status: 'ACTIVE',
-          contacts: {
-            create: {
-              firstName: fixture.contact.firstName,
-              lastName: fixture.contact.lastName,
-              email: fixture.contact.email,
-              isPrimary: true,
+      const created = await createSkippingConflict(async () =>
+        db.client.create({
+          data: {
+            reference: await nextReference(db, 'CLIENT'),
+            companyName: fixture.companyName,
+            sector: fixture.sector,
+            city: fixture.city,
+            country: 'Algérie',
+            currency: 'DZD',
+            status: 'ACTIVE',
+            contacts: {
+              create: {
+                firstName: fixture.contact.firstName,
+                lastName: fixture.contact.lastName,
+                email: fixture.contact.email,
+                isPrimary: true,
+              },
             },
           },
-        },
-      });
+        }),
+      );
+      // Conflit gagné par un amorçage parallèle : relire la ligne existante.
+      client =
+        created ?? (await db.client.findFirst({ where: { companyName: fixture.companyName } }));
     }
+    if (!client) continue;
 
     const coop = client.companyName === 'Coopérative Numérique';
     const mahatta = client.companyName === 'Dar El Mahatta';
@@ -246,9 +411,11 @@ export async function ensureSharedFixtures(db: Db): Promise<void> {
         where: { projectId: project.id, title: 'Cadrage' },
       });
       if (!milestoneExists) {
-        await db.milestone.create({
-          data: { projectId: project.id, title: 'Cadrage', dueDate: inDays(7), order: 1 },
-        });
+        await createSkippingConflict(() =>
+          db.milestone.create({
+            data: { projectId: project.id, title: 'Cadrage', dueDate: inDays(7), order: 1 },
+          }),
+        );
       }
     }
 
@@ -271,25 +438,27 @@ export async function ensureSharedFixtures(db: Db): Promise<void> {
       where: { clientId: falconi.id, subject: 'Création de site web' },
     });
     if (!faulty) {
-      const created = await db.quote.create({
-        data: {
-          reference: await nextReference(db, 'QUOTE'),
-          subject: 'Création de site web',
-          clientId: falconi.id,
-          status: 'DRAFT',
-          currency: 'DZD',
-          year: YEAR,
-          issueDate: new Date(),
-          items: {
-            create: [
-              lineItem('Création de site web', 180000, 1),
-              // LIGNE ERRONÉE : à retirer dans la mission de correction.
-              lineItem('Maintenance et évolution', 60000, 2),
-            ],
+      const created = await createSkippingConflict(async () =>
+        db.quote.create({
+          data: {
+            reference: await nextReference(db, 'QUOTE'),
+            subject: 'Création de site web',
+            clientId: falconi.id,
+            status: 'DRAFT',
+            currency: 'DZD',
+            year: YEAR,
+            issueDate: new Date(),
+            items: {
+              create: [
+                lineItem('Création de site web', 180000, 1),
+                // LIGNE ERRONÉE : à retirer dans la mission de correction.
+                lineItem('Maintenance et évolution', 60000, 2),
+              ],
+            },
           },
-        },
-      });
-      await recomputeQuoteTotal(db, created.id);
+        }),
+      );
+      if (created) await recomputeQuoteTotal(db, created.id);
     }
   }
 
@@ -301,56 +470,78 @@ export async function ensureSharedFixtures(db: Db): Promise<void> {
       where: { clientId: coop.id, reference: { startsWith: `FAC-${YEAR}-` } },
     });
     if (!invoice) {
-      const created = await db.invoice.create({
-        data: {
-          reference: await nextReference(db, 'INVOICE'),
-          clientId: coop.id,
-          status: 'PAID',
-          type: 'STANDARD',
-          currency: 'DZD',
-          year: YEAR,
-          issueDate: inDays(-30),
-          dueDate: inDays(-2),
-          subtotal: 90000,
-          total: 90000,
-          items: {
-            create: [lineItem('Création de site web — acompte', 90000, 1)],
+      // Facture ET paiement d'un seul tenant : si un amorçage parallèle gagne la
+      // création, les deux lignes existent déjà chez lui — rien à rejouer.
+      await createSkippingConflict(async () => {
+        const created = await db.invoice.create({
+          data: {
+            reference: await nextReference(db, 'INVOICE'),
+            clientId: coop.id,
+            status: 'PAID',
+            type: 'STANDARD',
+            currency: 'DZD',
+            year: YEAR,
+            issueDate: inDays(-30),
+            dueDate: inDays(-2),
+            subtotal: 90000,
+            total: 90000,
+            items: {
+              create: [lineItem('Création de site web — acompte', 90000, 1)],
+            },
           },
-        },
-      });
-      await db.payment.create({
-        data: {
-          reference: await nextReference(db, 'PAYMENT'),
-          invoiceId: created.id,
-          amount: 90000,
-          currency: 'DZD',
-          method: 'BANK_TRANSFER',
-          status: 'SUCCEEDED',
-          paidAt: inDays(-5),
-        },
+        });
+        await db.payment.create({
+          data: {
+            reference: await nextReference(db, 'PAYMENT'),
+            invoiceId: created.id,
+            amount: 90000,
+            currency: 'DZD',
+            method: 'BANK_TRANSFER',
+            status: 'SUCCEEDED',
+            paidAt: inDays(-5),
+          },
+        });
+        return created;
       });
     }
   }
 }
 
+/**
+ * Projet de fixture, cherché PAR CLIENT et non par seul nom.
+ *
+ * Chercher par nom seul était un bug réel : « Portail client » existe pour Dar
+ * El Mahatta (environnement partagé) ET pour chaque compte d'espace client
+ * (son dossier). La recherche par nom rendait le projet PARTAGÉ du bac à sable
+ * au premier appelant, et le dossier client héritait du projet d'un autre
+ * client. Le couple (nom, client) est la vraie identité d'un projet de fixture.
+ */
 async function ensureProject(
   db: Db,
   data: { name: string; clientId: string; description: string },
 ) {
-  const existing = await db.project.findFirst({ where: { name: data.name } });
+  const where = { name: data.name, clientId: data.clientId };
+  const existing = await db.project.findFirst({ where });
   if (existing) return existing;
-  return db.project.create({
-    data: {
-      reference: await nextReference(db, 'PROJECT'),
-      name: data.name,
-      description: data.description,
-      clientId: data.clientId,
-      status: 'IN_PROGRESS',
-      currency: 'DZD',
-      startDate: inDays(-14),
-      dueDate: inDays(45),
-    },
-  });
+  try {
+    return await db.project.create({
+      data: {
+        reference: await nextReference(db, 'PROJECT'),
+        name: data.name,
+        description: data.description,
+        clientId: data.clientId,
+        status: 'IN_PROGRESS',
+        currency: 'DZD',
+        startDate: inDays(-14),
+        dueDate: inDays(45),
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    const concurrent = await db.project.findFirst({ where });
+    if (!concurrent) throw error;
+    return concurrent;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -372,20 +563,38 @@ export async function ensureUserFixtures(db: Db, userId: string): Promise<void> 
   const isClient = await hasOnlyClientRole(db, userId);
 
   if (user.clientId) {
-    const client = await db.client.upsert({
-      where: { id: user.clientId },
-      create: {
-        id: user.clientId,
-        // Référence dans une plage réservée aux dossiers de formation : elle ne
-        // concurrence jamais la séquence des documents créés via l'API.
-        reference: `CLI-${YEAR}-9${user.clientId.slice(-4).toUpperCase()}`,
-        companyName: `Dossier de ${user.firstName || user.email}`,
-        country: 'Algérie',
-        currency: 'DZD',
-        status: 'ACTIVE',
-      },
-      update: {},
-    });
+    const clientId = user.clientId;
+    let client = await db.client.findUnique({ where: { id: clientId } });
+    if (!client) {
+      // Référence dans une plage réservée aux dossiers de formation : elle ne
+      // concurrence jamais la séquence des documents créés via l'API. Si la
+      // tranche courte est déjà prise par UNE AUTRE ligne (deux comptes dont
+      // les identifiants terminent pareil), `reserveDossierReference` allonge
+      // la tranche au lieu de mourir sur la contrainte d'unicité.
+      for (let attempt = 0; attempt < 3 && !client; attempt += 1) {
+        try {
+          client = await db.client.create({
+            data: {
+              id: clientId,
+              reference: await reserveDossierReference(db, clientId),
+              companyName: `Dossier de ${user.firstName || user.email}`,
+              country: 'Algérie',
+              currency: 'DZD',
+              status: 'ACTIVE',
+            },
+          });
+        } catch (error) {
+          if (!isUniqueConstraintError(error)) throw error;
+          // Course avec un autre `enter` : le dossier existe déjà sous cet id.
+          client = await db.client.findUnique({ where: { id: clientId } });
+        }
+      }
+      if (!client) {
+        throw new Error(
+          `Dossier de formation impossible pour le client ${clientId} : référence réservée indisponible.`,
+        );
+      }
+    }
 
     await ensureProject(db, {
       name: 'Portail client',
@@ -424,23 +633,40 @@ export async function ensureUserFixtures(db: Db, userId: string): Promise<void> 
         where: { title: 'Préparer la maquette', assigneeId: userId, projectId: project.id },
       });
       if (!assigned) {
-        await db.task.create({
-          data: {
-            title: 'Préparer la maquette',
-            description:
-              'Maquette de la page d’accueil du site en refonte. Situation de formation : traitée comme une tâche réelle.',
-            projectId: project.id,
-            assigneeId: userId,
-            reporterId: userId,
-            status: 'TODO',
-            priority: 'NORMAL',
-            dueDate: inDays(5),
-            isClientVisible: false,
-          },
-        });
+        await createSkippingConflict(() =>
+          db.task.create({
+            data: {
+              title: 'Préparer la maquette',
+              description:
+                'Maquette de la page d’accueil du site en refonte. Situation de formation : traitée comme une tâche réelle.',
+              projectId: project.id,
+              assigneeId: userId,
+              reporterId: userId,
+              status: 'TODO',
+              priority: 'NORMAL',
+              dueDate: inDays(5),
+              isClientVisible: false,
+            },
+          }),
+        );
       }
     }
   }
+}
+
+/**
+ * Référence réservée au dossier d'un compte client (plage `9…`, hors séquence
+ * des compteurs). La tranche s'allonge tant qu'une AUTRE ligne client occupe la
+ * candidate : deux comptes dont les identifiants terminent par les mêmes
+ * caractères ne doivent pas pouvoir bloquer l'entrée en formation.
+ */
+async function reserveDossierReference(db: Db, clientId: string): Promise<string> {
+  for (const depth of [4, 8, 12, 20]) {
+    const reference = `CLI-${YEAR}-9${clientId.slice(-depth).toUpperCase()}`;
+    const holder = await db.client.findFirst({ where: { reference } });
+    if (!holder || holder.id === clientId) return reference;
+  }
+  return `CLI-${YEAR}-9${clientId.toUpperCase()}`;
 }
 
 async function hasOnlyClientRole(db: Db, userId: string): Promise<boolean> {
@@ -459,18 +685,29 @@ async function createQuoteWithItems(
     items: ReturnType<typeof lineItem>[];
   },
 ): Promise<void> {
-  const created = await db.quote.create({
-    data: {
-      reference: await nextReference(db, 'QUOTE'),
-      subject: data.subject,
-      clientId: data.clientId,
-      status: 'SENT',
-      currency: 'DZD',
-      year: YEAR,
-      issueDate: new Date(),
-      items: { create: data.items },
-    },
-  });
+  let created;
+  try {
+    created = await db.quote.create({
+      data: {
+        reference: await nextReference(db, 'QUOTE'),
+        subject: data.subject,
+        clientId: data.clientId,
+        status: 'SENT',
+        currency: 'DZD',
+        year: YEAR,
+        issueDate: new Date(),
+        items: { create: data.items },
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) throw error;
+    // Un amorçage parallèle a créé le même devis : recalculer ses totaux suffit
+    // (le gagnant a pu être interrompu avant son propre recalcul).
+    created = await db.quote.findFirst({
+      where: { clientId: data.clientId, subject: data.subject },
+    });
+    if (!created) throw error;
+  }
   await recomputeQuoteTotal(db, created.id);
 }
 
