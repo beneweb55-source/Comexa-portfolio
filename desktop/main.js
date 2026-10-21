@@ -154,6 +154,10 @@ function createWindow() {
     minHeight: config.window.minHeight,
     show: false, // pas de fenêtre blanche : on attend le premier rendu
     title: "Comexa",
+    // Icône de la fenêtre — et de la barre des tâches sous Windows, où
+    // l'exécutable ne porte pas toujours la sienne. Absent sous macOS, qui
+    // lit l'icône du bundle.
+    icon: path.join(__dirname, "build", "icon.png"),
     backgroundColor: "#dbe7ef", // fond de coquille, identique au site
     autoHideMenuBar: true,
     webPreferences: {

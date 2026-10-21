@@ -87,9 +87,17 @@ npm run dist:mac     # image disque macOS
 npm run dist:linux   # AppImage
 ```
 
-Le résultat sort dans `desktop/dist/` (ignoré par Git). L'icône
-`build/icon.png` (512 px) reprend la marque de `src/app/icon.svg` ;
-electron-builder en dérive le `.ico` Windows.
+Le résultat sort dans `desktop/dist/` (ignoré par Git). Les icônes de
+`build/` reprennent le dessin de `src/app/icon.svg` :
+
+- `build/icon.ico` porte sept résolutions (16 à 256 px) et sert à
+  l'exécutable, au raccourci, à l'installeur et au désinstalleur Windows ;
+- `build/icon.png` (1024 px, fond transparent) sert macOS et Linux.
+
+Le `.ico` est versionné plutôt que dérivé au build : electron-builder
+rééchantillonne un PNG correctement pour l'exécutable et le raccourci, mais
+l'icône de l'installeur NSIS ressort alors floue. Fournir les deux tailles
+évite cette dégradation.
 
 Compilation croisée : produire un `.exe` depuis Linux ou macOS demande les
 outils indiqués par electron-builder (Wine pour l'édition de l'icône de
@@ -113,5 +121,6 @@ L'installeur est déposé en artefact `comexa-desktop-windows` (conservation
 | `config.js` | résolution de l'origine et liste des routes ouvertes |
 | `offline.html` | page locale affichée quand le service est injoignable |
 | `desktop-config.example.json` | modèle de configuration par poste |
-| `build/icon.png` | icône de l'application (≥ 256 px) |
+| `build/icon.ico` | icône Windows : exécutable, raccourci, installeur (16 → 256 px) |
+| `build/icon.png` | icône macOS et Linux (1024 px, fond transparent) |
 | `package.json` | paquet isolé du front : Electron ne pèse rien dans les déploiements Vercel |
