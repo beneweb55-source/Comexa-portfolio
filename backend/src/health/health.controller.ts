@@ -4,6 +4,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { API_CONTRACT, type ApiContract } from './contract.js';
+import { databaseTargetOf, type DatabaseTarget } from './database-target.js';
 
 /**
  * Sonde de sante.
@@ -28,6 +29,16 @@ export class HealthController {
   async check(): Promise<{
     status: string;
     database: string;
+    /**
+     * Famille d'hébergement de `DATABASE_URL` (`supabase` | `neon` | `autre`).
+     * Diagnostic d'exploitation : « ce serveur interroge-t-il la base où je
+     * vérifie mes comptes ? » — question qui n'avait aucune réponse le
+     * 2026-10-21 et a coûté une matinée de faux diagnostics. La famille
+     * suffit ; jamais le nom d'hôte ni l'URL sur un endpoint public.
+     */
+    databaseTarget: DatabaseTarget;
+    /** `TRAINING_DATABASE_URL` est-elle renseignée sur CE serveur ? */
+    trainingDatabaseConfigured: boolean;
     uptimeSeconds: number;
     timestamp: string;
     contract: ApiContract;
@@ -43,6 +54,8 @@ export class HealthController {
     return {
       status: 'ok',
       database: 'up',
+      databaseTarget: databaseTargetOf(process.env.DATABASE_URL),
+      trainingDatabaseConfigured: this.prisma.isTrainingConfigured(),
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
       // Le bloc `contract` permet au frontend de detecter un backend PERIME
