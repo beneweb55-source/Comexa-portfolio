@@ -190,9 +190,7 @@ export function splitAmount(
     );
   }
 
-  const raws: Prisma.Decimal[] = shares.map((share) =>
-    base.times(share.percentage).div(hundred),
-  );
+  const raws: Prisma.Decimal[] = shares.map((share) => base.times(share.percentage).div(hundred));
   const floors: Prisma.Decimal[] = raws.map((raw) => raw.toDecimalPlaces(CENTS, ROUND_DOWN));
 
   const flooredTotal = floors.reduce((sum, value) => sum.plus(value), new Prisma.Decimal(0));

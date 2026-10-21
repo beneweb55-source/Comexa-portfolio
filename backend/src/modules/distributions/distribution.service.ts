@@ -185,9 +185,7 @@ export class DistributionService {
   ): Promise<DistributionConfigWithBeneficiaries | null> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
-    const scopes = projectId
-      ? [scopeKeyFor(projectId), scopeKeyFor(null)]
-      : [scopeKeyFor(null)];
+    const scopes = projectId ? [scopeKeyFor(projectId), scopeKeyFor(null)] : [scopeKeyFor(null)];
 
     const rules = await this.prisma.distributionConfig.findMany({
       where: {
@@ -380,14 +378,12 @@ export class DistributionService {
         }));
 
     validateShares(
-      shares.map(
-        (share, index): ShareInput => ({
-          key: `${index}`,
-          percentage: share.percentage,
-          userId: share.userId,
-          beneficiaryType: share.beneficiaryType,
-        }),
-      ),
+      shares.map((share, index): ShareInput => ({
+        key: `${index}`,
+        percentage: share.percentage,
+        userId: share.userId,
+        beneficiaryType: share.beneficiaryType,
+      })),
     );
 
     return this.prisma.$transaction(async (tx) => {
@@ -552,10 +548,7 @@ export class DistributionService {
    * deux paiements distincts, et un paiement edite (montant, statut) se
    * repercute immediatement, sans double comptage.
    */
-  async buildBase(
-    projectId: string,
-    baseType: DistributionBaseType,
-  ): Promise<BaseBreakdown> {
+  async buildBase(projectId: string, baseType: DistributionBaseType): Promise<BaseBreakdown> {
     const project = await this.prisma.project.findUniqueOrThrow({
       where: { id: projectId, deletedAt: null },
       select: {
@@ -588,21 +581,16 @@ export class DistributionService {
     // facture. Une facture brouillon ne l'est pas encore ; une facture
     // annulee ne l'est plus.
     const invoicedInvoices = project.invoices.filter(
-      (invoice) => invoice.status !== InvoiceStatus.DRAFT && invoice.status !== InvoiceStatus.CANCELLED,
+      (invoice) =>
+        invoice.status !== InvoiceStatus.DRAFT && invoice.status !== InvoiceStatus.CANCELLED,
     );
 
-    const invoiced = invoicedInvoices.reduce(
-      (sum, invoice) => sum.plus(invoice.total),
-      zero,
-    );
+    const invoiced = invoicedInvoices.reduce((sum, invoice) => sum.plus(invoice.total), zero);
 
     // ENCAISSEMENT : les paiements reussis, une fois chacun.
     const succeededPayments = project.invoices.flatMap((invoice) => invoice.payments);
 
-    const collected = succeededPayments.reduce(
-      (sum, payment) => sum.plus(payment.amount),
-      zero,
-    );
+    const collected = succeededPayments.reduce((sum, payment) => sum.plus(payment.amount), zero);
 
     const budget = project.budget ?? zero;
 
@@ -939,8 +927,9 @@ export class DistributionService {
             await this.balanceService.createTransaction(
               {
                 userId: item.beneficiary.userId,
-                type:
-                  delta.isNegative() ? BalanceTransactionType.DEBIT : BalanceTransactionType.CREDIT,
+                type: delta.isNegative()
+                  ? BalanceTransactionType.DEBIT
+                  : BalanceTransactionType.CREDIT,
                 amount: delta.abs(),
                 currency: distribution.baseCurrency,
                 description: `Part de répartition — projet ${distribution.project.name} (tour ${distribution.round})`,
@@ -1194,10 +1183,7 @@ export class DistributionService {
   /**
    * Obtenir une répartition par ID
    */
-  async getDistributionById(
-    id: string,
-    policy: AccessPolicy,
-  ): Promise<ProjectDistribution | null> {
+  async getDistributionById(id: string, policy: AccessPolicy): Promise<ProjectDistribution | null> {
     policy.requireScope('distribution', 'read', [SCOPE_ANY]);
 
     return this.prisma.projectDistribution.findUnique({
@@ -1349,7 +1335,9 @@ export class DistributionService {
       beneficiaryType: beneficiary.beneficiaryType,
       name: beneficiary.name.trim(),
       userId:
-        beneficiary.beneficiaryType === BeneficiaryType.MEMBER ? (beneficiary.userId ?? null) : null,
+        beneficiary.beneficiaryType === BeneficiaryType.MEMBER
+          ? (beneficiary.userId ?? null)
+          : null,
       percentage: parsePercentage(beneficiary.percentage),
       order: beneficiary.order,
     }));

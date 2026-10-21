@@ -21,7 +21,6 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { DistributionModule } from './modules/distributions/distribution.module.js';
 import { ExchangeRateModule } from './modules/exchange-rates/exchange-rate.module.js';
 import { GoalsModule } from './modules/goals/goals.module.js';
-import { GuideModule } from './modules/guide/guide.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
@@ -291,7 +290,6 @@ const isProduction = process.env.NODE_ENV === 'production';
     CalendarModule,
     TimerModule,
     GoalsModule,
-    GuideModule,
     DailyReportsModule,
 
     /**

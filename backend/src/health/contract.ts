@@ -64,10 +64,6 @@ export const API_CONTRACT: ApiContract = {
     timerTasks: true,
     // Assignation depuis l'ecran : `GET /projects/:id/tasks/assignees`.
     taskAssignees: true,
-    // Guide de demarrage : `GET /guide`, `POST /guide/steps/:id/complete`. Un
-    // serveur anterieur repond 404 : la pastille « Premiers pas » resterait
-    // silencieuse (aucun ecran casse, mais aucune etape non plus).
-    guide: true,
   },
 };
 

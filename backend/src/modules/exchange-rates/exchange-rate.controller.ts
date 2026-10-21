@@ -83,7 +83,7 @@ export class ExchangeRateController {
 
   @Get('history')
   @RequirePermissions('exchangerate:read:any')
-  @ApiOperation({ summary: 'Obtenir l\'historique des taux entre deux devises' })
+  @ApiOperation({ summary: "Obtenir l'historique des taux entre deux devises" })
   async getHistory(
     @Query('from') from: string,
     @Query('to') to: string,

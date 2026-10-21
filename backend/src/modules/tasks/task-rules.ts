@@ -383,7 +383,11 @@ export function isTaskEditable(status: TaskStatus, hasWideScope: boolean): boole
 // -----------------------------------------------------------------------------
 
 /** Lire une tache qui nous est assignee : chacun de ces scopes la couvre. */
-export const ASSIGNEE_READ_CODES = ['task:read:any', 'task:read:assigned', 'task:read:own'] as const;
+export const ASSIGNEE_READ_CODES = [
+  'task:read:any',
+  'task:read:assigned',
+  'task:read:own',
+] as const;
 /** Faire avancer une tache qui nous est assignee (statut, temps, minuteur). */
 export const ASSIGNEE_WRITE_CODES = ['task:write:any', 'task:write:own'] as const;
 
@@ -402,7 +406,9 @@ export const ASSIGNEE_WRITE_CODES = ['task:write:any', 'task:write:own'] as cons
  */
 export function assignableUserWhere(): Prisma.UserWhereInput {
   const holdsOneOf = (codes: readonly string[]): Prisma.UserWhereInput => ({
-    roles: { some: { role: { permissions: { some: { permission: { code: { in: [...codes] } } } } } } },
+    roles: {
+      some: { role: { permissions: { some: { permission: { code: { in: [...codes] } } } } } },
+    },
   });
   return {
     deletedAt: null,

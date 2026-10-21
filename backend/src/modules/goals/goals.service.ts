@@ -78,7 +78,11 @@ export class GoalsService {
     const goals = await this.prisma.goal.findMany({
       where,
       // Les objectifs ouverts d'abord, puis par date cible (sans date en fin).
-      orderBy: [{ status: 'asc' }, { targetDate: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
+      orderBy: [
+        { status: 'asc' },
+        { targetDate: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+      ],
       take: 100,
       select: GOAL_SELECT,
     });
@@ -221,7 +225,9 @@ export class GoalsService {
           where: { ownerId_taskId: { ownerId: policy.userId, taskId: task.id } },
         });
       }
-      await tx.goalTask.create({ data: { goalId: goal.id, taskId: task.id, ownerId: policy.userId } });
+      await tx.goalTask.create({
+        data: { goalId: goal.id, taskId: task.id, ownerId: policy.userId },
+      });
       return existing?.goalId ?? null;
     });
 

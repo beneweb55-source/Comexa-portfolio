@@ -40,7 +40,13 @@ export function createSmtpTransport(options: SmtpOptions): MailTransport {
         // champ absent n'ajoute aucun en-tete : les courriels sans piece
         // jointe gardent exactement la meme forme qu'avant.
         ...(mail.attachments?.length
-          ? { attachments: mail.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+          ? {
+              attachments: mail.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content,
+                contentType: a.contentType,
+              })),
+            }
           : {}),
       });
     },

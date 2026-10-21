@@ -473,9 +473,7 @@ export default function PersonalWorkspace() {
         />
       ) : null}
 
-      {/* `data-coach-id` : cible de l'étape « faire avancer une tâche » du
-          parcours personnel. Le tableau réel, pas une copie. */}
-      <section className="sui-panel sui-mytasks" aria-labelledby="sui-mytasks-title" data-coach-id="taches-board">
+      <section className="sui-panel sui-mytasks" aria-labelledby="sui-mytasks-title">
         <div className="sui-mytasks__head">
           <h2 id="sui-mytasks-title" className="sui-section__title">
             <ListChecks size={18} strokeWidth={1.75} aria-hidden="true" />

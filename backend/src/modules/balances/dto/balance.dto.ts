@@ -47,7 +47,7 @@ export class AdjustBalanceDto {
   @IsNotEmpty()
   amount!: string;
 
-  @ApiProperty({ description: 'Description de l\'ajustement', example: 'Correction manuelle' })
+  @ApiProperty({ description: "Description de l'ajustement", example: 'Correction manuelle' })
   @IsString()
   @IsNotEmpty()
   description!: string;
@@ -106,7 +106,7 @@ export class RecordBalanceOperationDto {
   userId!: string;
 
   @ApiProperty({
-    description: 'Nature de l\'opération',
+    description: "Nature de l'opération",
     enum: BalanceTransactionKind,
     example: BalanceTransactionKind.PAYMENT,
   })
@@ -126,12 +126,12 @@ export class RecordBalanceOperationDto {
   @IsNotEmpty()
   currency!: string;
 
-  @ApiProperty({ description: 'Motif de l\'opération' })
+  @ApiProperty({ description: "Motif de l'opération" })
   @IsString()
   @MinLength(3)
   reason!: string;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet (ISO)', example: '2026-10-18' })
+  @ApiPropertyOptional({ description: "Date d'effet (ISO)", example: '2026-10-18' })
   @IsOptional()
   @IsDateString()
   occurredAt?: string;
@@ -146,7 +146,7 @@ export class RecordBalanceOperationDto {
   @IsString()
   projectId?: string;
 
-  @ApiPropertyOptional({ description: 'Clé d\'idempotence' })
+  @ApiPropertyOptional({ description: "Clé d'idempotence" })
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
@@ -166,7 +166,7 @@ export class ReverseBalanceOperationDto {
   @IsString()
   reference?: string;
 
-  @ApiPropertyOptional({ description: 'Date d\'effet (ISO)' })
+  @ApiPropertyOptional({ description: "Date d'effet (ISO)" })
   @IsOptional()
   @IsDateString()
   occurredAt?: string;

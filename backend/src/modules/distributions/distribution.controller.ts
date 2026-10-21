@@ -65,10 +65,7 @@ export class DistributionController {
   @Get('configs')
   @RequirePermissions('distribution:read:any')
   @ApiOperation({ summary: 'Lister toutes les règles de répartition (toutes versions)' })
-  async listConfigs(
-    @Query() query: ListRulesQueryDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async listConfigs(@Query() query: ListRulesQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.distributionService.listConfigs(new AccessPolicy(user), {
       projectId: query.projectId ?? null,
       scope: query.scope,
@@ -85,20 +82,14 @@ export class DistributionController {
   @Get('configs/:id')
   @RequirePermissions('distribution:read:any')
   @ApiOperation({ summary: 'Obtenir une règle par ID' })
-  async getConfigById(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async getConfigById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.distributionService.getConfigById(id, new AccessPolicy(user));
   }
 
   @Get('configs/:id/history')
   @RequirePermissions('distribution:read:any')
   @ApiOperation({ summary: 'Historique des versions d’une règle' })
-  async getConfigHistory(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async getConfigHistory(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.distributionService.getRuleHistory(id, new AccessPolicy(user));
   }
 
@@ -159,7 +150,8 @@ export class DistributionController {
     );
 
     return this.urlBuilder.buildResponse(config, {
-      message: 'Nouvelle version de la règle créée. Les répartitions déjà validées ne changent pas.',
+      message:
+        'Nouvelle version de la règle créée. Les répartitions déjà validées ne changent pas.',
       resourceType: 'distribution',
       openInNewTab: false,
     });
@@ -168,10 +160,7 @@ export class DistributionController {
   @Post('configs/:id/deactivate')
   @RequirePermissions('distribution:manage:any')
   @ApiOperation({ summary: 'Désactiver une règle (sans la supprimer)' })
-  async deactivateConfig(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async deactivateConfig(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const config = await this.distributionService.deactivateConfig(
       id,
       { id: user.id },
@@ -236,10 +225,7 @@ export class DistributionController {
   @Post(':id/apply')
   @RequirePermissions('distribution:manage:any')
   @ApiOperation({ summary: 'Appliquer une répartition (créditer les soldes)' })
-  async applyDistribution(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async applyDistribution(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const distribution = await this.distributionService.applyDistribution(
       id,
       new AccessPolicy(user),
@@ -257,8 +243,7 @@ export class DistributionController {
   @Post(':id/regularize')
   @RequirePermissions('distribution:manage:any')
   @ApiOperation({
-    summary:
-      'Régulariser une répartition appliquée avec une autre règle (contre-passation tracée)',
+    summary: 'Régulariser une répartition appliquée avec une autre règle (contre-passation tracée)',
   })
   async regularizeDistribution(
     @Param('id') id: string,
@@ -273,8 +258,7 @@ export class DistributionController {
     );
 
     return this.urlBuilder.buildResponse(distribution, {
-      message:
-        'Régularisation calculée. Appliquez-la pour créditer l’écart par contre-passation.',
+      message: 'Régularisation calculée. Appliquez-la pour créditer l’écart par contre-passation.',
       resourceType: 'distribution',
       resourceId: distribution.projectId,
       openInNewTab: false,
@@ -284,10 +268,7 @@ export class DistributionController {
   @Post(':id/cancel')
   @RequirePermissions('distribution:manage:any')
   @ApiOperation({ summary: 'Annuler une répartition qui n’a pas été appliquée' })
-  async cancelDistribution(
-    @Param('id') id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
+  async cancelDistribution(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     const distribution = await this.distributionService.cancelDistribution(
       id,
       { id: user.id },

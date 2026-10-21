@@ -190,7 +190,9 @@ export class MailService implements OnModuleDestroy {
       // facture en developpement doit se voir (« le PDF est bien la »), son
       // contenu n'a rien a faire dans un journal.
       const jointes = mail.attachments?.length
-        ? [`  Joints  : ${mail.attachments.map((a) => `${a.filename} (${a.contentType})`).join(', ')}`]
+        ? [
+            `  Joints  : ${mail.attachments.map((a) => `${a.filename} (${a.contentType})`).join(', ')}`,
+          ]
         : [];
 
       this.logger.warn(
