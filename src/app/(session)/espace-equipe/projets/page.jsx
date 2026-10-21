@@ -103,7 +103,7 @@ export default function ProjetsEquipePage() {
         actions={<ViewToggle value={mode} onChange={setMode} label="Affichage des projets" />}
       />
 
-      <section className="sui-section" aria-label="Liste des projets">
+      <section className="sui-section" aria-label="Liste des projets" data-coach-id="projets-list">
         {projects.items === null && !projects.error ? <SkeletonList rows={4} /> : null}
         {projects.items !== null && items.length === 0 ? (
           <Empty icon={FolderKanban}>

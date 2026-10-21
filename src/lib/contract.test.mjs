@@ -28,7 +28,7 @@ const healthOf = (contract) => ({ success: true, data: { status: "ok", contract 
 describe("diagnostic du contrat API", () => {
   it("valide quand toutes les fonctionnalites requises sont servies", async () => {
     const result = await checkApiContract(
-      fakeFetch(healthOf({ version: "2026-10-16.1", features: { timer: true, personalTasks: true, calendar: true, taskCreators: true, goals: true, timerTasks: true, taskAssignees: true } })),
+      fakeFetch(healthOf({ version: "2026-10-21.1", features: { timer: true, personalTasks: true, calendar: true, taskCreators: true, goals: true, timerTasks: true, taskAssignees: true, training: true } })),
     );
     assert.equal(result.ok, true);
     assert.equal(result.kind, "ok");
@@ -41,9 +41,9 @@ describe("diagnostic du contrat API", () => {
     assert.equal(result.ok, false);
     assert.equal(result.kind, "missing");
     // Manquent `taskCreators` (filtre « par personne ») et les fonctionnalites
-    // plus recentes (objectifs, minuteur v2, assignation) : elles seules sont
-    // nommees, jamais celles que le serveur sert.
-    for (const missing of ["taskCreators", "goals", "timerTasks", "taskAssignees"]) {
+    // plus recentes (objectifs, minuteur v2, assignation, formation) : elles
+    // seules sont nommees, jamais celles que le serveur sert.
+    for (const missing of ["taskCreators", "goals", "timerTasks", "taskAssignees", "training"]) {
       assert.ok(result.reason.includes(missing), result.reason);
     }
     assert.ok(!result.reason.includes("timer,"), "les fonctionnalites servies ne doivent pas etre accusees");

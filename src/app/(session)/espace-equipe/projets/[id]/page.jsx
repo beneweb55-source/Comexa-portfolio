@@ -176,7 +176,7 @@ export default function ProjetEquipePage({ params }) {
               <span>Échéance : {formatDate(current.dueDate)}</span>
             </div>
             {canSetProjectStatus ? (
-              <form onSubmit={changeProjectStatus} className="flex flex-wrap items-end gap-3">
+              <form onSubmit={changeProjectStatus} className="flex flex-wrap items-end gap-3" data-coach-id="projet-status-form">
                 <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
                   Changer le statut
                   <select value={projectStatus || current.status} onChange={(event) => setProjectStatus(event.target.value)} className={`${inputClass} h-10 w-auto min-w-[200px] text-[14px]`}>
@@ -212,7 +212,7 @@ export default function ProjetEquipePage({ params }) {
         </ol>
         {canReadMilestones ? <Pagination meta={milestones.meta} onPageChange={setMilestonePage} loading={milestones.loading} /> : null}
         {canWriteMilestones ? (
-          <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end">
+          <form onSubmit={createMilestone} className="mt-5 grid gap-3 border-t border-[var(--comexa-border-soft)] pt-5 md:grid-cols-[1fr_180px_auto] md:items-end" data-coach-id="projet-milestone-form">
             <label className="flex flex-col gap-1 text-[13px] text-[var(--comexa-ink-soft)]">
               Nouveau jalon
               <input value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} className={inputClass} />
@@ -221,7 +221,7 @@ export default function ProjetEquipePage({ params }) {
               Échéance
               <input type="date" value={milestoneDue} onChange={(event) => setMilestoneDue(event.target.value)} className={inputClass} />
             </label>
-            <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>
+            <button type="submit" disabled={Boolean(action.busy)} className={primaryButton} data-coach-id="projet-milestone-submit">
               Ajouter le jalon
             </button>
           </form>
@@ -358,7 +358,7 @@ export default function ProjetEquipePage({ params }) {
                 <input type="checkbox" checked={taskVisible} onChange={(event) => setTaskVisible(event.target.checked)} />
                 Visible par le client
               </label>
-              <button type="submit" disabled={Boolean(action.busy)} className={primaryButton}>
+              <button type="submit" disabled={Boolean(action.busy)} className={primaryButton} data-coach-id="projet-task-submit">
                 Ajouter
               </button>
             </div>

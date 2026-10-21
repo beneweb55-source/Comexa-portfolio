@@ -95,7 +95,7 @@ export default function ProspectsPage() {
         subtitle="Glissez une fiche d’une colonne à l’autre pour faire avancer l’étape commerciale."
         action={
           canCreateProspect ? (
-            <button type="button" onClick={() => setCreating(true)} className={primaryButton}>
+            <button type="button" onClick={() => setCreating(true)} className={primaryButton} data-coach-id="prospects-create-button">
               <Plus size={15} /> Nouveau prospect
             </button>
           ) : null
@@ -122,7 +122,7 @@ export default function ProspectsPage() {
             icon={Sparkles}
             action={
               canCreateProspect ? (
-                <button type="button" onClick={() => setCreating(true)} className={primaryButton}>
+                <button type="button" onClick={() => setCreating(true)} className={primaryButton} data-coach-id="prospects-create-button">
                   <Plus size={15} /> Créer le premier prospect
                 </button>
               ) : null
@@ -144,7 +144,7 @@ export default function ProspectsPage() {
       >
         <form onSubmit={create} noValidate className="grid gap-4 sm:grid-cols-2">
           <Field id="p-company" label="Entreprise">
-            <input id="p-company" className={inputClass} value={draft.companyName} onChange={update("companyName")} maxLength={200} />
+            <input id="p-company" data-coach-id="prospect-form-company" className={inputClass} value={draft.companyName} onChange={update("companyName")} maxLength={200} />
           </Field>
           <Field id="p-source" label="Source">
             <select id="p-source" className={selectClass} value={draft.source} onChange={update("source")}>
@@ -156,14 +156,14 @@ export default function ProspectsPage() {
             </select>
           </Field>
           <Field id="p-first" label="Prénom du contact *">
-            <input id="p-first" className={inputClass} value={draft.contactFirstName} onChange={update("contactFirstName")} maxLength={120} />
+            <input id="p-first" data-coach-id="prospect-form-first" className={inputClass} value={draft.contactFirstName} onChange={update("contactFirstName")} maxLength={120} />
           </Field>
           <Field id="p-last" label="Nom du contact *">
-            <input id="p-last" className={inputClass} value={draft.contactLastName} onChange={update("contactLastName")} maxLength={120} />
+            <input id="p-last" data-coach-id="prospect-form-last" className={inputClass} value={draft.contactLastName} onChange={update("contactLastName")} maxLength={120} />
           </Field>
           <div className="sm:col-span-2">
             <Field id="p-email" label="E-mail *">
-              <input id="p-email" type="email" className={inputClass} value={draft.email} onChange={update("email")} maxLength={320} />
+              <input id="p-email" type="email" data-coach-id="prospect-form-email" className={inputClass} value={draft.email} onChange={update("email")} maxLength={320} />
             </Field>
           </div>
           <Field id="p-phone" label="Téléphone">
@@ -182,7 +182,7 @@ export default function ProspectsPage() {
             <button type="button" onClick={() => setCreating(false)} className={secondaryButton}>
               Annuler
             </button>
-            <button type="submit" disabled={action.busy === "create"} className={primaryButton}>
+            <button type="submit" disabled={action.busy === "create"} className={primaryButton} data-coach-id="prospect-form-submit">
               {action.busy === "create" ? "Enregistrement…" : "Créer le prospect"}
             </button>
           </div>

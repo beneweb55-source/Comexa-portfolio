@@ -7913,3 +7913,60 @@ html[data-focus-dnd="on"] .sui-notif-live {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ==========================================================================
+   FORMATION — coach interactif, bannière et parcours.
+   ========================================================================== */
+
+.sui-coach-tooltip {
+  background: var(--card, #fdfdfd);
+  color: var(--ink, #111);
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 50px rgba(11, 10, 15, 0.28);
+  font-family: inherit;
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
+.sui-coach-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #4b3b6b;
+}
+
+.sui-coach-progress {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e7e3e4;
+  overflow: hidden;
+}
+
+.sui-coach-progress > div {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--lilac-strong, #eac1f1);
+  transition: width 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sui-training-banner {
+  font-family: inherit;
+}
+
+.sui-training-banner .sui-btn {
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+
+@media (max-width: 720px) {
+  .sui-coach-tooltip {
+    border-radius: 16px;
+  }
+}

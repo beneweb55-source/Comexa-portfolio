@@ -1,3 +1,4 @@
+import { isTrainingScope } from '../training/training-scope.js';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createMailjetApiTransport } from './mailjet.transport.js';
@@ -177,6 +178,16 @@ export class MailService implements OnModuleDestroy {
    * dirait pas lequel.
    */
   async send(mail: OutgoingMail): Promise<void> {
+    // MODE FORMATION : aucun courriel réel ne part jamais. L'opération métier
+    // (créer la notification, marquer le devis envoyé) a lieu normalement dans
+    // la base d'entraînement ; seul l'effet de bord externe est supprimé.
+    if (isTrainingScope()) {
+      this.logger.log(
+        `[MODE FORMATION] Courriel simulé, non envoyé : « ${mail.subject} » à ${mail.to}`,
+      );
+      return;
+    }
+
     if (!this.transport) {
       const corps = this.production
         ? [

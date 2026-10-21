@@ -132,7 +132,7 @@ function Form() {
       <Card title="Destinataire et en-tête">
         <div className="grid gap-4 md:grid-cols-2">
           <Field id="recipient" label="Destinataire *">
-            <select id="recipient" className={inputClass} value={recipient} onChange={(event) => setRecipient(event.target.value)} disabled={recipientsLoading}>
+            <select id="recipient" data-coach-id="devis-form-recipient" className={inputClass} value={recipient} onChange={(event) => setRecipient(event.target.value)} disabled={recipientsLoading}>
               <option value="">{recipientsLoading ? "Chargement…" : "Choisir…"}</option>
               {recipient.startsWith("client:") && clients.items !== null && !clients.items.some((client) => `client:${client.id}` === recipient) ? (
                 <option value={recipient}>{presetClientDetails.items?.companyName || "Client présélectionné"}</option>
@@ -165,7 +165,7 @@ function Form() {
             </select>
           </Field>
           <Field id="subject" label="Objet *">
-            <input id="subject" className={inputClass} value={header.subject} onChange={setHeaderField("subject")} maxLength={300} placeholder="Ex. Refonte du site vitrine" />
+            <input id="subject" data-coach-id="devis-form-subject" className={inputClass} value={header.subject} onChange={setHeaderField("subject")} maxLength={300} placeholder="Ex. Refonte du site vitrine" />
           </Field>
           <Field id="issue" label="Date d'émission">
             <input id="issue" type="date" className={inputClass} value={header.issueDate} onChange={setHeaderField("issueDate")} />
@@ -244,7 +244,7 @@ function Form() {
             </div>
           ))}
           <div>
-            <button type="button" onClick={() => setLines((current) => [...current, { ...EMPTY_LINE }])} className={secondaryButton}>
+            <button type="button" onClick={() => setLines((current) => [...current, { ...EMPTY_LINE }])} className={secondaryButton} data-coach-id="devis-form-add-line">
               Ajouter une ligne
             </button>
           </div>
@@ -275,7 +275,7 @@ function Form() {
         <Link href="/espace-equipe/devis" className={secondaryButton}>
           Annuler
         </Link>
-        <button type="submit" disabled={saving} className={primaryButton}>
+        <button type="submit" disabled={saving} className={primaryButton} data-coach-id="devis-form-submit">
           {saving ? "Création…" : "Créer le devis (brouillon)"}
         </button>
       </div>

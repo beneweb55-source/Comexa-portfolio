@@ -69,6 +69,7 @@ export default function TaskTimerButton({ task, size = "md", disabled = false, c
   return (
     <button
       type="button"
+      data-coach-id="timer-start-button"
       className={`sui-ttb sui-ttb--${size} ${className}`.trim()}
       onPointerDown={stop}
       onKeyDown={stop}
