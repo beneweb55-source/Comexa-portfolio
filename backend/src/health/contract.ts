@@ -43,7 +43,7 @@ export interface ApiContract {
 }
 
 export const API_CONTRACT: ApiContract = {
-  version: '2026-10-21.1',
+  version: '2026-10-21.2',
   features: {
     // P2 : suivi du temps persiste cote serveur.
     timer: true,
@@ -64,10 +64,10 @@ export const API_CONTRACT: ApiContract = {
     timerTasks: true,
     // Assignation depuis l'ecran : `GET /projects/:id/tasks/assignees`.
     taskAssignees: true,
-    // Formation : `GET /training/status|catalog|report`, `POST /training/enter|exit|reset`,
-    // missions `start|check|complete`. Un serveur anterieur repond 404 sur
-    // `/training/*` : le parcours « Mon parcours » serait vide.
-    training: true,
+    // Guide de demarrage : `GET /guide`, `POST /guide/steps/:id/complete`. Un
+    // serveur anterieur repond 404 : la pastille « Premiers pas » resterait
+    // silencieuse (aucun ecran casse, mais aucune etape non plus).
+    guide: true,
   },
 };
 

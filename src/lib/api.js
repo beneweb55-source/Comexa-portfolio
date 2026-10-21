@@ -23,93 +23,6 @@ const NETWORK_MESSAGE = "Le serveur est injoignable pour le moment. Réessayez d
 /** En-tête de l'espace de travail actif (voir `lib/spaces.js`). */
 const SPACE_HEADER = "X-Comexa-Space";
 
-// ---------------------------------------------------------------------------
-// MODE FORMATION — le point d'ancrage unique du jeton de formation.
-//
-// Quand une session de formation est ouverte (voir `lib/training/`), TOUTES
-// les requêtes métier partent avec le jeton de FORMATION : le serveur route
-// alors les écritures vers la base d'entraînement (scope porté par le jeton,
-// jamais par un en-tête ou un paramètre). C'est le même formulaire, les mêmes
-// composants, les mêmes règles métier — seule la base change.
-//
-// TROIS EXCEPTIONS, et ce sont les seules :
-//  - les routes `/auth/*` (connexion, rafraîchissement, mot de passe) restent
-//    sur le jeton réel : l'identité ne se gère pas dans une base fictive ;
-//  - les routes `/training/*` (entrer, sortir, catalogue, progression)
-//    restent sur le jeton réel : elles GÈRENT la session de formation, elles
-//    ne doivent donc jamais dépendre de son jeton. Sans cette exception, une
-//    session de formation expirée ou fermée (autre onglet, redémarrage du
-//    serveur) empoisonnait tout : `/training/enter` lui-même partait avec le
-//    jeton mort, répondait 401, et chaque sondage (minuteur, notifications,
-//    tâches) rejouait le même 401 après rafraîchissement — boucle sans fin,
-//    et « Ouverture de l'environnement… » ne retombait jamais ;
-//  - `fetchProtectedBlob` (documents) utilise le jeton de formation quand il
-//    est actif, pour télécharger les pièces d'exercice.
-//
-// Aucune autre route ne peut choisir elle-même : c'est la présence du jeton
-// de formation qui décide, posée par `setTrainingToken`.
-// ---------------------------------------------------------------------------
-
-let trainingToken = null;
-
-/** Abonnés prévenus quand un jeton de formation rejeté (401) est abandonné. */
-const trainingTokenDroppedListeners = new Set();
-
-/** (Dés)active le jeton de formation pour les requêtes suivantes. */
-export function setTrainingToken(token) {
-  trainingToken = token || null;
-}
-
-/** Le jeton de formation actif, ou `null`. */
-export function getTrainingToken() {
-  return trainingToken;
-}
-
-/**
- * S'abonne à l'abandon automatique du jeton de formation (voir `apiFetch`).
- * Rend la fonction de désabonnement. Le contexte de formation s'en sert pour
- * éteindre sa bannière au lieu de rester « MODE FORMATION actif » avec un
- * jeton que le serveur refuse.
- */
-export function onTrainingTokenDropped(listener) {
-  trainingTokenDroppedListeners.add(listener);
-  return () => trainingTokenDroppedListeners.delete(listener);
-}
-
-/**
- * Abandonne le jeton de formation EN COURS d'utilisation parce que le serveur
- * vient de le refuser (401) : la session de formation est expirée, fermée ou
- * révoquée. Continuer à le présenter ne produirait que des 401 — y compris
- * après un rafraîchissement du vrai jeton, puisque c'est lui qui est envoyé.
- * Le retirer rend la main au jeton réel : la requête rejouée par
- * `session.request` repart sur la production, et l'utilisateur peut rouvrir
- * l'environnement depuis « Mon parcours ».
- */
-function dropRejectedTrainingToken(usedToken) {
-  if (!usedToken || usedToken !== trainingToken) return;
-  trainingToken = null;
-  for (const listener of trainingTokenDroppedListeners) {
-    try {
-      listener();
-    } catch {
-      // Un abonné défaillant ne doit pas masquer la réponse HTTP en cours.
-    }
-  }
-}
-
-function isAuthPath(path) {
-  return typeof path === "string" && (path === "/auth" || path.startsWith("/auth/"));
-}
-
-function isTrainingPath(path) {
-  return typeof path === "string" && (path === "/training" || path.startsWith("/training/"));
-}
-
-function effectiveToken(path, token) {
-  if (trainingToken && !isAuthPath(path) && !isTrainingPath(path)) return trainingToken;
-  return token;
-}
-
 /**
  * Routes qui répondent SANS jeton : contenu public, authentification, santé.
  * Partout ailleurs, appeler le serveur sans jeton est une erreur de session —
@@ -156,7 +69,7 @@ export async function apiFetch(
 ) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const bearer = effectiveToken(path, token);
+  const bearer = token;
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
 
@@ -229,14 +142,6 @@ export async function apiFetch(
     if (timer) clearTimeout(timer);
   }
 
-  // Un 401 sur un jeton de FORMATION signe la fin de cette session de
-  // formation (expirée, fermée, révoquée) : on l'abandonne immédiatement
-  // pour que le rejeu — après rafraîchissement du vrai jeton — reparte avec
-  // le jeton réel au lieu de représenter indéfiniment le jeton mort.
-  if (response.status === 401 && trainingToken && bearer === trainingToken) {
-    dropRejectedTrainingToken(bearer);
-  }
-
   const text = await response.text();
   let json = null;
   if (text) {
@@ -300,7 +205,7 @@ export async function apiFetch(
  * jeton d'accès, exactement comme le téléchargement.
  */
 export async function fetchProtectedBlob(path, { token, space }) {
-  const bearer = effectiveToken(path, token);
+  const bearer = token;
   const response = await fetch(`/api${path}`, {
     headers: { Authorization: `Bearer ${bearer}`, ...(space ? { [SPACE_HEADER]: space } : {}) },
     credentials: "same-origin",

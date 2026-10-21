@@ -21,6 +21,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { DistributionModule } from './modules/distributions/distribution.module.js';
 import { ExchangeRateModule } from './modules/exchange-rates/exchange-rate.module.js';
 import { GoalsModule } from './modules/goals/goals.module.js';
+import { GuideModule } from './modules/guide/guide.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
 import { InvoicesModule } from './modules/invoices/invoices.module.js';
 import { MessagingModule } from './modules/messaging/messaging.module.js';
@@ -36,7 +37,6 @@ import { ProjectsModule } from './modules/projects/projects.module.js';
 import { RoleModule } from './modules/roles/role.module.js';
 import { SettingsModule } from './modules/settings/settings.module.js';
 import { TasksModule } from './modules/tasks/tasks.module.js';
-import { TrainingModule } from './modules/training/training.module.js';
 import { TimeEntriesModule } from './modules/time-entries/time-entries.module.js';
 import { TimerModule } from './modules/timer/timer.module.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
@@ -243,7 +243,6 @@ const isProduction = process.env.NODE_ENV === 'production';
      */
     IntegrationsModule,
     SpacesModule,
-    TrainingModule,
 
     /**
      * CRM — pipeline commercial et dossiers clients.
@@ -292,6 +291,7 @@ const isProduction = process.env.NODE_ENV === 'production';
     CalendarModule,
     TimerModule,
     GoalsModule,
+    GuideModule,
     DailyReportsModule,
 
     /**

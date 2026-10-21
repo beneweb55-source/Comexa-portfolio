@@ -12,7 +12,7 @@
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, apiFetch, downloadFile, fetchProtectedBlob, setTrainingToken } from "@/lib/api";
+import { ApiError, apiFetch, downloadFile, fetchProtectedBlob } from "@/lib/api";
 
 import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
 
@@ -39,11 +39,6 @@ export function AuthProvider({ children }) {
 
   const clearSession = useCallback(() => {
     tokenRef.current = null;
-    // Le jeton de formation vit au niveau du module `api` : sans ce nettoyage,
-    // il survivait à la déconnexion et la session suivante (ou le compte
-    // suivant, sur le même poste) héritait d'un jeton mort qui faisait
-    // répondre 401 à toutes les requêtes métier.
-    setTrainingToken(null);
     setState({ status: "anonymous", user: null, token: null });
   }, []);
 

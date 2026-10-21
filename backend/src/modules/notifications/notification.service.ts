@@ -1,4 +1,3 @@
-import { isTrainingScope } from '../../common/training/training-scope.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { Notification, Prisma } from '../../generated/prisma/client.js';
@@ -170,12 +169,6 @@ export class NotificationService {
    * pas transformer une ecriture reussie en echec HTTP.
    */
   private publish(notification: Notification): void {
-    // MODE FORMATION : la notification est écrite (base d'entraînement) mais
-    // JAMAIS poussée sur les sockets réels — aucun membre connecté ne doit
-    // recevoir un événement fictif.
-    if (isTrainingScope()) {
-      return;
-    }
     try {
       this.events.emit(NOTIFICATION_CREATED, { notification } satisfies NotificationCreatedEvent);
     } catch (error) {

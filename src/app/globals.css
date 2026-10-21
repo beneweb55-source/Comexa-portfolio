@@ -17,6 +17,7 @@
    s'appuie sur les jetons et primitives ci-dessus. */
 @import "../styles/softui.productivity.css";
 @import "../styles/workspace-settings-time.css";
+@import "../styles/guide.css";
 /* Dernière feuille : expérience mobile, tablette et garde-fous d'overflow.
    Non layerée, elle a le dernier mot sur les media queries des feuilles précédentes. */
 @import "../styles/comexa.responsive.css";

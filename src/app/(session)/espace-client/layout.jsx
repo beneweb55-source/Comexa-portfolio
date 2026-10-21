@@ -13,7 +13,7 @@ const NAV_GROUPS = [
     items: [
       { href: "/espace-client", label: "Mon espace", icon: "home" },
       { href: "/espace-client/tableau-de-bord", label: "Tableau de bord", icon: "chart", any: ["dashboard:read:own"] },
-      { href: "/espace-client/formation", label: "Mon parcours", icon: "chart" },
+      { href: "/espace-client/guide", label: "Premiers pas", icon: "compass" },
     ],
   },
   {

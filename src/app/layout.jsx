@@ -7,8 +7,7 @@ import PublicChrome from "@/components/PublicChrome";
 import RouteHistory from "@/components/RouteHistory";
 import SafeAreaSync from "@/components/SafeAreaSync";
 import { AuthProvider } from "@/lib/session";
-import { TrainingProvider } from "@/lib/training/training-context";
-import { CoachProvider } from "@/lib/training/coach-context";
+import { GuideProvider } from "@/lib/guide/guide-context";
 import { SpacesProvider } from "@/lib/spaces-context";
 
 
@@ -58,12 +57,10 @@ export default function RootLayout({ children }) {
         <SafeAreaSync />
         <AuthProvider>
           <SpacesProvider>
-            <TrainingProvider>
-              <CoachProvider>
-                <RouteHistory />
-                <PublicChrome>{children}</PublicChrome>
-              </CoachProvider>
-            </TrainingProvider>
+            <GuideProvider>
+              <RouteHistory />
+              <PublicChrome>{children}</PublicChrome>
+            </GuideProvider>
           </SpacesProvider>
         </AuthProvider>
       </body>

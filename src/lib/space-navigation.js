@@ -20,7 +20,7 @@ const NAVIGATION = {
       tone: "green",
       items: [
         { section: "tableau-de-bord", label: "Ma journée", description: "Vos priorités du jour : tâches, agenda, minuteur et temps de la semaine." },
-        { section: "formation", label: "Mon parcours", description: "Votre formation guidée : missions pratiques, progression et bilan." },
+        { section: "guide", label: "Guide de démarrage", description: "Trois gestes pour démarrer : une tâche, son avancement, votre temps." },
         { section: "notifications", label: "Notifications", any: ["notification:read:own"], description: "Les alertes qui concernent votre propre travail." },
       ],
     },
@@ -41,7 +41,7 @@ const NAVIGATION = {
       tone: "blue",
       items: [
         { section: "tableau-de-bord", label: "Tableau de bord", any: ["dashboard:read:any", "dashboard:read:own"], description: "Les chiffres de l’agence et ce qui attend une décision de l’équipe." },
-        { section: "formation", label: "Mon parcours", description: "Votre formation guidée : missions pratiques par module, progression et bilan." },
+        { section: "guide", label: "Guide de démarrage", description: "Les premiers réflexes de l’équipe : prospect, devis, projet." },
         { section: "notifications", label: "Notifications", any: ["notification:read:own"], description: "Projets, devis, factures et messages de l’équipe." },
       ],
     },
@@ -93,7 +93,7 @@ const NAVIGATION = {
       tone: "lilac",
       items: [
         { section: "tableau-de-bord", label: "Vue d’ensemble", description: "L’état de l’organisation : membres, contenus, intégrations et sécurité." },
-        { section: "formation", label: "Mon parcours", description: "Votre formation guidée : missions pratiques par module, progression et bilan." },
+        { section: "guide", label: "Guide de démarrage", description: "Les premiers réflexes de l’équipe : prospect, devis, projet." },
         { section: "notifications", label: "Notifications", any: ["notification:read:own"], description: "Messages système de la plateforme Comexa." },
       ],
     },
