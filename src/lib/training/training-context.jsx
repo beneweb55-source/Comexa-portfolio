@@ -63,22 +63,37 @@ export function TrainingProvider({ children }) {
     };
   }, [user]);
 
+  // UN SEUL `enter` en vol : le bouton d'entrée et le coach (« Commencer avec
+  // le coach » entre en formation puis démarre la mission) peuvent sinon
+  // déclencher deux POST parallèles, et le serveur amorçait deux fois le bac à
+  // sable en parallèle. Même promesse partagée = même session pour tous.
+  const enterPromiseRef = useRef(null);
+
   const enter = useCallback(
     async (missionId) => {
-      const { data } = await request("/training/enter", {
-        method: "POST",
-        body: missionId ? { missionId } : {},
-      });
-      setTrainingToken(data.token);
-      setState((s) => ({
-        ...s,
-        status: "active",
-        configured: true,
-        banner: data.banner ?? s.banner,
-        sessionId: data.sessionId,
-        expiresAt: data.expiresAt,
-      }));
-      return data;
+      if (enterPromiseRef.current) return enterPromiseRef.current;
+      const pending = (async () => {
+        const { data } = await request("/training/enter", {
+          method: "POST",
+          body: missionId ? { missionId } : {},
+        });
+        setTrainingToken(data.token);
+        setState((s) => ({
+          ...s,
+          status: "active",
+          configured: true,
+          banner: data.banner ?? s.banner,
+          sessionId: data.sessionId,
+          expiresAt: data.expiresAt,
+        }));
+        return data;
+      })();
+      enterPromiseRef.current = pending;
+      try {
+        return await pending;
+      } finally {
+        enterPromiseRef.current = null;
+      }
     },
     [request],
   );

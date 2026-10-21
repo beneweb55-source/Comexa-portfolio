@@ -165,6 +165,11 @@ export default function ParcoursView({ space }) {
   const [error, setError] = useState(null);
   const [expanded, setExpanded] = useState(null);
   const [report, setReport] = useState(null);
+  // Requêtes en vol : les boutons se désactivent pendant l'entrée en formation
+  // ou le démarrage d'une mission — chaque clic supplémentaire lançait un
+  // second POST parallèle au premier.
+  const [entering, setEntering] = useState(false);
+  const [starting, setStarting] = useState(null);
   const loading = !loadedOnce && training.catalog == null;
 
   // Rechargement explicite (boutons) : utilisé hors rendu, setState autorisé.
@@ -217,14 +222,18 @@ export default function ParcoursView({ space }) {
 
   const start = useCallback(
     async (mission, assistance) => {
+      if (starting) return;
+      setStarting(mission.id);
       try {
         setError(null);
         await coach.startMission(mission, { assistance });
       } catch (err) {
         setError(err?.message ?? "La mission n’a pas pu démarrer.");
+      } finally {
+        setStarting(null);
       }
     },
-    [coach],
+    [coach, starting],
   );
 
   return (
@@ -252,16 +261,28 @@ export default function ParcoursView({ space }) {
                 type="button"
                 className="sui-btn sui-btn--dark"
                 data-coach-id="parcours-enter-button"
+                disabled={entering}
+                aria-busy={entering}
                 onClick={async () => {
+                  if (entering) return;
+                  setEntering(true);
                   try {
+                    setError(null);
                     await training.enter();
                     await load();
                   } catch (err) {
                     setError(err?.message ?? "Impossible d’ouvrir l’environnement de formation.");
+                  } finally {
+                    setEntering(false);
                   }
                 }}
               >
-                <Play size={15} strokeWidth={2} aria-hidden="true" /> Entrer en mode formation
+                {entering ? (
+                  <Loader2 size={15} strokeWidth={2} className="sui-spin" aria-hidden="true" />
+                ) : (
+                  <Play size={15} strokeWidth={2} aria-hidden="true" />
+                )}
+                {entering ? "Ouverture de l’environnement…" : "Entrer en mode formation"}
               </button>
             ) : (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: 12.5, background: "var(--yellow, #F9E6B9)", borderRadius: 999, padding: "6px 12px" }}>
@@ -330,6 +351,8 @@ export default function ParcoursView({ space }) {
                       type="button"
                       className="sui-btn sui-btn--dark"
                       data-coach-id={`mission-start-${mission.id}`}
+                      disabled={starting !== null}
+                      aria-busy={starting === mission.id}
                       onClick={() => start(mission, "full")}
                     >
                       <Play size={15} strokeWidth={2} aria-hidden="true" />
@@ -339,6 +362,8 @@ export default function ParcoursView({ space }) {
                       type="button"
                       className="sui-btn sui-btn--ghost"
                       data-coach-id={`mission-eval-${mission.id}`}
+                      disabled={starting !== null}
+                      aria-busy={starting === mission.id}
                       onClick={() => start(mission, "none")}
                     >
                       <Target size={15} strokeWidth={2} aria-hidden="true" /> Évaluation finale (sans assistance)

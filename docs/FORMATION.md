@@ -50,6 +50,30 @@ appliquée par le serveur, à chaque requête.
    base d'entraînement. La progression pédagogique (base de production) est
    conservée.
 
+### Réconciliation du miroir d'identités (panne du 2026-10-21)
+
+Le miroir (`mirrorIdentities`) recopie utilisateurs, rôles et permissions de la
+production vers la base d'entraînement **sous les mêmes identifiants**. Un
+`upsert` par `id` seul suffit tant que les deux bases partagent la même
+histoire ; dès qu'une ligne périmée porte la même clé naturelle (`email`,
+`code`) sous un AUTRE identifiant — base d'entraînement semée indépendamment,
+compte créé pendant un déploiement au routage défectueux, identité de
+production recréée — le `create` de l'upsert heurte la contrainte d'unicité
+(P2002, HTTP 409 « Cette valeur existe deja ») à **chaque** `enter`, et
+`POST /training/reset` n'y change rien (les identités ne sont volontairement
+pas tronquées). C'est la panne observée en production : tous les boutons du
+parcours renvoyaient le 409.
+
+Depuis, `mirrorRow` réconcilie : la ligne périmée est **repointée** vers l'id de
+production quand cet id est libre (la mise à jour de clé primaire cascade les
+écritures d'exercice déjà liées), **supprimée** quand l'id de production est
+déjà présent, et un conflit dû à un miroir concurrent est rejoué une fois.
+L'amorçage est en outre sérialisé par processus (`TrainingService.seedEnvironment`)
+et chaque création de fixture tolère le P2002 d'un amorçage parallèle
+(`createSkippingConflict`) : un double clic ne peut plus ni échouer, ni
+dupliquer les objets du bac à sable. Ces comportements sont verrouillés par
+`backend/tests/training-fixtures.spec.ts` (faux client Prisma en mémoire).
+
 ### Configuration
 
 ```dotenv
@@ -213,7 +237,8 @@ dépôt : hors `src/`, comme les suites onboarding déjà présentes).
 | `backend/tests/prisma-routing.spec.ts` (routage fail-loud, pas de repli production) | idem avec `tests/prisma-routing.spec.ts` | ✅ |
 | `backend/tests/mission-verification.spec.ts` (critères, `{{userId}}`/`{{now}}`) | idem | ✅ |
 | `backend/tests/missions.spec.ts` (permissions réelles, ancrages, filtre par profil) | idem | ✅ |
-| **Total formation** | `cd backend && node --import tsx --test tests/training-scope.spec.ts tests/mission-verification.spec.ts tests/missions.spec.ts tests/prisma-routing.spec.ts` | ✅ **25/25** |
+| `backend/tests/training-fixtures.spec.ts` (réconciliation du miroir d'identités, idempotence et conflits des fixtures, sur faux client Prisma) | idem avec `tests/training-fixtures.spec.ts` | ✅ |
+| **Total formation** | `cd backend && node --import tsx --test tests/training-scope.spec.ts tests/mission-verification.spec.ts tests/missions.spec.ts tests/prisma-routing.spec.ts tests/training-fixtures.spec.ts` | ✅ **39/39** |
 | `tests/contract.test.mjs` (poignée de contrat API, feature `training`) | `node --test tests/contract.test.mjs` | ✅ 5/5 |
 | Suites onboarding existantes (non régressées) | `npm run test:onboarding` | ✅ |
 | Frontend `npm run lint` | | ✅ |
