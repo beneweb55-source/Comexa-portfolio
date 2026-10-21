@@ -269,7 +269,8 @@ export default function GuideDock() {
     return () => window.clearTimeout(timer);
   }, [target]);
 
-  if (status === "idle" || status === "error" || !overview) return null;
+  // Hors espace de travail (site public, connexion…), pas de pastille.
+  if (status === "idle" || status === "error" || !overview || !space) return null;
   const total = spaceSteps.length;
   const done = spaceSteps.filter((step) => step.done).length;
   if (total === 0) return null;
