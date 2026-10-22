@@ -22,6 +22,7 @@ import {
   selectClass,
 } from "@/components/workspace/ui";
 import { UserAvatar } from "@/components/workspace/UserAvatar";
+import { RecordActions } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
 
 const USER_STATUS = { INVITED: "Invité", ACTIVE: "Actif", SUSPENDED: "Suspendu", ARCHIVED: "Archivé" };
@@ -60,6 +61,7 @@ export default function MembresPage() {
   const { user, request } = useAuth();
   const { query: shellQuery } = useShellQuery();
   const canManageMembers = can(user, "user:manage:any");
+  const canRenameMember = can(user, "user:write:any");
   const canReadRoles = can(user, "role:read:any");
 
   const [search, setSearch] = useState("");
@@ -75,7 +77,6 @@ export default function MembresPage() {
   const [roles, setRoles] = useState([]);
   const [creating, setCreating] = useState(false);
   const [editingRoles, setEditingRoles] = useState(null);
-  const [pendingSuspend, setPendingSuspend] = useState(null);
   const [pendingReset, setPendingReset] = useState(null);
   const [revealed, setRevealed] = useState(null);
   const forbidden = users.errorStatus === 403;
@@ -98,11 +99,6 @@ export default function MembresPage() {
 
   const items = [...(users.items ?? [])].sort(byStatusThenName);
   const name = (member) => `${member.firstName} ${member.lastName}`;
-
-  async function suspend(member) {
-    const result = await action.run(`suspend:${member.id}`, `/users/${member.id}/suspend`, { method: "POST" }, `${name(member)} est suspendu.`);
-    if (result !== null) setPendingSuspend(null);
-  }
 
   async function reset(member) {
     const result = await action.run(`reset:${member.id}`, `/users/${member.id}/reset-password`, { method: "POST" }, null);
@@ -210,21 +206,48 @@ export default function MembresPage() {
                     <button type="button" className={secondaryButton} onClick={() => setPendingReset(member)} disabled={Boolean(action.busy)}>
                       <KeyRound size={14} /> Réinitialiser MDP
                     </button>
-                    {member.status === "ACTIVE" ? (
-                      <button type="button" className={secondaryButton} onClick={() => setPendingSuspend(member)} disabled={Boolean(action.busy)}>
-                        <UserX size={14} /> Suspendre
-                      </button>
-                    ) : null}
-                    {member.status === "SUSPENDED" ? (
-                      <button
-                        type="button"
-                        className={secondaryButton}
-                        onClick={() => action.run(`reactivate:${member.id}`, `/users/${member.id}/reactivate`, { method: "POST" }, `${name(member)} est réactivé.`)}
-                        disabled={Boolean(action.busy)}
-                      >
-                        <UserCheck size={14} /> Réactiver
-                      </button>
-                    ) : null}
+                    <RecordActions
+                      resource="/users"
+                      id={member.id}
+                      record={member}
+                      entityLabel="membre"
+                      displayName={name(member)}
+                      label={`Actions pour le membre ${name(member)}`}
+                      fields={[
+                        { name: "firstName", label: "Prénom", required: true, maxLength: 120 },
+                        { name: "lastName", label: "Nom", required: true, maxLength: 120 },
+                        { name: "phone", label: "Téléphone (vide pour effacer)", maxLength: 40 },
+                      ]}
+                      canRename={canRenameMember}
+                      canDelete={member.id !== user?.id}
+                      deleteWarning={`Le compte de ${name(member)} sera supprimé (suppression logique) et ses sessions fermées. Ses tâches et son historique restent conservés.`}
+                      extraActions={[
+                        {
+                          key: "suspend",
+                          label: "Suspendre le compte",
+                          icon: UserX,
+                          tone: "danger",
+                          when: member.status === "ACTIVE",
+                          confirm: {
+                            title: "Suspendre ce membre ?",
+                            description: `${name(member)} ne pourra plus se connecter tant que son compte est suspendu. Ses sessions sont fermées.`,
+                            confirmLabel: "Suspendre",
+                            danger: true,
+                          },
+                          run: ({ request, id }) => request(`/users/${id}/suspend`, { method: "POST" }),
+                          success: `${name(member)} est suspendu.`,
+                        },
+                        {
+                          key: "reactivate",
+                          label: "Réactiver le compte",
+                          icon: UserCheck,
+                          when: member.status === "SUSPENDED",
+                          run: ({ request, id }) => request(`/users/${id}/reactivate`, { method: "POST" }),
+                          success: `${name(member)} est réactivé.`,
+                        },
+                      ]}
+                      onChanged={users.reload}
+                    />
                   </>
                 ) : null}
               </div>
@@ -276,17 +299,6 @@ export default function MembresPage() {
         ) : null}
       </SideSheet>
 
-      <ConfirmDialog
-        open={pendingSuspend !== null}
-        title="Suspendre ce membre ?"
-        confirmLabel="Suspendre"
-        tone="danger"
-        busy={pendingSuspend !== null && action.busy === `suspend:${pendingSuspend.id}`}
-        onCancel={() => setPendingSuspend(null)}
-        onConfirm={() => suspend(pendingSuspend)}
-      >
-        <p className="cx-small">{pendingSuspend ? `${name(pendingSuspend)} ne pourra plus se connecter tant que son compte est suspendu. Ses sessions sont fermées.` : ""}</p>
-      </ConfirmDialog>
       <ConfirmDialog
         open={pendingReset !== null}
         title="Réinitialiser le mot de passe ?"

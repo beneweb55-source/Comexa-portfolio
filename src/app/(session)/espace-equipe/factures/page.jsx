@@ -1,9 +1,9 @@
 "use client";
 
-import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
-
 import { useMemo, useState } from "react";
-import { ArrowUpRight, CalendarDays, CircleAlert, Hash, ReceiptText, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, CircleSlash, Hash, ReceiptText, Send, TriangleAlert } from "lucide-react";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { formatDateOnly, formatMoney } from "@/lib/api";
 import { ALL_CURRENCIES, amountsPair, currencyRank, currencyShortLabel, normalizeCurrency } from "@/lib/currency";
 import { useDisplayCurrency } from "@/lib/use-display-currency";
@@ -12,7 +12,17 @@ import { INVOICE_STATUS, INVOICE_STATUS_TONE, remainingDue } from "@/lib/commerc
 import { useListing } from "@/lib/use-listing";
 import { useAllListing } from "@/lib/use-all-listing";
 import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
-import { Alert, CurrencyAmounts, CurrencyScopeToggle, FilterPills, ItemCard, ItemGrid, KpiGrid, StatusPill } from "@/components/softui";
+import {
+  Alert,
+  CurrencyAmounts,
+  CurrencyScopeToggle,
+  FilterPills,
+  ItemCard,
+  ItemGrid,
+  KpiGrid,
+  RecordActions,
+  StatusPill,
+} from "@/components/softui";
 import { ListTable, ViewToggle, useViewMode } from "@/components/softui/ListView";
 import { useShellQuery } from "@/components/softui/Shell";
 import { InvoicePdfActions } from "@/components/workspace/invoices";
@@ -84,7 +94,11 @@ function summarize(list, now) {
 }
 
 export default function FacturesEquipePage() {
+  const { user } = useAuth();
   const { query } = useShellQuery();
+  const canSendInvoice = can(user, "invoice:send:any");
+  const canCancelInvoice = can(user, "invoice:write:any");
+  const canDeleteInvoice = can(user, "invoice:delete:any");
   /* La portée choisie vaut à la fois pour les totaux ET pour la liste : choisir
      « EUR » ne laisse pas des totaux en dinars au-dessus de factures en euros. */
   const { scope } = useDisplayCurrency();
@@ -142,6 +156,41 @@ export default function FacturesEquipePage() {
   ];
 
   const isPastDue = (invoice) => OPEN.includes(invoice.status) && invoice.dueDate && isDeadlinePassed(invoice.dueDate, now);
+
+  /* Options d'une facture : les routes existantes seulement (`/send`, `/cancel`,
+     `DELETE`). Aucune facture ne se réécrit — une facture émise ne se corrige
+     pas, elle s'annule : le menu propose donc d'envoyer ou d'annuler, jamais de
+     renommer. */
+  const invoiceActions = (invoice) => [
+    {
+      key: "send",
+      label: "Envoyer au client",
+      icon: Send,
+      when: canSendInvoice && invoice.status === "DRAFT",
+      confirm: {
+        title: "Envoyer cette facture ?",
+        description: `La facture ${invoice.reference} sera transmise au client et deviendra payable.`,
+        confirmLabel: "Envoyer",
+      },
+      run: ({ request, id }) => request(`/invoices/${id}/send`, { method: "POST" }),
+      success: "Facture envoyée au client.",
+    },
+    {
+      key: "cancel",
+      label: "Annuler la facture",
+      icon: CircleSlash,
+      tone: "danger",
+      when: canCancelInvoice && ["DRAFT", "SENT", "OVERDUE"].includes(invoice.status),
+      confirm: {
+        title: "Annuler cette facture ?",
+        description: `La facture ${invoice.reference} passera en « Annulée ». Une facture déjà encaissée ne peut pas être annulée.`,
+        confirmLabel: "Annuler la facture",
+        danger: true,
+      },
+      run: ({ request, id }) => request(`/invoices/${id}/cancel`, { method: "POST" }),
+      success: "Facture annulée.",
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -251,7 +300,20 @@ export default function FacturesEquipePage() {
                   status={INVOICE_STATUS[invoice.status] ?? invoice.status}
                   statusTone={tone}
                   actions={[
-                    <DeleteDocumentButton key="delete" resource="invoices" id={invoice.id} label={invoice.reference} />,
+                    <RecordActions
+                      key={`actions-${invoice.id}`}
+                      resource="/invoices"
+                      id={invoice.id}
+                      record={invoice}
+                      entityLabel="facture"
+                      displayName={invoice.reference}
+                      label={`Actions pour la facture ${invoice.reference}`}
+                      canDelete={canDeleteInvoice}
+                      deleteWarning={`La facture ${invoice.reference} sera retirée des listes et des totaux. Les paiements et encaissements liés restent conservés pour la traçabilité.`}
+                      extraActions={invoiceActions(invoice)}
+                      href={`/espace-equipe/factures/${invoice.id}`}
+                      onChanged={invoices.reload}
+                    />,
                     <InvoicePdfActions
                       key={`pdf-${invoice.id}`}
                       invoiceId={invoice.id}
@@ -319,8 +381,25 @@ export default function FacturesEquipePage() {
                 },
               },
               {
-                key: "delete", label: "Suppression",
-                render: (invoice) => <DeleteDocumentButton resource="invoices" id={invoice.id} label={invoice.reference} />,
+                key: "actions",
+                label: "Actions",
+                align: "end",
+                render: (invoice) => (
+                  <span className="flex justify-end">
+                    <RecordActions
+                      resource="/invoices"
+                      id={invoice.id}
+                      record={invoice}
+                      entityLabel="facture"
+                      displayName={invoice.reference}
+                      label={`Actions pour la facture ${invoice.reference}`}
+                      canDelete={canDeleteInvoice}
+                      extraActions={invoiceActions(invoice)}
+                      href={`/espace-equipe/factures/${invoice.id}`}
+                      onChanged={invoices.reload}
+                    />
+                  </span>
+                ),
               },
               {
                 key: "pdf",

@@ -50,7 +50,7 @@ import { composeAnd } from '../prospects/prospect-scope.js';
  */
 
 export type ClientResource = 'client' | 'contact';
-export type ClientAction = 'read' | 'write';
+export type ClientAction = 'read' | 'write' | 'delete';
 
 /** Du plus large au plus etroit. Aucun scope `own` n'existe hors espace client. */
 const FULL_SCOPE: readonly ScopeName[] = [SCOPE_ANY];
@@ -65,7 +65,7 @@ const FULL_SCOPE: readonly ScopeName[] = [SCOPE_ANY];
  * l'agence : un client les lit, il ne les corrige pas.
  */
 function ownClientId(policy: AccessPolicy, action: ClientAction): string {
-  if (action === 'write') {
+  if (action !== 'read') {
     throw AppException.forbidden(
       "L'espace client ne modifie pas son dossier : ces informations sont tenues par l'agence.",
     );

@@ -1,16 +1,16 @@
 "use client";
 
-import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
-
 import { use, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate, formatMoney } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
+import { Send } from "lucide-react";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE, daysFromToday } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Notice, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
 import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
 
 /**
@@ -23,6 +23,8 @@ export default function DevisDetailPage({ params }) {
   const { user } = useAuth();
   const canSendQuote = can(user, "quote:send:any");
   const canCreateInvoice = can(user, "invoice:write:any");
+  const canEditQuote = can(user, "quote:write:any");
+  const canDeleteQuote = can(user, "quote:delete:any");
   const canReadInvoices = can(user, "invoice:read:any");
   const router = useRouter();
   const quote = useListing(`/quotes/${id}`);
@@ -63,7 +65,6 @@ export default function DevisDetailPage({ params }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <DeleteDocumentButton resource="quotes" id={id} label={data.reference} returnTo="/espace-equipe/devis" />
       <nav className="text-[14px] text-[var(--comexa-ink-soft)]">
         <Link href="/espace-equipe/devis" className="hover:underline">
           ← Retour aux devis
@@ -85,7 +86,43 @@ export default function DevisDetailPage({ params }) {
 
       <Card
         title={data.subject}
-        action={<Badge tone={QUOTE_STATUS_TONE[data.status] ?? "neutral"}>{QUOTE_STATUS[data.status] ?? data.status}</Badge>}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge tone={QUOTE_STATUS_TONE[data.status] ?? "neutral"}>{QUOTE_STATUS[data.status] ?? data.status}</Badge>
+            <RecordActions
+              resource="/quotes"
+              id={data.id}
+              record={data}
+              entityLabel="devis"
+              displayName={data.reference}
+              label={`Actions pour le devis ${data.reference}`}
+              fields={[{ name: "subject", label: "Objet du devis", required: true, maxLength: 200 }]}
+              canRename={canEditQuote && data.status === "DRAFT"}
+              canDelete={canDeleteQuote}
+              deleteWarning={`Le devis ${data.reference} sera retiré des listes. Son historique reste conservé.`}
+              extraActions={
+                canSendQuote && data.status === "DRAFT"
+                  ? [
+                      {
+                        key: "send",
+                        label: "Envoyer au client",
+                        icon: Send,
+                        confirm: {
+                          title: "Envoyer ce devis ?",
+                          description: `« ${data.subject} » sera envoyé à ${recipient}. Un devis envoyé ne peut plus être modifié.`,
+                          confirmLabel: "Envoyer",
+                        },
+                        run: ({ request, id: quoteId }) => request(`/quotes/${quoteId}/send`, { method: "POST" }),
+                        success: "Devis envoyé au client.",
+                      },
+                    ]
+                  : []
+              }
+              onChanged={quote.reload}
+              onDeleted={() => router.replace("/espace-equipe/devis")}
+            />
+          </div>
+        }
       >
         <dl className="grid gap-4 text-[14.5px] sm:grid-cols-3">
           <div>

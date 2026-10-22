@@ -2,6 +2,8 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { UserCheck } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { DEFAULT_CURRENCY } from "@/lib/currency";
 import { can } from "@/lib/access";
@@ -9,12 +11,15 @@ import { useAuth } from "@/lib/session";
 import { PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, Pagination, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
 
 /** Fiche d'un prospect : statut du pipeline, historique, puis conversion en client. */
 export default function ProspectDetailPage({ params }) {
   const { id } = use(params);
+  const router = useRouter();
   const { user } = useAuth();
   const canWriteProspect = can(user, "prospect:write:any") || can(user, "prospect:write:own");
+  const canDeleteProspect = can(user, "prospect:delete:any");
   const canConvertProspect = can(user, "prospect:convert:any");
   const canCreateQuote = can(user, "quote:write:any");
   const canReadClients = can(user, "client:read:any");
@@ -80,7 +85,48 @@ export default function ProspectDetailPage({ params }) {
 
       <Card
         title={data.companyName || `${data.contactFirstName} ${data.contactLastName}`}
-        action={<Badge tone={PROSPECT_STATUS_TONE[data.status] ?? "neutral"}>{PROSPECT_STATUS[data.status] ?? data.status}</Badge>}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge tone={PROSPECT_STATUS_TONE[data.status] ?? "neutral"}>{PROSPECT_STATUS[data.status] ?? data.status}</Badge>
+            <RecordActions
+              resource="/prospects"
+              id={data.id}
+              record={data}
+              entityLabel="prospect"
+              displayName={data.companyName || `${data.contactFirstName} ${data.contactLastName}`}
+              label={`Actions pour le prospect ${data.reference}`}
+              fields={[
+                { name: "companyName", label: "Entreprise", nullable: true, maxLength: 200 },
+                { name: "contactFirstName", label: "Prénom du contact", required: true, maxLength: 200 },
+                { name: "contactLastName", label: "Nom du contact", required: true, maxLength: 200 },
+                { name: "email", label: "E-mail", type: "email", required: true, maxLength: 320 },
+              ]}
+              canRename={canWriteProspect}
+              canDelete={canDeleteProspect}
+              deleteWarning={`La fiche prospect ${data.reference} sera retirée du pipeline. Un prospect déjà converti en client ne peut pas être supprimé.`}
+              extraActions={
+                canConvertProspect && !isConverted
+                  ? [
+                      {
+                        key: "convert",
+                        label: "Convertir en client",
+                        icon: UserCheck,
+                        confirm: {
+                          title: "Convertir ce prospect en client ?",
+                          description: "Un dossier client sera ouvert à partir de cette fiche. La conversion est définitive.",
+                          confirmLabel: "Convertir",
+                        },
+                        run: ({ request, id: prospectId }) => request(`/prospects/${prospectId}/convert`, { method: "POST" }),
+                        success: "Prospect converti en client.",
+                      },
+                    ]
+                  : []
+              }
+              onChanged={prospect.reload}
+              onDeleted={() => router.replace("/espace-equipe/prospects")}
+            />
+          </div>
+        }
       >
         <dl className="grid gap-4 text-[14.5px] sm:grid-cols-2">
           <div>

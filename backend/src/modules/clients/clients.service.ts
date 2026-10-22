@@ -9,7 +9,7 @@ import {
 import { AppException } from '../../common/errors/app-error.js';
 import type { Paginated } from '../../common/interceptors/transform.interceptor.js';
 import type { Client, Contact, Prisma } from '../../generated/prisma/client.js';
-import { ClientStatus } from '../../generated/prisma/enums.js';
+import { ClientStatus, ProjectStatus } from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { clientPerimeter, composeAnd, contactPerimeter } from './client-scope.js';
 import { CounterService } from '../counters/counter.service.js';
@@ -270,6 +270,72 @@ export class ClientsService {
     });
 
     return after;
+  }
+
+  /**
+   * Suppression LOGIQUE d'un dossier client.
+   *
+   * `deletedAt` porte l'information : la ligne reste, et les devis, factures et
+   * paiements qui la referencent restent lisibles. Le garde a deja exige
+   * `client:delete:any` ; le perimetre est tout de meme pose dans le `where`,
+   * comme partout ailleurs dans ce service.
+   *
+   * ON REFUSE TANT QU'UN PROJET EST EN COURS. Sans cette garde, un dossier
+   * disparaitrait des listes alors que l'equipe travaille encore dessus, et le
+   * projet se retrouverait rattache a un client invisible. Les projets clos
+   * (termine, annule, archive) ne bloquent pas : c'est leur trace qu'on garde.
+   */
+  async remove(user: AuthenticatedUser, id: string): Promise<{ deleted: true }> {
+    const policy = new AccessPolicy(user);
+    const perimeter = clientPerimeter(policy, 'client', 'delete');
+    const scoped = composeAnd(perimeter, { id, deletedAt: null });
+
+    const before = await this.prisma.client.findFirst({ where: { AND: scoped } });
+    if (!before) {
+      throw AppException.notFound('CLIENT_NOT_FOUND', "Ce dossier client n'existe pas.");
+    }
+
+    const openProjects = await this.prisma.project.count({
+      where: {
+        clientId: id,
+        deletedAt: null,
+        status: {
+          notIn: [ProjectStatus.COMPLETED, ProjectStatus.CANCELLED, ProjectStatus.ARCHIVED],
+        },
+      },
+    });
+    if (openProjects > 0) {
+      throw AppException.conflict(
+        'CLIENT_HAS_ACTIVE_PROJECTS',
+        `Ce client porte ${openProjects} projet${openProjects > 1 ? 's' : ''} en cours : terminez-les ou archivez-les avant de supprimer le dossier.`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const written = await tx.client.updateMany({
+        where: { AND: scoped },
+        data: { deletedAt: new Date(), status: ClientStatus.ARCHIVED },
+      });
+      if (written.count === 0) {
+        throw AppException.notFound('CLIENT_NOT_FOUND', "Ce dossier client n'existe pas.");
+      }
+      // Les interlocuteurs suivent le dossier : un contact orphelin ne doit pas
+      // reapparaitre dans une recherche.
+      await tx.contact.updateMany({
+        where: { clientId: id, deletedAt: null },
+        data: { deletedAt: new Date(), isPrimary: false },
+      });
+    });
+
+    await this.audit.record({
+      actorId: policy.userId,
+      action: 'CLIENT_DELETED',
+      entityType: 'Client',
+      entityId: id,
+      before: clientSnapshot(before),
+    });
+
+    return { deleted: true };
   }
 
   // ---------------------------------------------------------------------------

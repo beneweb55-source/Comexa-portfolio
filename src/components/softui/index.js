@@ -15,6 +15,7 @@ export { default as CurrencyAmounts } from "./CurrencyAmounts";
 export { default as CurrencyScopeToggle } from "./CurrencyScopeToggle";
 export { default as ItemCard, ItemGrid, ProgressBar } from "./ItemCard";
 export { default as Tooltip } from "./Tooltip";
+export { default as RecordActions, ActionMenu } from "./RecordActions";
 export { Panel, ActivityList, HealthList } from "./panels";
 export { Alert, Button, FilterPills, IconButton, Pill, SectionHead, StatusPill, StatusPillFor, toneBackground } from "./primitives";
 export { SoftMotionProvider, cardHover, cardRest, pageTransition, staggerItem, staggerParent } from "./motion";

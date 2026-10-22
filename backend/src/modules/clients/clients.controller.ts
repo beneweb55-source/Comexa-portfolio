@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedUser } from '../../common/auth/principal.js';
 import {
@@ -81,6 +81,24 @@ export class ClientsController {
     @Body() dto: UpdateClientDto,
   ): Promise<Client> {
     return this.clients.update(user, id, dto);
+  }
+
+  /**
+   * Suppression LOGIQUE d'un dossier (`deletedAt`).
+   *
+   * Un client porte des devis, des factures et des paiements : la ligne reste,
+   * elle quitte seulement les listes. Le service refuse tant qu'un projet est
+   * encore en cours — supprimer le dossier ne doit pas faire disparaitre un
+   * travail que l'equipe mene encore.
+   */
+  @Delete(':id')
+  @RequirePermissions('client:delete:any')
+  @ApiOperation({ summary: 'Supprimer logiquement un dossier client.' })
+  async remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ deleted: true }> {
+    return this.clients.remove(user, id);
   }
 
   @Get(':id/contacts')

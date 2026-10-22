@@ -3,12 +3,15 @@
 import { useMemo, useState } from "react";
 import { ArrowUpRight, CalendarDays, CircleAlert, Folder, FolderKanban, Hash, TriangleAlert } from "lucide-react";
 import { formatDateOnly } from "@/lib/api";
+import { can } from "@/lib/access";
+import { useAuth } from "@/lib/session";
 import { isDeadlinePassed } from "@/lib/date-utils.mjs";
 import { PROJECT_STATUS } from "@/lib/labels";
 import { useListing } from "@/lib/use-listing";
+import { projectStatusActions } from "@/lib/entity-actions";
 import { useAllListing } from "@/lib/use-all-listing";
 import { Empty, Pagination, SkeletonList } from "@/components/workspace/ui";
-import { Alert, FilterPills, ItemCard, ItemGrid, KpiGrid, ProgressBar, StatusPill } from "@/components/softui";
+import { Alert, FilterPills, ItemCard, ItemGrid, KpiGrid, ProgressBar, RecordActions, StatusPill } from "@/components/softui";
 import { ListTable, ViewToggle, useViewMode } from "@/components/softui/ListView";
 import { useShellQuery } from "@/components/softui/Shell";
 
@@ -40,7 +43,11 @@ function progressTone(status) {
 }
 
 export default function ProjetsEquipePage() {
+  const { user } = useAuth();
   const { query } = useShellQuery();
+  const canRenameProject = can(user, "project:write:any");
+  const canSetStatus = can(user, "project:manage:status");
+  const canDeleteProject = can(user, "project:delete:any");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [mode, setMode] = useViewMode("equipe-projets", "cards");
@@ -139,6 +146,21 @@ export default function ProjetsEquipePage() {
                   status={PROJECT_STATUS[project.status] ?? project.status}
                   statusTone={STATUS_TONE[project.status] ?? "plain"}
                   actions={[
+                    <RecordActions
+                      key={`actions-${project.id}`}
+                      resource="/projects"
+                      id={project.id}
+                      record={project}
+                      entityLabel="projet"
+                      displayName={project.name}
+                      fields={[{ name: "name", label: "Nom du projet", required: true, maxLength: 200 }]}
+                      canRename={canRenameProject}
+                      canDelete={canDeleteProject}
+                      extraActions={projectStatusActions(canSetStatus)}
+                      href={`/espace-equipe/projets/${project.id}`}
+                      onChanged={projects.reload}
+                      deleteWarning={`« ${project.name} » sera retiré des listes. Ses tâches, jalons, documents et factures restent conservés.`}
+                    />,
                     {
                       icon: ArrowUpRight,
                       label: `Ouvrir le projet ${project.name}`,
@@ -179,6 +201,29 @@ export default function ProjetsEquipePage() {
                 label: "Avancement",
                 className: "sui-table__progress",
                 render: (project) => <ProgressBar value={project.progressPercent} tone={progressTone(project.status)} label={`Avancement de ${project.name}`} />,
+              },
+              {
+                key: "actions",
+                label: "Actions",
+                align: "end",
+                render: (project) => (
+                  <span className="flex justify-end">
+                    <RecordActions
+                      resource="/projects"
+                      id={project.id}
+                      record={project}
+                      entityLabel="projet"
+                      displayName={project.name}
+                      label={`Actions pour le projet ${project.name}`}
+                      fields={[{ name: "name", label: "Nom du projet", required: true, maxLength: 200 }]}
+                      canRename={canRenameProject}
+                      canDelete={canDeleteProject}
+                      extraActions={projectStatusActions(canSetStatus)}
+                      href={`/espace-equipe/projets/${project.id}`}
+                      onChanged={projects.reload}
+                    />
+                  </span>
+                ),
               },
               {
                 key: "due",

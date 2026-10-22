@@ -9,6 +9,8 @@ import { useListing } from "@/lib/use-listing";
 import { PAYMENT_METHOD } from "@/lib/commercial";
 import { ORDER_STATUS, PAYMENT_STATUS, PROJECT_STATUS } from "@/lib/labels";
 import { Badge, Card, Notice } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
+import { orderStatusActions } from "@/lib/entity-actions";
 
 export default function CommandeEquipeDetailPage({ params }) {
   const { id } = use(params);
@@ -37,9 +39,19 @@ export default function CommandeEquipeDetailPage({ params }) {
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--comexa-ink)]">{data.packageName}</h2>
           <p className="mt-1 text-sm text-[var(--comexa-ink-soft)]">Reçue le {formatDate(data.orderedAt)}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge tone={data.status === "COMPLETED" ? "success" : data.status === "CANCELLED" ? "neutral" : "info"}>{ORDER_STATUS[data.status] ?? data.status}</Badge>
           <Badge tone={data.paymentStatus === "PAID" ? "success" : data.paymentStatus === "FAILED" ? "danger" : "warning"}>{PAYMENT_STATUS[data.paymentStatus] ?? data.paymentStatus}</Badge>
+          <RecordActions
+            resource="/orders"
+            id={data.id}
+            record={data}
+            entityLabel="commande"
+            displayName={data.reference}
+            label={`Actions pour la commande ${data.reference}`}
+            extraActions={orderStatusActions(data, can(user, "order:validate:any"))}
+            onChanged={order.reload}
+          />
         </div>
       </div>
 

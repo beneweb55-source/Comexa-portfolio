@@ -2,18 +2,25 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Archive, UserCheck, UserX } from "lucide-react";
 import { formatDate } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Notice, Pagination } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
 import { PROJECT_STATUS } from "@/lib/labels";
 
 const CLIENT_STATUS = { ACTIVE: "Actif", INACTIVE: "Inactif", ARCHIVED: "Archivé" };
 
 export default function ClientEquipeDetailPage({ params }) {
   const { id } = use(params);
+  const router = useRouter();
   const { user } = useAuth();
+  const canRenameClient = can(user, "client:write:any");
+  const canDeleteClient = can(user, "client:delete:any");
+  const canManageContacts = can(user, "contact:write:any");
   const [contactPage, setContactPage] = useState(1);
   const [projectPage, setProjectPage] = useState(1);
   const client = useListing(`/clients/${encodeURIComponent(id)}`);
@@ -45,7 +52,55 @@ export default function ClientEquipeDetailPage({ params }) {
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--comexa-ink)]">{data.companyName}</h2>
           <p className="mt-1 text-sm text-[var(--comexa-ink-soft)]">{[data.sector, data.city, data.country].filter(Boolean).join(" · ") || "Fiche client"}</p>
         </div>
-        <Badge tone={data.status === "ACTIVE" ? "success" : "neutral"}>{CLIENT_STATUS[data.status] ?? data.status}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge tone={data.status === "ACTIVE" ? "success" : "neutral"}>{CLIENT_STATUS[data.status] ?? data.status}</Badge>
+          <RecordActions
+            resource="/clients"
+            id={data.id}
+            record={data}
+            entityLabel="dossier client"
+            displayName={data.companyName}
+            label={`Actions pour le client ${data.companyName}`}
+            fields={[{ name: "companyName", label: "Raison sociale", required: true, maxLength: 200 }]}
+            canRename={canRenameClient}
+            canDelete={canDeleteClient}
+            deleteWarning={`« ${data.companyName} » sera retiré des listes, ainsi que ses interlocuteurs. Ses devis, factures et paiements restent conservés.`}
+            extraActions={
+              canRenameClient
+                ? [
+                    {
+                      key: "activate",
+                      label: "Marquer comme actif",
+                      icon: UserCheck,
+                      run: ({ request, id: clientId }) => request(`/clients/${clientId}`, { method: "PATCH", body: { status: "ACTIVE" } }),
+                      success: "Dossier client marqué comme actif.",
+                    },
+                    {
+                      key: "deactivate",
+                      label: "Marquer comme inactif",
+                      icon: UserX,
+                      run: ({ request, id: clientId }) => request(`/clients/${clientId}`, { method: "PATCH", body: { status: "INACTIVE" } }),
+                      success: "Dossier client marqué comme inactif.",
+                    },
+                    {
+                      key: "archive",
+                      label: "Archiver le dossier",
+                      icon: Archive,
+                      confirm: {
+                        title: "Archiver ce dossier client ?",
+                        description: "Le dossier restera consultable dans le filtre « Archivés ».",
+                        confirmLabel: "Archiver",
+                      },
+                      run: ({ request, id: clientId }) => request(`/clients/${clientId}`, { method: "PATCH", body: { status: "ARCHIVED" } }),
+                      success: "Dossier client archivé.",
+                    },
+                  ]
+                : []
+            }
+            onChanged={client.reload}
+            onDeleted={() => router.replace("/espace-equipe/clients")}
+          />
+        </div>
       </div>
 
       {client.error ? <Notice>{client.error}</Notice> : null}
@@ -81,7 +136,42 @@ export default function ClientEquipeDetailPage({ params }) {
                 <li key={contact.id} className="rounded-xl border border-[var(--comexa-border-soft)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-[var(--comexa-ink)]">{contact.firstName} {contact.lastName}</h3>
-                    {contact.isPrimary ? <Badge tone="info">Contact principal</Badge> : null}
+                    <div className="flex items-center gap-2">
+                      {contact.isPrimary ? <Badge tone="info">Contact principal</Badge> : null}
+                      <RecordActions
+                        resource="/contacts"
+                        id={contact.id}
+                        record={contact}
+                        entityLabel="contact"
+                        displayName={`${contact.firstName} ${contact.lastName}`.trim()}
+                        label={`Actions pour le contact ${contact.firstName} ${contact.lastName}`}
+                        fields={[
+                          { name: "firstName", label: "Prénom", required: true, maxLength: 120 },
+                          { name: "lastName", label: "Nom", required: true, maxLength: 120 },
+                          { name: "email", label: "E-mail", type: "email", nullable: true, maxLength: 320 },
+                          { name: "jobTitle", label: "Fonction", nullable: true, maxLength: 200 },
+                        ]}
+                        canRename={canManageContacts}
+                        canDelete={canManageContacts}
+                        deleteWarning={`« ${contact.firstName} ${contact.lastName} » sera retiré des interlocuteurs de ce client. Les devis et factures qui le mentionnent restent inchangés.`}
+                        extraActions={
+                          canManageContacts
+                            ? [
+                                {
+                                  key: "primary",
+                                  label: "Définir comme contact principal",
+                                  icon: UserCheck,
+                                  when: !contact.isPrimary,
+                                  run: ({ request, id: contactId }) =>
+                                    request(`/contacts/${contactId}`, { method: "PATCH", body: { isPrimary: true } }),
+                                  success: "Contact principal mis à jour.",
+                                },
+                              ]
+                            : []
+                        }
+                        onChanged={contacts.reload}
+                      />
+                    </div>
                   </div>
                   {contact.jobTitle ? <p className="mt-1 text-sm text-[var(--comexa-ink-soft)]">{contact.jobTitle}</p> : null}
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--comexa-ink-muted)]">

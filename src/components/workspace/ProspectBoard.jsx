@@ -11,6 +11,7 @@ import { can } from "@/lib/access";
 import { PROSPECT_COLUMNS, PROSPECT_SOURCE, PROSPECT_STATUS, PROSPECT_STATUS_TONE, PROSPECT_TRANSITIONS } from "@/lib/commercial";
 import { useAuth } from "@/lib/session";
 import { Badge, Notice, selectClass } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
 
 /**
  * Menu « Déplacer » : le panneau est rendu dans `document.body` (portail), donc il
@@ -219,7 +220,16 @@ export default function ProspectBoard({ items, onChanged, tone = "light" }) {
       <DndContext sensors={sensors} onDragStart={(event) => setActiveId(event.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7" role="list" aria-label="Pipeline commercial">
           {PROSPECT_COLUMNS.map((status) => (
-            <Column key={status} status={status} prospects={byColumn[status]} canWrite={canWrite} pendingId={pending} onMove={move} theme={theme} />
+            <Column
+              key={status}
+              status={status}
+              prospects={byColumn[status]}
+              canWrite={canWrite}
+              pendingId={pending}
+              onMove={move}
+              onChanged={onChanged}
+              theme={theme}
+            />
           ))}
         </div>
         <DragOverlay>{active ? <ProspectCard prospect={active} overlay theme={theme} /> : null}</DragOverlay>
@@ -228,7 +238,7 @@ export default function ProspectBoard({ items, onChanged, tone = "light" }) {
   );
 }
 
-function Column({ status, prospects, canWrite, pendingId, onMove, theme }) {
+function Column({ status, prospects, canWrite, pendingId, onMove, onChanged, theme }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, disabled: !canWrite });
   return (
     <section
@@ -243,13 +253,21 @@ function Column({ status, prospects, canWrite, pendingId, onMove, theme }) {
       </header>
       {prospects.length === 0 ? <p className={`px-1 text-[12.5px] ${theme.muted}`}>Aucune fiche</p> : null}
       {prospects.map((prospect) => (
-        <DraggableCard key={prospect.id} prospect={prospect} canWrite={canWrite} busy={pendingId === prospect.id} onMove={onMove} theme={theme} />
+        <DraggableCard
+          key={prospect.id}
+          prospect={prospect}
+          canWrite={canWrite}
+          busy={pendingId === prospect.id}
+          onMove={onMove}
+          onChanged={onChanged}
+          theme={theme}
+        />
       ))}
     </section>
   );
 }
 
-function DraggableCard({ prospect, canWrite, busy, onMove, theme }) {
+function DraggableCard({ prospect, canWrite, busy, onMove, onChanged, theme }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: prospect.id,
     disabled: !canWrite || busy,
@@ -257,12 +275,14 @@ function DraggableCard({ prospect, canWrite, busy, onMove, theme }) {
   const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
   return (
     <div ref={setNodeRef} style={style} {...listeners} {...attributes} className={`touch-none ${isDragging ? "opacity-40" : ""}`}>
-      <ProspectCard prospect={prospect} canWrite={canWrite} busy={busy} onMove={onMove} theme={theme} />
+      <ProspectCard prospect={prospect} canWrite={canWrite} busy={busy} onMove={onMove} onChanged={onChanged} theme={theme} />
     </div>
   );
 }
 
-function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overlay = false, theme = THEMES.light }) {
+function ProspectCard({ prospect, canWrite = false, busy = false, onMove, onChanged, overlay = false, theme = THEMES.light }) {
+  const { user } = useAuth();
+  const canDelete = can(user, "prospect:delete:any");
   const targets = PROSPECT_TRANSITIONS[prospect.status] ?? [];
   const name = prospect.companyName || `${prospect.contactFirstName} ${prospect.contactLastName}`;
   return (
@@ -290,15 +310,39 @@ function ProspectCard({ prospect, canWrite = false, busy = false, onMove, overla
         <p className={`mt-2 text-[12.5px] ${theme.soft}`}>Budget estimé {formatMoney(prospect.estimatedBudget, DEFAULT_CURRENCY)}</p>
       ) : null}
 
-      {canWrite && !overlay && targets.length > 0 ? (
+      {!overlay ? (
         <div className="mt-3 flex items-center justify-between gap-2">
           <span className={`text-[12px] ${theme.soft}`}>Étape</span>
-          <MoveMenu
-            label={`Déplacer ${prospect.reference} vers une autre étape`}
-            targets={targets}
-            disabled={busy}
-            onPick={(target) => onMove && onMove(prospect, target)}
-          />
+          <span className="flex items-center gap-1">
+            {canWrite && targets.length > 0 ? (
+              <MoveMenu
+                label={`Déplacer ${prospect.reference} vers une autre étape`}
+                targets={targets}
+                disabled={busy}
+                onPick={(target) => onMove && onMove(prospect, target)}
+              />
+            ) : null}
+            <RecordActions
+              resource="/prospects"
+              id={prospect.id}
+              record={prospect}
+              entityLabel="prospect"
+              displayName={name}
+              label={`Actions pour le prospect ${prospect.reference}`}
+              fields={[
+                { name: "companyName", label: "Entreprise", nullable: true, maxLength: 200 },
+                { name: "contactFirstName", label: "Prénom du contact", required: true, maxLength: 200 },
+                { name: "contactLastName", label: "Nom du contact", required: true, maxLength: 200 },
+                { name: "email", label: "E-mail", type: "email", required: true, maxLength: 320 },
+              ]}
+              canRename={canWrite}
+              canDelete={canDelete}
+              deleteWarning={`La fiche prospect ${prospect.reference} sera retirée du pipeline. Un prospect déjà converti en client ne peut pas être supprimé.`}
+              href={`/espace-equipe/prospects/${prospect.id}`}
+              align="end"
+              onChanged={onChanged}
+            />
+          </span>
         </div>
       ) : null}
     </article>
