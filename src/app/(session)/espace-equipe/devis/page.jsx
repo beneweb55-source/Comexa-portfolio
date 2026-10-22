@@ -1,10 +1,8 @@
 "use client";
 
-import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
-
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus } from "lucide-react";
+import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus, Send } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { ALL_CURRENCIES, currencyRank, currencyShortLabel, normalizeCurrency } from "@/lib/currency";
 import { useDisplayCurrency } from "@/lib/use-display-currency";
@@ -13,7 +11,7 @@ import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { Empty, Pagination, SkeletonList, primaryButton } from "@/components/workspace/ui";
-import { Alert, CurrencyScopeToggle, FilterPills, ItemCard, ItemGrid } from "@/components/softui";
+import { Alert, CurrencyScopeToggle, FilterPills, ItemCard, ItemGrid, RecordActions } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
 import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
 
@@ -23,6 +21,8 @@ export default function DevisEquipePage() {
   const { user } = useAuth();
   const { query } = useShellQuery();
   const canCreateQuote = can(user, "quote:write:any");
+  const canSendQuote = can(user, "quote:send:any");
+  const canDeleteQuote = can(user, "quote:delete:any");
   /* Devise d'affichage partagée avec les factures et le tableau de bord. Ici
      elle filtre la liste : « EUR » ne montre que les devis en euros, « les
      deux » les montre tous, chacun avec sa propre devise. */
@@ -109,7 +109,39 @@ export default function DevisEquipePage() {
                   status={QUOTE_STATUS[quote.status] ?? quote.status}
                   statusTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain"}
                   actions={[
-                    <DeleteDocumentButton key="delete" resource="quotes" id={quote.id} label={quote.reference} />,
+                    <RecordActions
+                      key={`actions-${quote.id}`}
+                      resource="/quotes"
+                      id={quote.id}
+                      record={quote}
+                      entityLabel="devis"
+                      displayName={quote.reference}
+                      label={`Actions pour le devis ${quote.reference}`}
+                      fields={[{ name: "subject", label: "Objet du devis", required: true, maxLength: 200 }]}
+                      canRename={canCreateQuote && quote.status === "DRAFT"}
+                      canDelete={canDeleteQuote}
+                      deleteWarning={`Le devis ${quote.reference} sera retiré des listes. Son historique et les documents liés restent conservés.`}
+                      extraActions={
+                        canSendQuote && quote.status === "DRAFT"
+                          ? [
+                              {
+                                key: "send",
+                                label: "Envoyer au client",
+                                icon: Send,
+                                confirm: {
+                                  title: "Envoyer ce devis ?",
+                                  description: `« ${quote.subject} » sera envoyé à ${recipient}. Un devis envoyé ne peut plus être modifié.`,
+                                  confirmLabel: "Envoyer",
+                                },
+                                run: ({ request, id: quoteId }) => request(`/quotes/${quoteId}/send`, { method: "POST" }),
+                                success: "Devis envoyé au client.",
+                              },
+                            ]
+                          : []
+                      }
+                      href={`/espace-equipe/devis/${quote.id}`}
+                      onChanged={quotes.reload}
+                    />,
                     <QuotePdfActions key={`pdf-${quote.id}`} quoteId={quote.id} reference={quote.reference} />,
                     {
                       icon: ArrowUpRight,

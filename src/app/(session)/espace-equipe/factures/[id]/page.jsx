@@ -1,9 +1,9 @@
 "use client";
 
-import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
-
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { CircleSlash, Send } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
@@ -11,16 +11,19 @@ import { INVOICE_STATUS, INVOICE_STATUS_TONE, PAYMENT_METHOD, PAYMENT_RECORD_STA
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Empty, Field, Notice, inputClass, primaryButton, secondaryButton, selectClass } from "@/components/workspace/ui";
 import { InvoicePdfActions } from "@/components/workspace/invoices";
+import { RecordActions } from "@/components/softui";
 
 const TODAY = () => new Date().toISOString().slice(0, 10);
 
 /** Fiche d'une facture : état, encaissements, envoi au client et annulation. */
 export default function FactureDetailPage({ params }) {
   const { id } = use(params);
+  const router = useRouter();
   const { user } = useAuth();
   const canSendInvoice = can(user, "invoice:send:any");
   const canManageInvoice = can(user, "invoice:write:any");
   const canRecordPayment = can(user, "payment:write:any");
+  const canDeleteInvoice = can(user, "invoice:delete:any");
   const invoice = useListing(`/invoices/${id}`);
   const action = useAction(invoice.reload);
   const [payment, setPayment] = useState({ amount: "", method: "BANK_TRANSFER", paidAt: TODAY(), externalReference: "", notes: "" });
@@ -76,7 +79,53 @@ export default function FactureDetailPage({ params }) {
 
       <Card
         title={`${data.reference}${data.subject ? ` · ${data.subject}` : ""}`}
-        action={<Badge tone={INVOICE_STATUS_TONE[data.status] ?? "neutral"}>{INVOICE_STATUS[data.status] ?? data.status}</Badge>}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge tone={INVOICE_STATUS_TONE[data.status] ?? "neutral"}>{INVOICE_STATUS[data.status] ?? data.status}</Badge>
+            <RecordActions
+              resource="/invoices"
+              id={data.id}
+              record={data}
+              entityLabel="facture"
+              displayName={data.reference}
+              label={`Actions pour la facture ${data.reference}`}
+              canDelete={canDeleteInvoice}
+              deleteWarning={`La facture ${data.reference} sera retirée des listes et des totaux. Les encaissements déjà enregistrés restent conservés.`}
+              extraActions={[
+                {
+                  key: "send",
+                  label: "Envoyer au client",
+                  icon: Send,
+                  when: canSendInvoice && data.status === "DRAFT",
+                  confirm: {
+                    title: "Envoyer cette facture ?",
+                    description: `La facture ${data.reference} sera transmise au client et deviendra payable.`,
+                    confirmLabel: "Envoyer",
+                  },
+                  run: ({ request, id: invoiceId }) => request(`/invoices/${invoiceId}/send`, { method: "POST" }),
+                  success: "Facture envoyée au client.",
+                },
+                {
+                  key: "cancel",
+                  label: "Annuler la facture",
+                  icon: CircleSlash,
+                  tone: "danger",
+                  when: canManageInvoice && ["DRAFT", "SENT", "OVERDUE"].includes(data.status),
+                  confirm: {
+                    title: "Annuler cette facture ?",
+                    description: `La facture ${data.reference} passera en « Annulée ». Une facture déjà encaissée ne peut pas être annulée.`,
+                    confirmLabel: "Annuler la facture",
+                    danger: true,
+                  },
+                  run: ({ request, id: invoiceId }) => request(`/invoices/${invoiceId}/cancel`, { method: "POST" }),
+                  success: "Facture annulée.",
+                },
+              ]}
+              onChanged={invoice.reload}
+              onDeleted={() => router.replace("/espace-equipe/factures")}
+            />
+          </div>
+        }
       >
         <dl className="grid gap-4 text-[14.5px] sm:grid-cols-3">
           <div>
@@ -119,7 +168,6 @@ export default function FactureDetailPage({ params }) {
         </div>
       </Card>
 
-      <DeleteDocumentButton resource="invoices" id={id} label={data.reference} returnTo="/espace-equipe/factures" />
       <InvoicePdfActions invoiceId={data.id} reference={data.reference} />
 
       {canAcceptPayment && due > 0 && canRecordPayment ? (
@@ -170,9 +218,22 @@ export default function FactureDetailPage({ params }) {
                   {entry.externalReference ? ` · Réf. ${entry.externalReference}` : ""}
                 </p>
               </div>
-              <Badge tone={entry.status === "SUCCEEDED" ? "success" : entry.status === "FAILED" ? "danger" : "neutral"}>
-                {PAYMENT_RECORD_STATUS[entry.status] ?? entry.status}
-              </Badge>
+              <span className="flex items-center gap-2">
+                <Badge tone={entry.status === "SUCCEEDED" ? "success" : entry.status === "FAILED" ? "danger" : "neutral"}>
+                  {PAYMENT_RECORD_STATUS[entry.status] ?? entry.status}
+                </Badge>
+                <RecordActions
+                  resource="/payments"
+                  id={entry.id}
+                  record={entry}
+                  entityLabel="encaissement"
+                  displayName={`${formatMoney(entry.amount, entry.currency ?? data.currency)} · ${entry.reference}`}
+                  label={`Actions pour l’encaissement ${entry.reference}`}
+                  canDelete={canRecordPayment}
+                  deleteWarning={`L’encaissement ${entry.reference} sera supprimé et le reste à payer de la facture recalculé. Cette correction doit correspondre à une erreur de saisie.`}
+                  onChanged={invoice.reload}
+                />
+              </span>
             </li>
           ))}
         </ul>

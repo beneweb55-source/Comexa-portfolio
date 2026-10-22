@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Flag } from "lucide-react";
 import { formatDateOnly, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
@@ -27,6 +27,7 @@ import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
 import { useShellQuery } from "@/components/softui/Shell";
 import { AssigneeChip, AssigneeSelect } from "@/components/tasks/AssigneeControls";
 import TaskTimerButton from "@/components/timer/TaskTimerButton";
+import { RecordActions } from "@/components/softui";
 
 const COLUMNS = [
   { id: "TODO", label: "À faire" },
@@ -243,10 +244,15 @@ function Board({ projectId, focusId }) {
   const cardProps = {
     canWriteTask,
     canAssign,
+    canDeleteTask: can(user, "task:delete:any"),
     people: people.items,
     onAssign: assign,
     busyId,
     highlight,
+    onChanged: async () => {
+      await tasks.reload();
+      if (canAssign) await people.reload();
+    },
   };
 
   return (
@@ -357,7 +363,7 @@ function DraggableTask({ task, canWrite, ...cardProps }) {
   );
 }
 
-function TaskCard({ task, canWrite = false, overlay = false, canAssign = false, people = null, onAssign, busyId, highlight }) {
+function TaskCard({ task, canWrite = false, overlay = false, canAssign = false, canDeleteTask = false, people = null, onAssign, onChanged, busyId, highlight }) {
   const closed = isClosedStatus(task.status);
   const due = !closed && task.dueDate ? dueBucket(task) : null;
   return (
@@ -366,7 +372,46 @@ function TaskCard({ task, canWrite = false, overlay = false, canAssign = false, 
       className={`sui-kcard rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3.5 shadow-xs transition hover:border-[rgba(30,134,224,0.28)] ${overlay ? "rotate-1 shadow-lg" : ""} ${canWrite ? "cursor-grab touch-none" : "cursor-default"}${highlight === task.id ? " is-focused" : ""}`}
       aria-roledescription={canWrite ? "tâche déplaçable" : undefined}
     >
-      <p className="text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</p>
+        {!overlay ? (
+          <RecordActions
+            resource="/tasks"
+            id={task.id}
+            record={task}
+            entityLabel="tâche"
+            displayName={task.title}
+            label={`Actions pour la tâche ${task.title}`}
+            fields={[{ name: "title", label: "Titre de la tâche", required: true, maxLength: 300 }]}
+            canRename={canWrite}
+            canDelete={canDeleteTask}
+            deleteWarning={`La tâche « ${task.title} » sera retirée du tableau. Son temps saisi et son historique restent conservés.`}
+            extraActions={
+              canWrite
+                ? [
+                    {
+                      key: "priority-high",
+                      label: "Priorité haute",
+                      icon: Flag,
+                      when: task.priority !== "HIGH",
+                      run: ({ request, id }) => request(`/tasks/${id}`, { method: "PATCH", body: { priority: "HIGH" } }),
+                      success: "Priorité passée en haute.",
+                    },
+                    {
+                      key: "priority-normal",
+                      label: "Priorité normale",
+                      icon: Flag,
+                      when: task.priority !== "NORMAL",
+                      run: ({ request, id }) => request(`/tasks/${id}`, { method: "PATCH", body: { priority: "NORMAL" } }),
+                      success: "Priorité passée en normale.",
+                    },
+                  ]
+                : []
+            }
+            onChanged={onChanged}
+          />
+        ) : null}
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
         <Badge tone={PRIORITY_TONE[task.priority] ?? "neutral"}>{PRIORITY_LABEL[task.priority] ?? task.priority}</Badge>
         {task.status === "BLOCKED" ? <Badge tone="danger">Bloquée</Badge> : null}

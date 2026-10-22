@@ -6,8 +6,10 @@ import { formatDate } from "@/lib/api";
 import { CONTACT_STATUS, CONTACT_STATUS_TONE } from "@/lib/commercial";
 import { useAction, useListing } from "@/lib/use-listing";
 import { can } from "@/lib/access";
+import { Eye, MailX, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/session";
 import { Badge, Card, Empty, Notice, Pagination, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
+import { RecordActions } from "@/components/softui";
 
 const FILTERS = ["", "NEW", "IN_REVIEW", "CONVERTED", "SPAM", "ARCHIVED"];
 const EDITABLE_STATUSES = ["NEW", "IN_REVIEW", "SPAM", "ARCHIVED"];
@@ -121,7 +123,54 @@ export default function ContactsEquipePage() {
                       {item.utm?.campaign ? ` · Campagne : ${item.utm.campaign}` : ""}
                     </p>
                   </div>
-                  <Badge tone={CONTACT_STATUS_TONE[item.status] ?? "neutral"}>{CONTACT_STATUS[item.status] ?? item.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={CONTACT_STATUS_TONE[item.status] ?? "neutral"}>{CONTACT_STATUS[item.status] ?? item.status}</Badge>
+                    <RecordActions
+                      resource="/contact-requests"
+                      id={item.id}
+                      record={item}
+                      entityLabel="demande de contact"
+                      displayName={item.reference}
+                      label={`Actions pour la demande ${item.reference}`}
+                      canDelete={canUpdateContacts}
+                      deleteWarning={`La demande ${item.reference} sera retirée de la file de traitement. Sa référence reste réservée.`}
+                      extraActions={
+                        canUpdateContacts && !isConverted
+                          ? [
+                              {
+                                key: "review",
+                                label: "Mettre à l’étude",
+                                icon: Eye,
+                                when: item.status !== "IN_REVIEW",
+                                run: ({ request, id }) =>
+                                  request(`/contact-requests/${id}`, { method: "PATCH", body: { status: "IN_REVIEW" } }),
+                                success: "Demande mise à l’étude.",
+                              },
+                              {
+                                key: "spam",
+                                label: "Marquer comme indésirable",
+                                icon: ShieldAlert,
+                                tone: "danger",
+                                when: item.status !== "SPAM",
+                                run: ({ request, id }) =>
+                                  request(`/contact-requests/${id}`, { method: "PATCH", body: { status: "SPAM" } }),
+                                success: "Demande classée comme indésirable.",
+                              },
+                              {
+                                key: "archive",
+                                label: "Archiver la demande",
+                                icon: MailX,
+                                when: item.status !== "ARCHIVED",
+                                run: ({ request, id }) =>
+                                  request(`/contact-requests/${id}`, { method: "PATCH", body: { status: "ARCHIVED" } }),
+                                success: "Demande archivée.",
+                              },
+                            ]
+                          : []
+                      }
+                      onChanged={contacts.reload}
+                    />
+                  </div>
                 </div>
 
                 <p className="mt-3 whitespace-pre-line rounded-md bg-[var(--comexa-neutral-100)] p-3 text-[14px] leading-relaxed text-[var(--comexa-ink)]">

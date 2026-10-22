@@ -20,7 +20,12 @@ import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { ActivityService } from '../activity/activity.service.js';
 import { CounterService } from '../counters/counter.service.js';
-import type { CreateOrderDto, ListOrdersQueryDto, RecordPaymentDto } from './dto/order.dto.js';
+import type {
+  CreateOrderDto,
+  ListOrdersQueryDto,
+  RecordPaymentDto,
+  UpdateOrderStatusDto,
+} from './dto/order.dto.js';
 import {
   ORDER_INCLUDE,
   presentClientOrder,
@@ -43,6 +48,23 @@ const OPEN_ORDER_STATUSES: OrderStatus[] = [
   OrderStatus.IN_PREPARATION,
   OrderStatus.IN_PROGRESS,
 ];
+
+/**
+ * TRANSITIONS D'ETAT D'UNE COMMANDE.
+ *
+ * `IN_PREPARATION` n'apparait qu'en cible de `validate` : la validation cree le
+ * projet dans la meme transaction, et une simple correction d'etat ne doit pas
+ * pouvoir fabriquer un projet « a moitie ». De meme, le demarrage passe par
+ * `start`, qui synchronise le projet.
+ */
+const ORDER_STATUS_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  [OrderStatus.ORDERED]: [OrderStatus.IN_REVIEW, OrderStatus.CANCELLED],
+  [OrderStatus.IN_REVIEW]: [OrderStatus.ORDERED, OrderStatus.CANCELLED],
+  [OrderStatus.IN_PREPARATION]: [OrderStatus.CANCELLED],
+  [OrderStatus.IN_PROGRESS]: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+  [OrderStatus.COMPLETED]: [],
+  [OrderStatus.CANCELLED]: [],
+};
 
 /** Aperçu d'une offre pour un pack, sans rien creer. */
 export type OrderOfferView =
@@ -466,6 +488,75 @@ export class OrdersService {
       entityType: 'Order',
       entityId: orderId,
       after: { status: OrderStatus.IN_PROGRESS },
+    });
+
+    return this.teamView(orderId);
+  }
+
+  /**
+   * Correction d'etat par l'equipe, transitions controlees.
+   *
+   * Ce n'est PAS la validation : `validate` reste le seul chemin qui cree le
+   * projet. Ici on corrige une etape (remettre en revue, annuler une commande
+   * jamais demarree, clore une commande dont le projet est termine).
+   */
+  async changeStatus(
+    orderId: string,
+    dto: UpdateOrderStatusDto,
+    actor: AuthenticatedUser,
+  ): Promise<TeamOrderView> {
+    const before = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, reference: true, status: true, projectId: true, cancelledAt: true },
+    });
+    if (!before) {
+      throw AppException.notFound('ORDER_NOT_FOUND', "Cette commande n'existe pas.");
+    }
+
+    if (before.status === dto.status) {
+      return this.teamView(orderId);
+    }
+
+    if (!ORDER_STATUS_TRANSITIONS[before.status].includes(dto.status)) {
+      throw AppException.conflict(
+        'ORDER_INVALID_TRANSITION',
+        `Cette commande ne peut pas passer de « ${before.status} » a « ${dto.status} ».`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: dto.status,
+          cancelledAt: dto.status === OrderStatus.CANCELLED ? new Date() : before.cancelledAt,
+        },
+      });
+
+      // Une commande close par la correction d'etat ne doit pas laisser un
+      // projet ouvert a cote : on l'aligne, sans jamais toucher aux projets
+      // termines ou archives (leur trace reste).
+      if (before.projectId) {
+        if (dto.status === OrderStatus.COMPLETED) {
+          await tx.project.updateMany({
+            where: {
+              id: before.projectId,
+              deletedAt: null,
+              status: { notIn: [ProjectStatus.ARCHIVED] },
+            },
+            data: { status: ProjectStatus.COMPLETED, completedAt: new Date() },
+          });
+        }
+      }
+    });
+
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'ORDER_STATUS_CHANGED',
+      entityType: 'Order',
+      entityId: orderId,
+      before: { status: before.status },
+      after: { status: dto.status },
     });
 
     return this.teamView(orderId);

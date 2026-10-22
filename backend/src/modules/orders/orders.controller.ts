@@ -18,7 +18,12 @@ import {
   ScopedByService,
 } from '../../common/decorators/auth.decorators.js';
 import { RequestContext, type RequestMetadata } from '../invoices/request-meta.js';
-import { CreateOrderDto, ListOrdersQueryDto, RecordPaymentDto } from './dto/order.dto.js';
+import {
+  CreateOrderDto,
+  ListOrdersQueryDto,
+  RecordPaymentDto,
+  UpdateOrderStatusDto,
+} from './dto/order.dto.js';
 import { OfferQueryDto } from './dto/project-request.dto.js';
 import { OrdersService } from './orders.service.js';
 
@@ -85,6 +90,24 @@ export class OrdersController {
   @ApiOperation({ summary: 'Demarrer le projet issu de la commande.' })
   start(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.orders.start(id, user);
+  }
+
+  /**
+   * Correction d'etat (mise en revue, annulation, cloture).
+   *
+   * Les transitions sont verifiees par le service. En particulier, cette route
+   * ne peut PAS valider une commande : la validation cree un projet et passe
+   * par `POST /orders/:id/validate`, seule a savoir le faire.
+   */
+  @Patch(':id/status')
+  @RequirePermissions('order:validate:any')
+  @ApiOperation({ summary: "Changer l'etat d'une commande (transitions controlees)." })
+  changeStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.orders.changeStatus(id, dto, user);
   }
 
   @Patch(':id/payment')

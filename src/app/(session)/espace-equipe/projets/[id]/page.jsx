@@ -1,9 +1,9 @@
 "use client";
 
-import DeleteDocumentButton from "@/components/workspace/DeleteDocumentButton";
-
 import { use, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, CirclePlay, CircleSlash } from "lucide-react";
 import { useAuth } from "@/lib/session";
 import { can } from "@/lib/access";
 import { formatDate, messageOf } from "@/lib/api";
@@ -24,11 +24,14 @@ import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
 import { UserAvatar } from "@/components/workspace/UserAvatar";
 import { AssigneeChip, AssigneeSelect } from "@/components/tasks/AssigneeControls";
 import TaskTimerButton from "@/components/timer/TaskTimerButton";
+import { RecordActions } from "@/components/softui";
+import { projectStatusActions } from "@/lib/entity-actions";
 
 const PROJECT_STATUSES = ["DRAFT", "PLANNED", "IN_PROGRESS", "ON_HOLD", "IN_REVIEW", "COMPLETED", "CANCELLED", "ARCHIVED"];
 
 export default function ProjetEquipePage({ params }) {
   const { id } = use(params);
+  const router = useRouter();
   const { user, download } = useAuth();
   const canReadTasks = ["task:read:any", "task:read:assigned", "task:read:own"].some((permission) => can(user, permission));
   const canWriteTasks = ["task:write:any", "task:write:own"].some((permission) => can(user, permission));
@@ -40,6 +43,11 @@ export default function ProjetEquipePage({ params }) {
   const canWriteMilestones = can(user, "milestone:write:any");
   const canReadDocuments = ["document:read:any", "document:read:own", "document:read:client"].some((permission) => can(user, permission));
   const canSetProjectStatus = can(user, "project:manage:status");
+  const canRenameProject = can(user, "project:write:any");
+  const canDeleteProject = can(user, "project:delete:any");
+  const canDeleteTask = can(user, "task:delete:any");
+  const canRenameDocument = can(user, "document:write:any") || can(user, "document:write:own");
+  const canDeleteDocument = can(user, "document:delete:any");
   const [milestonePage, setMilestonePage] = useState(1);
   const [taskPage, setTaskPage] = useState(1);
   const [documentPage, setDocumentPage] = useState(1);
@@ -169,7 +177,26 @@ export default function ProjetEquipePage({ params }) {
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
 
       {current ? (
-        <Card title={current.name}>
+        <Card
+          title={current.name}
+          action={
+            <RecordActions
+              resource="/projects"
+              id={current.id}
+              record={current}
+              entityLabel="projet"
+              displayName={current.name}
+              label={`Actions pour le projet ${current.name}`}
+              fields={[{ name: "name", label: "Nom du projet", required: true, maxLength: 200 }]}
+              canRename={canRenameProject}
+              canDelete={canDeleteProject}
+              deleteWarning={`« ${current.name} » sera retiré des listes. Ses tâches, jalons et documents restent conservés pour la traçabilité.`}
+              extraActions={projectStatusActions(canSetProjectStatus)}
+              onChanged={project.reload}
+              onDeleted={() => router.replace("/espace-equipe/projets")}
+            />
+          }
+        >
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3 text-[14px] text-[var(--comexa-ink-soft)]">
               <span>{current.reference}</span>
@@ -204,10 +231,80 @@ export default function ProjetEquipePage({ params }) {
         <ol className="flex flex-col gap-2">
           {(milestones.items ?? []).map((milestone) => (
             <li key={milestone.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--comexa-border-soft)] px-4 py-3">
-              <span className="text-[15px] text-[var(--comexa-ink)]">{milestone.title}</span>
-              <span className="flex items-center gap-3 text-[13px] text-[var(--comexa-ink-soft)]">
+              <span className="min-w-0 flex-1 basis-[240px] text-[15px] text-[var(--comexa-ink)]">{milestone.title}</span>
+              <span className="flex flex-wrap items-center gap-3 text-[13px] text-[var(--comexa-ink-soft)]">
                 échéance {formatDate(milestone.dueDate)}
                 <Badge>{MILESTONE_STATUS[milestone.status] ?? milestone.status}</Badge>
+                <RecordActions
+                  resource="/milestones"
+                  id={milestone.id}
+                  record={milestone}
+                  entityLabel="jalon"
+                  displayName={milestone.title}
+                  label={`Actions pour le jalon ${milestone.title}`}
+                  fields={[{ name: "title", label: "Titre du jalon", required: true, maxLength: 300 }]}
+                  canRename={canWriteMilestones}
+                  /* Un jalon ATTEINT est un fait daté : le serveur refuse sa
+                     suppression. On ne propose donc pas une action qui échoue. */
+                  canDelete={canWriteMilestones && milestone.status !== "REACHED"}
+                  deleteWarning={`Le jalon « ${milestone.title} » sera retiré de la frise du projet. Les tâches déjà rattachées restent dans le projet.`}
+                  extraActions={
+                    canWriteMilestones
+                      ? [
+                          {
+                            key: "reached",
+                            label: "Marquer comme atteint",
+                            icon: CheckCircle2,
+                            when: milestone.status !== "REACHED",
+                            run: ({ request, id: milestoneId }) =>
+                              request(`/milestones/${milestoneId}`, { method: "PATCH", body: { status: "REACHED" } }),
+                            success: "Jalon marqué comme atteint.",
+                          },
+                          {
+                            key: "missed",
+                            label: "Marquer comme manqué",
+                            icon: CircleSlash,
+                            when: milestone.status !== "MISSED",
+                            confirm: {
+                              title: "Marquer ce jalon comme manqué ?",
+                              description: "L’échéance est constatée comme non tenue. Le jalon reste dans la frise.",
+                              confirmLabel: "Marquer manqué",
+                              danger: true,
+                            },
+                            run: ({ request, id: milestoneId }) =>
+                              request(`/milestones/${milestoneId}`, { method: "PATCH", body: { status: "MISSED" } }),
+                            success: "Jalon marqué comme manqué.",
+                          },
+                          {
+                            key: "cancel",
+                            label: "Annuler le jalon",
+                            icon: CircleSlash,
+                            tone: "danger",
+                            when: milestone.status !== "CANCELLED",
+                            confirm: {
+                              title: "Annuler ce jalon ?",
+                              description: "Le jalon restera visible dans la frise, marqué « Annulé ». C’est la sortie prévue pour un jalon atteint.",
+                              confirmLabel: "Annuler le jalon",
+                              danger: true,
+                            },
+                            run: ({ request, id: milestoneId }) =>
+                              request(`/milestones/${milestoneId}`, { method: "PATCH", body: { status: "CANCELLED" } }),
+                            success: "Jalon annulé.",
+                          },
+                          {
+                            key: "in-progress",
+                            label: "Remettre en cours",
+                            icon: CirclePlay,
+                            when: milestone.status === "REACHED" || milestone.status === "MISSED",
+                            run: ({ request, id: milestoneId }) =>
+                              request(`/milestones/${milestoneId}`, { method: "PATCH", body: { status: "IN_PROGRESS" } }),
+                            success: "Jalon remis en cours.",
+                          },
+                        ]
+                      : []
+                  }
+                  onChanged={reloadAll}
+                />
               </span>
             </li>
           ))}
@@ -304,6 +401,29 @@ export default function ProjetEquipePage({ params }) {
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <RecordActions
+                  resource="/tasks"
+                  id={task.id}
+                  record={task}
+                  entityLabel="tâche"
+                  displayName={task.title}
+                  label={`Actions pour la tâche ${task.title}`}
+                  fields={[{ name: "title", label: "Titre de la tâche", required: true, maxLength: 300 }]}
+                  canRename={canWriteTask(task)}
+                  canDelete={canDeleteTask}
+                  deleteWarning={`La tâche « ${task.title} » sera retirée du projet. Son temps saisi et son historique restent conservés.`}
+                  extraActions={[
+                    {
+                      key: "high",
+                      label: "Priorité haute",
+                      icon: CirclePlay,
+                      when: canWriteTask(task) && task.priority !== "HIGH",
+                      run: ({ request, id: taskId }) => request(`/tasks/${taskId}`, { method: "PATCH", body: { priority: "HIGH" } }),
+                      success: "Priorité de la tâche passée en haute.",
+                    },
+                  ]}
+                  onChanged={reloadAll}
+                />
                 {canWriteTask(task) && !isClosedStatus(task.status) ? <TaskTimerButton task={task} size="sm" /> : null}
                 {canWriteTask(task) ? (
                   <label className="flex items-center gap-2 text-[13px] text-[var(--comexa-ink-soft)]">
@@ -384,10 +504,24 @@ export default function ProjetEquipePage({ params }) {
                   {document.category} · {document.visibility} · version {document.version}
                 </p>
               </div>
-              <DeleteDocumentButton resource="documents" id={document.id} label={document.name} />
-              <button type="button" onClick={() => handleDownload(document)} className={secondaryButton}>
-                Télécharger
-              </button>
+              <span className="flex items-center gap-2">
+                <RecordActions
+                  resource="/documents"
+                  id={document.id}
+                  record={document}
+                  entityLabel="document"
+                  displayName={document.name}
+                  label={`Actions pour le document ${document.name}`}
+                  fields={[{ name: "name", label: "Nom du document", required: true, maxLength: 200 }]}
+                  canRename={canRenameDocument}
+                  canDelete={canDeleteDocument}
+                  deleteWarning={`« ${document.name} » sera retiré du projet et son fichier effacé du stockage. La ligne reste conservée pour la traçabilité.`}
+                  onChanged={documents.reload}
+                />
+                <button type="button" onClick={() => handleDownload(document)} className={secondaryButton}>
+                  Télécharger
+                </button>
+              </span>
             </li>
           ))}
         </ul>
