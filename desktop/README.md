@@ -1,22 +1,21 @@
 # Application desktop Comexa
 
-Fenêtre native (Electron) qui ouvre l'application Comexa hébergée sur le **hub
-des espaces de travail** : une page centrale présente les trois espaces —
-**Comexa Space**, **Espace personnel**, **Espace équipe** (et l'Espace client
-pour les comptes clients) — et chaque carte ouvre l'espace correspondant, avec
-ses routes, ses rôles et ses permissions existants.
+Fenêtre native (Electron) qui embarque l'interface Comexa et l'ouvre sur le
+**hub des espaces de travail** : une page centrale présente les espaces puis
+chaque carte ouvre l'espace correspondant, avec ses routes, rôles et
+permissions existants.
 
-L'application n'embarque **aucune copie du site** : elle charge le déploiement
-Vercel (`https://comexa-portfolio.vercel.app` par défaut). C'est ce qui
-préserve, à l'identique du navigateur :
+Dans l'installateur, un serveur Next.js autonome local sert l'interface. Le
+backend NestJS reste distant. Après un premier login en ligne confirmé, le `.exe`
+peut authentifier localement le même utilisateur pendant au plus sept jours et
+relire les réponses GET déjà consultées, stockées dans une base SQLite chiffrée.
+Les sessions desktop sont distinctes de celles du navigateur.
 
-- la session : cookie HttpOnly posé par `/api/auth`, rafraîchissement compris ;
-- le CORS et le proxy `/api/*` du front vers le backend NestJS ;
-- le temps réel : socket pointé par `NEXT_PUBLIC_SOCKET_URL`.
-
-Un compte non connecté tombe sur `/connexion` (le hub redirige lui-même), puis
-revient au hub une fois connecté. Aucun espace fictif, aucune API ajoutée : la
-fenêtre n'est qu'un cadre de confiance autour du site existant.
+**Limite actuelle :** les écritures ne sont pas mises en file et ne fonctionnent
+pas hors ligne ; documents/PDF, téléchargements, messagerie temps réel et
+intégrations restent en ligne. Les lectures hors ligne ne couvrent que les
+réponses déjà mises en cache. Voir [`OFFLINE-MODE.md`](./OFFLINE-MODE.md) et
+l'inventaire [`OFFLINE-INVENTORY.md`](./OFFLINE-INVENTORY.md).
 
 ## Périmètre de navigation
 
@@ -35,8 +34,9 @@ domaine** part dans le navigateur du système. `window.open` et les liens
 `will-navigate` (chargements complets) **et** `did-navigate-in-page`
 (navigation client-side Next.js, pushState), plus `setWindowOpenHandler`.
 
-Sans réseau, une page locale `offline.html` explique la situation et propose de
-réessayer.
+`offline.html` reste une page de secours en cas d'échec du frontend, pas le mode
+hors ligne. L'inventaire par écran et les limites actuelles sont décrits dans
+[`OFFLINE-INVENTORY.md`](./OFFLINE-INVENTORY.md).
 
 ## L'écran d'entrée porte l'esthétique du dashboard
 
@@ -61,9 +61,12 @@ npm start          # ouvre la fenêtre sur le hub
 Prérequis : Node.js 20 ou plus récent. Le premier `npm install` télécharge le
 binaire Electron (~100 Mo) ; il reste hors de Git (`node_modules/` ignoré).
 
-## Configuration de l'adresse
+## Configuration de l'adresse de repli
 
-L'origine est résolue dans cet ordre, du plus ponctuel au plus durable :
+Dans l'installateur, le frontend est servi localement ; `origin` ne sert que si
+le frontend embarqué est absent et que l'application doit se rabattre sur le site
+hébergé. Cette adresse est résolue dans cet ordre, du plus ponctuel au plus
+durable :
 
 1. `--origin=https://…` sur la ligne de commande ;
 2. variable d'environnement `COMEXA_DESKTOP_ORIGIN` ;
@@ -92,12 +95,21 @@ fatale.
 
 ## Compiler un installable
 
+Le script `build:web` compile Next.js en mode standalone, fixe l'adresse du
+backend et copie les ressources statiques dans le bundle. `dist:*` l'exécute
+automatiquement avant electron-builder. Depuis la racine du dépôt :
+
 ```bash
-npm run dist         # cible du système hôte
+npm ci
+cd desktop
+npm ci
 npm run dist:win     # installeur NSIS (.exe)
-npm run dist:mac     # image disque macOS
-npm run dist:linux   # AppImage
+# ou : npm run dist / dist:mac / dist:linux selon le système cible
 ```
+
+Le relais API par défaut est `https://comexa-portfolio.onrender.com`. Pour une
+autre instance, définir `BACKEND_URL` et `NEXT_PUBLIC_SOCKET_URL` dans
+l'environnement avant `npm run dist:win`.
 
 Le résultat sort dans `desktop/dist/` (ignoré par Git). Les icônes de
 `build/` reprennent le dessin de `src/app/icon.svg` :
@@ -129,8 +141,14 @@ L'installeur est déposé en artefact `comexa-desktop-windows` (conservation
 
 | Fichier | Rôle |
 | --- | --- |
-| `main.js` | processus principal : fenêtre, verrou de navigation, menu, hors-ligne |
-| `config.js` | résolution de l'origine et liste des routes ouvertes |
+| `main.js` | processus principal : serveur Next, fenêtre, IPC allowlisté, chiffrement et secours |
+| `build-frontend.cjs` | build standalone Next + copie des ressources pour electron-builder |
+| `preload.js` | API IPC minimale exposée au renderer (`contextIsolation`) |
+| `offline-store.js` | SQLite WASM chiffrée via `safeStorage`, migrations, profils, cache de lectures |
+| `config.js` | résolution de l'origine de repli et liste des routes ouvertes |
+| `../.next/standalone/` | frontend Next autonome embarqué dans l'installateur |
+| `OFFLINE-MODE.md` | décisions retenues, sécurité, état réel et phases du mode hors ligne |
+| `OFFLINE-INVENTORY.md` | inventaire des espaces, écrans, domaines et couverture actuelle |
 | `offline.html` | page locale affichée quand le service est injoignable |
 | `desktop-config.example.json` | modèle de configuration par poste |
 | `build/icon.ico` | icône Windows : exécutable, raccourci, installeur (16 → 256 px) |

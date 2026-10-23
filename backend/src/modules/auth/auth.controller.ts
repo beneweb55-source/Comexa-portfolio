@@ -34,6 +34,7 @@ import {
   ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
+  OfflineAuthorizationDto,
   RefreshDto,
   ResetPasswordDto,
 } from './dto/auth.dto.js';
@@ -301,6 +302,26 @@ export class AuthController {
   @ApiOperation({ summary: "Profil et permissions de l'utilisateur connecte." })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<AuthProfile> {
     return this.auth.me(user.id);
+  }
+
+  /**
+   * Vérifie le mot de passe courant pour préparer un accès local hors ligne.
+   * Aucun jeton/cookie n'est émis et le mot de passe n'est jamais conservé.
+   */
+  @IgnoreSpace()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('offline-authorization')
+  @ApiOperation({
+    summary:
+      "Vérifier le mot de passe courant avant d'autoriser l'accès hors ligne sur cet appareil.",
+  })
+  async authorizeOffline(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: OfflineAuthorizationDto,
+    @Session() meta: SessionMeta,
+  ): Promise<AuthProfile> {
+    return this.auth.authorizeOffline(user, dto.password, meta);
   }
 
   @Get('onboarding')

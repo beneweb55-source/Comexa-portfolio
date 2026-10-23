@@ -1,11 +1,11 @@
 /**
  * Configuration de l'application desktop Comexa.
  *
- * UNE SEULE ADRESSE, PLUSIEURS SOURCES. L'application charge le site hébergé :
- * c'est ce qui garde l'authentification (cookie HttpOnly sur `/api/auth`), le
- * CORS et le socket temps réel exactement tels que le navigateur les connaît —
- * l'origine de la fenêtre reste celle du site. L'adresse est donc configurable,
- * dans cet ordre de priorité, du plus ponctuel au plus durable :
+ * ORIGINE DE REPLI, PLUSIEURS SOURCES. L'installateur sert le frontend
+ * standalone depuis localhost ; cette adresse configure uniquement le repli
+ * hébergé si le build local est absent. Le backend de production et le socket
+ * sont fixés lors du build desktop (BACKEND_URL et NEXT_PUBLIC_SOCKET_URL).
+ * L'origine de repli est configurable, dans cet ordre de priorité :
  *
  *   1. `--origin=https://…` sur la ligne de commande (débogage, CI) ;
  *   2. `COMEXA_DESKTOP_ORIGIN` dans l'environnement ;

@@ -58,6 +58,46 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+function desktopOfflineBridge() {
+  return typeof window !== "undefined" && window.comexaDesktop?.isDesktop === true
+    ? window.comexaDesktop.offline
+    : null;
+}
+
+function notifyOfflineMode(cachedAt = null) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("comexa:offline-cache-used", { detail: { cachedAt } }));
+  }
+}
+
+function canCacheOffline(method, path, userId) {
+  return method === "GET" && typeof userId === "string" && userId.length > 0 &&
+    !path.startsWith("/auth/") && !path.startsWith("/public/") && path !== "/health";
+}
+
+async function readOfflineCache({ userId, space, path }) {
+  const bridge = desktopOfflineBridge();
+  if (!bridge || !userId) return null;
+  try {
+    const hit = await bridge.getCachedResponse({ userId, space: space ?? "", requestKey: path });
+    if (!hit?.response?.success) return null;
+    const envelope = hit.response;
+    notifyOfflineMode(hit.cachedAt);
+    return {
+      data: envelope.data,
+      meta: envelope.meta,
+      message: envelope.message,
+      redirectUrl: envelope.redirectUrl,
+      action: envelope.action,
+      offline: true,
+      cachedAt: hit.cachedAt,
+    };
+  } catch (error) {
+    console.warn("[comexa-offline] Lecture du cache local impossible.", error);
+    return null;
+  }
+}
+
 /**
  * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
@@ -65,7 +105,16 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  */
 export async function apiFetch(
   path,
-  { method = "GET", body, token, signal, space, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+  {
+    method = "GET",
+    body,
+    token,
+    signal,
+    space,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    offlineMode = false,
+    offlineUserId = null,
+  } = {},
 ) {
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -73,14 +122,36 @@ export async function apiFetch(
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
 
+  const desktopBridge = desktopOfflineBridge();
+  const browserKnowsOffline = desktopBridge && typeof navigator !== "undefined" && navigator.onLine === false;
+
+  // Détection navigateur rapide : ne pas attendre le timeout HTTP quand le
+  // système sait déjà qu'il n'y a aucun réseau.
+  if (!offlineMode && browserKnowsOffline && offlineUserId) {
+    notifyOfflineMode();
+    if (method !== "GET") {
+      throw new ApiError(0, "OFFLINE_WRITE_UNSUPPORTED", "Cette action nécessite encore une connexion. Aucune modification n'a été enregistrée.");
+    }
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
+    throw new ApiError(0, "OFFLINE_CACHE_MISS", "Ces données n'ont pas encore été enregistrées sur cet appareil.");
+  }
+
+  // En mode déconnecté, seules les lectures dont une copie chiffrée existe
+  // localement sont rendues. Aucune mutation n'est simulée comme réussie : la
+  // file d'opérations métier doit être intégrée explicitement avant d'accepter
+  // une écriture hors ligne.
+  if (offlineMode) {
+    if (method !== "GET") {
+      throw new ApiError(0, "OFFLINE_WRITE_UNSUPPORTED", "Cette action nécessite encore une connexion. Aucune modification n'a été enregistrée.");
+    }
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
+    throw new ApiError(0, "OFFLINE_CACHE_MISS", "Ces données n'ont pas encore été enregistrées sur cet appareil.");
+  }
+
   // SESSION ABSENTE — on ne frappe pas le serveur pour récolter un 401.
-  //
-  // Après un échec de connexion (passerelle 502 sur `/auth/login`), les écrans
-  // déjà montés continuaient d'appeler `/api/notifications`, `/api/me/tasks`…
-  // Chaque sondage produisait un 401 dans la console, relançait un
-  // rafraîchissement, et l'utilisateur voyait une tempête d'erreurs au lieu
-  // d'un message clair. Sans jeton, hors routes publiques, la réponse est
-  // connue d'avance : on la rend localement.
+  // Hors routes publiques, la réponse est connue d'avance : on la rend localement.
   if (!bearer && !isPublicPath(path)) {
     throw new ApiError(
       401,
@@ -123,14 +194,15 @@ export async function apiFetch(
         });
       } catch (error) {
         if (error?.name === "AbortError" && !timedOut) throw error;
-        if (timedOut) {
-          throw new ApiError(
-            0,
-            "TIMEOUT",
-            "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
-          );
+        const networkError = timedOut
+          ? new ApiError(0, "TIMEOUT", "Le serveur met trop de temps à répondre. Réessayez dans un instant.")
+          : new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+        if (canCacheOffline(method, path, offlineUserId) && !signal?.aborted) {
+          notifyOfflineMode();
+          const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+          if (cached) return cached;
         }
-        throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+        throw networkError;
       }
       if (attempt === 0 && retryableStatus(response.status, path, method)) {
         await delay(1200);
@@ -150,6 +222,12 @@ export async function apiFetch(
     } catch {
       json = null;
     }
+  }
+
+  if (!response.ok && GATEWAY_STATUSES.has(response.status) && canCacheOffline(method, path, offlineUserId)) {
+    notifyOfflineMode();
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
   }
 
   if (!response.ok || !json?.success) {
@@ -179,13 +257,24 @@ export async function apiFetch(
   // Ajouter des champs ne casse aucun appelant : les 37 appels existants
   // déstructurent `{ data }` (parfois `{ data, meta }`), ce qui continue de
   // fonctionner à l'identique.
-  return {
+  const result = {
     data: json.data,
     meta: json.meta,
     message: json.message,
     redirectUrl: json.redirectUrl,
     action: json.action,
   };
+
+  if (canCacheOffline(method, path, offlineUserId)) {
+    const bridge = desktopOfflineBridge();
+    try {
+      await bridge?.cacheResponse({ userId: offlineUserId, space: space ?? "", requestKey: path, response: json });
+    } catch (error) {
+      // Un cache indisponible ne transforme pas une réponse serveur réussie en échec.
+      console.warn("[comexa-offline] Impossible de persister la réponse locale.", error);
+    }
+  }
+  return result;
 }
 
 /**

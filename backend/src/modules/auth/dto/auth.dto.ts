@@ -83,6 +83,14 @@ export class ResetPasswordDto {
   confirmPassword!: string;
 }
 
+/** Vérification serveur des identifiants pour autoriser l'accès chiffré hors ligne. */
+export class OfflineAuthorizationDto {
+  @ApiProperty({ description: 'Mot de passe courant ; jamais conservé par le serveur.' })
+  @IsString()
+  @MaxLength(PASSWORD_MAX_LENGTH)
+  password!: string;
+}
+
 export class ChangePasswordDto {
   @ApiProperty()
   @IsString({ message: 'Le mot de passe actuel est obligatoire.' })
