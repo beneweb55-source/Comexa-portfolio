@@ -15,15 +15,20 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { ApiError, apiFetch, downloadFile, fetchProtectedBlob } from "@/lib/api";
 
 import { notifyWorkspaceUpdate } from "@/lib/workspace-updates.mjs";
+import { synchronizeOfflineWork } from "@/lib/offline-sync";
 
 const AuthContext = createContext(null);
+const GATEWAY_STATUSES_FOR_OFFLINE = new Set([502, 503, 504]);
 
 export function AuthProvider({ children }) {
   // Le jeton vit dans l'etat (il doit etre PUBLIQUE : la messagerie temps
   // reel le presente dans la poignee de main du WebSocket) ET dans une ref
   // (les appels HTTP le lisent sans provoquer de rendu).
-  const [state, setState] = useState({ status: "loading", user: null, token: null });
+  const [state, setState] = useState({ status: "loading", user: null, token: null, offlineReady: false, offlineSetupWarning: null, syncStatus: null, conflicts: [] });
   const tokenRef = useRef(null);
+  const offlineRef = useRef(false);
+  const offlineUserIdRef = useRef(null);
+  const userRef = useRef(null);
   const refreshing = useRef(null);
   // Un rafraîchissement qui échoue (passerelle 502, backend endormi, cookie
   // absent) ne doit pas être retenté par CHAQUE requête : sans ce délai de
@@ -31,15 +36,34 @@ export function AuthProvider({ children }) {
   // rafale de POST /auth/refresh dans la console.
   const refreshBlockedUntil = useRef(0);
 
-  const applySession = useCallback((data) => {
-    tokenRef.current = data.accessToken;
-    setState({ status: "authenticated", user: data.user, token: data.accessToken });
+  const applySession = useCallback((data, { offline = false, offlineReady = offline } = {}) => {
+    tokenRef.current = data.accessToken ?? null;
+    offlineRef.current = offline;
+    offlineUserIdRef.current = data.user?.id ?? null;
+    userRef.current = data.user ?? null;
+    setState({
+      status: "authenticated",
+      user: data.user,
+      token: data.accessToken ?? null,
+      offline,
+      offlineReady,
+      offlineSetupWarning: null,
+      lastCachedAt: null,
+      syncStatus: null,
+      syncError: null,
+      syncing: false,
+      conflicts: [],
+      pendingOperations: [],
+    });
     return data.user;
   }, []);
 
   const clearSession = useCallback(() => {
     tokenRef.current = null;
-    setState({ status: "anonymous", user: null, token: null });
+    offlineRef.current = false;
+    offlineUserIdRef.current = null;
+    userRef.current = null;
+    setState({ status: "anonymous", user: null, token: null, offline: false, offlineReady: false, offlineSetupWarning: null, lastCachedAt: null, syncStatus: null, syncError: null, syncing: false, conflicts: [], pendingOperations: [] });
   }, []);
 
   const refresh = useCallback(() => {
@@ -48,14 +72,27 @@ export function AuthProvider({ children }) {
     }
     if (!refreshing.current) {
       refreshing.current = apiFetch("/auth/refresh", { method: "POST" })
-        .then(({ data }) => {
+        .then(async ({ data }) => {
           refreshBlockedUntil.current = 0;
-          return applySession(data);
+          let offlineReady = false;
+          try {
+            offlineReady = Boolean(
+              await window.comexaDesktop?.offline?.activateOnline?.({ user: data.user, accessToken: data.accessToken }),
+            );
+          } catch {
+            // Une session en ligne reste valide même si le stockage local est indisponible.
+          }
+          return applySession(data, { offlineReady });
         })
-        .catch(() => {
-          // Nouvelle tentative possible après 10 s, pas à chaque requête.
+        .catch((error) => {
+          // Nouvelle tentative possible après 10 s, pas à chaque requête. Un
+          // refus d'authentification serveur (401/403) invalide aussi la session
+          // hors ligne ; seuls les problèmes de transport/serveur la préservent.
           refreshBlockedUntil.current = Date.now() + 10_000;
+          const transientFailure = error?.status === 0 || error?.status >= 500;
+          if (offlineRef.current && transientFailure) return userRef.current;
           clearSession();
+          window.comexaDesktop?.offline?.logout?.().catch?.(() => {});
           return null;
         })
         .finally(() => {
@@ -65,23 +102,150 @@ export function AuthProvider({ children }) {
     return refreshing.current;
   }, [applySession, clearSession]);
 
-  useEffect(() => {
-    refresh();
+  const syncingRef = useRef(false);
+
+  const refreshOfflineStatus = useCallback(async () => {
+    const bridge = window.comexaDesktop?.offline;
+    const userId = offlineUserIdRef.current;
+    if (!bridge || !userId) return null;
+    try {
+      const [syncStatus, conflicts, pendingOperations] = await Promise.all([
+        bridge.status({ userId }),
+        bridge.listConflicts({ userId }),
+        bridge.listPending({ userId, includeFailed: true }),
+      ]);
+      setState((current) => current.user?.id === userId ? { ...current, syncStatus, conflicts, pendingOperations } : current);
+      return { syncStatus, conflicts, pendingOperations };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const syncNow = useCallback(async ({ refreshViews = true } = {}) => {
+    const bridge = window.comexaDesktop?.offline;
+    const userId = offlineUserIdRef.current;
+    if (!bridge || !userId) throw new Error("Le moteur de synchronisation desktop n'est pas disponible.");
+    if (typeof navigator !== "undefined" && navigator.onLine === false) throw new Error("Aucune connexion Internet détectée.");
+    if (syncingRef.current) return null;
+    syncingRef.current = true;
+    setState((current) => ({ ...current, syncing: true, syncError: null }));
+    try {
+      if (!tokenRef.current) await refresh();
+      const token = tokenRef.current;
+      if (!token) throw new Error("Reconnectez-vous au serveur pour synchroniser.");
+      const result = await synchronizeOfflineWork({ userId, token, bridge, refreshViews });
+      offlineRef.current = false;
+      const [conflicts, pendingOperations] = await Promise.all([
+        bridge.listConflicts({ userId }),
+        bridge.listPending({ userId, includeFailed: true }),
+      ]);
+      setState((current) => ({ ...current, offline: false, syncing: false, syncError: result.failed ? "Certaines opérations attendent une nouvelle tentative ou une correction." : null, syncStatus: result.status, conflicts, pendingOperations }));
+      notifyWorkspaceUpdate("/offline/sync", { method: "POST" });
+      return result;
+    } catch (error) {
+      setState((current) => ({ ...current, syncing: false, syncError: error?.message || "La synchronisation a échoué." }));
+      throw error;
+    } finally {
+      syncingRef.current = false;
+    }
   }, [refresh]);
+
+  useEffect(() => {
+    refresh().then(() => {
+      if (window.comexaDesktop?.offline && navigator.onLine) {
+        refreshOfflineStatus();
+      }
+    });
+  }, [refresh, refreshOfflineStatus]);
+
+  useEffect(() => {
+    const updateConnection = async () => {
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      if (offlineRef.current) {
+        const user = await refresh();
+        if (user && tokenRef.current) syncNow().catch(() => {});
+        return;
+      }
+      if (offlineUserIdRef.current && window.comexaDesktop?.offline) {
+        const status = await window.comexaDesktop.offline.status({ userId: offlineUserIdRef.current }).catch(() => null);
+        if ((status?.pending || status?.failed) && !syncingRef.current) syncNow({ refreshViews: false }).catch(() => {});
+      }
+    };
+    const showOffline = (event) => {
+      if (!offlineUserIdRef.current) return;
+      offlineRef.current = true;
+      const cachedAt = Number(event?.detail?.cachedAt) || null;
+      setState((current) => current.status === "authenticated"
+        ? {
+            ...current,
+            offline: true,
+            lastCachedAt: cachedAt ? Math.max(current.lastCachedAt ?? 0, cachedAt) : current.lastCachedAt,
+          }
+        : current);
+      refreshOfflineStatus();
+    };
+    window.addEventListener("online", updateConnection);
+    window.addEventListener("comexa:offline-cache-used", showOffline);
+    const timer = window.setInterval(updateConnection, 20_000);
+    return () => {
+      window.removeEventListener("online", updateConnection);
+      window.removeEventListener("comexa:offline-cache-used", showOffline);
+      window.clearInterval(timer);
+    };
+  }, [refresh, syncNow, refreshOfflineStatus]);
 
   const login = useCallback(
     async (email, password) => {
-      const { data } = await apiFetch("/auth/login", { method: "POST", body: { email, password } });
-      return applySession(data);
+      try {
+        const { data } = await apiFetch("/auth/login", { method: "POST", body: { email, password } });
+        const user = applySession(data);
+        const offlineApi = window.comexaDesktop?.offline;
+        if (offlineApi) {
+          try {
+            await offlineApi.rememberOnline({ email, password, user, accessToken: data.accessToken });
+            setState((current) => ({ ...current, offlineReady: true, offlineSetupWarning: null }));
+          } catch (error) {
+            console.warn("[comexa-offline] Impossible de préparer l'accès hors ligne sécurisé.", error);
+            setState((current) => ({
+              ...current,
+              offlineReady: false,
+              offlineSetupWarning: "L'accès hors ligne sécurisé n'a pas pu être préparé sur cet appareil.",
+            }));
+          }
+        }
+        await refreshOfflineStatus();
+        return user;
+      } catch (networkError) {
+        const isConnectionFailure =
+          networkError instanceof ApiError &&
+          (networkError.status === 0 || GATEWAY_STATUSES_FOR_OFFLINE.has(networkError.status));
+        const offlineApi = window.comexaDesktop?.offline;
+        if (!isConnectionFailure || !offlineApi) throw networkError;
+        try {
+          const data = await offlineApi.authenticate({ email, password });
+          const user = applySession({ ...data, accessToken: null }, { offline: true });
+          await refreshOfflineStatus();
+          return user;
+        } catch (offlineError) {
+          throw new ApiError(0, "OFFLINE_LOGIN_FAILED", offlineError?.message || "Connexion hors ligne impossible.");
+        }
+      }
     },
-    [applySession],
+    [applySession, refreshOfflineStatus],
   );
 
   const logout = useCallback(async () => {
+    if (!offlineRef.current) {
+      try {
+        await apiFetch("/auth/logout", { method: "POST", token: tokenRef.current });
+      } catch {
+        // Session déjà expirée ou serveur indisponible : on nettoie quand même l'écran.
+      }
+    }
     try {
-      await apiFetch("/auth/logout", { method: "POST", token: tokenRef.current });
+      await window.comexaDesktop?.offline?.logout?.();
     } catch {
-      // Session deja expiree cote serveur : on nettoie quand meme l'ecran.
+      // L'effacement de la session React reste prioritaire ; le compte local exige son mot de passe.
     }
     clearSession();
   }, [clearSession]);
@@ -93,8 +257,13 @@ export function AuthProvider({ children }) {
   const request = useCallback(
     async (path, options = {}) => {
       const execute = async () => {
-        const result = await apiFetch(path, { ...options, token: tokenRef.current });
-        notifyWorkspaceUpdate(path, options);
+        const result = await apiFetch(path, {
+          ...options,
+          token: tokenRef.current,
+          offlineMode: offlineRef.current,
+          offlineUserId: offlineUserIdRef.current,
+        });
+        if (!result.offline || result.pendingOperation) notifyWorkspaceUpdate(path, options);
         return result;
       };
       try {
@@ -113,6 +282,9 @@ export function AuthProvider({ children }) {
   /** Telechargement protege : meme regle de rafraichissement que `request`. */
   const download = useCallback(
     async (path, filename, options = {}) => {
+      if (offlineRef.current) {
+        throw new ApiError(0, "OFFLINE_DOWNLOAD_UNSUPPORTED", "Le téléchargement nécessite une connexion. Aucune action n'a été effectuée.");
+      }
       try {
         return await downloadFile(path, { token: tokenRef.current, filename, space: options.space });
       } catch (error) {
@@ -138,6 +310,9 @@ export function AuthProvider({ children }) {
    */
   const blobUrl = useCallback(
     async (path, options = {}) => {
+      if (offlineRef.current) {
+        throw new ApiError(0, "OFFLINE_DOCUMENT_UNSUPPORTED", "L'aperçu de document nécessite une connexion. Aucune action n'a été effectuée.");
+      }
       const read = async () => {
         const blob = await fetchProtectedBlob(path, { token: tokenRef.current, space: options.space });
         return URL.createObjectURL(blob);
@@ -157,6 +332,7 @@ export function AuthProvider({ children }) {
 
   /** Relit les droits réels sans réémettre de jeton ni conserver une ancienne session. */
   const refreshProfile = useCallback(async () => {
+    if (offlineRef.current) return state.user;
     const { data } = await request("/auth/me", { space: null });
     setState((current) => {
       if (current.status !== "authenticated" || current.user?.id !== data?.id) return current;
@@ -164,11 +340,21 @@ export function AuthProvider({ children }) {
       return { ...current, user: data };
     });
     return data;
-  }, [request]);
+  }, [request, state.user]);
 
   const value = useMemo(
     () => ({
       status: state.status,
+      offline: state.offline === true,
+      offlineReady: state.offlineReady === true,
+      offlineSetupWarning: state.offlineSetupWarning ?? null,
+      syncing: state.syncing === true,
+      syncError: state.syncError ?? null,
+      syncStatus: state.syncStatus ?? null,
+      conflicts: state.conflicts ?? [],
+      pendingOperations: state.pendingOperations ?? [],
+      syncNow,
+      refreshOfflineStatus,
       user: state.user,
       /** Compte complet, droits du rôle, même à l'intérieur d'un espace. */
       baseUser: state.user,
@@ -195,10 +381,94 @@ export function AuthProvider({ children }) {
       blobUrl,
       refreshProfile,
     }),
-    [state, login, logout, request, download, blobUrl, refreshProfile],
+    [state, login, logout, request, download, blobUrl, refreshProfile, syncNow, refreshOfflineStatus],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {state.offline ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 top-0 z-[1000] flex min-h-10 items-center justify-center bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-amber-950 shadow-sm"
+        >
+          Hors connexion — affichage des dernières données enregistrées sur cet appareil{state.lastCachedAt ? ` (données du cache mises à jour le ${new Date(state.lastCachedAt).toLocaleString("fr-FR")})` : ""}. Les modifications et documents nécessitent Internet.
+        </div>
+      ) : state.offlineSetupWarning ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 top-0 z-[1000] flex min-h-10 items-center justify-center bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-amber-950 shadow-sm"
+        >
+          {state.offlineSetupWarning} Votre session en ligne reste active ; déconnectez-vous puis reconnectez-vous pour réessayer.
+        </div>
+      ) : state.status === "authenticated" && !state.offlineReady && typeof window !== "undefined" && window.comexaDesktop?.offline ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-x-0 top-0 z-[1000] flex min-h-10 items-center justify-center bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-amber-950 shadow-sm"
+        >
+          L’accès hors ligne n’est pas encore préparé sur cet appareil. Déconnectez-vous puis reconnectez-vous avec votre mot de passe pendant que vous êtes en ligne.
+        </div>
+      ) : null}
+      {state.status === "authenticated" && typeof window !== "undefined" && window.comexaDesktop?.offline ? (
+        <>
+          <div className="fixed bottom-3 right-3 z-[1000] flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-800 shadow-lg backdrop-blur">
+            <span className={`inline-block h-2 w-2 rounded-full ${state.offline || navigator.onLine === false ? "bg-amber-500" : "bg-emerald-500"}`} />
+            <strong>{state.offline || navigator.onLine === false ? "Hors ligne" : "En ligne"}</strong>
+            <span>{state.syncStatus?.pending ?? 0} en attente</span>
+            {(state.syncStatus?.failed ?? 0) > 0 ? <span className="text-rose-700">{state.syncStatus.failed} refus/erreurs</span> : null}
+            {(state.syncStatus?.conflicts ?? state.conflicts?.length ?? 0) > 0 ? <span className="text-amber-800">{state.syncStatus?.conflicts ?? state.conflicts.length} conflit(s)</span> : null}
+            {state.syncStatus?.lastSyncAt ? <span>Dernière synchro {new Date(state.syncStatus.lastSyncAt).toLocaleString("fr-FR")}</span> : <span>Pas encore synchronisé</span>}
+            <button type="button" disabled={state.syncing || navigator.onLine === false} onClick={() => syncNow().catch(() => {})} className="rounded-lg bg-slate-900 px-3 py-1.5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+              {state.syncing ? "Synchronisation…" : "Synchroniser"}
+            </button>
+            {state.syncError ? <span className="w-full text-rose-700" role="alert">{state.syncError}</span> : null}
+            {state.pendingOperations?.some((operation) => operation.state === "failed") ? (
+              <details className="w-full border-t border-slate-200 pt-2">
+                <summary className="cursor-pointer font-semibold text-rose-700">Opérations refusées ou à vérifier</summary>
+                <ul className="mt-2 max-h-36 space-y-2 overflow-auto">
+                  {state.pendingOperations.filter((operation) => operation.state === "failed").map((operation) => (
+                    <li key={operation.operationId} className="rounded-lg bg-rose-50 p-2">
+                      <strong>{operation.method} {operation.path}</strong>
+                      <p>{operation.lastError || "Le serveur n'a pas confirmé cette opération."}</p>
+                      <p className="text-[10px] text-slate-500">Votre modification locale est conservée. Réessayer enverra la même clé idempotente.</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
+          {state.conflicts?.length ? (
+            <section aria-label="Résolution des conflits hors ligne" className="fixed inset-x-3 bottom-20 z-[1001] mx-auto max-h-[55vh] max-w-3xl overflow-auto rounded-2xl border border-amber-300 bg-white p-4 shadow-2xl">
+              <h2 className="text-base font-bold text-slate-900">Modifications à arbitrer ({state.conflicts.length})</h2>
+              <p className="mb-3 mt-1 text-sm text-slate-600">Aucune version locale n’a été supprimée. Choisissez explicitement quelle version conserver.</p>
+              {state.conflicts.map((conflict) => (
+                <article key={conflict.conflictId} className="mb-3 rounded-xl border border-slate-200 p-3">
+                  <h3 className="font-semibold">{conflict.entityType} · {conflict.entityId}</h3>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {conflict.fields.map((field) => (
+                      <div key={field} className="rounded-lg bg-slate-50 p-2 text-xs">
+                        <strong className="block">{field}</strong>
+                        <span>Avant : {JSON.stringify(conflict.base?.[field] ?? null)}</span><br />
+                        <span>Local : {JSON.stringify(conflict.local?.[field] ?? conflict.local ?? null)}</span><br />
+                        <span>Serveur : {JSON.stringify(conflict.server?.[field] ?? null)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={async () => { await window.comexaDesktop.offline.resolveConflict({ userId: state.user.id, conflictId: conflict.conflictId, resolution: "local" }); await refreshOfflineStatus(); await syncNow({ refreshViews: false }).catch(() => {}); }} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white">Conserver ma version locale</button>
+                    <button type="button" onClick={async () => { await window.comexaDesktop.offline.resolveConflict({ userId: state.user.id, conflictId: conflict.conflictId, resolution: "server" }); await refreshOfflineStatus(); }} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold">Conserver la version serveur</button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : null}
+        </>
+      ) : null}
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 /**

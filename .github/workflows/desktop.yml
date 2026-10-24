@@ -38,10 +38,17 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Dépendances
+      - name: Dépendances du frontend
+        working-directory: .
         run: npm ci
 
-      - name: Compilation de l'installeur
+      - name: Dépendances desktop
+        run: npm ci
+
+      - name: Compilation frontend + installateur
+        env:
+          BACKEND_URL: https://comexa-portfolio.onrender.com
+          NEXT_PUBLIC_SOCKET_URL: https://comexa-portfolio.onrender.com
         run: npm run dist
 
       - name: Dépôt de l'installeur
