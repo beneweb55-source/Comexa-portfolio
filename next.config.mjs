@@ -6,6 +6,9 @@
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
 
 const nextConfig = {
+  // Le desktop embarque ce serveur Next autonome. On ne l'active que dans son
+  // workflow de build : Vercel conserve son mode de déploiement habituel.
+  ...(process.env.COMEXA_DESKTOP_BUILD === "1" ? { output: "standalone" } : {}),
   reactCompiler: true,
   devIndicators: false,
   // Preview Arena : le navigateur charge l'app depuis https://3000-<id>.e2b.app.

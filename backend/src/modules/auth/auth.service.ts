@@ -833,6 +833,52 @@ export class AuthService {
     return profileOf(await this.principals.load(userId));
   }
 
+  /**
+   * Vérifie le mot de passe courant sans créer de session ni de jeton. Utilisé
+   * uniquement pour préparer la vérification locale du desktop ; le serveur
+   * reste l'autorité et aucun secret fourni n'est conservé.
+   */
+  async authorizeOffline(
+    user: AuthenticatedUser,
+    password: string,
+    meta: SessionMeta,
+  ): Promise<AuthProfile> {
+    const row = await this.prisma.user.findFirst({
+      where: { id: user.id, deletedAt: null },
+      select: { passwordHash: true, status: true, mustChangePassword: true },
+    });
+    if (!row || row.status !== UserStatus.ACTIVE || row.mustChangePassword) {
+      throw AppException.unauthenticated(
+        ErrorCode.INVALID_CREDENTIALS,
+        "L'accès hors ligne ne peut pas être préparé pour ce compte.",
+      );
+    }
+    if (!(await verifyPassword(row.passwordHash, password))) {
+      await this.audit.record({
+        actorId: user.id,
+        action: 'OFFLINE_AUTHORIZATION_FAILED',
+        entityType: 'User',
+        entityId: user.id,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+      throw AppException.unauthenticated(
+        ErrorCode.INVALID_CREDENTIALS,
+        'Le mot de passe actuel est incorrect.',
+      );
+    }
+    await this.audit.record({
+      actorId: user.id,
+      action: 'OFFLINE_AUTHORIZATION_PREPARED',
+      entityType: 'User',
+      entityId: user.id,
+      after: { device: 'desktop' },
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+    return this.me(user.id);
+  }
+
   async listSessions(userId: string): Promise<ActiveSession[]> {
     return this.tokens.listActiveSessions(userId);
   }

@@ -94,6 +94,6 @@ function stableJson(value: unknown): string {
 }
 
 /** La date d'expiration d'une cle, calculee une seule fois. */
-export function idempotencyExpiry(now: Date = new Date()): Date {
-  return new Date(now.getTime() + IDEMPOTENCY_TTL_MS);
+export function idempotencyExpiry(now: Date = new Date(), ttlMs = IDEMPOTENCY_TTL_MS): Date {
+  return new Date(now.getTime() + ttlMs);
 }

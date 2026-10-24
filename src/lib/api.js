@@ -58,6 +58,148 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Délai maximal d'une requête ordinaire : passé ce délai, on rend la main. */
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+function desktopOfflineBridge() {
+  return typeof window !== "undefined" && window.comexaDesktop?.isDesktop === true
+    ? window.comexaDesktop.offline
+    : null;
+}
+
+function notifyOfflineMode(cachedAt = null) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("comexa:offline-cache-used", { detail: { cachedAt } }));
+  }
+}
+
+function canCacheOffline(method, path, userId) {
+  return method === "GET" && typeof userId === "string" && userId.length > 0 &&
+    !path.startsWith("/auth/") && !path.startsWith("/public/") && path !== "/health";
+}
+
+function pathWithoutQuery(path) {
+  return String(path).split("?", 1)[0].replace(/\/$/, "") || "/";
+}
+
+export function offlineResourceKey(path) {
+  const pathname = pathWithoutQuery(path);
+  let match;
+  if (/^\/projects\/?$/.test(pathname) || /^\/projects\/[^/]+$/.test(pathname)) return "projects";
+  if ((match = pathname.match(/^\/projects\/([^/]+)\/(?:tasks|milestones)$/))) return `${pathname.split("/").at(-1)}:${match[1]}`;
+  if (/^\/me\/tasks$/.test(pathname)) return "personal-tasks";
+  if (/^\/tasks(?:\/[^/]+)?$/.test(pathname)) return "tasks";
+  if (/^\/me\/goals(?:\/.*)?$/.test(pathname)) return "goals";
+  if (/^\/me\/calendar\/events(?:\/.*)?$/.test(pathname)) return "personal-calendar-events";
+  if (/^\/calendar\/events(?:\/[^/]+)?$/.test(pathname)) return "team-calendar-events";
+  if (/^\/tasks\/[^/]+\/time-entries$/.test(pathname) || /^\/time-entries(?:\/[^/]+)?$/.test(pathname)) return "time-entries";
+  if (/^\/daily-reports(?:\/mine|\/[^/]+)?$/.test(pathname)) return "daily-reports";
+  if (/^\/clients(?:\/[^/]+)?$/.test(pathname)) return "clients";
+  if ((match = pathname.match(/^\/clients\/([^/]+)\/contacts$/))) return `contacts:${match[1]}`;
+  if (/^\/contacts\/[^/]+$/.test(pathname)) return "contacts";
+  if (/^\/reports(?:\/[^/]+)?$/.test(pathname)) return "reports";
+  if (/^\/prospects(?:\/[^/]+(?:\/status)?)?$/.test(pathname)) return "prospects";
+  if (/^\/milestones(?:\/[^/]+)?$/.test(pathname)) return "milestones";
+  if (/^\/documents(?:\/[^/]+)?$/.test(pathname)) return "documents";
+  if (/^\/notifications(?:\/[^/]+(?:\/read)?)?$/.test(pathname)) return "notifications";
+  return "";
+}
+
+function offlineMutationPolicy(method, path) {
+  const verb = method.toUpperCase();
+  const pathname = pathWithoutQuery(path);
+  const rules = [
+    ["POST", /^\/projects$/], ["PATCH", /^\/projects\/[^/]+(?:\/status)?$/], ["DELETE", /^\/projects\/[^/]+$/],
+    ["POST", /^\/projects\/[^/]+\/tasks$/], ["POST", /^\/me\/tasks$/],
+    ["PATCH", /^\/tasks\/[^/]+(?:\/(?:status|assign))?$/], ["DELETE", /^\/tasks\/[^/]+$/],
+    ["POST", /^\/me\/goals$/], ["PATCH", /^\/me\/goals\/[^/]+$/], ["DELETE", /^\/me\/goals\/[^/]+$/],
+    ["PUT", /^\/me\/goals\/[^/]+\/tasks\/[^/]+$/], ["DELETE", /^\/me\/goals\/[^/]+\/tasks\/[^/]+$/],
+    ["POST", /^\/me\/calendar\/events$/], ["PATCH", /^\/me\/calendar\/events\/[^/]+$/],
+    ["DELETE", /^\/me\/calendar\/events\/[^/]+$/],
+    ["POST", /^\/tasks\/[^/]+\/time-entries$/], ["PATCH", /^\/time-entries\/[^/]+$/], ["DELETE", /^\/time-entries\/[^/]+$/],
+    ["PUT", /^\/daily-reports\/\d{4}-\d{2}-\d{2}$/], ["DELETE", /^\/daily-reports\/\d{4}-\d{2}-\d{2}$/],
+    ["POST", /^\/clients$/], ["PATCH", /^\/clients\/[^/]+$/], ["DELETE", /^\/clients\/[^/]+$/],
+    ["POST", /^\/clients\/[^/]+\/contacts$/], ["PATCH", /^\/contacts\/[^/]+$/], ["DELETE", /^\/contacts\/[^/]+$/],
+    ["POST", /^\/reports$/],
+    ["POST", /^\/prospects$/], ["PATCH", /^\/prospects\/[^/]+$/], ["DELETE", /^\/prospects\/[^/]+$/], ["POST", /^\/prospects\/[^/]+\/status$/],
+    ["POST", /^\/projects\/[^/]+\/milestones$/], ["PATCH", /^\/milestones\/[^/]+$/], ["DELETE", /^\/milestones\/[^/]+$/],
+    ["PATCH", /^\/documents\/[^/]+$/], ["DELETE", /^\/documents\/[^/]+$/],
+    ["POST", /^\/notifications\/read-all$/], ["POST", /^\/notifications\/[^/]+\/read$/], ["DELETE", /^\/notifications\/[^/]+$/],
+  ];
+  if (!rules.some(([verbAllowed, pattern]) => verbAllowed === verb && pattern.test(pathname))) return null;
+  const resourceKey = offlineResourceKey(pathname);
+  if (!resourceKey) return null;
+  const segments = pathname.split("/").filter(Boolean);
+  const last = segments.at(-1);
+  const isCreate = verb === "POST" && [
+    /^\/projects$/,
+    /^\/projects\/[^/]+\/tasks$/,
+    /^\/me\/tasks$/,
+    /^\/me\/goals$/,
+    /^\/me\/calendar\/events$/,
+    /^\/tasks\/[^/]+\/time-entries$/,
+    /^\/clients$/,
+    /^\/clients\/[^/]+\/contacts$/,
+    /^\/prospects$/,
+    /^\/projects\/[^/]+\/milestones$/,
+    /^\/reports$/,
+  ].some((pattern) => pattern.test(pathname));
+  const notificationReadAll = pathname === "/notifications/read-all";
+  const goalTaskLink = pathname.match(/^\/me\/goals\/([^/]+)\/tasks\/([^/]+)$/);
+  const entityId = goalTaskLink ? goalTaskLink[2] : isCreate ? null : notificationReadAll ? "*" : (verb === "PUT" && /^\/daily-reports\//.test(pathname) ? last : segments.at(-1) === "status" || segments.at(-1) === "assign" || segments.at(-1) === "read" ? segments.at(-2) : last);
+  const entityType = goalTaskLink ? "goal-task-link" : resourceKey.split(":")[0].replace(/s$/, "") || "record";
+  const optimisticResult = goalTaskLink ? { id: goalTaskLink[2], goalId: verb === "PUT" ? goalTaskLink[1] : null, goal: verb === "PUT" ? { id: goalTaskLink[1] } : null } : null;
+  return { resourceKey: goalTaskLink ? "personal-tasks" : resourceKey, entityType, entityId, isCreate, ...(optimisticResult ? { localResult: optimisticResult } : {}) };
+}
+
+async function enqueueOfflineMutation({ userId, space, method, path, body, idempotencyKey }) {
+  const bridge = desktopOfflineBridge();
+  const policy = offlineMutationPolicy(method, path);
+  if (!bridge || !userId || !policy) {
+    throw new ApiError(0, "OFFLINE_WRITE_UNSUPPORTED", "Cette opération n'est pas encore prise en charge hors ligne. Aucune modification n'a été enregistrée.");
+  }
+  try {
+    const queued = await bridge.enqueueMutation({
+      userId,
+      space: space ?? "",
+      method,
+      requestPath: path,
+      body: body ?? null,
+      ...policy,
+      idempotencyKey,
+    });
+    notifyOfflineMode();
+    return {
+      data: queued.localResult ?? { id: policy.entityId, deleted: method === "DELETE" },
+      offline: true,
+      pendingOperation: true,
+      operationId: queued.operationId,
+    };
+  } catch (error) {
+    throw new ApiError(0, "OFFLINE_QUEUE_FAILED", error?.message || "La modification n'a pas pu être enregistrée localement.");
+  }
+}
+
+async function readOfflineCache({ userId, space, path }) {
+  const bridge = desktopOfflineBridge();
+  if (!bridge || !userId) return null;
+  try {
+    const hit = await bridge.getCachedResponse({ userId, space: space ?? "", requestKey: path, resourceKey: offlineResourceKey(path) });
+    if (!hit?.response?.success) return null;
+    const envelope = hit.response;
+    notifyOfflineMode(hit.cachedAt);
+    return {
+      data: envelope.data,
+      meta: envelope.meta,
+      message: envelope.message,
+      redirectUrl: envelope.redirectUrl,
+      action: envelope.action,
+      offline: true,
+      cachedAt: hit.cachedAt,
+    };
+  } catch (error) {
+    console.warn("[comexa-offline] Lecture du cache local impossible.", error);
+    return null;
+  }
+}
+
 /**
  * `space` : espace de travail annoncé au serveur (`personal`, `team`, `comexa`).
  * Le serveur restreint alors les droits de la requête à cet espace. Absent, la
@@ -65,22 +207,55 @@ const DEFAULT_TIMEOUT_MS = 30_000;
  */
 export async function apiFetch(
   path,
-  { method = "GET", body, token, signal, space, timeoutMs = DEFAULT_TIMEOUT_MS } = {},
+  {
+    method = "GET",
+    body,
+    token,
+    signal,
+    space,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    offlineMode = false,
+    offlineUserId = null,
+    idempotencyKey: requestedIdempotencyKey,
+  } = {},
 ) {
+  method = String(method).toUpperCase();
+  const mutation = ["POST", "PUT", "PATCH", "DELETE"].includes(method);
+  const desktopBridge = desktopOfflineBridge();
+  const idempotencyKey = requestedIdempotencyKey || (desktopBridge && mutation && !isPublicPath(path) && globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : null);
   const headers = { Accept: "application/json" };
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (idempotencyKey && mutation) headers["Idempotency-Key"] = idempotencyKey;
+  if (desktopBridge && idempotencyKey && mutation) headers["X-Comexa-Offline-Operation"] = "true";
   const bearer = token;
   if (bearer) headers.Authorization = `Bearer ${bearer}`;
   if (space) headers[SPACE_HEADER] = space;
 
+  const browserKnowsOffline = desktopBridge && typeof navigator !== "undefined" && navigator.onLine === false;
+
+  // Détection navigateur rapide : ne pas attendre le timeout HTTP quand le
+  // système sait déjà qu'il n'y a aucun réseau.
+  if (!offlineMode && browserKnowsOffline && offlineUserId) {
+    notifyOfflineMode();
+    if (method !== "GET") return enqueueOfflineMutation({ userId: offlineUserId, space, method, path, body, idempotencyKey });
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
+    throw new ApiError(0, "OFFLINE_CACHE_MISS", "Ces données n'ont pas encore été enregistrées sur cet appareil.");
+  }
+
+  // En mode déconnecté, seules les lectures dont une copie chiffrée existe
+  // localement sont rendues. Aucune mutation n'est simulée comme réussie : la
+  // file d'opérations métier doit être intégrée explicitement avant d'accepter
+  // une écriture hors ligne.
+  if (offlineMode) {
+    if (method !== "GET") return enqueueOfflineMutation({ userId: offlineUserId, space, method, path, body, idempotencyKey });
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
+    throw new ApiError(0, "OFFLINE_CACHE_MISS", "Ces données n'ont pas encore été enregistrées sur cet appareil.");
+  }
+
   // SESSION ABSENTE — on ne frappe pas le serveur pour récolter un 401.
-  //
-  // Après un échec de connexion (passerelle 502 sur `/auth/login`), les écrans
-  // déjà montés continuaient d'appeler `/api/notifications`, `/api/me/tasks`…
-  // Chaque sondage produisait un 401 dans la console, relançait un
-  // rafraîchissement, et l'utilisateur voyait une tempête d'erreurs au lieu
-  // d'un message clair. Sans jeton, hors routes publiques, la réponse est
-  // connue d'avance : on la rend localement.
+  // Hors routes publiques, la réponse est connue d'avance : on la rend localement.
   if (!bearer && !isPublicPath(path)) {
     throw new ApiError(
       401,
@@ -123,14 +298,18 @@ export async function apiFetch(
         });
       } catch (error) {
         if (error?.name === "AbortError" && !timedOut) throw error;
-        if (timedOut) {
-          throw new ApiError(
-            0,
-            "TIMEOUT",
-            "Le serveur met trop de temps à répondre. Réessayez dans un instant.",
-          );
+        const networkError = timedOut
+          ? new ApiError(0, "TIMEOUT", "Le serveur met trop de temps à répondre. Réessayez dans un instant.")
+          : new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+        if (mutation && offlineUserId && !signal?.aborted && offlineMutationPolicy(method, path)) {
+          return enqueueOfflineMutation({ userId: offlineUserId, space, method, path, body, idempotencyKey });
         }
-        throw new ApiError(0, "NETWORK", NETWORK_MESSAGE);
+        if (canCacheOffline(method, path, offlineUserId) && !signal?.aborted) {
+          notifyOfflineMode();
+          const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+          if (cached) return cached;
+        }
+        throw networkError;
       }
       if (attempt === 0 && retryableStatus(response.status, path, method)) {
         await delay(1200);
@@ -150,6 +329,15 @@ export async function apiFetch(
     } catch {
       json = null;
     }
+  }
+
+  if (!response.ok && GATEWAY_STATUSES.has(response.status) && mutation && offlineUserId && offlineMutationPolicy(method, path)) {
+    return enqueueOfflineMutation({ userId: offlineUserId, space, method, path, body, idempotencyKey });
+  }
+  if (!response.ok && GATEWAY_STATUSES.has(response.status) && canCacheOffline(method, path, offlineUserId)) {
+    notifyOfflineMode();
+    const cached = await readOfflineCache({ userId: offlineUserId, space, path });
+    if (cached) return cached;
   }
 
   if (!response.ok || !json?.success) {
@@ -179,13 +367,24 @@ export async function apiFetch(
   // Ajouter des champs ne casse aucun appelant : les 37 appels existants
   // déstructurent `{ data }` (parfois `{ data, meta }`), ce qui continue de
   // fonctionner à l'identique.
-  return {
+  const result = {
     data: json.data,
     meta: json.meta,
     message: json.message,
     redirectUrl: json.redirectUrl,
     action: json.action,
   };
+
+  if (canCacheOffline(method, path, offlineUserId)) {
+    const bridge = desktopOfflineBridge();
+    try {
+      await bridge?.cacheResponse({ userId: offlineUserId, space: space ?? "", requestKey: path, response: json, resourceKey: offlineResourceKey(path) });
+    } catch (error) {
+      // Un cache indisponible ne transforme pas une réponse serveur réussie en échec.
+      console.warn("[comexa-offline] Impossible de persister la réponse locale.", error);
+    }
+  }
+  return result;
 }
 
 /**

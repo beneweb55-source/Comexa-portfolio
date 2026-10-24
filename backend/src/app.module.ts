@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -44,6 +44,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module.j
 import { SpacesModule } from './modules/spaces/spaces.module.js';
 import { UserModule } from './modules/users/user.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -449,6 +450,10 @@ const isProduction = process.env.NODE_ENV === 'production';
    * separer avait deja produit un `forbidden` a deux arguments, corrige depuis.
    */
   providers: [
+    // Idempotence serveur disponible sur toutes les routes métier : les
+    // opérations desktop reprises après une réponse réseau perdue portent une
+    // clé stable. Sans cet en-tête, l'intercepteur laisse le flux intact.
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
