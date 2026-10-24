@@ -1,131 +1,121 @@
-# Mode hors ligne éditable — cadrage
+# Utiliser Comexa Desktop hors connexion
 
-## Décisions retenues
+## Ce qui est déjà disponible
 
-- Le `.exe` doit permettre de poursuivre le travail **dans tous les espaces**,
-  pas seulement d'afficher un écran d'erreur ou une copie en lecture seule.
-- L'accès hors ligne est permis uniquement après une première connexion en ligne
-  sur cet appareil et pour le compte déjà utilisé.
-- Les changements sont conservés sur l'appareil, puis synchronisés au retour du
-  réseau.
-- Les champs indépendants peuvent être fusionnés automatiquement. Une
-  suppression, une facture ou un conflit ambigu est mis en attente et présenté
-  à l'utilisateur ; aucune version n'est écrasée silencieusement.
+L'application desktop peut démarrer sans Vercel : l'installateur embarque une
+interface Next.js autonome, servie localement. Le backend reste distant ; sans
+réseau, Comexa s'appuie sur les données et les opérations locales décrites ci-dessous.
 
-## État actuel (important)
+Après une première connexion réussie **dans l'application desktop**, le poste
+peut conserver un accès local au même compte :
 
-Socle désormais implémenté : l'installateur embarque le build standalone de
-Next.js ; les réponses JSON réussies des GET authentifiés sont mises en cache
-par compte/espace dans SQLite WASM. Le fichier complet est chiffré avec
-`safeStorage` du système (DPAPI sous Windows) ; les rendus n'accèdent jamais à
-SQL directement : le preload n'expose que des méthodes IPC allowlistées et le
-processus principal vérifie l'origine locale ainsi que l'identité serveur avant
-d'enregistrer un compte. Les migrations SQLite sont numérotées.
+- le mot de passe n'est jamais conservé en clair ; un vérificateur scrypt est
+  stocké dans une base SQLite chiffrée par le système via Electron `safeStorage`
+  (DPAPI sous Windows) ;
+- un mot de passe hors ligne valide est requis à chaque connexion ; les essais
+  sont temporisés et l'autorisation expire au plus tard sept jours après la
+  dernière confirmation en ligne ;
+- le profil, les espaces et permissions sont isolés par compte ; le preload ne
+  donne pas accès direct aux fichiers ou à la base, et les appels IPC vérifient
+  l'origine locale et le compte actif ;
+- les réponses JSON des lectures authentifiées réussies sont enregistrées par
+  utilisateur, espace et URL, puis réutilisées si le réseau est coupé ;
+- les modifications explicitement prises en charge sont gardées dans une file
+  locale chiffrée et synchronisées au retour du réseau. Un identifiant stable
+  empêche de créer deux fois une même opération ; les données concurrentes sont
+  conservées et présentées pour arbitrage au lieu d'être écrasées sans prévenir.
 
-Après un premier login serveur confirmé, le mot de passe est converti en
-vérificateur scrypt et seul le vérificateur salé est conservé dans la base
-chiffrée. Le login hors ligne demande à nouveau ce mot de passe, limite et
-temporise les essais, et expire sept jours après la dernière validation serveur.
-Les réponses sont compartimentées par utilisateur/espace ; la déconnexion
-verrouille la base en mémoire et le compte doit être authentifié pour la rouvrir.
-Le backend ajoute `POST /api/auth/offline-authorization`, protégé par le token
-actif et limité en débit : il revérifie le mot de passe courant sans émettre de
-nouveau jeton/refresh cookie, puis journalise la préparation. Le desktop confirme
-cet appel depuis le processus principal avant d'enregistrer le profil local.
-Le schéma SQLite local en est à la migration 3 ; une horloge reculée de plus de
-cinq minutes bloque l'autorisation au lieu de prolonger sa durée.
+## Préparer le poste avant de perdre le réseau
 
-**Le mode hors ligne complet n'est pas encore livré.** Le cache ne contient que
-les réponses effectivement demandées pendant une connexion antérieure ; aucun
-préchargement exhaustif n'a lieu. Le cache est borné à 1 000 réponses / 128 Mio
-par compte ; les plus anciennes sont élaguées en priorité. Les écritures sont groupées
-sur 100 ms et forcées à la fermeture normale. Un arrêt forcé pendant cette courte
-fenêtre peut perdre les toutes dernières lectures mises en cache. Les écritures,
-téléchargements, PDFs, emails, la messagerie temps réel et intégrations restent
-en ligne uniquement. Aucune
-file n'envoie encore les modifications au serveur et aucune règle de conflit
-n'est appliquée. Le bandeau hors ligne explique explicitement cette limite.
+1. Installez la **version récente de Comexa Desktop avec son interface intégrée**.
+   Le workflow GitHub `Application desktop` produit l'installateur Windows ; le
+   lancer manuellement dépose l'installateur dans l'artefact
+   `comexa-desktop-windows` du run. Une version qui ouvre seulement le site
+   hébergé ne peut pas démarrer hors connexion.
+2. Connectez-vous une première fois en ligne dans l'application desktop avec le
+   compte qui sera utilisé hors connexion. Après cette connexion, l'indicateur
+   **« Accès hors ligne prêt »** confirme que l'autorisation locale est active.
+   Un simple login dans un navigateur ne prépare pas le stockage desktop.
+3. Ouvrez en ligne les espaces et les pages dont vous aurez besoin. Le cache est
+   alimenté par les lectures effectuées : il n'est pas une copie exhaustive de
+   toutes les données de la plateforme. Une page jamais consultée sur cet
+   appareil peut donc être indisponible hors connexion.
+4. En cas de coupure, relancez Comexa Desktop puis utilisez **« Se connecter
+   sans Internet »** avec le même e-mail et le même mot de passe. Si le système
+   sait déjà qu'il n'y a pas de réseau, le bouton normal de connexion tente
+   également l'accès local directement.
+5. Les pages en cache restent consultables. Les opérations de la liste
+   ci-dessous sont sauvegardées localement ; au retour du réseau, elles se
+   synchronisent automatiquement ou via le bouton **« Synchroniser »**.
+   Vérifiez l'indicateur des opérations en attente et les éventuels conflits.
 
-La révocation de compte ou de droits par le serveur ne peut pas être connue
-pendant une coupure : l'accès local peut donc durer au maximum sept jours après
-la dernière authentification serveur réussie, puis exige une reconnexion.
+> **Ce mode concerne l'application desktop.** Le site web dans un navigateur
+> nécessite toujours une connexion Internet. L'accès local doit avoir été
+> préparé en ligne sur l'appareil concerné ; le premier démarrage hors ligne
+> d'un compte jamais authentifié localement n'est pas autorisé.
 
-## Architecture nécessaire
+## Modifications actuellement mises en file
 
-Une mise en file générique des requêtes HTTP n'est pas sûre pour Comexa : les
-créations peuvent nécessiter un identifiant serveur, les réponses déterminent
-parfois la navigation, et les actions de facturation, d'envoi ou de suppression
-ont des effets externes qui ne doivent pas être rejoués aveuglément. Le mode
-hors ligne doit être construit par opérations métier explicites.
+La politique est volontairement explicite dans `offline-store.js` et `api.js` :
+une route absente de la liste n'est jamais présentée comme modifiée avec succès.
+Les domaines couverts incluent, selon les routes disponibles et les droits du
+compte :
 
-1. **Interface embarquée — implémentée** — distribuer les ressources de
-   l'application avec le `.exe` et les charger depuis un serveur local. Le
-   démarrage du frontend ne dépend plus de Vercel.
-2. **Accès hors ligne — première version implémentée** — ne stocker ni mot de
-   passe en clair ni jeton. Le main process conserve un vérificateur scrypt et
-   profil/droits dans le fichier SQLite chiffré par le backend OS de
-   `safeStorage`, limite les essais et applique une durée de sept jours. Les
-   canaux IPC sont allowlistés, validés et refusés hors de l'origine localhost
-   embarquée. Une révocation distante ne peut être propagée durant une coupure.
-3. **Cache local — première version implémentée** — chaque GET JSON authentifié
-   réussi est enregistré par compte/espace/URL, puis relu sur les échecs réseau.
-   Le cache est limité aux réponses déjà consultées ; il n'existe pas encore de
-   téléchargement complet ni de visibilité fine de fraîcheur par écran.
-4. **Journal métier hors ligne** — enregistrer des opérations typées avec un
-   identifiant stable, leur état (en attente, synchronisée, conflit, échec) et
-   les rejouer dans l'ordre pertinent. Ne pas mettre en file les emails, appels
-   à des intégrations, paiements, génération/envoi de PDF ou autres effets
-   externes sans prise en charge explicite par le backend.
-5. **Synchronisation et conflits** — ajouter au backend des clés d'idempotence,
-   des versions de données (ou équivalent) et une API de synchronisation. Fusion
-   des champs indépendants ; suspendre les suppressions, factures et conflits
-   ambigus pour résolution utilisateur. Un échec de synchronisation ne doit
-   jamais perdre ni doubler une opération.
-6. **Indicateurs d'interface** — état en ligne/hors ligne, nombre d'opérations
-   en attente, dernier succès de synchronisation, erreurs et écran de résolution
-   des conflits, accessibles depuis chaque espace.
+- projets, tâches, jalons et saisies de temps ;
+- tâches et objectifs personnels, associations tâche-objectif, calendrier
+  personnel et rapports journaliers ;
+- clients, contacts et prospects ;
+- demandes de génération de rapports (le rapport lui-même est généré une fois
+  connecté) ;
+- métadonnées de documents et notifications (pas leur contenu binaire).
 
-## Découpage de livraison
+La file gère les IDs locaux des créations et les dépendances entre opérations,
+les réessaie avec la même clé d'idempotence, compare les snapshots disponibles
+et expose les erreurs/conflits dans l'interface. Les droits sont néanmoins
+revérifiés par le serveur à la synchronisation. Une modification refusée ou
+ambiguë reste visible et conservée localement jusqu'à résolution.
 
-- **Phase A — socle desktop local (partiellement implémentée) :** frontend
-  embarqué, login local après première connexion, SQLite chiffrée, cache des GET
-  déjà visités et bannière hors ligne. Les actions non prises en charge restent
-  clairement indisponibles. Il manque encore l'écriture locale et la reprise des
-  données après conflits.
-- **Phase B — données et opérations internes :** mettre en place le protocole de
-  synchronisation et l'intégrer progressivement aux modules de travail
-  (tâches, calendrier, temps, rapports, projets, contacts, etc.), avec tests de
-  coupure réseau et de rejeu idempotent.
-- **Phase C — fonctions à effets externes :** définir une règle spécifique pour
-  messagerie, factures/devis, documents, emails et intégrations ; ne les déclarer
-  hors ligne qu'après validation du backend et des règles de conflit.
-- **Phase D — distribution :** installer et tester le `.exe` Windows sur un
-  poste propre, sans accès réseau au premier démarrage puis après une première
-  connexion, et vérifier mise à jour, déconnexion, comptes multiples, données
-  sensibles et reprise après conflit.
+Les détails par espace et les routes couvertes sont dans
+[`OFFLINE-INVENTORY.md`](./OFFLINE-INVENTORY.md).
 
-## Critères de validation
+## Limites importantes
 
-- Après une connexion réussie en ligne, couper le réseau et relancer le `.exe` :
-  l'utilisateur retrouve son espace autorisé et les dernières données
-  synchronisées, sans redirection vers Vercel ni écran blanc.
-- Les opérations hors ligne annoncées comme disponibles restent visibles après
-  fermeture/redémarrage et ne sont ni perdues ni dupliquées à la reconnexion.
-- Une modification concurrente sur le serveur est fusionnée uniquement si elle
-  est non ambiguë ; sinon l'opération reste en attente avec une explication et
-  les deux versions sont conservées jusqu'au choix de l'utilisateur.
-- Un autre compte sur le même appareil ne peut pas consulter les données du
-  premier compte. La déconnexion efface ou verrouille les données locales selon
-  une règle explicite.
-- Les fonctions non compatibles (par exemple envoi d'email) ne se présentent
-  jamais comme effectuées hors ligne.
+- **Cache à la première visite :** seules les réponses déjà demandées sont
+  disponibles. Le cache est borné à 1 000 réponses et 128 Mio par compte ; les
+  entrées les plus anciennes sont retirées en priorité. Certaines vues, filtres
+  ou pages de détail peuvent demander une URL différente et provoquer un cache
+  manquant.
+- **Droits et sécurité :** une révocation de compte ou de permissions ne peut
+  pas être connue pendant la coupure. Le profil hors ligne reflète le dernier
+  état confirmé et son autorisation expire au bout de sept jours ; reconnectez-
+  vous pour confirmer les droits actuels.
+- **Effets distants :** factures/devis, paiements, envoi d'e-mail, intégrations,
+  messagerie temps réel, changements de compte/rôle, PDF, téléversements et
+  téléchargements protégés nécessitent Internet. La génération d'un rapport
+  peut être mise en attente, mais pas son calcul côté serveur.
+- **Conflits :** certaines modifications peuvent être rejouées automatiquement
+  si les champs changés sont indépendants. En cas de changement concurrent sur
+  les mêmes champs, les deux versions sont gardées pour un choix explicite.
+- **Stockage sécurisé :** si le système ne propose pas un backend de chiffrement
+  fiable, la préparation hors ligne est désactivée plutôt que de conserver des
+  données métier en clair.
+- **Version hébergée :** en développement, si aucun build local n'est présent,
+  Electron peut ouvrir le site hébergé en ligne. Un installateur desktop ne doit
+  pas utiliser ce repli ; il exige l'interface intégrée et affiche une erreur
+  locale claire si le bundle manque.
 
-## Garde-fous pour les étapes suivantes
+## Tester le parcours
 
-La couche actuelle ne rejoue aucune écriture. Les tables `pending_operations`,
-`sync_conflicts` et `sync_state` ne sont que des points de schéma réservés ;
-aucune opération n'y est encore créée ou synchronisée. Avant d'activer des
-modifications hors ligne, le backend doit appliquer l'idempotence et le contrôle
-de version sur chaque commande métier prise en charge. Les actions financières,
-suppressions et effets externes restent bloqués jusqu'à l'implémentation de leur
-règle dédiée.
+1. Sur un poste propre, installer l'artefact desktop et ouvrir une session en
+   ligne ; vérifier **« Accès hors ligne prêt »**.
+2. Consulter quelques pages et effectuer une opération mise en file.
+3. Fermer l'application, couper le réseau, la relancer et se connecter avec le
+   bouton **« Se connecter sans Internet »**.
+4. Vérifier le chargement des pages déjà consultées et la présence de la
+   modification locale après fermeture/réouverture.
+5. Rétablir le réseau, synchroniser, puis vérifier côté serveur que chaque
+   opération n'a été appliquée qu'une fois et qu'un conflit reste visible.
+
+Les tests unitaires du stockage et de la file sont dans `desktop/tests/` ; ils
+peuvent être lancés avec `cd desktop && npm ci && npm test`. Ils ne remplacent pas
+un essai sur l'installateur Windows, les services du système et un backend réel.

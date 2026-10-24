@@ -32,7 +32,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
-const { loadConfig, startUrl, isAllowedPath } = require("./config");
+const { loadConfig, startUrl, desktopStartupMode, isAllowedPath } = require("./config");
 const { OfflineStore } = require("./offline-store");
 
 /** Fenêtre unique de l'application. */
@@ -48,6 +48,7 @@ function warn(message) {
 /** Serveur Next local embarqué ; nul en développement sans build préparé. */
 let webServer = null;
 let appOrigin = null;
+let embeddedWebFailure = null;
 let offlineStore = null;
 
 function standaloneServerPath() {
@@ -82,7 +83,12 @@ function checkLocalServer(port) {
 async function startEmbeddedWebServer() {
   const entry = standaloneServerPath();
   if (!entry) {
-    warn("Frontend local absent ; utilisation du site hébergé (mode développement ou paquet incomplet).");
+    if (app.isPackaged) {
+      embeddedWebFailure = "L'installateur ne contient pas l'interface locale de Comexa.";
+      warn(`${embeddedWebFailure} Le service hébergé ne sera pas utilisé comme interface de remplacement.`);
+    } else {
+      warn("Frontend local absent ; utilisation du site hébergé (mode développement).");
+    }
     return null;
   }
 
@@ -99,7 +105,8 @@ async function startEmbeddedWebServer() {
       serviceName: "Comexa frontend",
     });
   } catch (error) {
-    warn(`Impossible de démarrer le frontend local : ${error.message}.`);
+    embeddedWebFailure = `Impossible de démarrer l'interface locale : ${error.message}`;
+    warn(`${embeddedWebFailure}.`);
     return null;
   }
   webServer.once("exit", (code) => {
@@ -119,7 +126,8 @@ async function startEmbeddedWebServer() {
 
   if (webServer) webServer.kill();
   webServer = null;
-  warn("Le frontend embarqué n'a pas démarré à temps.");
+  embeddedWebFailure = "L'interface locale de Comexa n'a pas démarré à temps.";
+  warn(embeddedWebFailure);
   return null;
 }
 
@@ -321,8 +329,14 @@ function lockNavigation(win) {
     if (!isMainFrame) return;
     if (errorCode === -3) return; // navigation abandonnée (redirect rapide) : rien à signaler
     warn(`Chargement impossible (${errorCode} ${errorDescription}) pour ${validatedURL}.`);
+    const mode = appOrigin ? "embedded" : "hosted";
     win.loadFile(path.join(__dirname, "offline.html"), {
-      query: { retry: startUrl(config), code: String(errorCode), detail: errorDescription || "" },
+      query: {
+        retry: currentStartUrl(),
+        mode,
+        code: String(errorCode),
+        detail: errorDescription || "",
+      },
     });
   });
 }
@@ -396,7 +410,23 @@ function createWindow() {
   });
 
   lockNavigation(mainWindow);
-  mainWindow.loadURL(currentStartUrl());
+  const startupMode = desktopStartupMode({ packaged: app.isPackaged, localFrontendReady: Boolean(appOrigin) });
+  if (startupMode === "bundle-error") {
+    // Un installateur doit rester autonome : ne jamais charger silencieusement
+    // la vitrine hébergée lorsqu'il manque le bundle local. En particulier,
+    // une coupure réseau ne doit pas transformer l'écran d'accueil en erreur
+    // Chromium. La page locale explique qu'il faut réparer l'installation.
+    mainWindow.loadFile(path.join(__dirname, "offline.html"), {
+      query: {
+        retry: startUrl(config),
+        mode: "bundle",
+        code: "LOCAL_FRONTEND_UNAVAILABLE",
+        detail: embeddedWebFailure || "Le frontend embarqué est indisponible.",
+      },
+    });
+  } else {
+    mainWindow.loadURL(currentStartUrl());
+  }
 
   mainWindow.on("closed", () => {
     mainWindow = null;

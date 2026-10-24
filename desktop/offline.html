@@ -52,12 +52,17 @@
         text-decoration: none;
         font-size: 14px;
       }
+      a.btn:focus-visible { outline: 3px solid #65afea; outline-offset: 3px; }
       a.primary { background: var(--ink); color: #fff; }
       a.primary:hover { background: #123a6b; }
       a.ghost { border: 1px solid var(--line); color: var(--ink); background: #f6f9fc; }
       a.ghost:hover { background: #eef4f9; }
-      small { display: block; margin-top: 16px; color: #8a97a8; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      small { display: block; margin-top: 16px; color: #8a97a8; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
       .hidden { display: none; }
+      @media (max-width: 520px) {
+        main { padding: 30px 22px 26px; }
+        .actions { align-items: stretch; flex-direction: column; }
+      }
     </style>
   </head>
   <body>
@@ -78,12 +83,11 @@
         </g>
       </svg>
 
-      <h1>Connexion impossible</h1>
-      <p>
-        L'interface est installée sur cet appareil, mais vos espaces, vos dossiers
-        et vos notifications sont encore chargés depuis le serveur Comexa.
+      <h1 id="heading">Connexion impossible</h1>
+      <p id="summary">
+        Vérifiez votre connexion réseau, puis relancez le chargement.
       </p>
-      <p>Vérifiez le réseau, puis relancez le chargement. Le travail hors ligne n'est pas encore disponible.</p>
+      <p id="help"></p>
 
       <div class="actions">
         <a id="retry" class="btn primary hidden" href="#">Réessayer</a>
@@ -96,11 +100,32 @@
     <script>
       // Aucun contenu distant, aucune donnée sensible : on ne fait que relire
       // ce que le processus principal a passé dans l'URL, en texte brut.
-      // Côté Android, la page est servie sans URL : les paramètres arrivent
-      // par `window.__COMEXA_OFFLINE_PARAMS__`, injecté avant chargement.
       const params = new URLSearchParams(window.__COMEXA_OFFLINE_PARAMS__ || location.search);
       const retry = params.get("retry") || "";
       const safe = /^https?:\/\//i.test(retry);
+      const mode = params.get("mode") || "hosted";
+      const copy = {
+        hosted: {
+          title: "Connexion impossible",
+          summary: "Cette version essaie d’ouvrir Comexa depuis Internet. Sans réseau, son interface ne peut pas se charger.",
+          help: "Pour travailler hors connexion, installez la version desktop avec l’interface intégrée. Connectez-vous d’abord une fois en ligne sur cet appareil.",
+        },
+        bundle: {
+          title: "Interface locale indisponible",
+          summary: "Cette installation ne contient pas l’interface locale nécessaire au fonctionnement hors connexion.",
+          help: "Réinstallez la version récente de l’application desktop. Une première connexion en ligne est ensuite requise pour préparer l’accès hors ligne et les données à consulter.",
+        },
+        embedded: {
+          title: "Démarrage impossible",
+          summary: "L’interface Comexa intégrée à l’application n’a pas pu démarrer correctement.",
+          help: "Réessayez le chargement. Si le problème persiste, réinstallez l’application desktop ou contactez le support.",
+        },
+      };
+      const message = copy[mode] || copy.hosted;
+      document.getElementById("heading").textContent = message.title;
+      document.getElementById("summary").textContent = message.summary;
+      document.getElementById("help").textContent = message.help;
+      document.title = `Comexa — ${message.title.toLocaleLowerCase("fr-FR")}`;
 
       if (safe) {
         for (const id of ["retry", "browser"]) {

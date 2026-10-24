@@ -2,8 +2,9 @@
  * Configuration de l'application desktop Comexa.
  *
  * ORIGINE DE REPLI, PLUSIEURS SOURCES. L'installateur sert le frontend
- * standalone depuis localhost ; cette adresse configure uniquement le repli
- * hébergé si le build local est absent. Le backend de production et le socket
+ * standalone depuis localhost ; cette adresse ne sert de repli hébergé qu'en
+ * développement si le build local est absent (un paquet installé échoue
+ * localement au lieu de dépendre du réseau). Le backend de production et le socket
  * sont fixés lors du build desktop (BACKEND_URL et NEXT_PUBLIC_SOCKET_URL).
  * L'origine de repli est configurable, dans cet ordre de priorité :
  *
@@ -167,6 +168,15 @@ function startUrl(config) {
 }
 
 /**
+ * Un installateur desktop ne doit jamais retomber sur le site distant si le
+ * frontend local manque ; seul le mode développement a ce repli.
+ */
+function desktopStartupMode({ packaged, localFrontendReady }) {
+  if (localFrontendReady) return "embedded";
+  return packaged ? "bundle-error" : "hosted";
+}
+
+/**
  * Un chemin du site est-il ouvert à la fenêtre ? Comparaison par préfixe de
  * SEGMENT : `/espaces` n'ouvre pas `/espaces-x`, `/connexion` n'ouvre pas
  * `/connexionx`.
@@ -175,4 +185,4 @@ function isAllowedPath(pathname) {
   return ALLOWED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
-module.exports = { loadConfig, startUrl, isAllowedPath, normalizeOrigin, ALLOWED_PREFIXES, DEFAULT_ORIGIN, DEFAULT_START_PATH };
+module.exports = { loadConfig, startUrl, desktopStartupMode, isAllowedPath, normalizeOrigin, ALLOWED_PREFIXES, DEFAULT_ORIGIN, DEFAULT_START_PATH };

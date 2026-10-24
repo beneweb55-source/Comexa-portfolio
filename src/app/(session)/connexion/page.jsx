@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, WifiOff } from "lucide-react";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { ApiError, messageOf } from "@/lib/api";
 import { homeFor } from "@/lib/access";
@@ -15,10 +15,27 @@ function safeNext(candidate, fallback) {
   return candidate;
 }
 
+function subscribeToDesktopOffline() {
+  return () => {};
+}
+
+function getDesktopOfflineSnapshot() {
+  return typeof window !== "undefined" && Boolean(window.comexaDesktop?.offline);
+}
+
+function getServerDesktopOfflineSnapshot() {
+  return false;
+}
+
 function Form() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, resendVerification } = useAuth();
+  const { login, loginOffline, resendVerification } = useAuth();
+  const desktopOfflineAvailable = useSyncExternalStore(
+    subscribeToDesktopOffline,
+    getDesktopOfflineSnapshot,
+    getServerDesktopOfflineSnapshot,
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -27,15 +44,15 @@ function Form() {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resent, setResent] = useState(false);
 
-  async function onSubmit(event) {
-    event.preventDefault();
+  async function submitLogin(offlineOnly = false) {
     setBusy(true);
     setError(null);
     setNeedsVerification(false);
     setResent(false);
 
     try {
-      const user = await login(email.trim(), password);
+      const authenticate = offlineOnly ? loginOffline : login;
+      const user = await authenticate(email.trim(), password);
       const destination = safeNext(searchParams.get("next"), homeFor(user));
       router.replace(destination);
     } catch (caught) {
@@ -46,6 +63,11 @@ function Form() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function onSubmit(event) {
+    event.preventDefault();
+    return submitLogin();
   }
 
   async function onResend() {
@@ -157,6 +179,23 @@ function Form() {
           <LogIn size={16} aria-hidden="true" />
           <span>{busy ? "Connexion…" : "Se connecter"}</span>
         </button>
+
+        {desktopOfflineAvailable ? (
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => submitLogin(true)}
+              disabled={busy || !email.trim() || !password}
+              className="cx-btn cx-btn--secondary w-full"
+            >
+              <WifiOff size={16} aria-hidden="true" />
+              <span>{busy ? "Connexion…" : "Se connecter sans Internet"}</span>
+            </button>
+            <p className="text-center text-xs leading-relaxed text-[var(--comexa-ink-muted)]">
+              Disponible après une première connexion en ligne sur cet appareil. Utilisez le même e-mail et mot de passe.
+            </p>
+          </div>
+        ) : null}
       </form>
     </AuthCard>
   );
