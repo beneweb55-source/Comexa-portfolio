@@ -243,10 +243,9 @@ export async function apiFetch(
     throw new ApiError(0, "OFFLINE_CACHE_MISS", "Ces données n'ont pas encore été enregistrées sur cet appareil.");
   }
 
-  // En mode déconnecté, seules les lectures dont une copie chiffrée existe
-  // localement sont rendues. Aucune mutation n'est simulée comme réussie : la
-  // file d'opérations métier doit être intégrée explicitement avant d'accepter
-  // une écriture hors ligne.
+  // En mode déconnecté, les lectures proviennent du cache chiffré. Les écritures
+  // ne sont mises en attente que si leur méthode et leur route figurent dans la
+  // politique métier explicite ci-dessus ; toute autre action échoue clairement.
   if (offlineMode) {
     if (method !== "GET") return enqueueOfflineMutation({ userId: offlineUserId, space, method, path, body, idempotencyKey });
     const cached = await readOfflineCache({ userId: offlineUserId, space, path });

@@ -52,21 +52,29 @@ claire, panneau clair.
 
 ## Lancer en développement
 
+Pour tester aussi le parcours hors connexion, il faut d'abord compiler le
+frontend embarqué. Depuis la racine du dépôt :
+
 ```bash
+npm ci
 cd desktop
-npm install
-npm start          # ouvre la fenêtre sur le hub
+npm ci
+npm run build:web  # construit le frontend autonome local
+npm start           # ouvre la fenêtre sur le hub local
 ```
 
-Prérequis : Node.js 20 ou plus récent. Le premier `npm install` télécharge le
-binaire Electron (~100 Mo) ; il reste hors de Git (`node_modules/` ignoré).
+`npm start` sans `build:web` est un mode de développement hébergé : il ouvre le
+site configuré et nécessite Internet. Il ne représente pas le comportement de
+l'installateur hors ligne. Prérequis : Node.js 20 ou plus récent. Le premier
+`npm ci` desktop télécharge le binaire Electron (~100 Mo) ; il reste hors de Git
+(`node_modules/` ignoré).
 
 ## Configuration de l'adresse de repli
 
-Dans l'installateur, le frontend est servi localement ; `origin` ne sert que si
-le frontend embarqué est absent et que l'application doit se rabattre sur le site
-hébergé. Cette adresse est résolue dans cet ordre, du plus ponctuel au plus
-durable :
+Dans l'installateur, le frontend est servi localement ; il ne se rabat jamais
+silencieusement sur un site distant si le bundle local manque. `origin` sert
+uniquement au lancement en développement sans frontend embarqué. Cette adresse
+est résolue dans cet ordre, du plus ponctuel au plus durable :
 
 1. `--origin=https://…` sur la ligne de commande ;
 2. variable d'environnement `COMEXA_DESKTOP_ORIGIN` ;

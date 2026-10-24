@@ -71,7 +71,8 @@ export function AuthProvider({ children }) {
       return Promise.resolve(null);
     }
     if (!refreshing.current) {
-      refreshing.current = apiFetch("/auth/refresh", { method: "POST" })
+      const desktopTimeoutMs = typeof window !== "undefined" && window.comexaDesktop?.offline ? 8_000 : undefined;
+      refreshing.current = apiFetch("/auth/refresh", { method: "POST", timeoutMs: desktopTimeoutMs })
         .then(async ({ data }) => {
           refreshBlockedUntil.current = 0;
           let offlineReady = false;
@@ -151,12 +152,18 @@ export function AuthProvider({ children }) {
   }, [refresh]);
 
   useEffect(() => {
+    // Au démarrage desktop, ne pas attendre l'expiration du délai HTTP pour
+    // afficher la connexion locale quand Chromium sait déjà qu'il n'y a pas de réseau.
+    if (window.comexaDesktop?.offline && typeof navigator !== "undefined" && navigator.onLine === false) {
+      clearSession();
+      return;
+    }
     refresh().then(() => {
       if (window.comexaDesktop?.offline && navigator.onLine) {
         refreshOfflineStatus();
       }
     });
-  }, [refresh, refreshOfflineStatus]);
+  }, [clearSession, refresh, refreshOfflineStatus]);
 
   useEffect(() => {
     const updateConnection = async () => {
@@ -194,12 +201,32 @@ export function AuthProvider({ children }) {
     };
   }, [refresh, syncNow, refreshOfflineStatus]);
 
+  const loginOffline = useCallback(async (email, password) => {
+    const offlineApi = window.comexaDesktop?.offline;
+    if (!offlineApi) {
+      throw new ApiError(0, "OFFLINE_LOGIN_UNAVAILABLE", "La connexion hors ligne est disponible uniquement dans l’application desktop.");
+    }
+    try {
+      const data = await offlineApi.authenticate({ email: email.trim(), password });
+      const user = applySession({ ...data, accessToken: null }, { offline: true, offlineReady: true });
+      await refreshOfflineStatus();
+      return user;
+    } catch (offlineError) {
+      throw new ApiError(0, "OFFLINE_LOGIN_FAILED", offlineError?.message || "Connexion hors ligne impossible.");
+    }
+  }, [applySession, refreshOfflineStatus]);
+
   const login = useCallback(
     async (email, password) => {
+      const offlineApi = window.comexaDesktop?.offline;
+      if (offlineApi && typeof navigator !== "undefined" && navigator.onLine === false) {
+        return loginOffline(email, password);
+      }
+
       try {
-        const { data } = await apiFetch("/auth/login", { method: "POST", body: { email, password } });
+        const desktopTimeoutMs = offlineApi ? 12_000 : undefined;
+        const { data } = await apiFetch("/auth/login", { method: "POST", body: { email, password }, timeoutMs: desktopTimeoutMs });
         const user = applySession(data);
-        const offlineApi = window.comexaDesktop?.offline;
         if (offlineApi) {
           try {
             await offlineApi.rememberOnline({ email, password, user, accessToken: data.accessToken });
@@ -219,19 +246,11 @@ export function AuthProvider({ children }) {
         const isConnectionFailure =
           networkError instanceof ApiError &&
           (networkError.status === 0 || GATEWAY_STATUSES_FOR_OFFLINE.has(networkError.status));
-        const offlineApi = window.comexaDesktop?.offline;
         if (!isConnectionFailure || !offlineApi) throw networkError;
-        try {
-          const data = await offlineApi.authenticate({ email, password });
-          const user = applySession({ ...data, accessToken: null }, { offline: true });
-          await refreshOfflineStatus();
-          return user;
-        } catch (offlineError) {
-          throw new ApiError(0, "OFFLINE_LOGIN_FAILED", offlineError?.message || "Connexion hors ligne impossible.");
-        }
+        return loginOffline(email, password);
       }
     },
-    [applySession, refreshOfflineStatus],
+    [applySession, loginOffline, refreshOfflineStatus],
   );
 
   const logout = useCallback(async () => {
@@ -375,13 +394,14 @@ export function AuthProvider({ children }) {
        */
       token: state.token,
       login,
+      loginOffline,
       logout,
       request,
       download,
       blobUrl,
       refreshProfile,
     }),
-    [state, login, logout, request, download, blobUrl, refreshProfile, syncNow, refreshOfflineStatus],
+    [state, login, loginOffline, logout, request, download, blobUrl, refreshProfile, syncNow, refreshOfflineStatus],
   );
 
   return (
@@ -392,7 +412,7 @@ export function AuthProvider({ children }) {
           aria-live="polite"
           className="fixed inset-x-0 top-0 z-[1000] flex min-h-10 items-center justify-center bg-amber-100 px-4 py-2 text-center text-xs font-semibold text-amber-950 shadow-sm"
         >
-          Hors connexion — affichage des dernières données enregistrées sur cet appareil{state.lastCachedAt ? ` (données du cache mises à jour le ${new Date(state.lastCachedAt).toLocaleString("fr-FR")})` : ""}. Les modifications et documents nécessitent Internet.
+          Hors connexion — seules les données déjà consultées et mises en cache sont disponibles{state.lastCachedAt ? ` (cache utilisé le ${new Date(state.lastCachedAt).toLocaleString("fr-FR")})` : ""}. Les opérations prises en charge sont enregistrées ici puis synchronisées au retour du réseau ; les autres fonctions, dont les documents, nécessitent Internet.
         </div>
       ) : state.offlineSetupWarning ? (
         <div
@@ -416,6 +436,7 @@ export function AuthProvider({ children }) {
           <div className="fixed bottom-3 right-3 z-[1000] flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-800 shadow-lg backdrop-blur">
             <span className={`inline-block h-2 w-2 rounded-full ${state.offline || navigator.onLine === false ? "bg-amber-500" : "bg-emerald-500"}`} />
             <strong>{state.offline || navigator.onLine === false ? "Hors ligne" : "En ligne"}</strong>
+            {state.offlineReady ? <span className="text-emerald-700">Accès hors ligne prêt</span> : null}
             <span>{state.syncStatus?.pending ?? 0} en attente</span>
             {(state.syncStatus?.failed ?? 0) > 0 ? <span className="text-rose-700">{state.syncStatus.failed} refus/erreurs</span> : null}
             {(state.syncStatus?.conflicts ?? state.conflicts?.length ?? 0) > 0 ? <span className="text-amber-800">{state.syncStatus?.conflicts ?? state.conflicts.length} conflit(s)</span> : null}
