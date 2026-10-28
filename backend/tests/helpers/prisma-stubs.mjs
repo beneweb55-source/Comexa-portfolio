@@ -22,7 +22,7 @@
  * chemin de production.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -72,12 +72,49 @@ export function hasResidualStubs() {
   );
 }
 
-/** Les fichiers stubs existants sont-ils valides (presents et non vides) ? */
+/** Les fichiers stubs existants sont-ils valides (presents, non vides, contenu exploitable) ? */
 export function stubsAreValid() {
-  return STUB_FILES.every((file) => {
-    const full = path.join(generatedDir, file);
-    return existsSync(full) && existsSync(full.replace(/\.js$/, '.js'));
-  });
+  const dir = generatedDir;
+
+  // Les deux fichiers stubs doivent exister et etre non vides.
+  for (const file of STUB_FILES) {
+    const full = path.join(dir, file);
+    if (!existsSync(full)) return false;
+    try {
+      const stat = statSync(full);
+      if (!stat || stat.size === 0) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  // Le marqueur doit exister avec le contenu attendu.
+  const marker = path.join(dir, MARKER_FILE);
+  if (!existsSync(marker)) return false;
+  try {
+    const content = readFileSync(marker, 'utf8');
+    if (!content || !content.includes('do not use in production')) return false;
+  } catch {
+    return false;
+  }
+
+  // Vérifier que client.js contient bien la classe PrismaClient.
+  try {
+    const clientContent = readFileSync(path.join(dir, 'client.js'), 'utf8');
+    if (!clientContent.includes('class PrismaClient')) return false;
+  } catch {
+    return false;
+  }
+
+  // Vérifier que enums.js contient bien au moins une exportation d'enum.
+  try {
+    const enumsContent = readFileSync(path.join(dir, 'enums.js'), 'utf8');
+    if (!/export const \w+ = Object\.freeze/.test(enumsContent)) return false;
+  } catch {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -89,8 +126,11 @@ export function stubsAreValid() {
  *
  * Retourne :
  *  - { generated: true, stubs: false } : vrai client complet, pas de stubs
- *  - { generated: false, stubs: true } : stubs crees (ou deja presents)
+ *  - { generated: false, stubs: true } : stubs crees (ou deja presents et valides)
  *  - { generated: false, stubs: false } : generation partielle, pas de stubs crees
+ *
+ * Levee une erreur explicite si l'etat est ambigu (stubs presents mais invalides
+ * sans generation partielle, par exemple).
  */
 export function preparePrismaStubs() {
   // Un vrai client complet a toujours la priorite.
@@ -106,10 +146,17 @@ export function preparePrismaStubs() {
     return { generated: false, stubs: false, cleaned: true };
   }
 
-  // Aucun client complet, aucune generation partielle : verifier si des
-  // stubs valides existent deja (idempotence).
-  if (hasResidualStubs() && STUB_FILES.every((f) => existsSync(path.join(generatedDir, f)))) {
-    return { generated: false, stubs: true, cleaned: false };
+  // Aucun client complet, aucune generation partielle.
+  if (hasResidualStubs()) {
+    if (stubsAreValid()) {
+      // Stubs valides deja presents : idempotence, pas de reecriture.
+      return { generated: false, stubs: true, cleaned: false };
+    }
+
+    // Stubs presents mais invalides (fichier vide, contenu corrompu, marqueur
+    // manquant) : nettoyer uniquement les fichiers identifies comme stubs, puis
+    // recréer proprement. Ne jamais toucher aux fichiers .ts (vrai client).
+    cleanupPrismaStubs();
   }
 
   mkdirSync(generatedDir, { recursive: true });
