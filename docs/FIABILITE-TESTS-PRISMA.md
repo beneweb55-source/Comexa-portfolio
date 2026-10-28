@@ -154,8 +154,10 @@ Le workflow `.github/workflows/backend.yml` a été exécuté avec succès :
 
 | Run | Statut | Durée | Lien |
 |---|---|---|---|
-| 40701503757 (Mission 7.1) | ✅ success | 1m45s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40701503757) |
-| 40705447917 (Mission 7.2) | ✅ success | 2m09s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40705447917) |
+| 40701503757 (Mission 7.0) | ✅ success | 1m49s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40701503757) |
+| 40701915192 (Mission 7.1 doc) | ✅ success | 2m03s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40701915192) |
+| 40705447917 (Mission 7.1) | ✅ success | 2m13s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40705447917) |
+| 40721124207 (Mission 7.2) | ✅ success | 2m14s | [Voir le run](https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40721124207) |
 
 Étapes validées en CI (run 40705447917) :
 - Génération du vrai client Prisma (`prisma generate`) ✅
@@ -214,6 +216,6 @@ Le workflow `.github/workflows/backend.yml` a été exécuté avec succès :
 - [x] Les stubs invalides sont détectés (`stubsAreValid()` pour absent, vide, incomplet, valide)
 - [x] Le comportement du véritable lanceur est testé automatiquement en cas d'échec (sous-processus avec fixture dédiée)
 - [x] Les limites d'interruption sont honnêtement documentées (SIGKILL non couvert)
-- [x] La CI reste verte (run 40705447917, succès)
+- [x] La CI reste verte (run 40721124207, succès, 2m14s — toutes les étapes vertes)
 - [x] Les tests hors ligne n'altèrent plus l'environnement réel (0 stubs résiduels après 3 exécutions)
 - [x] Un client Prisma réellement généré n'est jamais remplacé ni mélangé avec un stub
