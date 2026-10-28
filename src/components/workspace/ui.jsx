@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -431,7 +431,7 @@ export function SkeletonPage({ sections = 2, rowsPerSection = 3, className = "" 
  *     <button onClick={handleSubmit}>Enregistrer</button>
  *   </ActionStatus>
  */
-export function ActionStatus({ children, busy, error, success, onDismiss }) {
+export function ActionStatus({ children, busy }) {
   if (busy) {
     return (
       <div className="sui-action-busy" aria-busy="true" role="status" aria-label="Action en cours">
@@ -447,37 +447,6 @@ export function ActionStatus({ children, busy, error, success, onDismiss }) {
     );
   }
 
-  if (error) {
-    return (
-      <div className="sui-action-error" role="alert">
-        <Notice tone="error">{error}</Notice>
-        {onDismiss ? (
-          <button type="button" className="sui-btn sui-btn--sm" onClick={onDismiss}>
-            Fermer
-          </button>
-        ) : null}
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-          className="sui-action-success"
-          role="status"
-          aria-label="Succès"
-        >
-          <Notice tone="success">{success}</Notice>
-        </motion.div>
-      </AnimatePresence>
-    );
-  }
-
   return <>{children}</>;
 }
 
@@ -486,6 +455,28 @@ export function ActionStatus({ children, busy, error, success, onDismiss }) {
  * réussie, disparaît après un délai.
  */
 export function Toast({ message, tone = "success", visible, onDismiss, duration = 4000 }) {
+  const timerRef = useRef(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    clearTimer();
+    if (visible && duration > 0) {
+      timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        onDismiss?.();
+      }, duration);
+    }
+    return () => {
+      clearTimer();
+    };
+  }, [visible, message, duration, onDismiss, clearTimer]);
+
   if (!visible) return null;
 
   return (

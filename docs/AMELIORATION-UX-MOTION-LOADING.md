@@ -1,8 +1,9 @@
 # Mission 8 — Comexa Portfolio : refonte premium de l'expérience, du mouvement et des chargements
 
-**Date :** 28 octobre 2026 (Africa/Algiers)  
-**Branche :** `arena/c1004795-comexa-portfolio`  
+**Date :** 28 octobre 2026 (Africa/Algiers)
+**Branche :** `arena/c1004795-comexa-portfolio`
 **Périmètre :** quatre espaces (personnel, équipe, client, Comexa Space) + composants partagés. Aucune nouvelle fonctionnalité métier, aucune modification de permission, aucun SaaS séparé.
+**Mission 8.1 :** corrections des transitions, des toasts et des erreurs d'action (stabilisation uniquement, aucun nouveau refactor).
 
 ---
 
@@ -34,6 +35,17 @@
 
 ---
 
+## 1.4 Mission 8.1 — Corrections apportées (stabilisation)
+
+| Défaut | Endroit | Correction |
+|---|---|---|
+| `PageTransition` et `Shell` : déjà corrigés en Mission 8 (`key={pathname}` sur `motion.div`, `pathname` prop normale) | `src/components/softui/PageTransition.jsx`, `src/components/softui/Shell.jsx` | Aucun changement requis en 8.1 |
+| Toast : pas de fermeture automatique, pas de nettoyage du minuteur au démontage / changement de message | `src/components/workspace/ui.jsx` | `useRef` + `useEffect` avec timer auto-dismiss (4s par défaut), nettoyage au démontage et au changement de message/visibilité, `useCallback` pour `clearTimer` |
+| `ActionStatus` absorbait les états `error` et `success`, faisant disparaître le bouton après échec et affichant des notifications redondantes | `src/components/workspace/ui.jsx` | `ActionStatus` ne gère plus que `busy` ; le bouton reste toujours disponible ; l'erreur et le succès sont gérés par l'appelant (Notice dédié, Toast de confirmation) |
+| NewTask : erreur affichée deux fois, bouton indisponible après échec, toast sans distinction succès/échec | `src/app/(session)/espace-equipe/taches/page.jsx` | `error` retiré de `ActionStatus` (affichée une seule fois par le Notice dédié) ; bouton toujours disponible (`disabled` uniquement sur `busy` ou champ invalide) ; toast affiché uniquement après confirmation réelle du serveur ; protection double-soumission via `busy` |
+
+---
+
 ## 2. Règles de mouvement adoptées
 
 | Élément | Durée | Courbe | Distance |
@@ -57,9 +69,9 @@
 
 | Fichier | Action | Détails |
 |---|---|---|
-| `src/components/softui/motion.jsx` | Réécriture complète | Centralise toutes les variantes : `pageVariants`, `pageChildVariants`, `staggerParent`, `staggerItem`, `drawerVariants`, `backdropVariants`, `dialogVariants`, `cardHover`, `cardRest`, `busyVariants`, `tooltipMotion`, `layoutSpring`, `layoutSoft`, `skeletonPulse`, `skeletonAnimation`. Durées calées sur les tokens CSS (`--dur-fast: 140ms`, `--dur-base: 220ms`, `--dur-slow: 300ms`). |
+| `tests/ux-motion-loading.test.mjs` | Créé | 10 tests Mission 8.1 : variantes de mouvement, comportement timer Toast (auto/manuel/nettoyage), création de tâche (succès, échec + retry, pas de succès avant confirmation serveur). | Centralise toutes les variantes : `pageVariants`, `pageChildVariants`, `staggerParent`, `staggerItem`, `drawerVariants`, `backdropVariants`, `dialogVariants`, `cardHover`, `cardRest`, `busyVariants`, `tooltipMotion`, `layoutSpring`, `layoutSoft`, `skeletonPulse`, `skeletonAnimation`. Durées calées sur les tokens CSS (`--dur-fast: 140ms`, `--dur-base: 220ms`, `--dur-slow: 300ms`). |
 | `src/components/softui/PageTransition.jsx` | Créé | Wrapper `AnimatePresence` + `motion.div` pour les transitions de route. Utilise `mode="wait"` pour que l'ancienne page sorte avant que la nouvelle n'entre. |
-| `src/components/workspace/ui.jsx` | Enrichi | Nouveaux exports : `SkeletonKPI`, `SkeletonListItem`, `SkeletonCard`, `SkeletonSection`, `SkeletonPage`, `ActionStatus`, `Toast`. Tous les exports existants conservés. |
+| `src/components/workspace/ui.jsx` | Enrichi | Nouveaux exports : `SkeletonKPI`, `SkeletonListItem`, `SkeletonCard`, `SkeletonSection`, `SkeletonPage`, `ActionStatus`, `Toast`. Tous les exports existants conservés. Timer du Toast en `useRef`/`useEffect` (auto-dismiss 4s, nettoyage), `ActionStatus` simplifié (seul `busy`). |
 
 ### Tranche 2 — Shell et navigation
 
@@ -92,7 +104,7 @@
 | `npm run build` (Next.js, local) | ✅ succès |
 | `npm run build` (CI, run 40724569841) | ✅ succès, 1m46s |
 | `git diff --check` | ✅ OK |
-| `node --test tests/*.test.mjs` | ✅ 58/58 pass, 0 fail |
+| `node --test tests/*.test.mjs` | ✅ 58/58 pass, 0 fail (Mission 8) + 10 nouveaux tests Mission 8.1 dans `tests/ux-motion-loading.test.mjs` |
 | Tests responsive (Chromium) | ⚠️ Non exécutable (Chromium indisponible dans l'environnement) |
 | Réduction des mouvements | ✅ Gérée par `MotionConfig reducedMotion="user"` + CSS `prefers-reduced-motion: reduce` |
 

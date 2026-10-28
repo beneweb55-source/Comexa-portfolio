@@ -643,7 +643,7 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
           ))}
         </select>
       </Field>
-      <ActionStatus busy={busy} error={error}>
+      <ActionStatus busy={busy}>
         <button type="submit" disabled={busy || title.trim().length < 2} className={primaryButton} data-coach-id="taches-create-submit">{busy ? "Ajout…" : "Ajouter"}</button>
       </ActionStatus>
       <Toast message="Tâche créée." visible={toastVisible} onDismiss={() => setToastVisible(false)} />
