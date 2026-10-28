@@ -89,7 +89,8 @@
 | Validation | Résultat |
 |---|---|
 | ESLint (fichiers modifiés) | ✅ exit 0 |
-| `npm run build` (Next.js) | ✅ succès, 66+ pages prerendered |
+| `npm run build` (Next.js, local) | ✅ succès |
+| `npm run build` (CI, run 40724569841) | ✅ succès, 1m46s |
 | `git diff --check` | ✅ OK |
 | `node --test tests/*.test.mjs` | ✅ 58/58 pass, 0 fail |
 | Tests responsive (Chromium) | ⚠️ Non exécutable (Chromium indisponible dans l'environnement) |
