@@ -10,7 +10,7 @@ import { formatDateOnly, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
-import { Badge, Card, Empty, Field, Notice, Pagination, SkeletonList, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
+import { ActionStatus, Badge, Card, Empty, Field, Notice, Pagination, SkeletonCard, SkeletonList, SkeletonSection, Toast, inputClass, primaryButton, selectClass } from "@/components/workspace/ui";
 import {
   EVERY_ASSIGNEE,
   EVERY_CREATOR,
@@ -52,7 +52,7 @@ const EMPTY_IDS = [];
  */
 export default function TachesPage() {
   return (
-    <Suspense fallback={<SkeletonList rows={3} />}>
+    <Suspense fallback={<SkeletonSection title rows={4} />}>
       <TachesBoard />
     </Suspense>
   );
@@ -306,7 +306,7 @@ function Board({ projectId, focusId }) {
       {canReadTasks && tasks.error ? <Notice>{tasks.error}</Notice> : null}
       {error ? <div data-testid="kanban-status-error"><Notice>{error}</Notice></div> : null}
       {notice ? <div data-testid="kanban-status-success"><Notice tone="success">{notice}</Notice></div> : null}
-      {canReadTasks && tasks.items === null && !tasks.error ? <SkeletonList rows={3} /> : null}
+      {canReadTasks && tasks.items === null && !tasks.error ? <SkeletonCard /> : null}
       {!canReadTasks ? <Notice>Votre rôle ne permet pas de consulter la liste des tâches de ce projet.</Notice> : null}
 
       {canReadTasks ? (
@@ -577,6 +577,7 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("NORMAL");
   const [busy, setBusy] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
   const [error, setError] = useState(null);
   const list = Array.isArray(people) ? people : [];
 
@@ -604,6 +605,7 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
           ? `« ${data.title} » est créée et confiée à ${who}${data.assignee.id === user?.id ? " (vous)" : ""}.`
           : `« ${data?.title ?? title.trim()} » est créée, sans assigné pour l’instant.`,
       );
+      setToastVisible(true);
     } catch (caught) {
       setError(messageOf(caught));
     } finally {
@@ -641,7 +643,10 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
           ))}
         </select>
       </Field>
-      <button type="submit" disabled={busy || title.trim().length < 2} className={primaryButton} data-coach-id="taches-create-submit">{busy ? "Ajout…" : "Ajouter"}</button>
+      <ActionStatus busy={busy} error={error}>
+        <button type="submit" disabled={busy || title.trim().length < 2} className={primaryButton} data-coach-id="taches-create-submit">{busy ? "Ajout…" : "Ajouter"}</button>
+      </ActionStatus>
+      <Toast message="Tâche créée." visible={toastVisible} onDismiss={() => setToastVisible(false)} />
       {ownOnly ? <p className="w-full text-[12.5px] text-[var(--comexa-ink-muted)]">La tâche vous sera assignée : vous la retrouverez dans « Mes tâches ».</p> : null}
     </form>
   );

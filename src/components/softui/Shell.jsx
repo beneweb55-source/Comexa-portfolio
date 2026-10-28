@@ -71,9 +71,10 @@ import Dock from "./Dock";
 import Navbar from "./Navbar";
 import Notch from "./Notch";
 import PageHeader from "./PageHeader";
+import PageTransition from "./PageTransition";
 import SideRail from "./SideRail";
 import { SpaceSwitcherList } from "./SpaceSwitcher";
-import { SoftMotionProvider, pageTransition } from "./motion";
+import { SoftMotionProvider } from "./motion";
 import { notificationMeta, resolveNotificationHref } from "./notification-map";
 import { relativeFr } from "./time";
 import {
@@ -673,13 +674,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
 
               <main className="sui-main" id={skipId} aria-label={pageHeading}>
                 <div className="sui-main__scroll" ref={scrollRef} style={{ "--zoom": zoom }}>
-                  <motion.div
-                    key={pathname}
-                    className="sui-canvas-inner"
-                    initial="hidden"
-                    animate="visible"
-                    variants={pageTransition}
-                  >
+                  <PageTransition key={pathname} className="sui-canvas-inner">
                     <PageHeader
                       title={pageHeading}
                       subtitle={pageSubtitle}
@@ -699,7 +694,7 @@ export function WorkspaceSoftShell({ area, title, groups = [], dockEnd = null, c
                       </div>
                     ) : null}
                     {children}
-                  </motion.div>
+                  </PageTransition>
                 </div>
               </main>
 

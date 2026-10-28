@@ -12,8 +12,10 @@ import {
   X,
 } from "lucide-react";
 import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import Dialog from "@/components/softui/Dialog";
 import { toneBackground } from "@/components/softui/primitives";
+import { skeletonAnimation } from "@/components/softui/motion";
 
 /*
  * Composants de base partagés entre l'espace client, l'espace équipe et
@@ -336,5 +338,174 @@ export function OrderSteps({ status }) {
         );
       })}
     </ol>
+  );
+}
+
+/* ======================================================================== */
+/* Squelettes spécifiques par type de page                                  */
+/* ======================================================================== */
+
+/** Skeleton de carte KPI (titre + valeur + indicateur). */
+export function SkeletonKPI({ className = "" }) {
+  return (
+    <div className={`sui-skeleton-kpi ${className}`.trim()} aria-hidden="true">
+      <div className="sui-skeleton h-4 w-1/3" />
+      <div className="mt-2">
+        <div className="sui-skeleton h-6 w-1/2" />
+        <div className="mt-1.5 sui-skeleton h-4 w-3/4" />
+      </div>
+    </div>
+  );
+}
+
+/** Skeleton de ligne de liste (titre + détail + statut). */
+export function SkeletonListItem({ className = "" }) {
+  return (
+    <div className={`sui-skeleton-row ${className}`.trim()} aria-hidden="true">
+      <div className="flex flex-1 flex-col gap-2">
+        <div className="sui-skeleton h-4 w-3/4" />
+        <div className="mt-1 sui-skeleton h-3 w-1/2" />
+      </div>
+      <div className="sui-skeleton h-7 w-20 rounded-full" />
+    </div>
+  );
+}
+
+/** Skeleton de carte (titre + contenu + pied). */
+export function SkeletonCard({ className = "" }) {
+  return (
+    <div className={`sui-skeleton-card ${className}`.trim()} aria-hidden="true">
+      <div className="sui-skeleton h-5 w-1/2" />
+      <div className="mt-3 space-y-2">
+        <div className="sui-skeleton h-3 w-full" />
+        <div className="sui-skeleton h-3 w-2/3" />
+        <div className="sui-skeleton h-3 w-1/3" />
+      </div>
+      <div className="mt-4 sui-skeleton h-8 w-1/4" />
+    </div>
+  );
+}
+
+/** Skeleton de section (en-tête + lignes). */
+export function SkeletonSection({ title = true, rows = 3, className = "" }) {
+  return (
+    <div className={`sui-skeleton-section ${className}`.trim()} aria-hidden="true">
+      {title ? <div className="sui-skeleton h-5 w-1/3 mb-3" /> : null}
+      <div className="space-y-2">
+        {Array.from({ length: rows }, (_, i) => (
+          <div key={i} className="sui-skeleton-row">
+            <div className="flex flex-1 flex-col gap-2">
+              <div className="sui-skeleton h-4 w-3/4" />
+              <div className="mt-1 sui-skeleton h-3 w-1/2" />
+            </div>
+            <div className="sui-skeleton h-7 w-20 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Skeleton de page complète (en-tête + sections). */
+export function SkeletonPage({ sections = 2, rowsPerSection = 3, className = "" }) {
+  return (
+    <div className={`sui-skeleton-page ${className}`.trim()} aria-hidden="true" role="status" aria-label="Chargement de la page">
+      <div className="sui-skeleton h-5 w-1/4 mb-6" />
+      {Array.from({ length: sections }, (_, s) => (
+        <SkeletonSection key={s} title rows={rowsPerSection} />
+      ))}
+    </div>
+  );
+}
+
+/* ======================================================================== */
+/* États d'action                                                           */
+/* ======================================================================== */
+
+/**
+ * Indicateur d'action en cours : remplace le contenu par un skeleton discret,
+ * désactive le contrôle, et affiche succès/erreur après l'action.
+ *
+ * Exemple :
+ *   <ActionStatus busy={busy} error={error} success={success} onDismiss={...}>
+ *     <button onClick={handleSubmit}>Enregistrer</button>
+ *   </ActionStatus>
+ */
+export function ActionStatus({ children, busy, error, success, onDismiss }) {
+  if (busy) {
+    return (
+      <div className="sui-action-busy" aria-busy="true" role="status" aria-label="Action en cours">
+        <motion.span
+          className="sui-skeleton h-5 w-20 rounded-full"
+          initial="hidden"
+          animate="visible"
+          variants={skeletonAnimation}
+          aria-hidden="true"
+        />
+        <span className="sui-visually-hidden">Enregistrement en cours…</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="sui-action-error" role="alert">
+        <Notice tone="error">{error}</Notice>
+        {onDismiss ? (
+          <button type="button" className="sui-btn sui-btn--sm" onClick={onDismiss}>
+            Fermer
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+          className="sui-action-success"
+          role="status"
+          aria-label="Succès"
+        >
+          <Notice tone="success">{success}</Notice>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * Message de confirmation temporaire (toast léger) : apparaît après une action
+ * réussie, disparaît après un délai.
+ */
+export function Toast({ message, tone = "success", visible, onDismiss, duration = 4000 }) {
+  if (!visible) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: 12, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="sui-toast"
+        role="status"
+        aria-label={message}
+      >
+        <Notice tone={tone}>{message}</Notice>
+        {onDismiss ? (
+          <button type="button" className="sui-btn sui-btn--ghost sui-btn--sm" onClick={onDismiss}>
+            Fermer
+          </button>
+        ) : null}
+      </motion.div>
+    </AnimatePresence>
   );
 }

@@ -23,7 +23,7 @@ import {
   OrderSteps,
   Pagination,
   ProgressBar,
-  SkeletonList,
+  SkeletonSection,
   primaryButton,
   secondaryButton,
 } from "@/components/workspace/ui";
@@ -128,7 +128,7 @@ export default function EspaceClientPage() {
           }
         >
           {projects.error ? <Notice>{projects.error}</Notice> : null}
-          {projects.items === null && !projects.error ? <SkeletonList rows={2} /> : null}
+          {projects.items === null && !projects.error ? <SkeletonSection rows={2} /> : null}
           {projects.items !== null && projectList.length === 0 ? (
             <Empty
               icon={FolderKanban}
@@ -179,7 +179,7 @@ export default function EspaceClientPage() {
           }
         >
           {orders.error ? <Notice>{orders.error}</Notice> : null}
-          {orders.items === null && !orders.error ? <SkeletonList rows={2} /> : null}
+          {orders.items === null && !orders.error ? <SkeletonSection rows={2} /> : null}
           {orders.items !== null && orderList.length === 0 ? (
             <Empty icon={ShoppingCart}>Aucune commande enregistrée pour le moment.</Empty>
           ) : null}
@@ -232,7 +232,7 @@ export default function EspaceClientPage() {
       <div className="sui-split">
         <Panel title="Mes demandes de projet" subtitle="Demandes personnalisées étudiées par notre équipe.">
           {requests.error ? <Notice>{requests.error}</Notice> : null}
-          {requests.items === null && !requests.error ? <SkeletonList rows={2} /> : null}
+          {requests.items === null && !requests.error ? <SkeletonSection rows={2} /> : null}
           {requests.items !== null && requestList.length === 0 ? (
             <Empty icon={Layers}>Aucune demande de projet en cours.</Empty>
           ) : null}
@@ -263,7 +263,7 @@ export default function EspaceClientPage() {
         {quotesVisible ? (
           <Panel title="Tous mes devis" subtitle="Historique complet de vos propositions commerciales.">
             {quotes.error ? <Notice>{quotes.error}</Notice> : null}
-            {quotes.items === null && !quotes.error ? <SkeletonList rows={2} /> : null}
+            {quotes.items === null && !quotes.error ? <SkeletonSection rows={2} /> : null}
             {quotes.items !== null && quoteList.length === 0 ? (
               <Empty icon={FileText}>Aucun devis pour le moment.</Empty>
             ) : null}
