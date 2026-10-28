@@ -8,7 +8,13 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
+import { preparePrismaStubs } from "./helpers/prisma-stubs.mjs";
 import { RoleCode } from "../src/generated/prisma/enums.js";
+
+// Garantir la présence des stubs hors ligne même si cette suite est lancée
+// en dehors de `npm run test:invariants` (pretest:invariants). Idempotent :
+// si un vrai client Prisma généré est présent, rien n'est créé.
+preparePrismaStubs();
 import {
   accessibleSpaces,
   canEnterSpace,

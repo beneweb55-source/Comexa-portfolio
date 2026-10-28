@@ -1,22 +1,35 @@
 /**
  * Harnais de tests : le client Prisma GENERE n'est pas versionne.
  *
- * En CI, `npm run prisma:generate` cree `src/generated/prisma/*.ts` et ce
- * fichier ne fait RIEN. Dans un environnement hors ligne, `prisma generate`
- * echoue sur le telechargement de `schema-engine` (binaries.prisma.sh). On
- * fabrique alors, UNIQUEMENT POUR LES TESTS, deux stubs `.js` dans ce dossier
- * gitignore : les enums (lus depuis le schema, donc jamais recopies a la main)
- * et la surface minimale du client. Les services sont testes avec un faux
- * `PrismaService` : aucun de ces stubs ne touche a une base de donnees.
+ * Strategie d'isolation retenue (Mission 7) :
+ *  - Les stubs sont crees dans `src/generated/prisma/`, le MEME chemin que le
+ *    client genere par `prisma generate`. Les imports des tests et des
+ *    services (../../generated/prisma/enums.js, ../../generated/prisma/client.js)
+ *    restent ainsi inchangés : aucune adaptation des sources n'est necessaire.
+ *  - Si un vrai client genere est present (fichiers .ts), preparePrismaStubs()
+ *    supprime les eventuels anciens stubs .js et ne recree rien : le vrai
+ *    client est toujours prioritaire (tsx et Node resoudent ./en.js vers
+ *    ./en.ts en priorite).
+ *  - Aucun stub ne subsiste apres les tests : cleanupPrismaStubs() est appele
+ *    dans un afterAll de chaque suite, et via posttest:invariants.
+ *  - Un marqueur .prisma-stubs-marker identifie les fichiers factices pour
+ *    eviter toute confusion avec le client de production.
  *
  * NE PAS UTILISER EN PRODUCTION : ces fichiers ne sont pas le client Prisma.
+ * Ne jamais ecrire de declarations TypeScript fictives pour faire compiler
+ * NestJS. Ne jamais remplacer le vrai client Prisma par un faux dans le
+ * chemin de production.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const generatedDir = path.join(backendRoot, 'src', 'generated', 'prisma');
+
+const STUB_FILES = ['enums.js', 'client.js'];
+const MARKER_FILE = '.prisma-stubs-marker';
 
 /** Enums du schema : `enum Name { A\n B }` -> `{ Name: { A:'A', B:'B' } }`. */
 export function schemaEnums() {
@@ -33,16 +46,43 @@ export function schemaEnums() {
   return result;
 }
 
+/** Vrai client Prisma genere present ? (fichiers .ts, jamais les stubs .js) */
+export function isRealPrismaClientPresent() {
+  return (
+    existsSync(path.join(generatedDir, 'enums.ts')) ||
+    existsSync(path.join(generatedDir, 'client.ts'))
+  );
+}
+
+/** Des fichiers factices subsistent-ils sur le disque (stubs ou marqueur) ? */
+export function hasResidualStubs() {
+  return (
+    STUB_FILES.some((file) => existsSync(path.join(generatedDir, file))) ||
+    existsSync(path.join(generatedDir, MARKER_FILE))
+  );
+}
+
+/**
+ * Ecrire les stubs de test, uniquement si aucun vrai client n'est present.
+ *
+ * Idempotent : appeler plusieurs fois produit le meme etat. Si un vrai client
+ * est detecte, les anciens stubs sont supprimes et aucun nouveau n'est crees.
+ */
 export function preparePrismaStubs() {
-  // Un vrai client genere a toujours la priorite.
-  if (existsSync(path.join(generatedDir, 'enums.ts'))) return { generated: false, stubs: false };
+  // Un vrai client genere a toujours la priorite : on nettoie les eventuels
+  // stubs residus et on ne recree rien.
+  if (isRealPrismaClientPresent()) {
+    const cleaned = cleanupPrismaStubs();
+    return { generated: true, stubs: false, cleaned: cleaned.length > 0 };
+  }
+
   mkdirSync(generatedDir, { recursive: true });
 
   const enums = schemaEnums();
   const lines = Object.entries(enums).map(
     ([name, values]) =>
-      `export const ${name} = Object.freeze({ ${values.map((value) => `${value}: '${value}'`).join(', ')} });`,
-  );
+      `export const ${name} = Object.freeze({ ${values.map((value) => `${value}: '${value}'`).join(', ')} });`);
+
   writeFileSync(path.join(generatedDir, 'enums.js'), `${lines.join('\n')}\n`);
 
   writeFileSync(
@@ -80,5 +120,24 @@ export class PrismaClient {
 export const PrismaClientKnownRequestError = class extends Error {};
 `,
   );
-  return { generated: false, stubs: true };
+
+  writeFileSync(path.join(generatedDir, MARKER_FILE), 'prisma test stubs — do not use in production\n');
+
+  return { generated: false, stubs: true, cleaned: false };
+}
+
+/**
+ * Supprimer les stubs et le marqueur. Retourne la liste des fichiers supprimes.
+ * Ne touche JAMAIS a un vrai client genere (.ts).
+ */
+export function cleanupPrismaStubs() {
+  const removed = [];
+  for (const file of [...STUB_FILES, MARKER_FILE]) {
+    const full = path.join(generatedDir, file);
+    if (existsSync(full)) {
+      unlinkSync(full);
+      removed.push(file);
+    }
+  }
+  return removed;
 }

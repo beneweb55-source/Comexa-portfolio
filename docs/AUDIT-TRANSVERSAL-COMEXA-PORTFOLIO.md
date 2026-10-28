@@ -137,9 +137,9 @@ Les tests des quatre autres espaces ont été rejoués après la modification du
 
 | Priorité | Constat | Endroit | Statut |
 |---|---|---|---|
-| **P0** | Notifications `SYSTEM` classées Comexa Space, liens vers rubriques absentes | `space-policy.ts`, `propospects.service.ts`, `notification-links.js` | **Corrigé** |
-| **P0** | `notifyMany` publie une ancienne notification en temps réel | `notification.service.ts` | **Corrigé** |
-| **P0** | Lien `/prospects/:id` non résolu | `notification-links.js` | **Corrigé** |
+| **P1** | Notifications `SYSTEM` classées Comexa Space : mauvais compteur/espace et lien sans rubrique, mais aucun contournement de permissions, fuite de données, corruption ou exposition de secrets | `space-policy.ts` | **Corrigé** |
+| **P1** | `notifyMany` publie une ancienne notification en temps réel : erreur d'affichage sur le même destinataire, pas de fuite vers un tiers, pas de contournement de permissions | `notification.service.ts` | **Corrigé** |
+| **P2** | Lien `/prospects/:id` non résolu : lien mort vers la boîte de réception, pas de risque critique | `notification-links.js` | **Corrigé** |
 | **P1** | Build backend NestJS impossible en local (Prisma) | `prisma.config.ts`, `nest build` | Documenté, blocage environnemental |
 | **P1** | JWT session transmis à n8n | `agent-chat/route.js` | Atténué (Mission 5), correction définitive différée (workflow externe absent) |
 | **P1** | `EMAIL_VERIFICATION_REQUIRED=false` en production | `render.yaml` | Non modifié (décision produit Mailjet) |
@@ -147,6 +147,10 @@ Les tests des quatre autres espaces ont été rejoués après la modification du
 | **P2** | `space-policy.ts` sans tests dédiés (alerte Phase 1) | `backend/tests/admin-policy.test.mjs` | **Couvert** (test existant corrigé + nouvelle suite) |
 
 ---
+
+### Note sur la réévaluation des priorités (stabilisation backend, Mission 7)
+
+Le barème P0 du rapport couvre quatre cas critiques : fuite de données, contournement de permissions, corruption de données, exposition de secrets. Les trois anomalies de notification corrigées en Mission 6 (classification `SYSTEM`, relecture `notifyMany`, lien `/prospects/:id` mort) sont des défauts d'affichage et de navigation : mauvais compteur par espace, ancienne notification renvoyée au même destinataire, lien sans rubrique cible. Aucun de ces quatre cas critiques n'est démontré. Elles sont donc rétrogradées respectivement à P1, P1 et P2. Leur correction reste effective : aucun problème n'est minimisé, seule la gravité est alignée sur le barème.
 
 ## 5. Problèmes corrigés et fichiers modifiés
 
