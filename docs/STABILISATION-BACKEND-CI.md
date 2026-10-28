@@ -132,7 +132,15 @@ Le véritable `nest build` pourra être exécuté par la CI (`.github/workflows/
 
 ### Résultat de la CI
 
-Le workflow `.github/workflows/backend.yml` a été créé et commité. Il n'a **pas encore été exécuté** à ce stade (dépend du déclenchement sur push/PR et de la disponibilité des runners GitHub Actions). Le résultat final devra être consulté via l'onglet Actions du dépôt après le push, et non déduit de la simple présence du fichier YAML.
+Le workflow `.github/workflows/backend.yml` a été créé, commité et **exécuté avec succès** sur le push du commit `1d9df32` :
+
+- Workflow : https://github.com/beneweb55-source/Comexa-portfolio/actions/workflows/backend.yml
+- Run CI (succès) : https://github.com/beneweb55-source/Comexa-portfolio/actions/runs/40701503757
+- Job : `Validation backend et frontend` (ID 122862252890), durée 1m45s, résultat `success`.
+
+Toutes les étapes sont passées : `prisma generate` (vrai client), vérification des fichiers générés, `nest build` (compilation réelle), tests backend (vrai client, pas de stubs), ESLint backend/frontend, build Next.js, tests frontend et contrat API.
+
+Ce résultat confirme que le blocage de `prisma generate` et `nest build` était **purement environnemental** (TLS vers `binaries.prisma.sh` indisponible localement), et non un problème de code ou de configuration.
 
 ---
 
