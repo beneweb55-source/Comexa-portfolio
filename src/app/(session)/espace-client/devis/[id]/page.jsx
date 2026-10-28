@@ -2,9 +2,11 @@
 
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/session";
-import { formatDate, formatMoney } from "@/lib/api";
+import { formatDate, formatDateOnly, formatMoney } from "@/lib/api";
 import { QUOTE_OPEN_STATUSES, QUOTE_STATUS, QUOTE_STATUS_TONE } from "@/lib/commercial";
+import { quoteFollowup } from "@/lib/quote-attention.mjs";
 import { useAction, useListing } from "@/lib/use-listing";
 import { Badge, Card, Field, Notice, inputClass, primaryButton, secondaryButton } from "@/components/workspace/ui";
 import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
@@ -21,7 +23,13 @@ export default function DevisClientPage({ params }) {
   const [confirming, setConfirming] = useState(null);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
   const viewedOnce = useRef(false);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Premier affichage d'un devis envoyé : on le marque comme consulté (une seule fois).
   const currentStatus = quote.items?.status;
@@ -41,6 +49,7 @@ export default function DevisClientPage({ params }) {
   const data = quote.items;
   const isOpen = QUOTE_OPEN_STATUSES.includes(data.status);
   const items = data.items ?? [];
+  const followup = isOpen ? quoteFollowup(data, now) : null;
 
   async function accept() {
     const result = await action.run("accept", `/quotes/${id}/accept`, { method: "POST" }, "Devis accepté. Merci !");
@@ -71,6 +80,13 @@ export default function DevisClientPage({ params }) {
 
       {action.error ? <Notice>{action.error}</Notice> : null}
       {action.success ? <Notice tone="success">{action.success}</Notice> : null}
+      {followup ? (
+        <div data-testid="client-quote-expiry-banner">
+          <Notice tone="warning">
+            Ce devis {followup.label.toLowerCase()}. Vous pouvez encore l’accepter ou le refuser ; après cette date, une nouvelle proposition sera nécessaire.
+          </Notice>
+        </div>
+      ) : null}
 
       <Card title={data.subject} action={<Badge tone={QUOTE_STATUS_TONE[data.status] ?? "neutral"}>{QUOTE_STATUS[data.status] ?? data.status}</Badge>}>
         <dl className="grid gap-4 text-[14.5px] sm:grid-cols-3">
@@ -84,13 +100,20 @@ export default function DevisClientPage({ params }) {
           </div>
           <div>
             <dt className="text-[12px] uppercase tracking-wide text-[var(--comexa-ink-muted)]">Valable jusqu&apos;au</dt>
-            <dd>{formatDate(data.validUntil)}</dd>
+            <dd>{formatDateOnly(data.validUntil)}</dd>
           </div>
         </dl>
 
-        {data.status === "ACCEPTED" ? <p className="mt-4 text-[14.5px]">Vous avez accepté ce devis le {formatDate(data.acceptedAt)}.</p> : null}
-        {data.status === "REJECTED" ? <p className="mt-4 text-[14.5px]">Vous avez refusé ce devis le {formatDate(data.rejectedAt)}.</p> : null}
-        {data.status === "EXPIRED" ? <p className="mt-4 text-[14.5px]">Ce devis est arrivé à échéance. Contactez l&apos;agence pour un nouveau devis.</p> : null}
+        {data.status === "ACCEPTED" ? <p className="mt-4 text-[14.5px]">Vous avez accepté ce devis le {formatDateOnly(data.acceptedAt)}. Un projet a été ouvert ; une facture vous sera transmise selon les modalités prévues.</p> : null}
+        {data.status === "REJECTED" ? <p className="mt-4 text-[14.5px]">Vous avez refusé ce devis le {formatDateOnly(data.rejectedAt)}.</p> : null}
+        {data.status === "EXPIRED" ? (
+          <div className="client-quote__expired" data-testid="client-quote-expired">
+            <p>Ce devis est arrivé à échéance. Nous ne pouvons plus enregistrer votre décision ici.</p>
+            <Link href="/espace-client/messagerie" className="client-focus__link">
+              <MessageSquare size={16} aria-hidden="true" /> Demander une nouvelle proposition
+            </Link>
+          </div>
+        ) : null}
       </Card>
 
       <QuotePdfActions quoteId={data.id} reference={data.reference} />
@@ -134,13 +157,14 @@ export default function DevisClientPage({ params }) {
       </Card>
 
       {isOpen ? (
+        <div data-testid="client-quote-decision">
         <Card title="Votre décision">
           {confirming === null ? (
             <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={() => setConfirming("accept")} className={primaryButton} data-coach-id="devis-accept-button">
+              <button type="button" onClick={() => setConfirming("accept")} className={`${primaryButton} client-quote__action`} data-coach-id="devis-accept-button">
                 Accepter le devis
               </button>
-              <button type="button" onClick={() => setConfirming("refuse")} className={secondaryButton}>
+              <button type="button" onClick={() => setConfirming("refuse")} className={`${secondaryButton} client-quote__action`}>
                 Refuser
               </button>
             </div>
@@ -149,14 +173,14 @@ export default function DevisClientPage({ params }) {
           {confirming === "accept" ? (
             <div className="flex flex-col gap-3">
               <p className="text-[15px]">
-                En acceptant, vous confirmez la commande des prestations ci-dessus pour un montant de {formatMoney(data.total, data.currency)} TTC. Une facture vous sera
-                transmise.
+                En acceptant, vous confirmez la commande des prestations ci-dessus pour un montant de {formatMoney(data.total, data.currency)} TTC. Un projet sera ouvert et une
+                facture vous sera transmise selon les modalités prévues.
               </p>
               <div className="flex gap-3">
-                <button type="button" onClick={accept} disabled={action.busy === "accept"} className={primaryButton} data-coach-id="devis-accept-confirm">
+                <button type="button" onClick={accept} disabled={action.busy === "accept"} className={`${primaryButton} client-quote__action`} data-coach-id="devis-accept-confirm">
                   {action.busy === "accept" ? "Validation…" : "Confirmer l'acceptation"}
                 </button>
-                <button type="button" onClick={() => setConfirming(null)} className={secondaryButton}>
+                <button type="button" onClick={() => setConfirming(null)} className={`${secondaryButton} client-quote__action`}>
                   Annuler
                 </button>
               </div>
@@ -169,16 +193,17 @@ export default function DevisClientPage({ params }) {
                 <input id="refuse-reason" className={inputClass} value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} />
               </Field>
               <div className="flex gap-3">
-                <button type="submit" disabled={action.busy === "refuse"} className={primaryButton}>
+                <button type="submit" disabled={action.busy === "refuse"} className={`${primaryButton} client-quote__action`}>
                   {action.busy === "refuse" ? "Envoi…" : "Confirmer le refus"}
                 </button>
-                <button type="button" onClick={() => setConfirming(null)} className={secondaryButton}>
+                <button type="button" onClick={() => setConfirming(null)} className={`${secondaryButton} client-quote__action`}>
                   Annuler
                 </button>
               </div>
             </form>
           ) : null}
         </Card>
+        </div>
       ) : null}
 
       <p className="text-[13px] text-[var(--comexa-ink-muted)]">Connecté en tant que {user ? `${user.firstName} ${user.lastName}` : "—"}.</p>

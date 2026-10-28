@@ -1,24 +1,36 @@
 "use client";
 
 /*
- * Ajout rapide d'une tâche personnelle : un titre et Entrée suffisent.
+ * Ajout rapide d'une tâche personnelle : une phrase et Entrée suffisent.
  *
- * Les options utiles sont à portée de main sans alourdir la saisie : objectif
- * (pré-rempli avec l'objectif ouvert dans la liste), échéance en un clic
- * (aujourd'hui, demain) ou au calendrier, priorité et estimation.
+ * La reconnaissance est DÉTERMINISTE (`parseQuickAddPhrase`) : aucun LLM, aucun
+ * appel réseau avant la création. Chaque valeur reconnue est affichée dans une
+ * puce et alimente un contrôle visible et modifiable. Les conflits et objectifs
+ * ambigus ne sont jamais devinés : ils sont signalés.
+ *
+ * Les champs envoyés restent exactement ceux du DTO existant `POST /me/tasks` :
+ * titre, priorité, échéance (jour), estimation et objectif ACTIF. Aucun statut,
+ * projet ou assigné n'est fabriqué côté navigateur.
  *
  * Ancre `#nouvelle-tache` : le raccourci « Nouvelle tâche personnelle » du dock
  * y mène et place le curseur dans le champ.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { CalendarDays, CircleAlert, Clock3, Flag, Plus, Target } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { CalendarDays, CircleAlert, Clock3, Flag, Plus, Target, Zap } from "lucide-react";
 import { messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { localDay } from "@/lib/task-status.mjs";
+import {
+  QUICK_ADD_MAX_ESTIMATE_MINUTES,
+  parseQuickAddPhrase,
+  personalTaskPayload,
+  quickAddFormError,
+} from "@/lib/task-quick-add.mjs";
 
 const PRIORITY_LABEL = { LOW: "Basse", NORMAL: "Normale", HIGH: "Haute", URGENT: "Urgente" };
 const ESTIMATES = [15, 30, 60, 120, 240];
+const EMPTY_RECOGNITION = Object.freeze({ dueDate: null, priority: null, estimateMinutes: null, goalId: null });
 
 function shiftDay(days) {
   const date = new Date();
@@ -29,6 +41,7 @@ function shiftDay(days) {
 export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated }) {
   const { request } = useAuth();
   const inputRef = useRef(null);
+  const recognitionRef = useRef(EMPTY_RECOGNITION);
   const [title, setTitle] = useState("");
   const [goalId, setGoalId] = useState(defaultGoalId);
   const [dueDate, setDueDate] = useState("");
@@ -36,13 +49,40 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
   const [estimate, setEstimate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  const [syncWarning, setSyncWarning] = useState(null);
   const [lastGoal, setLastGoal] = useState(defaultGoalId);
+  const [now, setNow] = useState(() => Date.now());
+  const helpId = useId();
+  const notesId = useId();
+  const estimatesId = useId();
 
   // L'objectif ouvert dans la liste devient l'objectif par défaut.
   if (defaultGoalId !== lastGoal) {
     setLastGoal(defaultGoalId);
     setGoalId(defaultGoalId);
   }
+
+  // Le parseur relit la liste des objectifs quand elle change ; il n'accepte que
+  // les objectifs ACTIFS, comme le fait déjà l'API.
+  const parsed = useMemo(() => parseQuickAddPhrase(title, { now, goals }), [goals, now, title]);
+
+  useEffect(() => {
+    const next = {
+      dueDate: parsed.dueDate ?? null,
+      priority: parsed.priority ?? null,
+      estimateMinutes: parsed.estimateMinutes ?? null,
+      goalId: parsed.goalId ?? null,
+    };
+    const previous = recognitionRef.current;
+    // Une correction manuelle n'est pas écrasée à chaque frappe : seule une
+    // valeur reconnue qui APPARAÎT, CHANGE ou DISPARAÎT met à jour le contrôle.
+    if (next.dueDate !== previous.dueDate) setDueDate(next.dueDate ?? "");
+    if (next.priority !== previous.priority) setPriority(next.priority ?? "NORMAL");
+    if (next.estimateMinutes !== previous.estimateMinutes) setEstimate(next.estimateMinutes ? String(next.estimateMinutes) : "");
+    if (next.goalId !== previous.goalId) setGoalId(next.goalId ?? defaultGoalId);
+    recognitionRef.current = next;
+  }, [defaultGoalId, parsed]);
 
   useEffect(() => {
     function focusFromHash() {
@@ -51,39 +91,51 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
         inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     }
+    function refreshRelativeDay() {
+      setNow(Date.now());
+    }
     focusFromHash();
     window.addEventListener("hashchange", focusFromHash);
-    return () => window.removeEventListener("hashchange", focusFromHash);
+    window.addEventListener("focus", refreshRelativeDay);
+    return () => {
+      window.removeEventListener("hashchange", focusFromHash);
+      window.removeEventListener("focus", refreshRelativeDay);
+    };
   }, []);
 
   const today = shiftDay(0);
   const tomorrow = shiftDay(1);
+  const cleanTitle = parsed.title.trim();
+  const notes = [...parsed.warnings, ...parsed.assumptions, ...(syncWarning ? [syncWarning] : [])];
 
   async function submit(event) {
     event.preventDefault();
-    const value = title.trim();
-    if (value.length < 2) {
-      setError("Le titre doit contenir au moins 2 caractères.");
+    const formError = quickAddFormError({ title: cleanTitle, dueDate, estimateMinutes: estimate });
+    if (formError) {
+      setError(formError);
       return;
     }
+    const payload = personalTaskPayload({ title: cleanTitle, dueDate, priority, estimateMinutes: estimate, goalId });
     setBusy(true);
     setError(null);
+    setSuccess(null);
+    setSyncWarning(null);
     try {
-      await request("/me/tasks", {
-        method: "POST",
-        body: {
-          title: value,
-          priority,
-          ...(dueDate ? { dueDate: new Date(`${dueDate}T12:00:00Z`).toISOString() } : {}),
-          ...(estimate ? { estimateMinutes: Number(estimate) } : {}),
-          ...(goalId ? { goalId } : {}),
-        },
-      });
+      await request("/me/tasks", { method: "POST", body: payload });
       setTitle("");
       setDueDate("");
       setPriority("NORMAL");
       setEstimate("");
-      await onCreated?.();
+      setGoalId(defaultGoalId);
+      recognitionRef.current = EMPTY_RECOGNITION;
+      setSuccess(`Tâche « ${payload.title} » ajoutée.`);
+      // La tâche existe déjà : un échec de rechargement ne doit jamais être
+      // présenté comme un échec de création.
+      try {
+        await onCreated?.();
+      } catch {
+        setSyncWarning("Tâche ajoutée, mais la liste n’a pas pu être actualisée. Rechargez la page.");
+      }
       inputRef.current?.focus();
     } catch (caught) {
       setError(messageOf(caught));
@@ -112,20 +164,50 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
           className="sui-composer__input"
           maxLength={300}
           value={title}
-          placeholder="Nouvelle tâche personnelle…"
+          placeholder="Réviser le chapitre 3 demain pendant 2 h, priorité haute…"
+          aria-describedby={[helpId, notes.length ? notesId : null].filter(Boolean).join(" ") || undefined}
           onChange={(event) => {
             setTitle(event.target.value);
-            if (error) setError(null);
+            setError(null);
+            setSuccess(null);
+            setSyncWarning(null);
           }}
         />
         <button
           type="submit"
           className="sui-btn sui-btn--dark sui-composer__submit"
-          disabled={busy || title.trim().length < 2}
+          disabled={busy || cleanTitle.length < 2}
         >
           {busy ? "Ajout…" : "Ajouter"}
         </button>
       </div>
+
+      <p className="sui-quickadd__help" id={helpId}>
+        <Zap size={13} strokeWidth={2} aria-hidden="true" />
+        Une phrase suffit. Les valeurs reconnues s’affichent ci-dessus et restent modifiables avant l’ajout.
+      </p>
+
+      {parsed.detected.length ? (
+        <ul className="sui-quickadd__chips" aria-label="Informations reconnues" role="status">
+          {parsed.detected.map((item) => (
+            <li key={item.field} className="sui-quickadd__chip" title={`Reconnu depuis « ${item.raw.trim() } »`}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {notes.length ? (
+        <div className="sui-quickadd__notes" id={notesId} role="status">
+          <CircleAlert size={14} strokeWidth={2} aria-hidden="true" />
+          <ul>
+            {notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <div className="sui-composer__options">
         {goals.length ? (
@@ -169,17 +251,27 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
           </select>
         </label>
 
-        <label className="sui-composer__option">
+        <label className="sui-composer__option sui-quickadd__estimate">
           <Clock3 size={14} strokeWidth={2} aria-hidden="true" />
-          <span className="sr-only">Estimation</span>
-          <select value={estimate} onChange={(event) => setEstimate(event.target.value)}>
-            <option value="">Sans estimation</option>
+          <span className="sr-only">Estimation en minutes</span>
+          <input
+            type="number"
+            min={1}
+            max={QUICK_ADD_MAX_ESTIMATE_MINUTES}
+            step={1}
+            inputMode="numeric"
+            list={estimatesId}
+            value={estimate}
+            placeholder="—"
+            aria-label="Estimation en minutes"
+            onChange={(event) => setEstimate(event.target.value)}
+          />
+          <span aria-hidden="true">min</span>
+          <datalist id={estimatesId}>
             {ESTIMATES.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {minutes < 60 ? `${minutes} min` : `${minutes / 60} h`}
-              </option>
+              <option key={minutes} value={minutes} label={minutes < 60 ? `${minutes} min` : `${minutes / 60} h`} />
             ))}
-          </select>
+          </datalist>
         </label>
       </div>
 
@@ -189,6 +281,7 @@ export default function TaskComposer({ goals = [], defaultGoalId = "", onCreated
           {error}
         </p>
       ) : null}
+      {success ? <p className="sui-quickadd__success" role="status">{success}</p> : null}
     </form>
   );
 }

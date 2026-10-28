@@ -62,9 +62,13 @@ export function GoalCard({ goal, progress, selected = false, onSelect, now }) {
       className={`sui-goal${selected ? " is-selected" : ""}${achieved ? " is-achieved" : ""}`}
       style={{ "--tone-bg": `var(--${tone})`, "--tone-fill": `var(--fill-${tone})` }}
       aria-pressed={selected}
+      // Ancien objectif « atteint » sans tâche terminée : on n'invente pas un
+      // 100 % (avant correction l'anneau était forcé), on explique. Les données
+      // historiques ne sont pas réécrites : le détail propose de rouvrir.
+      title={goal.needsReopen ? "Objectif déclaré atteint sans tâche terminée : rouvrez-le pour le remettre à jour." : undefined}
       onClick={onSelect}
     >
-      <GoalRing percent={achieved && progress.percent === 0 && countable === 0 ? 100 : progress.percent} tone={tone} />
+      <GoalRing percent={progress.percent} tone={tone} />
       <span className="sui-goal__copy">
         <span className="sui-goal__title">{goal.title}</span>
         <span className="sui-goal__meta">

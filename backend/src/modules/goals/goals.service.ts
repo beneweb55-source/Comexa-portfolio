@@ -8,7 +8,15 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import type { RequestContext } from '../projects/request-meta.decorator.js';
 import { mineTaskWhere } from '../tasks/task-rules.js';
 import type { CreateGoalDto, GoalQueryDto, UpdateGoalDto } from './dto/goal.dto.js';
-import { achievedAtAfter, goalAcceptsTasks, goalProgressOf } from './goal-rules.js';
+import {
+  achievedAtAfter,
+  goalAcceptsTasks,
+  goalAchievementBlocker,
+  goalAchievementMessage,
+  goalCanBeAchieved,
+  goalFreezesTasks,
+  goalProgressOf,
+} from './goal-rules.js';
 
 /**
  * OBJECTIFS PERSONNELS — un but, et le groupe de taches qui y mene.
@@ -134,6 +142,26 @@ export class GoalsService {
     const before = await this.requireOwn(goalId, policy);
     const statusChanged = dto.status !== undefined && dto.status !== before.status;
 
+    // INVARIANT G1 : « atteint » se CONSTATE sur les taches, il ne se decrete
+    // pas. On lit les taches VISIBLES du proprietaire (les memes qui servent a
+    // `progress`) AVANT toute ecriture : un objectif sans tache, tout annule,
+    // ou avec des taches ouvertes ne peut pas etre declare atteint. Le controle
+    // reste cote API — desactiver le bouton cote React ne suffirait pas.
+    if (statusChanged && dto.status === GoalStatus.ACHIEVED) {
+      const tasks = await this.visibleTasksOf([before.id], policy);
+      const progress = goalProgressOf(
+        (tasks.get(before.id) ?? []).map((task) => task.status as TaskStatus),
+      );
+      const blocker = goalAchievementBlocker(progress);
+      if (blocker) {
+        throw AppException.unprocessable(
+          'GOAL_NOT_COMPLETABLE',
+          goalAchievementMessage(blocker, progress),
+          { blocker, progress },
+        );
+      }
+    }
+
     const updated = await this.prisma.goal.update({
       where: { id: before.id },
       data: {
@@ -199,9 +227,12 @@ export class GoalsService {
     this.refuseClientSpace(policy);
     const goal = await this.requireOwn(goalId, policy);
     if (!goalAcceptsTasks(goal.status)) {
+      const archived = goal.status === GoalStatus.ARCHIVED;
       throw AppException.unprocessable(
-        'GOAL_ARCHIVED',
-        "Cet objectif est archive : reactivez-le avant d'y ajouter une tache.",
+        archived ? 'GOAL_ARCHIVED' : 'GOAL_ACHIEVED',
+        archived
+          ? "Cet objectif est archive : reactivez-le avant d'y ajouter une tache."
+          : "Cet objectif est declare atteint : rouvrez-le avant d'y rattacher une tache.",
       );
     }
 
@@ -217,10 +248,19 @@ export class GoalsService {
     const previous = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.goalTask.findUnique({
         where: { ownerId_taskId: { ownerId: policy.userId, taskId: task.id } },
-        select: { goalId: true },
+        select: { goalId: true, goal: { select: { status: true } } },
       });
       if (existing?.goalId === goal.id) return existing.goalId;
       if (existing) {
+        // Deplacer une tache revient a la DETACHER de son objectif d'origine.
+        // Sans ce garde, un objectif atteint perdait une tache DONE par une
+        // porte de derriere (PUT vers un autre objectif) et restait « Atteint ».
+        if (goalFreezesTasks(existing.goal.status)) {
+          throw AppException.unprocessable(
+            'GOAL_ACHIEVED_TASK_LOCKED',
+            'Cette tache appartient a un objectif declare atteint : rouvrez-le avant de la deplacer.',
+          );
+        }
         await tx.goalTask.delete({
           where: { ownerId_taskId: { ownerId: policy.userId, taskId: task.id } },
         });
@@ -250,6 +290,15 @@ export class GoalsService {
   async unlinkTask(goalId: string, taskId: string, policy: AccessPolicy, meta: RequestContext) {
     this.refuseClientSpace(policy);
     const goal = await this.requireOwn(goalId, policy);
+    // Retirer une tache DONE d'un objectif atteint le ferait repasser sous
+    // 100 % sans que personne ne rouvre l'objectif. On refuse et on dit quoi
+    // faire ; archiver reste libre (aucun statut engage par ce geste).
+    if (goalFreezesTasks(goal.status)) {
+      throw AppException.unprocessable(
+        'GOAL_ACHIEVED_TASK_LOCKED',
+        'Cet objectif est declare atteint : rouvrez-le avant de retirer une tache.',
+      );
+    }
     const removed = await this.prisma.goalTask.deleteMany({
       where: { goalId: goal.id, taskId, ownerId: policy.userId },
     });
@@ -315,9 +364,16 @@ export class GoalsService {
 }
 
 function present(goal: GoalRow, tasks: readonly GoalTaskRow[]) {
+  const progress = goalProgressOf(tasks.map((task) => task.status as TaskStatus));
   return {
     ...goal,
-    progress: goalProgressOf(tasks.map((task) => task.status as TaskStatus)),
+    progress,
     tasks,
+    // DONNEES HISTORIQUES : avant la correction, des objectifs ont pu etre
+    // declares atteints sans tache, ou voir leurs taches rouvertes ensuite. On
+    // ne reecrit RIEN en base (le statut et `achievedAt` restent l'histoire),
+    // mais on expose l'incoherence pour que l'ecran propose de rouvrir au lieu
+    // d'afficher un faux 100 %. Vide sur les objectifs sains.
+    needsReopen: goal.status === GoalStatus.ACHIEVED && !goalCanBeAchieved(progress),
   };
 }

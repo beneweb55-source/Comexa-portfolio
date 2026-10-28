@@ -86,10 +86,18 @@ export class NotificationService {
   /**
    * Notifie plusieurs utilisateurs.
    *
-   * `createMany` puis relecture, plutot qu'un `create` par destinataire : une
-   * affectation d'equipe produit un seul aller-retour. `createMany` ne renvoie
-   * pas les lignes creees, d'ou la relecture — necessaire pour publier des
-   * notifications completes sur le canal temps reel.
+   * Un `create` par destinataire, dans la transaction de l'appelant quand elle
+   * existe. L'ancien `createMany` economisait un aller-retour, mais imposait une
+   * RELECTURE par `type + title + entityId + readAt:null` pour publier les
+   * lignes en temps reel. Deux messages dans la meme conversation ont le meme
+   * titre et le meme `entityId` : si le precedent etait encore non lu, la
+   * relecture pouvait renvoyer l'ancienne ligne et le socket publiait un evenement
+   * deja connu. Le hook frontend deduplique par identifiant : la nouvelle
+   * notification n'apparaissait alors qu'au rechargement.
+   *
+   * `create` renvoie directement la ligne creee. Le nombre de destinataires
+   * reste petit (participants d'une conversation, responsables d'une demande),
+   * donc la correction vaut largement le cout de quelques insertions de plus.
    */
   async notifyMany(
     userIds: readonly string[],
@@ -104,17 +112,9 @@ export class NotificationService {
       return [];
     }
 
-    const rows = {
-      userId: { in: unique },
-      type: input.type,
-      title: input.title,
-      entityId: input.entityId ?? null,
-      readAt: null,
-    };
-
-    const insert = (db: NotificationDb) =>
-      db.notification.createMany({
-        data: unique.map((userId) => ({
+    const createOne = (db: NotificationDb, userId: string) =>
+      db.notification.create({
+        data: {
           userId,
           type: input.type,
           title: input.title,
@@ -122,37 +122,17 @@ export class NotificationService {
           link: input.link ?? null,
           entityType: input.entityType ?? null,
           entityId: input.entityId ?? null,
-        })),
+        },
       });
 
-    // `createMany` ne renvoie pas les lignes creees : il faut relire pour
-    // publier des notifications completes sur le canal temps reel.
-    //
-    // La relecture doit voir les lignes qu'on vient d'inserer, donc elle doit
-    // etre dans la MEME transaction que l'insertion — d'ou les deux chemins.
-    // On ne peut pas ouvrir une transaction imbriquee quand l'appelant en a
-    // deja une : `Prisma.TransactionClient` est le client prive de
-    // `$transaction`, c'est la garantie que donne le typage. Dans ce cas la
-    // relecture sur `tx` voit naturellement l'insertion, puisqu'elle partage la
-    // transaction environnante.
     let created: Notification[];
 
     if (tx) {
-      await insert(tx);
-      created = await tx.notification.findMany({
-        where: rows,
-        orderBy: { createdAt: 'desc' },
-        take: unique.length,
-      });
+      created = await Promise.all(unique.map((userId) => createOne(tx, userId)));
     } else {
-      created = await this.prisma.$transaction(async (inner) => {
-        await insert(inner);
-        return inner.notification.findMany({
-          where: rows,
-          orderBy: { createdAt: 'desc' },
-          take: unique.length,
-        });
-      });
+      created = await this.prisma.$transaction((inner) =>
+        Promise.all(unique.map((userId) => createOne(inner, userId))),
+      );
     }
 
     for (const notification of created) {

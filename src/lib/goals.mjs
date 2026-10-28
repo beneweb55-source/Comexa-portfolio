@@ -37,6 +37,22 @@ export function goalProgressOf(statuses) {
   };
 }
 
+/**
+ * MIROIR de `backend/src/modules/goals/goal-rules.ts` (`goalCanBeAchieved`).
+ * Le serveur reste la référence (il refuse la déclaration) ; ce miroir sert
+ * uniquement à ne pas PROPOSER un geste qu'il refusera, et à expliquer pourquoi.
+ *
+ * « Atteint » exige au moins une tâche réellement terminée et aucune tâche
+ * ouverte. Un objectif vide — ou dont toutes les tâches sont annulées — ne
+ * l'est pas. L'anneau n'est donc jamais forcé à 100 % : un pourcentage tape
+ * (ou calculé) à la place des faits finit toujours par mentir.
+ */
+export function goalCanBeAchieved(progress) {
+  if (!progress) return false;
+  const counted = progress.total - progress.cancelled;
+  return counted > 0 && progress.done > 0 && progress.open === 0 && progress.done === counted;
+}
+
 function dayNumber(day) {
   return Math.round(new Date(`${day}T00:00:00Z`).getTime() / 86_400_000);
 }

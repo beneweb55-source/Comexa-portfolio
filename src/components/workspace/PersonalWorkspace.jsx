@@ -39,7 +39,7 @@ import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useAllListing } from "@/lib/use-all-listing";
 import { useListing } from "@/lib/use-listing";
-import { goalProgressOf, goalTone } from "@/lib/goals.mjs";
+import { goalCanBeAchieved, goalProgressOf, goalTone } from "@/lib/goals.mjs";
 import { compareTasks, dueBucket, groupByDue, isClosedStatus, isOpenStatus } from "@/lib/task-status.mjs";
 import { canReadOwnTasks } from "@/lib/timer-access";
 import { useShellQuery } from "@/components/softui/Shell";
@@ -112,6 +112,7 @@ export default function PersonalWorkspace() {
   /* ---------------------------------------------------------------------- */
 
   const goalList = useMemo(() => (Array.isArray(goals.items) ? goals.items : []), [goals.items]);
+  const activeGoals = useMemo(() => goalList.filter((goal) => goal.status === "ACTIVE"), [goalList]);
   const goalById = useMemo(() => new Map([...goalList, ...(archived.items ?? [])].map((goal) => [goal.id, goal])), [archived.items, goalList]);
 
   const allTasks = useMemo(
@@ -257,7 +258,9 @@ export default function PersonalWorkspace() {
         const after = goalProgressOf(
           allTasks.filter((item) => item.goal?.id === task.goal.id).map((item) => (item.id === task.id ? "DONE" : item.status)),
         );
-        if (goal && goal.status === "ACTIVE" && after.open === 0 && after.done > 0) {
+        // Même invariant que le serveur (goalCanBeAchieved) : on ne propose de
+        // déclarer l'objectif atteint que si l'API acceptera la déclaration.
+        if (goal && goal.status === "ACTIVE" && goalCanBeAchieved(after)) {
           setNotice({ tone: "success", text: `Toutes les tâches de « ${goal.title} » sont terminées. Objectif atteint ?`, goalId: goal.id });
         }
       }
@@ -379,8 +382,10 @@ export default function PersonalWorkspace() {
     <div className="sui-mywork">
       {canCreate ? (
         <TaskComposer
-          goals={goalList.filter((goal) => goal.status !== "ARCHIVED")}
-          defaultGoalId={selectedGoal && selectedGoal.status !== "ARCHIVED" ? selectedGoal.id : ""}
+          // Le serveur n'accepte de rattacher une tâche qu'à un objectif ACTIF :
+          // n'afficher ici que ceux-là évite un 422 que personne ne comprend.
+          goals={activeGoals}
+          defaultGoalId={selectedGoal && selectedGoal.status === "ACTIVE" ? selectedGoal.id : ""}
           onCreated={onCreated}
         />
       ) : null}
@@ -628,6 +633,14 @@ function GoalFocus({ goal, progress, now, canWrite, confirmDelete, onEdit, onSta
   const tone = goalTone(goal.color);
   const achieved = goal.status === "ACHIEVED";
   const countable = progress.total - progress.cancelled;
+  // Miroir de la règle serveur : l'API refuse ACHIEVED sans tâche terminée ou
+  // avec des tâches ouvertes. On l'explique au lieu d'envoyer un 422 muet.
+  const achievable = goalCanBeAchieved(progress);
+  const hint = achieved && !achievable
+    ? "Cet objectif a été déclaré atteint mais ses tâches ne le confirment plus. Rouvrez-le pour le remettre à jour."
+    : !achieved && !achievable
+      ? "Ajoutez et terminez au moins une tâche, puis finissez les autres, avant de déclarer cet objectif atteint."
+      : null;
   return (
     <section
       className={`sui-goalfocus${achieved ? " is-achieved" : ""}`}
@@ -651,6 +664,11 @@ function GoalFocus({ goal, progress, now, canWrite, confirmDelete, onEdit, onSta
             : "Ajoutez des tâches à cet objectif : depuis le formulaire ci-dessus, ou le détail d’une tâche."}
           {progress.cancelled ? ` · ${progress.cancelled} annulée${progress.cancelled > 1 ? "s" : ""}` : ""}
         </p>
+        {hint ? (
+          <p className="sui-goalfocus__stats" role="status">
+            {hint}
+          </p>
+        ) : null}
       </div>
       <div className="sui-goalfocus__actions">
         {canWrite ? (
@@ -671,7 +689,13 @@ function GoalFocus({ goal, progress, now, canWrite, confirmDelete, onEdit, onSta
                   Rouvrir
                 </Button>
               ) : (
-                <Button variant="dark" icon={CheckCircle2} onClick={() => onStatus("ACHIEVED")}>
+                <Button
+                  variant="dark"
+                  icon={CheckCircle2}
+                  disabled={!achievable}
+                  title={achievable ? undefined : "Terminez ou annulez toutes les tâches liées avant de déclarer cet objectif atteint."}
+                  onClick={() => onStatus("ACHIEVED")}
+                >
                   Objectif atteint
                 </Button>
               )}

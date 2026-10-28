@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Wrench } from "lucide-react";
-import { formatDate, formatMoney, messageOf } from "@/lib/api";
+import Link from "next/link";
+import { MessageSquare, Plus, Wrench } from "lucide-react";
+import { formatDate, formatDateOnly, formatMoney, messageOf } from "@/lib/api";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
 import { MODIFICATION_STATUS, MODIFICATION_TONE, PRIORITY } from "@/lib/modifications";
+import { clientModificationAdvice } from "@/lib/client-portal.mjs";
 import {
   Badge,
   Card,
@@ -66,31 +68,48 @@ export default function ModificationsClientPage() {
         ) : null}
 
         <ul className="flex flex-col gap-4">
-          {items.map((item) => (
-            <li key={item.id} className="rounded-2xl border border-[var(--comexa-border-soft)] bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[15.5px] font-bold text-[var(--comexa-ink)]">{item.title}</p>
-                  <p className="text-[12.5px] text-[var(--comexa-ink-muted)]">{item.reference} · déposée le {formatDate(item.createdAt)}</p>
+          {items.map((item) => {
+            const advice = clientModificationAdvice(item);
+            return (
+              <li key={item.id} className="client-modification" data-testid="client-modification" data-status={item.status}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[15.5px] font-bold text-[var(--comexa-ink)]">{item.title}</p>
+                    <p className="text-[12.5px] text-[var(--comexa-ink-muted)]">{item.reference} · déposée le {formatDate(item.createdAt)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={MODIFICATION_TONE[item.status] ?? "neutral"}>{MODIFICATION_STATUS[item.status] ?? item.status}</Badge>
+                    <Badge>{PRIORITY[item.priority] ?? item.priority}</Badge>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone={MODIFICATION_TONE[item.status] ?? "neutral"}>{MODIFICATION_STATUS[item.status] ?? item.status}</Badge>
-                  <Badge>{PRIORITY[item.priority] ?? item.priority}</Badge>
+                <p className="mt-3 whitespace-pre-line text-[14px] text-[var(--comexa-ink-soft)]">{item.description}</p>
+
+                <div className="client-modification__advice" data-testid="client-modification-advice">
+                  <p className="client-modification__advice-title">{advice.title}</p>
+                  <p>{advice.body}</p>
+                  {advice.decidedAt ? (
+                    <p className="client-modification__date">Réponse de l’équipe le {formatDateOnly(advice.decidedAt)}</p>
+                  ) : null}
                 </div>
-              </div>
-              <p className="mt-3 whitespace-pre-line text-[14px] text-[var(--comexa-ink-soft)]">{item.description}</p>
-              {item.decisionNote ? (
-                <p className="mt-3 rounded-xl border border-[var(--comexa-border)] bg-[var(--comexa-surface-alt)] px-3.5 py-2.5 text-[13.5px]">
-                  <strong className="text-[var(--comexa-ink)]">Réponse de l’agence :</strong> {item.decisionNote}
-                </p>
-              ) : null}
-              {item.extraCost ? (
-                <p className="mt-2 text-[13.5px] font-semibold text-[var(--comexa-ink-soft)]">
-                  Supplément proposé : {formatMoney(item.extraCost, item.extraCostCurrency ?? "DZD")}
-                </p>
-              ) : null}
-            </li>
-          ))}
+
+                {item.decisionNote ? (
+                  <p className="mt-3 rounded-xl border border-[var(--comexa-border)] bg-[var(--comexa-surface-alt)] px-3.5 py-2.5 text-[13.5px]">
+                    <strong className="text-[var(--comexa-ink)]">Motif de l’agence :</strong> {item.decisionNote}
+                  </p>
+                ) : null}
+                {advice.extraCost > 0 ? (
+                  <p className="client-modification__cost" data-testid="client-modification-extra-cost">
+                    Supplément proposé : {formatMoney(advice.extraCost, advice.extraCostCurrency)}
+                  </p>
+                ) : null}
+                {advice.needsContact ? (
+                  <Link href="/espace-client/messagerie" className="client-focus__link" data-testid="client-modification-contact">
+                    <MessageSquare size={16} aria-hidden="true" /> Écrire à l’équipe
+                  </Link>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         <Pagination meta={requests.meta} onPageChange={setPage} loading={requests.loading} />
       </Card>

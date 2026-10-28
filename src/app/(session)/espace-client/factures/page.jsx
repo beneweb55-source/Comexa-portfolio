@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, CircleAlert, ReceiptText } from "lucide-react";
+import Link from "next/link";
+import { CalendarDays, CircleAlert, MessageSquare, ReceiptText } from "lucide-react";
 import { formatDateOnly, formatMoney } from "@/lib/api";
 import { ALL_CURRENCIES, currencyRank, currencyShortLabel, normalizeCurrency, sumByCurrency } from "@/lib/currency";
 import { useDisplayCurrency } from "@/lib/use-display-currency";
@@ -73,6 +74,17 @@ export default function FacturesClientPage() {
           </dl>
         ) : null}
 
+        {all.items !== null && allItems.some((invoice) => remainingDue(invoice) > 0) ? (
+          <div className="client-invoice__help" data-testid="client-payment-help">
+            <p>
+              Les modalités de règlement ne sont pas publiées directement dans cet espace. Consultez votre facture PDF, puis écrivez à l’équipe si une coordonnée ou une précision manque.
+            </p>
+            <Link href="/espace-client/messagerie" className="client-focus__link">
+              <MessageSquare size={16} aria-hidden="true" /> Demander les modalités de paiement
+            </Link>
+          </div>
+        ) : null}
+
         {invoices.error ? <Alert icon={CircleAlert}>{invoices.error}</Alert> : null}
         {invoices.items === null && !invoices.error ? <SkeletonList rows={4} /> : null}
         {invoices.items !== null && items.length === 0 ? (
@@ -108,9 +120,13 @@ export default function FacturesClientPage() {
                     <span className="text-sm text-[var(--comexa-ink-muted)]">
                       Réglé : {formatMoney(invoice.amountPaid, invoice.currency)}
                     </span>
-                    <span className="text-sm text-[var(--comexa-ink-muted)]">
-                      Solde : {formatMoney(remainingDue(invoice), invoice.currency)}
-                    </span>
+                    {remainingDue(invoice) > 0 ? (
+                      <span className="text-sm text-[var(--comexa-ink-muted)]">
+                        Solde restant : {formatMoney(remainingDue(invoice), invoice.currency)}
+                      </span>
+                    ) : (
+                      <span className="client-invoice__paid" data-testid="client-invoice-paid">Facture réglée</span>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--comexa-border-soft)] pt-3">

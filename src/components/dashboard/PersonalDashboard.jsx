@@ -17,10 +17,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
+  CalendarClock,
   CalendarDays,
   CalendarPlus,
   CheckSquare,
   CircleAlert,
+  Clock3,
   ListTodo,
   NotebookPen,
   Target,
@@ -34,9 +37,11 @@ import { useListing } from "@/lib/use-listing";
 import { goalProgressOf, goalTone } from "@/lib/goals.mjs";
 import { compareTasks, dueBucket, dueDayOf, isOverdue, localDay } from "@/lib/task-status.mjs";
 import { canReadOwnTasks, canUseTimer } from "@/lib/timer-access";
+import { buildDayPlan, canPostponeTask, postponePayload } from "@/lib/day-plan.mjs";
 import { Alert, Button, KpiGrid, Panel, toneBackground } from "@/components/softui";
 import { Empty } from "@/components/workspace/ui";
 import TaskCheck from "@/components/tasks/TaskCheck";
+import TaskComposer from "@/components/tasks/TaskComposer";
 import TaskTimerButton from "@/components/timer/TaskTimerButton";
 import TimerPanel from "@/components/timer/TimerPanel";
 import { GoalCountdown, GoalRing } from "@/components/goals/GoalParts";
@@ -88,6 +93,7 @@ export default function PersonalDashboard() {
   const canWriteProject = can(user, "task:write:any") || can(user, "task:write:own");
   const canWritePersonal = can(user, "task:write:personal");
   const [statusError, setStatusError] = useState(null);
+  const [actionNotice, setActionNotice] = useState(null);
   const [busyTask, setBusyTask] = useState(null);
 
   const tasks = useAllListing("/me/tasks?perPage=100", canTasks);
@@ -99,6 +105,7 @@ export default function PersonalDashboard() {
   /** Case cochée sur « Ma journée » : même geste, mêmes règles que « Mes tâches ». */
   async function changeStatus(task, status) {
     setStatusError(null);
+    setActionNotice(null);
     setBusyTask(task.id);
     try {
       await request(`/tasks/${task.id}/status`, { method: "PATCH", body: { status } });
@@ -108,6 +115,26 @@ export default function PersonalDashboard() {
     } finally {
       setBusyTask(null);
     }
+  }
+
+  /** Report explicite : jamais de déplacement automatique d'une tâche. */
+  async function postponeTask(task) {
+    setStatusError(null);
+    setActionNotice(null);
+    setBusyTask(task.id);
+    try {
+      await request(`/tasks/${task.id}`, { method: "PATCH", body: postponePayload(now) });
+      await tasks.reload();
+      setActionNotice(`« ${task.title} » est reportée à demain.`);
+    } catch (caught) {
+      setStatusError(`« ${task.title} » : ${messageOf(caught)}`);
+    } finally {
+      setBusyTask(null);
+    }
+  }
+
+  async function onTaskCreated() {
+    await Promise.all([tasks.reload(), canGoals ? goals.reload() : null]);
   }
 
   const computed = useMemo(() => {
@@ -134,6 +161,24 @@ export default function PersonalDashboard() {
     const todayEvents = agenda.filter((event) => isoDay(new Date(event.startsAt)) === todayIso);
     return { open: list.length, overdue, dueToday, focus, weekMinutes, todayMinutes, agenda, todayEvents };
   }, [entries.items, events.items, now, tasks.items, todayIso]);
+
+  const activeGoals = useMemo(
+    () => (Array.isArray(goals.items) ? goals.items : []).filter((goal) => goal.status === "ACTIVE"),
+    [goals.items],
+  );
+  const plan = useMemo(
+    () => buildDayPlan({ tasks: tasks.items ?? [], events: events.items ?? [], now }),
+    [events.items, now, tasks.items],
+  );
+  // Chargement, erreur ou droit manquant : ne jamais transformer une donnée
+  // indisponible en « 0 minute » ou en charge maîtrisée.
+  const planUnavailable =
+    !canTasks ||
+    tasks.items === null ||
+    tasks.error ||
+    events.items === null ||
+    events.error;
+  const nextBucket = plan.nextTask ? dueBucket(plan.nextTask, now) : null;
 
   const reportWritten = (report.items ?? []).length > 0;
   const errors = [...new Set([tasks.error, events.error, entries.error, report.error, statusError].filter(Boolean))];
@@ -190,6 +235,81 @@ export default function PersonalDashboard() {
             <Alert key={error} icon={CircleAlert}>{error}</Alert>
           ))}
         </div>
+      ) : null}
+
+      {canWritePersonal ? <TaskComposer goals={activeGoals} onCreated={onTaskCreated} /> : null}
+
+      {canTasks ? (
+        <Panel
+          title="Plan du jour"
+          action={
+            <Button href="/espace-personnel/taches" icon={ListTodo}>
+              Ouvrir mes tâches
+            </Button>
+          }
+        >
+          {planUnavailable ? (
+            <p className="sui-card__desc" role="status">
+              {tasks.error || events.error
+                ? "Le plan du jour est indisponible : rechargez la page après avoir rétabli la connexion à l’API."
+                : "Chargement de vos tâches et de votre agenda…"}
+            </p>
+          ) : (
+            <div className="sui-dayplan">
+              <div className="sui-dayplan__next">
+                <p className="sui-dayplan__eyebrow">
+                  <ArrowRight size={14} strokeWidth={2} aria-hidden="true" /> Prochaine action
+                </p>
+                {plan.nextTask ? (
+                  <>
+                    <strong>{plan.nextTask.title}</strong>
+                    <span>
+                      {nextBucket === "overdue" ? "En retard" : "Échéance aujourd’hui"}
+                      {plan.nextTask.estimateMinutes ? ` · ${hours(plan.nextTask.estimateMinutes)} estimées` : " · sans estimation"}
+                      {plan.nextTask.isPersonal ? " · personnelle" : plan.nextTask.project?.name ? ` · ${plan.nextTask.project.name}` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <span>Aucune tâche échue aujourd’hui ni en retard. Choisissez la prochaine étape dans « Mes tâches ».</span>
+                )}
+              </div>
+              <dl className="sui-dayplan__facts">
+                <div>
+                  <dt><Clock3 size={14} strokeWidth={2} aria-hidden="true" /> Charge connue</dt>
+                  <dd>{hours(plan.knownLoadMinutes)}</dd>
+                  <span>
+                    {hours(plan.estimatedMinutes)} de tâches · {canCalendar ? `${hours(plan.eventMinutes)} d’agenda` : "agenda indisponible"}
+                  </span>
+                </div>
+                <div>
+                  <dt><CheckSquare size={14} strokeWidth={2} aria-hidden="true" /> Aujourd’hui</dt>
+                  <dd>{plan.doneToday} terminée{plan.doneToday > 1 ? "s" : ""}</dd>
+                  <span>
+                    {plan.overdueCount
+                      ? `${plural(plan.overdueCount, "tâche en retard", "tâches en retard")}`
+                      : "Aucun retard"}
+                  </span>
+                </div>
+              </dl>
+            </div>
+          )}
+
+          {!planUnavailable ? (
+            <p className="sui-dayplan__hint" role="status">
+              {plan.hasLoadData
+                ? "Comexa ne connaît pas encore vos horaires de travail : cette charge est un repère, pas une capacité. À vous de décider quoi reporter."
+                : "Données insuffisantes : aucune tâche estimée ni rendez-vous daté. Comexa ne déduit pas votre temps disponible."}
+              {plan.unestimatedCount
+                ? ` ${plural(plan.unestimatedCount, "tâche échue sans estimation", "tâches échues sans estimation")} : la charge réelle peut être plus élevée.`
+                : ""}
+              {plan.allDayEventCount
+                ? ` ${plural(plan.allDayEventCount, "événement toute la journée", "événements toute la journée")} sans durée précise.`
+                : ""}
+              {!canCalendar ? " Votre rôle ne permet pas de lire l’agenda : la charge connue n’inclut que les tâches." : ""}
+            </p>
+          ) : null}
+          {actionNotice ? <p className="sui-dayplan__notice" role="status">{actionNotice}</p> : null}
+        </Panel>
       ) : null}
 
       {kpis.length ? (
@@ -262,7 +382,20 @@ export default function PersonalDashboard() {
                           {task.dueDate ? `${late ? "En retard · " : bucket === "today" ? "Aujourd’hui · " : ""}${formatDateOnly(task.dueDate)}` : "Sans échéance"}
                         </span>
                       </Link>
-                      {writable ? <TaskTimerButton task={task} size="sm" /> : null}
+                      <div className="sui-lines__task-actions">
+                        {canPostponeTask(task, { canWritePersonal, canWriteProject }) ? (
+                          <button
+                            type="button"
+                            className="sui-btn sui-btn--ghost sui-btn--sm sui-lines__tomorrow"
+                            disabled={busyTask === task.id}
+                            aria-label={`Reporter « ${task.title} » à demain`}
+                            onClick={() => postponeTask(task)}
+                          >
+                            <CalendarClock size={14} strokeWidth={2} aria-hidden="true" /> Demain
+                          </button>
+                        ) : null}
+                        {writable ? <TaskTimerButton task={task} size="sm" /> : null}
+                      </div>
                     </li>
                   );
                 })}

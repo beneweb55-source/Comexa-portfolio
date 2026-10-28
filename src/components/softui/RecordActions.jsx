@@ -59,7 +59,7 @@ function MenuPanel({ items, label, menuId, pos, menuRef, onSelect, onClose }) {
     if (event.key === "End") next = nodes.length - 1;
     else if (event.key === "ArrowDown") next = index < 0 ? 0 : (index + 1) % nodes.length;
     else if (event.key === "ArrowUp") next = index < 0 ? nodes.length - 1 : (index - 1 + nodes.length) % nodes.length;
-    nodes[next].focus();
+      nodes[next].focus({ preventScroll: true });
   }
 
   return (
@@ -135,12 +135,19 @@ export function ActionMenu({ items = [], label = "Actions", size = "sm", align =
 
   useEffect(() => {
     if (!open) return undefined;
-    menuRef.current?.querySelector('[role="menuitem"]')?.focus();
+    // Sans preventScroll, le navigateur fait defiler la page pour exposer le
+    // premier item ; l'ecouteur de defilement ci-dessous le prenait pour un
+    // defilement exterieur et refermait le menu des son ouverture.
+    menuRef.current?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
     const dismiss = () => setOpen(false);
     // Un défilement DANS le menu (liste longue) ne doit pas le refermer : on
     // ignore les événements dont la cible est le panneau lui-même.
     const onScroll = (event) => {
-      if (menuRef.current?.contains(event.target)) return;
+      // Un defilement provoque par le focus ou par l'alignement d'un item est
+      // un defilement INTERNE au menu, meme si l'evenement cible le document.
+      // Le verifier uniquement sur event.target refermait le menu au premier
+      // clic dans Chromium.
+      if (menuRef.current?.contains(event.target) || menuRef.current?.contains(document.activeElement)) return;
       dismiss();
     };
     window.addEventListener("resize", dismiss);

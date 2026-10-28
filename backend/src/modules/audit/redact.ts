@@ -78,12 +78,21 @@ const SENSITIVE_KEY =
  * c'est le cas. Un jeton colle dans un champ libre — une note, un motif de refus,
  * un commentaire — ne serait attrape par aucun nom de cle. La forme d'un JWT est
  * assez particuliere pour ne pas se confondre avec du texte ordinaire, et le
- * prefixe `eyJ` la rend reconnaissable sans ambiguite.
+ * prefixe `eyJ` la rend reconnaissable sans ambiguite. Le secret d'integration
+ * `cxi_` a la meme propriete : prefixe reserve et longueur minimale connue.
  */
 const JWT_VALUE = /^eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
 
 /** `Authorization: Bearer <jeton>` recopie tel quel dans une valeur. */
 const BEARER_VALUE = /^bearer\s+\S+/i;
+
+/**
+ * Un secret d'integration `cxi_` colle sous une cle anodine (`note`, `label`…).
+ * La cle `token` est deja couverte plus haut ; ce motif protege le cas ou le
+ * secret est recopie dans un champ libre. 43 caracteres = 32 octets en
+ * base64url, exactement ce que `generateIntegrationToken` produit.
+ */
+const INTEGRATION_TOKEN_VALUE = /^cxi_[A-Za-z0-9_-]{43,}$/;
 
 /** Une valeur JSON, apres passage dans le filtre. */
 export type RedactedValue =
@@ -96,7 +105,7 @@ export function isSensitiveKey(key: string): boolean {
 
 /** Vrai si la valeur ressemble a un jeton, quelle que soit la cle qui la porte. */
 export function looksLikeCredential(value: string): boolean {
-  return JWT_VALUE.test(value) || BEARER_VALUE.test(value);
+  return JWT_VALUE.test(value) || BEARER_VALUE.test(value) || INTEGRATION_TOKEN_VALUE.test(value);
 }
 
 /**

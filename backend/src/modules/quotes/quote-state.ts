@@ -1,5 +1,65 @@
 import { QuoteStatus } from '../../generated/prisma/enums.js';
 
+// -----------------------------------------------------------------------------
+// EXPIRATION : UN STATUT DERIVE, PAS UNE ECRITURE EN BASE
+// -----------------------------------------------------------------------------
+
+/**
+ * `EXPIRED` N'AVAIT AUCUN ECRIVAIN.
+ *
+ * Le commentaire de `QuotesService.assertNotExpired` promettait « le statut
+ * EXPIRED est pose par une tache planifiee », mais aucune tache de ce type
+ * n'existe (seule `InvoiceOverdueService` est planifiee). Consequence : un
+ * devis envoye restait `SENT`/`VIEWED` apres sa date de validite. L'ecran
+ * affichait « Envoye », proposait encore de l'accepter, et l'API repondait
+ * 422 — trois verites differentes pour un seul document.
+ *
+ * On ne cree PAS de cron et on ne reecrit PAS l'historique : `EXPIRED` est
+ * derive a la LECTURE depuis `validUntil`. Un etat deja tranche (`ACCEPTED`,
+ * `REJECTED`, `CANCELLED`, `EXPIRED`) n'est jamais modifie : un devis accepte
+ * le reste, meme quand sa date de validite est passee. Un `DRAFT` non envoye
+ * n'est pas « expire » non plus — il n'a jamais ete propose a personne.
+ *
+ * DEUXIEME INCOHERENCE CORRIGEE ICI : l'interface ne montre qu'un JOUR
+ * (« Valable jusqu'au 26/11 »), et l'API accepte une date seule, stockee a
+ * minuit UTC. Comparer `validUntil < now` declarait donc le devis expire des
+ * 00:00 UTC le DERNIER jour de validite (01:00 a Alger). La validite est
+ * INCLUSIVE : elle court jusqu'a la fin du jour UTC indique.
+ */
+
+/** Fin du jour UTC de la date de validite ; `null` sans date ou date invalide. */
+export function quoteValidityDeadline(validUntil: Date | null): Date | null {
+  if (!validUntil || !Number.isFinite(validUntil.getTime())) return null;
+  return new Date(`${validUntil.toISOString().slice(0, 10)}T23:59:59.999Z`);
+}
+
+/** Borne « strictement avant aujourd'hui (UTC) » pour le filtre SQL de liste. */
+export function quoteExpiredBefore(now: Date): Date {
+  return new Date(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
+export function isQuoteExpired(validUntil: Date | null, now: Date): boolean {
+  const deadline = quoteValidityDeadline(validUntil);
+  return deadline !== null && now.getTime() > deadline.getTime();
+}
+
+/** Statut REEL d'un devis, tel que l'API et les ecrans doivent le montrer. */
+export function effectiveQuoteStatus(
+  status: QuoteStatus,
+  validUntil: Date | null,
+  now: Date,
+): QuoteStatus {
+  if (status !== QuoteStatus.SENT && status !== QuoteStatus.VIEWED) return status;
+  return isQuoteExpired(validUntil, now) ? QuoteStatus.EXPIRED : status;
+}
+
+/** Applique le statut derive a une ligne lue en base, sans toucher a la ligne. */
+export function withEffectiveQuoteStatus<
+  T extends { readonly status: QuoteStatus; readonly validUntil: Date | null },
+>(row: T, now: Date): T {
+  return { ...row, status: effectiveQuoteStatus(row.status, row.validUntil, now) };
+}
+
 /**
  * MACHINE A ETATS DES DEVIS.
  *

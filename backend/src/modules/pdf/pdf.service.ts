@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { MailService } from '../../common/mail/mail.service.js';
 import { AppException } from '../../common/errors/app-error.js';
 import { clientPerimeter } from '../invoices/billing-access.js';
+import { effectiveQuoteStatus } from '../quotes/quote-state.js';
 import type { AccessPolicy } from '../../common/auth/principal.js';
 import {
   renderDocument,
@@ -334,9 +335,15 @@ export class PdfService {
       throw AppException.notFound('QUOTE_NOT_FOUND', "Ce devis n'existe pas.");
     }
 
+    // Le PDF doit dire la meme chose que l'ecran : un devis envoye dont la
+    // validite est passee est « Expire », pas « Envoye ». Statut DERIVE a
+    // l'impression, jamais ecrit en base (le document envoye reste historique).
     return this.generatePdf({
       type: 'quote',
-      document: quote,
+      document: {
+        ...quote,
+        status: effectiveQuoteStatus(quote.status, quote.validUntil, new Date()),
+      },
       ...options,
     });
   }

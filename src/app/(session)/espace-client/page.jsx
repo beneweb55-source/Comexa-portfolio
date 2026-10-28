@@ -27,10 +27,11 @@ import {
   primaryButton,
   secondaryButton,
 } from "@/components/workspace/ui";
-import { KpiGrid } from "@/components/softui/KpiCard";
 import { Panel } from "@/components/softui/panels";
 import { Button } from "@/components/softui/primitives";
 import { toneBackground } from "@/components/softui/primitives";
+import ClientFocusBoard from "@/components/client/ClientFocusBoard";
+import { useClientPortalData } from "@/components/client/useClientPortalData";
 
 const REQUEST_REASON_HINT = {
   COUNTRY_UNKNOWN: "Tarif établi sur mesure par notre équipe",
@@ -40,7 +41,7 @@ const REQUEST_REASON_HINT = {
 
 /**
  * Vue d'ensemble de l'espace client :
- *  1. Bandeau de 4 indicateurs (projets, devis à valider, commandes, demandes) ;
+ *  1. Accueil oriente actions (devis, factures, messages, projets) ;
  *  2. Devis à examiner en priorité (quand un devis attend une réponse) ;
  *  3. Projets avec barre de progression, commandes avec étapes (`OrderSteps`) ;
  *  4. Demandes de projet et historique des devis.
@@ -68,57 +69,20 @@ export default function EspaceClientPage() {
   const orderList = orders.items ?? [];
   const requestList = requests.items ?? [];
 
-  const avgProgress = projectList.length
-    ? Math.round(
-        projectList.reduce((acc, p) => acc + (Number(p.progressPercent) || 0), 0) / projectList.length,
-      )
-    : 0;
-
-  const kpis = [
-    {
-      id: "projects",
-      tone: "blue",
-      badge: projects.items === null ? "…" : `Avancement ${avgProgress} %`,
-      value: projects.items === null ? "…" : projectList.length,
-      label: "Projets actifs",
-      deco: true,
-      decoIcon: FolderKanban,
-    },
-    {
-      id: "quotes",
-      tone: "yellow",
-      badge: openQuotes.length > 0 ? `${openQuotes.length} à valider` : "À jour",
-      value: quotes.items === null ? "…" : quoteList.length,
-      label: "Mes devis",
-    },
-    {
-      id: "orders",
-      tone: "green",
-      badge: orderList.length > 0 ? "Suivi en cours" : "Aucune commande",
-      value: orders.items === null ? "…" : orderList.length,
-      label: "Commandes de packs",
-    },
-    {
-      id: "requests",
-      tone: "lilac",
-      badge: requestList.length > 0 ? "Étude par l’équipe" : "Aucune demande",
-      value: requests.error ? "—" : requests.items === null ? "…" : requestList.length,
-      label: "Demandes sur mesure",
-    },
-  ];
+  const focus = useClientPortalData();
 
   return (
     <div className="flex flex-col gap-6">
       {/* ====================================================================
-          1. INDICATEURS DE L'ESPACE CLIENT
+          1. ACCUEIL ORIENTE ACTIONS : ce qui attend le client, puis le contexte.
          ==================================================================== */}
-      <KpiGrid label="Synthèse de votre espace client" items={kpis} />
+      <ClientFocusBoard model={focus.model} loading={focus.loading} errors={focus.errors} />
 
       {/* ====================================================================
           2. DEVIS EN ATTENTE DE RÉPONSE
          ==================================================================== */}
       {quotesVisible && openQuotes.length > 0 ? (
-        <div data-coach-id="client-devis-list">
+        <div id="mes-devis" data-coach-id="client-devis-list">
         <Panel
           title="Devis en attente de votre décision"
           subtitle="Consultez le détail des prestations pour accepter ou refuser la proposition."
@@ -153,7 +117,7 @@ export default function EspaceClientPage() {
       {/* ====================================================================
           3. MES PROJETS & MES COMMANDES
          ==================================================================== */}
-      <div className="sui-split">
+      <div className="sui-split" id="mes-projets">
         <Panel
           title="Mes projets"
           subtitle="Projets actifs, jalons et livrables partagés par l’équipe."

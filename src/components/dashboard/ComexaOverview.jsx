@@ -28,6 +28,8 @@ import { useListing } from "@/lib/use-listing";
 import { Alert, Button, KpiGrid, Panel, toneBackground } from "@/components/softui";
 import { relativeFr } from "@/components/softui/time";
 import { Empty } from "@/components/workspace/ui";
+import AdminHealthPanel from "@/components/admin/AdminHealthPanel";
+import { summarizeTokenReview } from "@/lib/admin-diagnostics.mjs";
 
 const CONTENT_TYPES = [
   { key: "services", label: "Services", path: "/content/services", permission: "service:read:any", flag: "isActive" },
@@ -72,7 +74,12 @@ export default function ComexaOverview() {
     const soon = now + 30 * 24 * 3600 * 1000;
     const active = items.filter((token) => token.active);
     const expiring = active.filter((token) => token.expiresAt && new Date(token.expiresAt).getTime() < soon);
-    return { active: active.length, expiring: expiring.length };
+    const review = summarizeTokenReview(items, now);
+    return {
+      active: active.length,
+      expiring: expiring.length,
+      review: review.neverUsed + review.stale,
+    };
   }, [now, tokens.items]);
 
   const pendingTestimonials = (testimonials.items ?? []).filter((item) => !item.isPublished).length;
@@ -103,7 +110,11 @@ export default function ComexaOverview() {
       ? {
           id: "tokens",
           tone: "green",
-          badge: tokenStats.expiring ? `${plural(tokenStats.expiring, "jeton expire", "jetons expirent")} sous 30 jours` : "Aucune expiration proche",
+          badge: tokenStats.review
+            ? `${plural(tokenStats.review, "jeton à revoir", "jetons à revoir")} · usage inconnu ou ancien`
+            : tokenStats.expiring
+              ? `${plural(tokenStats.expiring, "jeton expire", "jetons expirent")} sous 30 jours`
+              : "Aucune expiration proche",
           value: tokens.items === null ? "…" : tokenStats.active,
           label: tokenStats.active > 1 ? "Jetons d’intégration actifs" : "Jeton d’intégration actif",
           href: "/espace-comexa/integrations",
@@ -155,6 +166,8 @@ export default function ComexaOverview() {
           }))}
         />
       ) : null}
+
+      <AdminHealthPanel />
 
       <div className="sui-split">
         {content.length ? (

@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClock, Flag } from "lucide-react";
+import { CalendarClock, Flag, GripVertical } from "lucide-react";
 import { formatDateOnly, messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
@@ -23,30 +23,32 @@ import {
   tasksPayloadIsOutdated,
 } from "@/lib/tasks";
 import { canMoveTo, dueBucket, isClosedStatus } from "@/lib/task-status.mjs";
+import {
+  KANBAN_COLUMNS,
+  kanbanStatusLabel,
+  kanbanStatusOptions,
+  splitKanbanTasks,
+} from "@/lib/kanban-board.mjs";
 import { TaskCreatorFilter } from "@/components/workspace/TaskCreatorFilter";
 import { useShellQuery } from "@/components/softui/Shell";
 import { AssigneeChip, AssigneeSelect } from "@/components/tasks/AssigneeControls";
 import TaskTimerButton from "@/components/timer/TaskTimerButton";
 import { RecordActions } from "@/components/softui";
 
-const COLUMNS = [
-  { id: "TODO", label: "À faire" },
-  { id: "IN_PROGRESS", label: "En cours" },
-  { id: "IN_REVIEW", label: "En revue" },
-  { id: "DONE", label: "Terminé" },
-];
-
-function columnOf(status) {
-  if (status === "BLOCKED") return "IN_PROGRESS";
-  return COLUMNS.some((c) => c.id === status) ? status : null;
-}
-
 const PRIORITY_TONE = { LOW: "neutral", NORMAL: "info", HIGH: "warning", URGENT: "danger" };
 const PRIORITY_LABEL = { LOW: "Basse", NORMAL: "Normale", HIGH: "Haute", URGENT: "Urgente" };
+const EMPTY_IDS = [];
 
 /**
  * Tableau Kanban des tâches de projet. `?tache=<id>` (notification, lien
  * partagé) ouvre le projet de la tâche et la met en avant.
+ *
+ * Le glisser-déposer reste disponible via une poignée clavier, mais n'est plus
+ * le SEUL moyen de changer un statut : chaque carte lisible en écriture porte
+ * un select natif. Cela rend `BLOCKED` ajustable sans simulation de colonne,
+ * rend `CANCELLED` visible dans « Autres statuts » et permet de rouvrir une
+ * tâche annulée. Les transitions proposées sont celles du serveur ; le
+ * serveur reste l'autorité en cas de concurrence (409).
  */
 export default function TachesPage() {
   return (
@@ -97,10 +99,10 @@ function TachesBoard() {
 
       <Card
         title="Tableau Kanban par projet"
-        subtitle="Glissez une tâche d’une colonne à l’autre pour mettre à jour son statut."
+        subtitle="Déplacez une tâche avec sa poignée, ou utilisez le menu « Statut » de chaque carte."
         action={
           <Field id="kanban-project" label="Choisir le projet">
-            <select id="kanban-project" className={`${selectClass} !w-[320px] max-w-full`} value={current} onChange={(e) => setProjectId(e.target.value)} disabled={list.length === 0}>
+            <select id="kanban-project" className={`${selectClass} w-full sm:!w-[320px] max-w-full`} value={current} onChange={(e) => setProjectId(e.target.value)} disabled={list.length === 0}>
               {list.map((project) => (
                 <option key={project.id} value={project.id}>{project.name}</option>
               ))}
@@ -145,17 +147,30 @@ function Board({ projectId, focusId }) {
   const tasks = useListing(canReadTasks ? taskListPath(projectId, { page: taskPage, perPage: 100, reporterId: creatorId, assignee }) : null);
   const creators = useListing(canReadTasks ? taskCreatorsPath(projectId) : null);
   const people = useListing(canAssign ? taskAssigneesPath(projectId) : null);
-  const [overrides, setOverrides] = useState({});
+  // Les valeurs optimistes sont attachees a la liste qui les a vues : quand
+  // `tasks.reload()` remplace `tasks.items`, elles sont ignorees sans effet ni
+  // rendu en cascade. Le serveur redevient la seule verite.
+  const [statusOverrides, setStatusOverrides] = useState({ source: null, values: {} });
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [statusBusyIds, setStatusBusyIds] = useState(EMPTY_IDS);
+  // Ref synchronisee : deux changements dans le meme tick ne doivent pas
+  // contourner le garde-fou avant le prochain rendu React.
+  const statusBusyRef = useRef(new Set());
   const [highlight, setHighlight] = useState(focusId);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor),
   );
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   // Met en avant la tâche du lien profond une fois le tableau chargé.
   useEffect(() => {
@@ -167,42 +182,68 @@ function Board({ projectId, focusId }) {
   }, [highlight, tasks.items]);
 
   const q = shellQuery.trim().toLowerCase();
+  const activeOverrides = statusOverrides.source === tasks.items ? statusOverrides.values : {};
   const all = (tasks.items ?? [])
-    .map((t) => ({ ...t, status: overrides[t.id] ?? t.status }))
+    .map((t) => ({ ...t, status: activeOverrides[t.id] ?? t.status }))
     .filter((t) => !q || `${t.title ?? ""} ${t.assignee?.firstName ?? ""} ${t.assignee?.lastName ?? ""}`.toLowerCase().includes(q));
 
-  const byColumn = Object.fromEntries(COLUMNS.map((c) => [c.id, []]));
-  for (const task of all) {
-    const col = columnOf(task.status);
-    if (col) byColumn[col].push(task);
-  }
+  // `CANCELLED` (et tout statut inconnu d'une API plus recente) reste visible
+  // dans une section repliee au lieu d'etre silencieusement ignore.
+  const { columns: byColumn, others: otherTasks } = splitKanbanTasks(all);
   const active = activeId ? all.find((t) => t.id === activeId) : null;
   const unassignedCount = (tasks.items ?? []).filter((task) => !task.assigneeId && !isClosedStatus(task.status)).length;
 
-  async function move(taskId, targetColumn) {
-    const task = all.find((t) => t.id === taskId);
-    if (!task || !canWriteTask(task) || columnOf(task.status) === targetColumn) return;
+  function clearStatusOverride(taskId, source) {
+    setStatusOverrides((current) => {
+      if (current.source !== source || !(taskId in current.values)) return current;
+      const values = { ...current.values };
+      delete values[taskId];
+      return { source, values };
+    });
+  }
+
+  async function changeStatus(task, targetStatus) {
+    const taskId = task?.id;
+    const source = tasks.items;
+    if (!taskId || targetStatus === task.status || !canWriteTask(task)) return;
+    if (statusBusyRef.current.has(taskId)) return;
+    statusBusyRef.current.add(taskId);
     const previous = task.status;
     setError(null);
-    // Le serveur refuserait la transition : on l'explique au lieu de tenter.
-    if (!canMoveTo({ status: previous, isPersonal: false }, targetColumn)) {
+    setNotice(null);
+
+    // Miroir frontend des regles backend : evite une requete impossible. Le
+    // serveur garde la decision finale (permissions, sous-taches, concurrence).
+    if (!canMoveTo({ status: previous, isPersonal: false }, targetStatus)) {
+      statusBusyRef.current.delete(taskId);
       setError(
-        previous === "BLOCKED" && targetColumn === "DONE"
+        previous === "BLOCKED" && targetStatus === "DONE"
           ? `« ${task.title} » est bloquée : passez-la d’abord en « En cours » (ou « À faire ») avant de la terminer.`
-          : `« ${task.title} » ne peut pas passer directement à « ${COLUMNS.find((c) => c.id === targetColumn)?.label} ».`,
+          : `« ${task.title} » ne peut pas passer directement à « ${kanbanStatusLabel(targetStatus)} ».`,
       );
       return;
     }
-    setOverrides((o) => ({ ...o, [taskId]: targetColumn }));
+
+    setStatusBusyIds((ids) => [...ids, taskId]);
+    setStatusOverrides((current) => ({
+      source,
+      values: { ...(current.source === source ? current.values : {}), [taskId]: targetStatus },
+    }));
     try {
-      await request(`/tasks/${taskId}/status`, { method: "PATCH", body: { status: targetColumn } });
+      await request(`/tasks/${taskId}/status`, { method: "PATCH", body: { status: targetStatus } });
+      setNotice(`« ${task.title} » : ${kanbanStatusLabel(previous)} → ${kanbanStatusLabel(targetStatus)}. Statut enregistré.`);
     } catch (caught) {
-      setOverrides((o) => {
-        const next = { ...o };
-        delete next[taskId];
-        return next;
-      });
+      // Retour immediat a la verite connue, puis rechargement serveur : en cas
+      // de 409, la tâche a peut-etre change de statut pour quelqu'un d'autre.
+      clearStatusOverride(taskId, source);
       setError(`« ${task.title} » n’a pas pu être déplacée (${messageOf(caught)}). Statut restauré.`);
+    } finally {
+      try {
+        await tasks.reload();
+      } finally {
+        statusBusyRef.current.delete(taskId);
+        setStatusBusyIds((ids) => ids.filter((id) => id !== taskId));
+      }
     }
   }
 
@@ -228,7 +269,9 @@ function Board({ projectId, focusId }) {
   function onDragEnd(event) {
     setActiveId(null);
     const { active: dragged, over } = event;
-    if (over && canWrite) move(dragged.id, over.id);
+    if (!over || !canWrite) return;
+    const task = all.find((item) => item.id === dragged.id);
+    if (task) changeStatus(task, over.id);
   }
 
   async function onTaskCreated(message) {
@@ -247,6 +290,8 @@ function Board({ projectId, focusId }) {
     canDeleteTask: can(user, "task:delete:any"),
     people: people.items,
     onAssign: assign,
+    onStatusChange: changeStatus,
+    statusBusyIds,
     busyId,
     highlight,
     onChanged: async () => {
@@ -259,8 +304,8 @@ function Board({ projectId, focusId }) {
     <div className="flex flex-col gap-6">
       {canWrite ? <NewTask projectId={projectId} canAssign={canAssign} people={people.items} onCreated={onTaskCreated} /> : null}
       {canReadTasks && tasks.error ? <Notice>{tasks.error}</Notice> : null}
-      {error ? <Notice>{error}</Notice> : null}
-      {notice ? <Notice tone="success">{notice}</Notice> : null}
+      {error ? <div data-testid="kanban-status-error"><Notice>{error}</Notice></div> : null}
+      {notice ? <div data-testid="kanban-status-success"><Notice tone="success">{notice}</Notice></div> : null}
       {canReadTasks && tasks.items === null && !tasks.error ? <SkeletonList rows={3} /> : null}
       {!canReadTasks ? <Notice>Votre rôle ne permet pas de consulter la liste des tâches de ce projet.</Notice> : null}
 
@@ -320,12 +365,33 @@ function Board({ projectId, focusId }) {
           ) : null}
           <DndContext sensors={sensors} onDragStart={(e) => setActiveId(e.active.id)} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" role="list" aria-label="Tableau des tâches">
-              {COLUMNS.map((column) => (
+              {KANBAN_COLUMNS.map((column) => (
                 <Column key={column.id} column={column} tasks={byColumn[column.id]} canWrite={canWrite} {...cardProps} />
               ))}
             </div>
-            <DragOverlay>{active ? <TaskCard task={active} canWrite={canWriteTask(active)} overlay /> : null}</DragOverlay>
+            <DragOverlay>{active ? <TaskCard task={active} canWrite={canWriteTask(active)} overlay {...cardProps} /> : null}</DragOverlay>
           </DndContext>
+
+          {otherTasks.length > 0 ? (
+            <details className="sui-kanban-others" data-testid="kanban-other-statuses">
+              <summary>
+                Autres statuts ({otherTasks.length}) — tâches annulées ou états sans colonne
+              </summary>
+              <p className="sui-kanban-others__hint">
+                Ces tâches ne sont pas perdues. Le menu « Statut » permet de rouvrir une tâche annulée quand vous en avez le droit.
+              </p>
+              <div className="sui-kanban-others__grid" role="list" aria-label="Tâches hors colonnes">
+                {otherTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    canWrite={canWriteTask(task)}
+                    {...cardProps}
+                  />
+                ))}
+              </div>
+            </details>
+          ) : null}
           <Pagination meta={tasks.meta} onPageChange={setTaskPage} loading={tasks.loading} />
         </>
       ) : null}
@@ -355,25 +421,63 @@ function Column({ column, tasks, canWrite, canWriteTask, ...cardProps }) {
 }
 
 function DraggableTask({ task, canWrite, ...cardProps }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, disabled: !canWrite });
+  const statusBusyIds = cardProps.statusBusyIds ?? EMPTY_IDS;
+  const statusBusy = statusBusyIds.includes(task.id);
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, disabled: !canWrite || statusBusy });
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform) }} className={isDragging ? "opacity-40" : ""} {...attributes} {...listeners}>
-      <TaskCard task={task} canWrite={canWrite} {...cardProps} />
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform) }} className={isDragging ? "opacity-40" : ""}>
+      <TaskCard
+        task={task}
+        canWrite={canWrite}
+        dragHandleProps={canWrite ? { ...attributes, ...listeners } : null}
+        {...cardProps}
+      />
     </div>
   );
 }
 
-function TaskCard({ task, canWrite = false, overlay = false, canAssign = false, canDeleteTask = false, people = null, onAssign, onChanged, busyId, highlight }) {
+function TaskCard({
+  task,
+  canWrite = false,
+  overlay = false,
+  canAssign = false,
+  canDeleteTask = false,
+  people = null,
+  onAssign,
+  onStatusChange,
+  onChanged,
+  statusBusyIds = EMPTY_IDS,
+  busyId,
+  highlight,
+  dragHandleProps = null,
+}) {
   const closed = isClosedStatus(task.status);
   const due = !closed && task.dueDate ? dueBucket(task) : null;
+  const statusBusy = statusBusyIds.includes(task.id);
+  const statusOptions = kanbanStatusOptions(task, canWrite);
+  const hasStatusTransitions = statusOptions.length > 1;
   return (
     <article
       id={`kanban-${task.id}`}
-      className={`sui-kcard rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3.5 shadow-xs transition hover:border-[rgba(30,134,224,0.28)] ${overlay ? "rotate-1 shadow-lg" : ""} ${canWrite ? "cursor-grab touch-none" : "cursor-default"}${highlight === task.id ? " is-focused" : ""}`}
-      aria-roledescription={canWrite ? "tâche déplaçable" : undefined}
+      className={`sui-kcard rounded-2xl border border-[var(--comexa-border-soft)] bg-[var(--comexa-surface)] p-3.5 shadow-xs transition hover:border-[rgba(30,134,224,0.28)] ${overlay ? "rotate-1 shadow-lg" : ""} cursor-default${highlight === task.id ? " is-focused" : ""}`}
+      aria-roledescription={dragHandleProps ? "tâche déplaçable" : undefined}
+      aria-busy={statusBusy || undefined}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</p>
+        <div className="flex min-w-0 items-start gap-2">
+          {dragHandleProps && !overlay ? (
+            <button
+              type="button"
+              className="sui-kcard__drag"
+              data-testid="task-drag-handle"
+              {...dragHandleProps}
+              aria-label={`Déplacer la tâche ${task.title} au clavier ou avec la poignée`}
+            >
+              <GripVertical size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+          ) : null}
+          <p className="min-w-0 text-[14px] font-semibold text-[var(--comexa-ink)]">{task.title}</p>
+        </div>
         {!overlay ? (
           <RecordActions
             resource="/tasks"
@@ -423,6 +527,35 @@ function TaskCard({ task, canWrite = false, overlay = false, canAssign = false, 
           </span>
         ) : null}
       </div>
+
+      {!overlay ? (
+        <div className="sui-kcard__status" data-testid="task-status-control">
+          <label className="sui-kcard__status-label" htmlFor={`task-status-${task.id}`}>Statut</label>
+          {canWrite ? (
+            <select
+              id={`task-status-${task.id}`}
+              data-testid="task-status-select"
+              data-task-id={task.id}
+              className={`${selectClass} sui-kcard__status-select`}
+              value={task.status}
+              disabled={statusBusy || !hasStatusTransitions}
+              aria-label={`Changer le statut de la tâche ${task.title}`}
+              onChange={(event) => onStatusChange?.(task, event.target.value)}
+            >
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}{option.current ? " (actuel)" : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="sui-kcard__status-badge" data-testid="task-status-readonly">
+              {kanbanStatusLabel(task.status)}
+            </span>
+          )}
+        </div>
+      ) : null}
+
       <div className="sui-kcard__people">
         {canAssign && !overlay ? (
           <AssigneeSelect variant="chip" short task={task} people={people} onAssign={onAssign} busy={busyId === task.id} />
@@ -482,11 +615,11 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
     <form onSubmit={submit} className="sui-newtask flex flex-wrap items-end gap-3" data-coach-id="taches-create-form">
       {error ? <div className="w-full"><Notice>{error}</Notice></div> : null}
       <Field id="new-task-title" label="Nouvelle tâche">
-        <input id="new-task-title" data-coach-id="taches-create-title" className={`${inputClass} !w-[340px] max-w-full`} maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Maquette de la page d’accueil" />
+        <input id="new-task-title" data-coach-id="taches-create-title" className={`${inputClass} w-full sm:!w-[340px] max-w-full`} maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex. Maquette de la page d’accueil" />
       </Field>
       {canAssign ? (
         <Field id="new-task-assignee" label="Confier à">
-          <select id="new-task-assignee" className={`${selectClass} !w-[220px]`} value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} disabled={people === null}>
+          <select id="new-task-assignee" className={`${selectClass} w-full sm:!w-[220px] max-w-full`} value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} disabled={people === null}>
             <option value="">Personne pour l’instant</option>
             {list.map((person) => (
               <option key={person.id} value={person.id}>
@@ -499,10 +632,10 @@ function NewTask({ projectId, canAssign, people, onCreated }) {
         </Field>
       ) : null}
       <Field id="new-task-due" label="Échéance">
-        <input id="new-task-due" type="date" className={`${inputClass} !w-[170px]`} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <input id="new-task-due" type="date" className={`${inputClass} w-full sm:!w-[170px] max-w-full`} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
       </Field>
       <Field id="new-task-priority" label="Priorité">
-        <select id="new-task-priority" className={`${selectClass} !w-[140px]`} value={priority} onChange={(e) => setPriority(e.target.value)}>
+        <select id="new-task-priority" className={`${selectClass} w-full sm:!w-[140px] max-w-full`} value={priority} onChange={(e) => setPriority(e.target.value)}>
           {Object.entries(PRIORITY_LABEL).map(([value, label]) => (
             <option key={value} value={value}>{label}</option>
           ))}

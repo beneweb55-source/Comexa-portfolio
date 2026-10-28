@@ -14,6 +14,8 @@
     "lint": "eslint \"{src,prisma,scripts}/**/*.ts\" --fix",
     "format": "prettier --write \"{src,prisma,scripts}/**/*.ts\"",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
+    "pretest:invariants": "node tests/helpers/prepare-prisma-stubs-cli.mjs",
+    "test:invariants": "node --import tsx --test tests/business-invariants.test.mjs tests/client-isolation.test.mjs tests/admin-policy.test.mjs tests/notification-routing.test.mjs",
     "openapi:export": "nest build -p tsconfig.export.json && node .export-build/scripts/export-openapi.js",
     "verify:storage": "node --import tsx scripts/verify-storage.ts",
     "smoke:prod": "node --import tsx scripts/smoke-prod.ts",
