@@ -1,6 +1,7 @@
-# Workflow de stabilisation backend — Comexa Portfolio (Mission 7)
+# Workflow de stabilisation backend — Comexa Portfolio (Mission 7.1)
 #
-# Déclencheurs : poussée et pull request sur la branche de mission.
+# Déclencheurs : poussée et pull request sur la branche de travail ainsi que
+# sur la branche principale du dépôt (main, vérifiée comme branche par défaut).
 #
 # Ce workflow vérifie, sur un runner disposant du réseau :
 #  1. la génération du VRAI client Prisma (`prisma generate`) ;
@@ -16,9 +17,9 @@ name: Backend — génération Prisma, compilation NestJS et tests
 
 on:
   push:
-    branches: [arena/c1004795-comexa-portfolio]
+    branches: [arena/c1004795-comexa-portfolio, main]
   pull_request:
-    branches: [arena/c1004795-comexa-portfolio]
+    branches: [arena/c1004795-comexa-portfolio, main]
 
 permissions:
   contents: read
