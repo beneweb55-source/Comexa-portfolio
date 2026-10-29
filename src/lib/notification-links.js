@@ -23,6 +23,11 @@ const ROUTES = {
     [/^\/devis\/([^/?#]+)/, (id) => `/espace-equipe/devis/${id}`],
     [/^\/(?:admin\/)?projets\/([^/?#]+)/, (id) => `/espace-equipe/projets/${id}`],
     [/^\/clients\/([^/?#]+)/, (id) => `/espace-equipe/clients/${id}`],
+    // « Nouvelle piste issue du formulaire de contact » émet une notification
+    // SYSTEM avec /prospects/:id. Sans cette route, le lien retombait sur la
+    // page Notifications au lieu du prospect concerné.
+    [/^\/prospects\/([^/?#]+)/, (id) => `/espace-equipe/prospects/${id}`],
+    [/^\/prospects(?:\/|$)/, () => "/espace-equipe/prospects"],
     // La tâche visée s'ouvre dans son projet, sur le tableau (`?tache=`).
     [/^\/taches\/([^/?#]+)/, (id) => `/espace-equipe/taches?tache=${id}`],
     [/^\/taches(?:\/|$)/, () => "/espace-equipe/taches"],
@@ -41,7 +46,9 @@ const ROUTES = {
     [/^\/projets\/([^/?#]+)/, (id) => `/espace-client/projets/${id}`],
     [/^\/espace\/messages(?:\/|$)/, () => "/espace-client/messagerie"],
     [/^\/espace\/demandes(?:\/|$)/, () => "/espace-client/modifications"],
-    [/^\/factures(?:\/|$)/, () => "/espace-client/tableau-de-bord"],
+    // Il n'existe pas de page de détail facture côté client : la destination
+    // utile est la liste des factures, pas le tableau de bord generique.
+    [/^\/factures(?:\/|$)/, () => "/espace-client/factures"],
   ],
 };
 

@@ -89,6 +89,11 @@ import {
   quoteRecipient,
   remainingDue,
 } from "@/lib/commercial";
+import {
+  QUOTE_FOLLOWUP_WINDOW_DAYS,
+  quoteFollowup,
+  quotesNeedingFollowup,
+} from "@/lib/quote-attention.mjs";
 import { PROJECT_STATUS, TASK_STATUS } from "@/lib/labels";
 import {
   ActivityList,
@@ -586,8 +591,19 @@ export default function ControlCenter() {
         ? "Aucun encaissement ce mois"
         : `+ ${monthPair.value}${monthPair.secondary ? ` · ${monthPair.secondary}` : ""} ce mois`;
 
-  /* Devis ouverts (mêmes critères que le mémo) pour la file de validation. */
+  /* Devis ouverts (mêmes critères que le mémo) pour la file de validation.
+     Attention commerciale : l'API a déjà dérivé `EXPIRED` (Phase 1). On ne
+     recalcule donc pas l'expiration, on signale seulement les devis encore
+     `SENT`/`VIEWED` proches de leur date de validité. Aucune notification ni
+     relance automatique : c'est une incitation à ouvrir le document. */
   const openQuotes = quotesReady ? (quotes.items ?? EMPTY).filter((quote) => OPEN_QUOTE.includes(quote.status)) : EMPTY;
+  const quoteFollowupEntries = quotesNeedingFollowup(openQuotes, now);
+  const quoteFollowupRank = new Map(quoteFollowupEntries.map((entry, index) => [entry.quote?.id, index]));
+  const prioritizedOpenQuotes = [...openQuotes].sort(
+    (left, right) =>
+      (quoteFollowupRank.get(left.id) ?? Number.MAX_SAFE_INTEGER) -
+      (quoteFollowupRank.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+  );
 
   /* Carte fantôme : les points d'attention réellement visibles par ce porteur
      (impayés pour qui lit la facturation, projets en retard, tâches échues). */
@@ -741,28 +757,41 @@ export default function ControlCenter() {
       ],
     })),
 
-    ...openQuotes.slice(0, 3).map((quote) => ({
-      id: `quote-${quote.id}`,
-      cornerIcon: FileText,
-      cornerTone: "lilac",
-      title: quote.subject || quote.reference,
-      titleHref: `/espace-equipe/devis/${quote.id}`,
-      description: quoteRecipient(quote),
-      meta: [
-        { icon: Hash, label: quote.reference },
-        {
-          icon: CalendarClock,
-          label: quote.validUntil ? `Valable jusqu’au ${formatDateOnly(quote.validUntil)}` : "Sans limite de validité",
-        },
-      ],
-      info: moneyIn(quote.total, quote.currency),
-      status: QUOTE_STATUS[quote.status] ?? quote.status,
-      statusIcon: Hourglass,
-      statusTone: quote.status === "VIEWED" ? "yellow" : "plain",
-      actions: [
-        { icon: ArrowRight, label: `Ouvrir le devis ${quote.reference}`, href: `/espace-equipe/devis/${quote.id}`, variant: "dark" },
-      ],
-    })),
+    ...prioritizedOpenQuotes.slice(0, 3).map((quote) => {
+      const followup = quoteFollowup(quote, now);
+      return {
+        id: `quote-${quote.id}`,
+        cornerIcon: followup ? TriangleAlert : FileText,
+        cornerTone: followup ? followup.tone : "lilac",
+        title: quote.subject || quote.reference,
+        titleHref: `/espace-equipe/devis/${quote.id}`,
+        description: quoteRecipient(quote),
+        meta: [
+          { icon: Hash, label: quote.reference },
+          {
+            icon: CalendarClock,
+            label: quote.validUntil ? `Valable jusqu’au ${formatDateOnly(quote.validUntil)}` : "Sans limite de validité",
+          },
+          ...(followup
+            ? [{
+                icon: CalendarClock,
+                label: (
+                  <span data-testid="quote-followup-label" data-days={followup.days}>
+                    À relancer · {followup.label}
+                  </span>
+                ),
+              }]
+            : []),
+        ],
+        info: moneyIn(quote.total, quote.currency),
+        status: QUOTE_STATUS[quote.status] ?? quote.status,
+        statusIcon: followup ? TriangleAlert : Hourglass,
+        statusTone: followup ? followup.tone : (quote.status === "VIEWED" ? "yellow" : "plain"),
+        actions: [
+          { icon: ArrowRight, label: `Ouvrir le devis ${quote.reference}`, href: `/espace-equipe/devis/${quote.id}`, variant: "dark" },
+        ],
+      };
+    }),
 
     ...computed.dueSoon.slice(0, 3).map((entry) => ({
       id: `due-${entry.id}`,
@@ -894,6 +923,20 @@ export default function ControlCenter() {
             </Button>
           </div>
         </SectionHead>
+
+        {quoteFollowupEntries.length > 0 ? (
+          <div className="sui-queue-followup" data-testid="quote-followup-banner">
+            <Alert icon={CalendarClock}>
+              {quoteFollowupEntries.length > 1
+                ? `${quoteFollowupEntries.length} devis envoyés arrivent`
+                : "1 devis envoyé arrive"} à échéance dans les {QUOTE_FOLLOWUP_WINDOW_DAYS} prochains jours.{" "}
+              <Link className="sui-link" href={`/espace-equipe/devis/${quoteFollowupEntries[0].quote.id}`}>
+                Ouvrir le plus urgent
+              </Link>{" "}
+              pour décider d’une relance manuelle — aucune relance n’est envoyée automatiquement.
+            </Alert>
+          </div>
+        ) : null}
 
         {!projectsDataReady && projects.loading ? (
           <p className="sui-card__desc">Chargement des éléments à suivre…</p>

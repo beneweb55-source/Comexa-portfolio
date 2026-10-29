@@ -1,0 +1,88 @@
+# Workflow de stabilisation backend — Comexa Portfolio (Mission 7.1)
+#
+# Déclencheurs : poussée et pull request sur la branche de travail ainsi que
+# sur la branche principale du dépôt (main, vérifiée comme branche par défaut).
+#
+# Ce workflow vérifie, sur un runner disposant du réseau :
+#  1. la génération du VRAI client Prisma (`prisma generate`) ;
+#  2. la compilation réelle de NestJS (`nest build`) ;
+#  3. les tests backend avec le vrai client généré (pas de stubs en production) ;
+#  4. les vérifications de qualité frontend (lint, build Next.js, tests contrat).
+#
+# Il échoue si la génération Prisma ou la compilation NestJS échoue. Les stubs de
+# test hors ligne ne sont JAMAIS utilisés pour remplacer le client Prisma dans
+# l'étape de build.
+
+name: Backend — génération Prisma, compilation NestJS et tests
+
+on:
+  push:
+    branches: [arena/c1004795-comexa-portfolio, main]
+  pull_request:
+    branches: [arena/c1004795-comexa-portfolio, main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Validation backend et frontend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Récupération des sources
+        uses: actions/checkout@v7
+
+      - name: Node.js 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            package-lock.json
+
+      - name: Dépendances backend (lockfile respecté)
+        run: npm ci --ignore-scripts
+
+      - name: Variables d'environnement de test (valeurs non sensibles)
+        run: |
+          echo "DATABASE_URL=postgresql://comexa:comexa@localhost:5432/comexa_test" >> $GITHUB_ENV
+          echo "DIRECT_URL=postgresql://comexa:comexa@localhost:5432/comexa_test" >> $GITHUB_ENV
+
+      - name: Génération du client Prisma (vrai client, requiert le réseau)
+        run: npm run prisma:generate
+
+      - name: Vérifier la présence des fichiers générés
+        run: |
+          test -f src/generated/prisma/client.ts || { echo "ERREUR : client.ts absent après prisma generate"; exit 1; }
+          test -f src/generated/prisma/enums.ts || { echo "ERREUR : enums.ts absent après prisma generate"; exit 1; }
+
+      - name: Compilation réelle de NestJS (nest build)
+        run: npm run build
+
+      - name: Tests backend (vrai client Prisma généré, pas de stubs)
+        run: npm run test:invariants
+
+      - name: ESLint backend (vérification, sans --fix)
+        run: npx eslint "{src,prisma,scripts}/**/*.ts"
+
+      - name: Dépendances frontend (racine)
+        working-directory: .
+        run: npm ci --ignore-scripts
+
+      - name: ESLint frontend
+        working-directory: .
+        run: npm run lint
+
+      - name: Build Next.js
+        working-directory: .
+        run: npm run build
+
+      - name: Tests frontend et contrat API
+        working-directory: .
+        run: |
+          node --test tests/contract.test.mjs
+          node --import ./tests/register-loader.mjs --test tests/comexa-space.test.mjs tests/agent-chat-route.case.mjs

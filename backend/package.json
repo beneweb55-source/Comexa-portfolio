@@ -14,6 +14,7 @@
     "lint": "eslint \"{src,prisma,scripts}/**/*.ts\" --fix",
     "format": "prettier --write \"{src,prisma,scripts}/**/*.ts\"",
     "typecheck:scripts": "tsc -p tsconfig.scripts.json",
+    "test:invariants": "node tests/helpers/run-invariants.mjs",
     "openapi:export": "nest build -p tsconfig.export.json && node .export-build/scripts/export-openapi.js",
     "verify:storage": "node --import tsx scripts/verify-storage.ts",
     "smoke:prod": "node --import tsx scripts/smoke-prod.ts",

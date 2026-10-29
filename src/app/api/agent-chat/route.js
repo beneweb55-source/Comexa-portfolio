@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isSafeAgentWebhookUrl } from "../../../lib/admin-diagnostics.mjs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,6 +12,13 @@ export const runtime = "nodejs";
  *  2. transmettre au workflow n8n le JWT de session Comexa du membre connecté,
  *     afin que l'agent agisse avec SES droits (via l'API Comexa) et non avec un
  *     jeton `cxi_` générique.
+ *
+ * ATTENTION : ce mode « session JWT » est un contrat historique encore actif.
+ * Il reste trop large : qui possede le JWT peut agir avec tous les droits du
+ * membre jusqu'a son expiration. La correction definitive exige un jeton de
+ * delegation court et limite cote backend + une migration du workflow n8n
+ * externe. En attendant, on refuse au minimum tout transport non chiffre :
+ * envoyer ce secret vers un webhook HTTP externe serait une fuite certaine.
  *
  * Un JWT de session commence par `eyJ` (en-tête JSON base64url) ; un jeton
  * d'intégration commence par `cxi_`. On refuse formellement ce dernier pour ne
@@ -42,6 +50,13 @@ export async function POST(request) {
     );
   }
 
+  if (!isSafeAgentWebhookUrl(webhookUrl)) {
+    return NextResponse.json(
+      { success: false, error: { code: "AGENT_WEBHOOK_INSECURE", message: "Le webhook de l'assistant doit utiliser HTTPS. Aucun jeton n'a été transmis." } },
+      { status: 503 },
+    );
+  }
+
   const jwt = extractBearer(request);
   if (!jwt) {
     return NextResponse.json(
@@ -55,6 +70,15 @@ export async function POST(request) {
     return NextResponse.json(
       { success: false, error: { code: "FORBIDDEN", message: "Les jetons d'intégration cxi_ ne sont pas autorisés sur cette route." } },
       { status: 403 },
+    );
+  }
+
+  // Un JWT de session Comexa est un JWS compact : il commence par eyJ. On ne
+  // transmet pas une valeur arbitraire fournie dans un en-tete au webhook.
+  if (!/^eyJ[A-Za-z0-9_-]+\./.test(jwt)) {
+    return NextResponse.json(
+      { success: false, error: { code: "INVALID_SESSION_TOKEN", message: "Jeton de session invalide." } },
+      { status: 401 },
     );
   }
 

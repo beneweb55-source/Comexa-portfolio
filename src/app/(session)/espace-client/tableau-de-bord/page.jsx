@@ -1,55 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, BarChart3, FileText, FolderKanban, MessageSquare, ShoppingCart, Wrench } from "lucide-react";
-import { useObject } from "@/lib/use-object";
-import { DataView } from "@/components/workspace/DataView";
-import { Button } from "@/components/softui/primitives";
+import { ArrowUpRight, FileText, FolderKanban, MessageSquare, ReceiptText, ShoppingCart, Wrench } from "lucide-react";
 import { Panel } from "@/components/softui/panels";
-import { Empty, Notice, SkeletonList } from "@/components/workspace/ui";
 import CurrencyScopeToggle from "@/components/softui/CurrencyScopeToggle";
+import ClientFocusBoard from "@/components/client/ClientFocusBoard";
+import { useClientPortalData } from "@/components/client/useClientPortalData";
 
 /**
- * Tableau de bord de l'espace client.
- *
- * Habillage : design system « soft UI pastel dans une coque noire », le même
- * que le tableau de bord de Comexa Space — raccourcis en pilules, panneaux
- * blancs très arrondis, un seul bouton noir par action principale.
+ * Tableau de bord client : la synthèse en langage métier remplace l'ancien
+ * `DataView` générique. `DataView` reste disponible pour les rapports internes ;
+ * il n'est plus utilise ici, car un client n'a pas à lire des clés JSON.
  */
 export default function TableauDeBordClientPage() {
-  const dashboard = useObject("/dashboard/client");
-  const counters = dashboard.data?.counters ?? dashboard.data ?? {};
+  const focus = useClientPortalData();
 
   return (
     <div className="flex flex-col gap-6">
-      {dashboard.error ? <Notice>{dashboard.error}</Notice> : null}
-
-      {/* Raccourcis : les trois choses qu'un client vient faire ici. */}
-      <Panel className="sui-panel--toolbar">
-        <div className="sui-chat__filters">
-          <Link href="/espace-client/commander" className="sui-btn sui-btn--dark">
-            <ShoppingCart size={16} strokeWidth={1.9} aria-hidden="true" /> Commander un pack
-          </Link>
-          <Link href="/espace-client/modifications" className="sui-btn">
-            <Wrench size={16} strokeWidth={1.9} aria-hidden="true" /> Demander une modification
-          </Link>
-          <Link href="/espace-client/messagerie" className="sui-btn">
-            <MessageSquare size={16} strokeWidth={1.9} aria-hidden="true" /> Contacter l’équipe
-          </Link>
-        </div>
-        <Link href="/espace-client" className="sui-btn sui-btn--ghost">
-          Vue d’ensemble complète <ArrowUpRight size={16} strokeWidth={1.9} aria-hidden="true" />
-        </Link>
-      </Panel>
+      <ClientFocusBoard model={focus.model} loading={focus.loading} errors={focus.errors} compact />
 
       <CurrencyScopeToggle label="Devise de mes montants" />
 
-      <Panel title="Indicateurs de votre compte" subtitle="Synthèse en temps réel des données de votre espace client.">
-        {dashboard.loading && !dashboard.data ? <SkeletonList rows={3} /> : null}
-        {!dashboard.loading && !dashboard.error && !dashboard.data ? (
-          <Empty icon={BarChart3}>Aucune donnée disponible pour le moment.</Empty>
-        ) : null}
-        {dashboard.data ? <DataView value={counters} /> : null}
+      <Panel
+        title="Accéder à toutes vos informations"
+        subtitle="Chaque lien ouvre la rubrique où l'action peut réellement être effectuée."
+      >
+        <div className="client-dashboard-links">
+          <Link href="/espace-client#mes-projets" className="client-focus__link"><FolderKanban size={16} aria-hidden="true" /> Mes projets</Link>
+          <Link href="/espace-client/factures" className="client-focus__link"><ReceiptText size={16} aria-hidden="true" /> Mes factures</Link>
+          <Link href="/espace-client/modifications" className="client-focus__link"><Wrench size={16} aria-hidden="true" /> Mes demandes</Link>
+          <Link href="/espace-client/messagerie" className="client-focus__link"><MessageSquare size={16} aria-hidden="true" /> Messagerie</Link>
+          <Link href="/espace-client/commander" className="client-focus__link"><ShoppingCart size={16} aria-hidden="true" /> Commander</Link>
+          <Link href="/espace-client#mes-devis" className="client-focus__link"><FileText size={16} aria-hidden="true" /> Mes devis</Link>
+        </div>
+        <Link href="/espace-client" className="client-focus__link client-dashboard-links__all">
+          Ouvrir la vue d’ensemble complète <ArrowUpRight size={15} aria-hidden="true" />
+        </Link>
       </Panel>
     </div>
   );

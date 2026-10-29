@@ -295,7 +295,11 @@ export class MilestonesService {
         await this.notifications.notify(
           before.project.managerId,
           {
-            type: NotificationType.SYSTEM,
+            // Le type porte le sens de l'evenement : `SYSTEM` faisait tomber
+            // l'annonce d'un jalon atteint dans le fourre-tout, alors que
+            // `NotificationType.MILESTONE_REACHED` existe et est deja mappe
+            // cote frontend (filtres, icone, lien vers le projet).
+            type: NotificationType.MILESTONE_REACHED,
             title: `Jalon atteint : ${before.title}`,
             body: `Projet « ${before.project.name} »`,
             link: `/projets/${before.projectId}`,

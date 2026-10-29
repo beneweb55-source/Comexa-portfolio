@@ -46,8 +46,12 @@ import type {
 import {
   canEditQuote,
   canSendQuote,
+  effectiveQuoteStatus,
+  isQuoteExpired,
   quoteDecisionBlocker,
   quoteDecisionMessage,
+  quoteExpiredBefore,
+  withEffectiveQuoteStatus,
 } from './quote-state.js';
 
 /**
@@ -172,22 +176,41 @@ export class QuotesService {
     const ownClientId = clientPerimeter(policy, 'quote', 'read');
     const search = query.search?.trim();
 
+    const now = new Date();
+    // `AND` et non `OR` en racine : la recherche ET le filtre de statut doivent
+    // tenir ensemble. Le filtre « Expirés » porte sur les MEMES lignes que
+    // `effectiveQuoteStatus` presente comme expirees (statut derive, pas ecrit).
+    const conditions: Prisma.QuoteWhereInput[] = [];
+    if (query.status === QuoteStatus.EXPIRED) {
+      conditions.push({
+        OR: [
+          { status: QuoteStatus.EXPIRED },
+          {
+            status: { in: [QuoteStatus.SENT, QuoteStatus.VIEWED] },
+            validUntil: { lt: quoteExpiredBefore(now) },
+          },
+        ],
+      });
+    } else if (query.status) {
+      conditions.push({ status: query.status });
+    }
+    if (search) {
+      conditions.push({
+        OR: [
+          { reference: { contains: search, mode: 'insensitive' } },
+          { subject: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
     const where: Prisma.QuoteWhereInput = {
       deletedAt: null,
       // Un client ne voit jamais un brouillon : le devis ne lui a pas été envoyé.
       ...(ownClientId ? { clientId: ownClientId, NOT: { status: 'DRAFT' } } : {}),
       ...(!ownClientId && query.clientId ? { clientId: query.clientId } : {}),
       ...(query.prospectId ? { prospectId: query.prospectId } : {}),
-      ...(query.status ? { status: query.status } : {}),
       ...(query.currency ? { currency: query.currency.toUpperCase() } : {}),
-      ...(search
-        ? {
-            OR: [
-              { reference: { contains: search, mode: 'insensitive' } },
-              { subject: { contains: search, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(conditions.length ? { AND: conditions } : {}),
     };
 
     const pagination = resolvePagination(query);
@@ -206,7 +229,11 @@ export class QuotesService {
       this.prisma.quote.count({ where }),
     ]);
 
-    return paginated(items, total, pagination);
+    return paginated(
+      items.map((item) => withEffectiveQuoteStatus(item, now)),
+      total,
+      pagination,
+    );
   }
 
   /** Un devis, ou 404 — jamais 403 : une ligne invisible n'existe pas. */
@@ -226,7 +253,7 @@ export class QuotesService {
       throw AppException.notFound('QUOTE_NOT_FOUND', "Ce devis n'existe pas.");
     }
 
-    return quote;
+    return withEffectiveQuoteStatus(quote, new Date());
   }
 
   /**
@@ -525,6 +552,16 @@ export class QuotesService {
         );
       }
 
+      // Envoyer un devis deja perime creerait un document que le client ne peut
+      // pas accepter : il serait `SENT` en base, `EXPIRED` a l'ecran, et 422 a
+      // la decision. On exige une date de validite encore ouverte (jour inclus).
+      if (isQuoteExpired(quote.validUntil, new Date())) {
+        throw AppException.unprocessable(
+          'QUOTE_VALIDITY_PAST',
+          'La date de validité de ce devis est déjà passée : corrigez-la avant de l’envoyer.',
+        );
+      }
+
       if (quote.clientId === null && quote.prospectId === null) {
         throw AppException.unprocessable(
           'QUOTE_TARGET_INVALID',
@@ -663,10 +700,18 @@ export class QuotesService {
       throw AppException.notFound('QUOTE_NOT_FOUND', "Ce devis n'existe pas.");
     }
 
+    const now = new Date();
+    // Un devis perime ne redevient pas « consulte » parce que le client ouvre la
+    // page : l'ecran doit lire EXPIRED, et la premiere consultation n'a pas de
+    // sens sur une offre qui n'est plus valable. La ligne en base reste SENT.
+    if (effectiveQuoteStatus(quote.status, quote.validUntil, now) === QuoteStatus.EXPIRED) {
+      return withEffectiveQuoteStatus(quote, now);
+    }
+
     if (quote.status === QuoteStatus.VIEWED) {
       // Idempotent : un client qui recharge la page ne doit pas provoquer
       // d'erreur, et la date de premiere consultation ne doit pas etre ecrasee.
-      return quote;
+      return withEffectiveQuoteStatus(quote, now);
     }
 
     if (quote.status !== QuoteStatus.SENT) {
@@ -676,11 +721,12 @@ export class QuotesService {
       );
     }
 
-    return this.prisma.quote.update({
+    const updated = await this.prisma.quote.update({
       where: { id: quote.id },
-      data: { status: QuoteStatus.VIEWED, viewedAt: new Date() },
+      data: { status: QuoteStatus.VIEWED, viewedAt: now },
       include: QUOTE_INCLUDE,
     });
+    return withEffectiveQuoteStatus(updated, now);
   }
 
   /**
@@ -1161,17 +1207,18 @@ async function assertTargetExists(
 /**
  * Un devis dont la date de validite est passee ne se decide plus.
  *
- * Le statut `EXPIRED` est pose par une tache planifiee, pas par ce service : un
- * devis reste donc `SENT` apres sa date limite jusqu'au prochain passage. Sans ce
- * controle, un client pourrait accepter en decembre un devis valable jusqu'en
- * septembre, et l'agence decouvrirait l'engagement apres coup.
+ * AUCUNE TACHE PLANIFIEE N'ECRIT `EXPIRED` (ce que pretendait l'ancien
+ * commentaire) : ce service le DERIVE de `validUntil` a la lecture, avec la
+ * meme regle que `effectiveQuoteStatus`. La decision doit appliquer exactement
+ * cette regle, sinon un ecran qui affiche « Expire » proposerait encore
+ * d'accepter. Le jour de validite est INCLUS, comme a l'ecran.
  */
 function assertNotExpired(validUntil: Date | null, status: QuoteStatus): void {
   if (status === QuoteStatus.EXPIRED) {
     throw AppException.conflict('QUOTE_EXPIRED', quoteDecisionMessage('QUOTE_EXPIRED'));
   }
 
-  if (validUntil !== null && validUntil.getTime() < Date.now()) {
+  if (isQuoteExpired(validUntil, new Date())) {
     throw AppException.conflict(
       'QUOTE_EXPIRED',
       'Ce devis a expire : sa date de validite est passee. Etablissez un nouveau devis.',

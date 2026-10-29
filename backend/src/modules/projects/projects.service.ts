@@ -21,6 +21,7 @@ import {
   UpdateProjectStatusDto,
 } from './dto/project.dto.js';
 import { ProjectAccessService } from './project-access.service.js';
+import { projectProgressFromTaskStatuses } from './project-progress.js';
 import {
   PROJECT_READ_ORDER,
   PROJECT_WRITE_ORDER,
@@ -396,6 +397,20 @@ export class ProjectsService {
     }
 
     const reachingCompletion = dto.status === ProjectStatus.COMPLETED;
+    // Rouvrir un projet termine laissait son avancement declare a 100 % : le
+    // statut redevenait `IN_PROGRESS` mais la barre, le tableau de bord et le
+    // client continuaient de lire « 100 % ». On recalcule depuis les taches au
+    // moment precis ou la declaration cesse d'etre vraie. Une valeur explicite
+    // dans le DTO garde la priorite (correction manuelle d'un gestionnaire).
+    const leavingCompletion = before.status === ProjectStatus.COMPLETED && !reachingCompletion;
+    let reopenedProgress: number | null = null;
+    if (leavingCompletion && dto.progressPercent === undefined) {
+      const tasks = await this.prisma.task.findMany({
+        where: { projectId, deletedAt: null },
+        select: { status: true },
+      });
+      reopenedProgress = projectProgressFromTaskStatuses(tasks.map((task) => task.status));
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.project.update({
@@ -403,6 +418,9 @@ export class ProjectsService {
         data: {
           status: dto.status,
           ...(dto.health === undefined ? {} : { health: dto.health }),
+          // Ordre voulu : recalcul a la reouverture < valeur explicite du DTO <
+          // 100 % impose par la cloture.
+          ...(reopenedProgress === null ? {} : { progressPercent: reopenedProgress }),
           ...(dto.progressPercent === undefined ? {} : { progressPercent: dto.progressPercent }),
           // Quitter `COMPLETED` efface la date : un projet rouvert n'est plus
           // termine, et garder la date ferait croire a un retour en arriere.

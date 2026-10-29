@@ -8,7 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "test:onboarding": "npm run build --prefix backend && node --test tests/onboarding.test.mjs backend/tests/document-deletion.test.mjs backend/tests/onboarding.database.test.mjs",
-    "test:onboarding:browser": "node tests/onboarding.browser.mjs"
+    "test:onboarding:browser": "node tests/onboarding.browser.mjs",
+    "test:invariants": "node --test tests/*.test.mjs && npm run test:invariants --prefix backend",
+    "test:comexa": "node --import ./tests/register-loader.mjs --test tests/comexa-space.test.mjs tests/agent-chat-route.case.mjs",
+    "test:responsive:personal": "node tests/responsive-personal.mjs",
+    "test:responsive:team": "node tests/responsive-team.mjs",
+    "test:responsive:client": "node tests/responsive-client.mjs",
+    "test:responsive:comexa": "node tests/responsive-comexa.mjs",
+    "test:responsive:notifications": "node tests/responsive-notifications.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

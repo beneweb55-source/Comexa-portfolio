@@ -16,6 +16,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { messageOf } from "@/lib/api";
 import { can } from "@/lib/access";
+import { settingsImpactForTab } from "@/lib/admin-diagnostics.mjs";
 import { useAuth } from "@/lib/session";
 import { useTimePreferences } from "@/lib/use-time-preferences";
 import {
@@ -63,6 +64,22 @@ const FIELDS = [
   },
 ];
 const KEY_PATTERN = /^[a-z0-9]+(?:[._-][a-z0-9]+)*$/;
+
+/** Dit ouvertement ce que le reglage fait reellement dans le code courant. */
+function SettingsImpactNotice({ tab }) {
+  const impact = settingsImpactForTab(tab);
+  if (!impact) return null;
+  return (
+    <div
+      className={`cx-settings-impact cx-settings-impact--${impact.tone}`}
+      role="status"
+      data-testid="settings-impact"
+    >
+      <strong>{impact.title}</strong>
+      <p>{impact.body}</p>
+    </div>
+  );
+}
 
 export default function ParametresPage() {
   const { request, user } = useAuth();
@@ -240,6 +257,7 @@ export default function ParametresPage() {
         </nav>
         <div className="cx-settings__content">
           {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
+          <SettingsImpactNotice tab={tab} />
           {tab === "devises" ? <CurrencyPanel /> : null}
           {tab === "taux" ? <ExchangeRatePanel /> : null}
           {tab === "repartitions" ? <DistributionPanel /> : null}

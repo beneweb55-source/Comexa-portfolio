@@ -23,7 +23,7 @@
  */
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { BellOff, Check, CheckCheck, Inbox, Trash2 } from "lucide-react";
 import { formatDate } from "@/lib/api";
@@ -86,6 +86,21 @@ export default function NotificationsPanel() {
   }, [reloadNotifications, reloadUnreadCount]);
   const action = useAction(refreshLists);
 
+  // `useAction` expose `busy` via un etat React : deux clics dans le meme tick
+  // peuvent encore lancer deux POST avant le premier rendu. Ce garde par cle
+  // rend le marquage, la suppression et le « tout lire » strictement unitaires,
+  // sans modifier le hook partage utilise par les autres ecrans.
+  const pending = useRef(new Set());
+  async function runOnce(key, requestPath, options, successMessage) {
+    if (pending.current.has(key)) return null;
+    pending.current.add(key);
+    try {
+      return await action.run(key, requestPath, options, successMessage);
+    } finally {
+      pending.current.delete(key);
+    }
+  }
+
   // `list.items` vaut `null` pendant le chargement puis `[]` : c'est une
   // nouvelle référence à chaque rendu, donc on la stabilise avant de la passer
   // à un `useMemo` — sans quoi le filtre serait recalculé en permanence.
@@ -114,17 +129,17 @@ export default function NotificationsPanel() {
   }, [filtered]);
 
   async function markRead(item) {
-    const result = await action.run(`read:${item.id}`, `/notifications/${item.id}/read`, { method: "POST" }, "");
+    const result = await runOnce(`read:${item.id}`, `/notifications/${item.id}/read`, { method: "POST" }, "");
     if (result !== null && onlyUnread && items.length === 1 && page > 1) setPage(page - 1);
   }
 
   async function remove(item) {
-    const result = await action.run(`delete:${item.id}`, `/notifications/${item.id}`, { method: "DELETE" }, "Notification supprimée.");
+    const result = await runOnce(`delete:${item.id}`, `/notifications/${item.id}`, { method: "DELETE" }, "Notification supprimée.");
     if (result !== null && items.length === 1 && page > 1) setPage(page - 1);
   }
 
   async function readAll() {
-    const result = await action.run("all", "/notifications/read-all", { method: "POST" }, "Toutes les notifications sont lues.");
+    const result = await runOnce("all", "/notifications/read-all", { method: "POST" }, "Toutes les notifications sont lues.");
     if (result !== null && onlyUnread) setPage(1);
   }
 
@@ -132,6 +147,7 @@ export default function NotificationsPanel() {
 
   return (
     <Panel
+      className="cx-notifications"
       title={`Notifications${unread ? ` · ${unread} non lue${unread > 1 ? "s" : ""}` : ""}`}
       action={
         <div className="sui-card__actions">

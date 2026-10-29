@@ -1,16 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, CalendarDays, CircleAlert, FileText, Hash, Plus, Send } from "lucide-react";
+import { ArrowUpRight, CalendarClock, CalendarDays, CircleAlert, FileText, Hash, Plus, Send } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/api";
 import { ALL_CURRENCIES, currencyRank, currencyShortLabel, normalizeCurrency } from "@/lib/currency";
 import { useDisplayCurrency } from "@/lib/use-display-currency";
 import { QUOTE_STATUS, QUOTE_STATUS_TONE, quoteRecipient } from "@/lib/commercial";
+import {
+  QUOTE_FOLLOWUP_WINDOW_DAYS,
+  quoteFollowup,
+  quotesNeedingFollowup,
+} from "@/lib/quote-attention.mjs";
 import { can } from "@/lib/access";
 import { useAuth } from "@/lib/session";
 import { useListing } from "@/lib/use-listing";
-import { Empty, Pagination, SkeletonList, primaryButton } from "@/components/workspace/ui";
+import { Empty, Notice, Pagination, SkeletonList, primaryButton } from "@/components/workspace/ui";
 import { Alert, CurrencyScopeToggle, FilterPills, ItemCard, ItemGrid, RecordActions } from "@/components/softui";
 import { useShellQuery } from "@/components/softui/Shell";
 import QuotePdfActions from "@/components/workspace/invoices/QuotePdfActions";
@@ -29,6 +34,13 @@ export default function DevisEquipePage() {
   const { scope } = useDisplayCurrency();
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const params = new URLSearchParams({ page: String(page), perPage: "50" });
   if (filter) params.set("status", filter);
   if (query.trim()) params.set("search", query.trim());
@@ -36,6 +48,7 @@ export default function DevisEquipePage() {
 
   const quotes = useListing(`/quotes?${params.toString()}`);
   const items = quotes.items ?? [];
+  const followups = quotesNeedingFollowup(items, now);
   const availableCurrencies = [...new Set(items.map((quote) => normalizeCurrency(quote.currency)))].sort(
     (left, right) => currencyRank(left) - currencyRank(right) || left.localeCompare(right),
   );
@@ -43,6 +56,23 @@ export default function DevisEquipePage() {
   return (
     <div className="flex flex-col gap-5">
       {quotes.error ? <Alert icon={CircleAlert}>{quotes.error}</Alert> : null}
+
+      {/* Signal d'ATTENTION, pas un nouveau statut : l'API a déjà dérivé
+          `EXPIRED`. On montre seulement les devis encore envoyés/consultés
+          dont la validité tombe dans les 3 prochains jours. Aucune notification
+          ni relance automatique : le commercial ouvre le devis et décide. */}
+      {followups.length > 0 ? (
+        <div data-testid="quote-followup-banner">
+          <Notice tone="warning">
+            {followups.length > 1 ? `${followups.length} devis envoyés arrivent` : "1 devis envoyé arrive"} à échéance dans les{" "}
+            {QUOTE_FOLLOWUP_WINDOW_DAYS} prochains jours.{" "}
+            <Link className="sui-link" href={`/espace-equipe/devis/${followups[0].quote.id}`}>
+              Ouvrir le plus urgent
+            </Link>{" "}
+            pour décider d’une relance manuelle.
+          </Notice>
+        </div>
+      ) : null}
 
       {/* Pas d'action « Nouveau devis » ici : l'en-tête de la coque affiche déjà
           ce CTA principal (même destination). Le doubler créait deux boutons
@@ -94,20 +124,31 @@ export default function DevisEquipePage() {
           <ItemGrid label="Devis">
             {items.map((quote) => {
               const recipient = quoteRecipient(quote);
+              const followup = quoteFollowup(quote, now);
               return (
                 <ItemCard
                   key={quote.id}
                   cornerIcon={FileText}
-                  cornerTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "lilac"}
+                  cornerTone={followup ? followup.tone : (TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "lilac")}
                   title={quote.subject}
                   description={recipient}
                   meta={[
                     { icon: Hash, label: quote.reference },
                     { icon: CalendarDays, label: `Valable jusqu’au ${formatDate(quote.validUntil)}` },
+                    ...(followup
+                      ? [{
+                          icon: CalendarClock,
+                          label: (
+                            <span data-testid="quote-followup-label" data-days={followup.days}>
+                              À relancer · {followup.label}
+                            </span>
+                          ),
+                        }]
+                      : []),
                   ]}
                   info={formatMoney(quote.total, quote.currency)}
                   status={QUOTE_STATUS[quote.status] ?? quote.status}
-                  statusTone={TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain"}
+                  statusTone={followup ? followup.tone : (TONE_MAP[QUOTE_STATUS_TONE[quote.status]] ?? "plain")}
                   actions={[
                     <RecordActions
                       key={`actions-${quote.id}`}

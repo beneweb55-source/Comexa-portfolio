@@ -304,8 +304,12 @@ export function accessibleSpaces(principal: SpacePrincipal): SpaceId[] {
  *
  *  - personnel : ce qui concerne MON travail (une tâche m'est assignée, une
  *    échéance approche) ;
- *  - équipe    : la vie des projets, du commercial et de la facturation ;
- *  - Comexa    : les messages système de la plateforme.
+ *  - équipe    : la vie des projets, du commercial, de la facturation et les
+ *    événements `SYSTEM` réellement émis aujourd'hui (tâche, projet, prospect,
+ *    demande de modification) ;
+ *  - Comexa    : aucun type dédié n'est émis aujourd'hui. Un futur message
+ *    d'administration devra recevoir son propre type ou une règle explicite,
+ *    plutôt que de transformer tous les événements métier en alertes admin.
  */
 export const NOTIFICATION_TYPES_BY_SPACE: Readonly<Record<SpaceId, readonly string[]>> = {
   personal: ['TASK_ASSIGNED', 'TASK_DUE_SOON'],
@@ -323,8 +327,13 @@ export const NOTIFICATION_TYPES_BY_SPACE: Readonly<Record<SpaceId, readonly stri
     'DOCUMENT_SHARED',
     'MODIFICATION_REQUESTED',
     'CONTACT_REQUEST_RECEIVED',
+    // Tous les producteurs `SYSTEM` actuels décrivent un fait d'équipe :
+    // statut de tâche, ajout à un projet, conversion de prospect, décision
+    // sur une demande. Les afficher dans Comexa Space les coupait de leur
+    // cible de navigation et du suivi quotidien.
+    'SYSTEM',
   ],
-  comexa: ['SYSTEM'],
+  comexa: [],
 };
 
 /** Espace d'un type de notification (les types inconnus vont à l'espace équipe). */

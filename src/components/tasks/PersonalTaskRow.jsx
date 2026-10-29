@@ -159,9 +159,11 @@ function TaskDetail({ id, task, goals, busy, canEditPersonal, canLinkGoals, writ
   }));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const options = writable ? nextStatuses(task) : [];
-  const selectableGoals = (goals ?? []).filter((goal) => goal.status !== "ARCHIVED");
-  // Objectif archivé : il reste affiché (et non « Aucun objectif », qui mentirait).
-  const archivedGoal = task.goal && !selectableGoals.some((goal) => goal.id === task.goal.id) ? task.goal : null;
+  // Le serveur n'accepte de lier une tâche qu'à un objectif ACTIF (ni archivé,
+  // ni atteint). Un objectif déjà lié mais fermé reste AFFICHÉ — « Aucun
+  // objectif » mentirait — sans être proposé comme nouvelle destination.
+  const selectableGoals = (goals ?? []).filter((goal) => goal.status === "ACTIVE");
+  const linkedClosedGoal = task.goal && !selectableGoals.some((goal) => goal.id === task.goal.id) ? task.goal : null;
   const dirty =
     editable &&
     (form.title.trim() !== (task.title ?? "") ||
@@ -197,18 +199,26 @@ function TaskDetail({ id, task, goals, busy, canEditPersonal, canLinkGoals, writ
             <select
               className="sui-input"
               value={task.goal?.id ?? ""}
-              disabled={busy}
+              // Un objectif atteint gele ses taches : le serveur refuserait le
+              // detachement. On l'explique plutot que d'envoyer un 422 certain.
+              disabled={busy || linkedClosedGoal?.status === "ACHIEVED"}
               onChange={(event) => onGoal(task, event.target.value || null)}
             >
               <option value="">Aucun objectif</option>
-              {archivedGoal ? <option value={archivedGoal.id}>{archivedGoal.title} (archivé)</option> : null}
+              {linkedClosedGoal ? (
+                <option value={linkedClosedGoal.id} disabled>
+                  {linkedClosedGoal.title} ({linkedClosedGoal.status === "ARCHIVED" ? "archivé" : "atteint — rouvrez-le"})
+                </option>
+              ) : null}
               {selectableGoals.map((goal) => (
                 <option key={goal.id} value={goal.id}>
                   {goal.title}
-                  {goal.status === "ACHIEVED" ? " (atteint)" : ""}
                 </option>
               ))}
             </select>
+            {linkedClosedGoal?.status === "ACHIEVED" ? (
+              <span className="sui-field__hint">Rouvrez cet objectif avant de détacher une tâche.</span>
+            ) : null}
           </label>
         ) : null}
       </div>
